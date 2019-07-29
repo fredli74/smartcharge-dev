@@ -217,9 +217,10 @@ export abstract class NewVehicleInput {
   minimumLevel!: number;
   @Field(_type => Int)
   maximumLevel!: number;
-  @Field(_type => ID, { nullable: true })
-  providerID?: string;
-  @Field(_type => GraphQLJSONObject, { nullable: true })
+  @Field(_type => GraphQLJSONObject, {
+    nullable: true,
+    description: "Vehicle provider data"
+  })
   providerData?: any;
 }
 

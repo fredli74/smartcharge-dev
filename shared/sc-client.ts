@@ -17,8 +17,6 @@ import {
   NewVehicleInput
 } from "@shared/gql-types";
 
-export class mu extends ApolloClient<any> {}
-
 export class SCClient<TCache> extends ApolloClient<TCache> {
   public account?: Account;
   private token?: string;

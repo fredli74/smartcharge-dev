@@ -2,6 +2,12 @@ const path = require("path");
 const webpack = require("webpack");
 
 module.exports = {
+  devServer: {
+    contentBase: [
+      path.join(__dirname, "app/public"),
+      path.join(__dirname, "public")
+    ]
+  },
   chainWebpack: config => {
     config
       .entry("app")
