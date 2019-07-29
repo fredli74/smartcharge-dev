@@ -1,5 +1,5 @@
 module.exports = {
-  presets: ["@babel/env", "@babel/preset-typescript", "@vue/app"],
+  presets: ["@babel/env", "@babel/preset-typescript"],
   plugins: [
     "babel-plugin-transform-typescript-metadata",
     ["@babel/proposal-decorators", { legacy: true }],
