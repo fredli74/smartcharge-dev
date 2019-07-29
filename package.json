@@ -5,10 +5,16 @@
   "scripts": {
     "serve": "vue-cli-service serve",
     "build": "vue-cli-service build",
-    "lint": "vue-cli-service lint"
+    "lint": "vue-cli-service lint",
+    "_babel": "npx babel --extensions \".ts\" --copy-files --verbose --ignore **/node_modules --config-file=./babel.config.js",
+    "_babel:providers": "npm run _babel -- providers --out-dir dist/providers",
+    "_babel:shared": "npm run _babel -- shared --out-dir dist/shared",
+    "_babel:server": "npm run _babel -- server --out-dir dist/server",
+    "build:server": "npm run _babel:shared && npm run _babel:providers && npm run _babel:server",
+    "start:server": "npm run build:server && node dist/server/server.js"
   },
   "dependencies": {
-    "core-js": "^2.6.5",
+    "@babel/runtime": "^7.5.5",
     "register-service-worker": "^1.6.2",
     "vue": "^2.6.10",
     "vue-class-component": "^7.0.2",
@@ -17,6 +23,9 @@
     "vuetify": "^2.0.2"
   },
   "devDependencies": {
+    "@babel/cli": "^7.5.5",
+    "@babel/core": "^7.5.5",
+    "@babel/preset-typescript": "^7.3.3",
     "@mdi/font": "^3.8.95",
     "@vue/cli-plugin-babel": "^3.9.0",
     "@vue/cli-plugin-eslint": "^3.9.0",
@@ -25,12 +34,21 @@
     "@vue/cli-service": "^3.9.0",
     "@vue/eslint-config-prettier": "^4.0.1",
     "@vue/eslint-config-typescript": "^4.0.0",
+    "apollo-server-express": "^2.7.2",
     "babel-eslint": "^10.0.1",
+    "babel-plugin-transform-typescript-metadata": "^0.2.2",
+    "core-js": "^3.1.4",
+    "cors": "^2.8.5",
     "eslint": "^5.16.0",
     "eslint-plugin-vue": "^5.0.0",
+    "graphql": "^14.4.2",
+    "graphql-type-json": "^0.3.0",
+    "pg-promise": "^9.0.0",
+    "reflect-metadata": "^0.1.13",
     "sass": "^1.18.0",
     "sass-loader": "^7.1.0",
-    "typescript": "^3.4.3",
+    "type-graphql": "^0.17.4",
+    "typescript": "^3.5.3",
     "vue-cli-plugin-vuetify": "^0.6.1",
     "vue-template-compiler": "^2.6.10",
     "vuetify-loader": "^1.2.2"

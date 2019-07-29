@@ -1,0 +1,19 @@
+#### smartcharge.dev installation instructions
+
+### PostgreSQL Server
+## install on windows: 
+# https://www.postgresql.org/download/windows/
+## install on mac: 
+brew install postgresql
+brew services start postgresql
+
+## setup
+# add the server user
+psql postgres -c "CREATE USER scserver WITH LOGIN PASSWORD 'scserverpass'; COMMENT ON ROLE scserver IS 'smartcharge.dev server user';"
+# create the server database (for windows installation, use "en-US" instead of "en_US.utf-8")
+psql postgres -c "CREATE DATABASE smartcharge WITH OWNER scserver ENCODING UTF8 LC_COLLATE 'en_US.utf-8' LC_CTYPE 'en_US.utf-8' TEMPLATE template0;"
+# set our default schema
+psql postgres -c "ALTER ROLE scserver IN DATABASE smartcharge SET search_path TO scserver;"
+# grant?
+# GRANT ALL PRIVILEGES ON DATABASE scserver TO scserver;"
+

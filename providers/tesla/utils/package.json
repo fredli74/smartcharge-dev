@@ -1,0 +1,14 @@
+{
+	"name": "tesla",
+	"version": "1.0.0",
+	"description": "",
+	"main": "tesla_cli.ts",
+	"author": "",
+	"license": "MIT",
+	"dependencies": {
+		"inquirer": "^6.5.0"
+	},
+	"devDependencies": {
+		"@types/inquirer": "^6.0.3"
+	}
+}
