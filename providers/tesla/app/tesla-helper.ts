@@ -1,6 +1,6 @@
 import { IRestToken } from "@shared/restclient";
 import apollo from "@app/plugins/apollo";
-import eventBus from "@app/eventBus";
+import eventBus from "@app/plugins/eventBus";
 
 export interface TeslaNewListEntry {
   name: string;

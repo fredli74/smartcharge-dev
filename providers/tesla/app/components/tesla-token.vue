@@ -2,18 +2,18 @@
   <div class="newtoken">
     <p>Please enter a <b>refresh token</b> to continue</p>
     <v-text-field
-      small
       v-model="refresh_token_input"
+      small
       label="Tesla API refresh token"
       hint="<a href='/teslaToken.html' target='_blank'>Get it here</a>"
       persistent-hint
       box
     ></v-text-field>
     <v-btn
-      @click="newToken"
       color="primary"
       :disabled="!properToken"
       :loading="loading"
+      @click="newToken"
       >continue <v-icon right>arrow_forward</v-icon></v-btn
     >
   </div>
@@ -22,7 +22,7 @@
 <script lang="ts">
 import { Component, Vue } from "vue-property-decorator";
 import apollo from "@app/plugins/apollo";
-import eventBus from "@app/eventBus";
+import eventBus from "@app/plugins/eventBus";
 
 @Component({ components: {} })
 export default class TeslaTokenVue extends Vue {

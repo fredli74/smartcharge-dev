@@ -63,15 +63,15 @@ export class TeslaAgent extends AbstractAgent {
   public static async authenticate(
     email: string,
     password: string
-  ): Promise<RestToken> {
+  ): Promise<IRestToken> {
     try {
-      return await teslaAPI.getToken("/oauth/token?grant_type=password", {
+      return (await teslaAPI.getToken("/oauth/token?grant_type=password", {
         grant_type: "password",
         client_id: config.TESLA_CLIENT_ID,
         client_secret: config.TESLA_CLIENT_SECRET,
         email: email,
         password: password
-      });
+      })) as IRestToken;
     } catch (error) {
       log(
         LogLevel.Debug,
@@ -372,7 +372,9 @@ export class TeslaAgent extends AbstractAgent {
               // We were offline or sleeping
               log(
                 LogLevel.Info,
-                `${data.display_name} is ${data.state} (${job.state.pollstate} -> polling)`
+                `${data.display_name} is ${data.state} (${
+                  job.state.pollstate
+                } -> polling)`
               );
 
               job.state.pollstate = "polling"; // Start polling again
@@ -384,7 +386,9 @@ export class TeslaAgent extends AbstractAgent {
             if (job.state.pollstate !== "offline") {
               log(
                 LogLevel.Info,
-                `${data.display_name} is ${data.state} (${job.state.pollstate} -> offline)`
+                `${data.display_name} is ${data.state} (${
+                  job.state.pollstate
+                } -> offline)`
               );
 
               job.state.pollstate = "offline";
@@ -396,7 +400,9 @@ export class TeslaAgent extends AbstractAgent {
             if (job.state.pollstate !== "asleep") {
               log(
                 LogLevel.Info,
-                `${data.display_name} is ${data.state} (${job.state.pollstate} -> asleep)`
+                `${data.display_name} is ${data.state} (${
+                  job.state.pollstate
+                } -> asleep)`
               );
 
               job.state.pollstate = "asleep";
@@ -507,7 +513,9 @@ export class TeslaAgent extends AbstractAgent {
               ) {
                 log(
                   LogLevel.Info,
-                  `Setting charge limit for ${job.state.data.name} to ${chargeto}%`
+                  `Setting charge limit for ${
+                    job.state.data.name
+                  } to ${chargeto}%`
                 );
                 await TeslaAgent.setChargeLimit(
                   job.data.sid,

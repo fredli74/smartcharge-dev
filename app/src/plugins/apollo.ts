@@ -1,6 +1,10 @@
-import { SCClient } from "./sc-client";
+import Vue from "vue";
+import VueApollo from "vue-apollo";
 import config from "@shared/smartcharge-config.json";
+import { SCClient } from "@shared/sc-client";
 
-const client = new SCClient(config.SERVER_HOST);
+Vue.use(VueApollo);
+
+const client = new SCClient<any>(config.SERVER_HOST);
 
 export default client;

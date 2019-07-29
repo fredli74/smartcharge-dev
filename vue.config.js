@@ -9,7 +9,7 @@ module.exports = {
       .add("./app/src/main.ts")
       .end();
 
-    config.resolve.alias.set("@", path.join(__dirname, "./app/src"));
+    config.resolve.alias.delete("@");
     config.resolve.alias.set("@app", path.resolve("./app/src"));
     config.resolve.alias.set("@shared", path.resolve("./shared"));
     config.resolve.alias.set("@providers", path.resolve("./providers"));

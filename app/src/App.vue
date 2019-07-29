@@ -16,22 +16,22 @@
     </v-app-bar>
 
     <v-content>
-      <HelloWorld/>
+      <HelloWorld />
     </v-content>
   </v-app>
 </template>
 
 <script lang="ts">
-import Vue from 'vue';
-import HelloWorld from './components/HelloWorld.vue';
+import Vue from "vue";
+import HelloWorld from "./components/HelloWorld.vue";
 
 export default Vue.extend({
-  name: 'App',
+  name: "App",
   components: {
-    HelloWorld,
+    HelloWorld
   },
   data: () => ({
     //
-  }),
+  })
 });
 </script>

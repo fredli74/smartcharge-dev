@@ -13,12 +13,12 @@ import { TeslaAgent, teslaAPI } from "../tesla-agent";
 import * as os from "os";
 import * as path from "path";
 import * as fs from "fs";
-import { RestToken } from "@shared/restclient";
+import { IRestToken } from "@shared/restclient";
 
 const tokenFileName = ".teslatoken";
 const tokenFilePath = path.join(os.homedir(), tokenFileName);
 
-function loadToken(): RestToken {
+function loadToken(): IRestToken {
   const data = JSON.parse(fs.readFileSync(tokenFilePath).toString());
   if (
     typeof data.access_token !== "string" ||
@@ -36,11 +36,11 @@ function loadToken(): RestToken {
     expires_at: data.expires_at
   };
 }
-function saveToken(token: RestToken) {
+function saveToken(token: IRestToken) {
   fs.writeFileSync(tokenFilePath, JSON.stringify(token), { mode: 0o600 });
 }
 
-async function updateToken(token: RestToken): Promise<RestToken> {
+async function updateToken(token: IRestToken): Promise<IRestToken> {
   const newToken = await TeslaAgent.maintainToken(token);
   if (newToken) {
     saveToken(newToken);

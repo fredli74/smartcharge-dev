@@ -14,7 +14,8 @@
     "noEmit": true,
     "baseUrl": ".",
     "types": [
-      "webpack-env","vuetify"
+      "webpack-env",
+      "vuetify"
     ],
     "paths": {
       "@app/*": [
@@ -34,14 +35,8 @@
       "scripthost"
     ]
   },
-  "no_include": [
-    "src/**/*.ts",
-    "src/**/*.tsx",
-    "src/**/*.vue",
-    "tests/**/*.ts",
-    "tests/**/*.tsx"
-  ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "dist"
   ]
 }
