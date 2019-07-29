@@ -11,22 +11,20 @@
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "sourceMap": true,
+    "noEmit": true,
     "baseUrl": ".",
     "types": [
       "webpack-env","vuetify"
     ],
     "paths": {
-      "@/*": [
-        "src/*"
-      ],
       "@app/*": [
-        "src/*"
+        "app/src/*"
       ],
       "@shared/*": [
-        "../shared/*"
+        "shared/*"
       ],
       "@providers/*": [
-        "../providers/*"
+        "providers/*"
       ]
     },
     "lib": [
@@ -36,7 +34,7 @@
       "scripthost"
     ]
   },
-  "include": [
+  "no_include": [
     "src/**/*.ts",
     "src/**/*.tsx",
     "src/**/*.vue",
