@@ -1,6 +1,6 @@
 import { IProvider } from ".";
 import { AbstractAgent } from "@shared/agent";
-import { SCClient } from "@shared/gql-client";
+import { SCClient } from "@shared/sc-client";
 
 export interface IProviderAgentInstantiator {
   (scClient: SCClient): AbstractAgent;

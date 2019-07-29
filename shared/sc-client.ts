@@ -1,6 +1,7 @@
 import ApolloClient, { gql } from "apollo-boost";
 import { mergeURL } from "@shared/utils";
 import { GQL_API_PATH } from "@shared/smartcharge-globals";
+import { AuthenticationError } from "apollo-server-core";
 
 import fetch from "cross-fetch";
 
@@ -17,7 +18,7 @@ import {
   NewVehicleInput
 } from "@shared/gql-types";
 
-export class SCClient<TCache> extends ApolloClient<TCache> {
+export class SCClient extends ApolloClient<any> {
   public account?: Account;
   private token?: string;
   constructor(server_url: string) {
@@ -36,11 +37,17 @@ export class SCClient<TCache> extends ApolloClient<TCache> {
               `[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`
             );
             if (message === "Unauthorized") {
+              debugger;
               this.logout();
             }
           });
         }
-        if (networkError) console.log(`[Network error]: ${networkError}`);
+        if (networkError) {
+          if (this.token && (networkError as any).statusCode === 401) {
+            this.logout();
+          }
+          console.log(`[Network error]: ${networkError}`);
+        }
       }
     });
 
@@ -53,45 +60,30 @@ export class SCClient<TCache> extends ApolloClient<TCache> {
 
   static accountFragment = `id name token`;
   public async loginWithPassword(password: string) {
-    try {
-      this.account = (await this.mutate({
-        mutation: gql`
+    this.account = (await this.mutate({
+      mutation: gql`
           mutation LoginWithPassword($password: String!) {
               loginWithPassword(password: $password) { ${
                 SCClient.accountFragment
               } }
           }`,
-        variables: { password }
-      })).data.loginWithPassword;
-      this.token = this.account!.token;
-      localStorage.setItem("token", this.account!.token);
-      return true;
-    } catch (err) {
-      this.logout(); // clear cookies and data
-      return err;
-    }
+      variables: { password }
+    })).data.loginWithPassword;
+    this.token = this.account!.token;
+    localStorage.setItem("token", this.account!.token);
   }
   public async loginWithToken(token: string) {
-    try {
-      this.token = token;
-      this.account = (await this.query({
-        query: gql`{ account { ${SCClient.accountFragment} } }`
-      })).data.account;
-    } catch (err) {
-      this.logout();
-    }
-  }
-  public async init() {
-    const token = localStorage.getItem("token");
-    if (token !== null) {
-      await this.loginWithToken(token);
-    }
+    this.token = token;
+    this.account = (await this.query({
+      query: gql`{ account { ${SCClient.accountFragment} } }`
+    })).data.account;
   }
   public get authorized() {
     return Boolean(this.account);
   }
   public async logout() {
     localStorage.removeItem("token");
+    this.token = undefined;
     this.account = undefined;
     this.cache.reset();
   }
@@ -140,7 +132,6 @@ export class SCClient<TCache> extends ApolloClient<TCache> {
   status
   smartStatus
   updated
-  providerID
   providerData`;
 
   public async newVehicle(input: NewVehicleInput): Promise<Provider> {
@@ -177,7 +168,7 @@ export class SCClient<TCache> extends ApolloClient<TCache> {
     // TODO: should be more flexible, updating just the fields you want
     const mutation = gql`
       mutation UpdateVehicle($input: UpdateVehicleInput!) {
-        updateVehicle(input: $input)
+        updateVehicle(input: $input) { ${SCClient.vehicleFragment}}
       }
     `;
     const result = await this.mutate({

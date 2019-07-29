@@ -14,7 +14,6 @@ import {
   DB_SETUP_TSQL,
   DBVehicleDebug,
   DBAccount,
-  DBProvider,
   DB_VERSION,
   DBLocationData
 } from "./db-schema";
@@ -202,7 +201,6 @@ export class DBInterface {
       status: v.status || "",
       smartStatus: v.smart_status || "",
       updated: v.updated,
-      providerID: v.provider_uuid,
       providerData: v.provider_data
     });
   }
@@ -211,7 +209,6 @@ export class DBInterface {
     name: string | undefined,
     minimum_charge: number,
     maximum_charge: number,
-    provider_uuid?: string,
     provider_data?: any
   ): Promise<DBVehicle> {
     debugger;
@@ -220,7 +217,6 @@ export class DBInterface {
       name,
       minimum_charge,
       maximum_charge,
-      provider_uuid,
       provider_data
     };
     for (const key of Object.keys(fields)) {
@@ -238,7 +234,6 @@ export class DBInterface {
     vehicle_uuid: string,
     account_uuid?: string
   ): Promise<DBVehicle> {
-    debugger;
     const [values, where] = queryHelper([
       [vehicle_uuid, `vehicle_uuid = $1`],
       [account_uuid, `account_uuid = $2`]
@@ -271,10 +266,29 @@ export class DBInterface {
       [record.vehicle_uuid, record.ts, record.category, record.data]
     );
   }
-  public async updateVehicle() {
-    throw "not implemented";
-    // TODO: This should be a function that allows partial vehicle updates, like status, levels, schedule
-    // return this.pg.one(`UPDATE `);
+  public async updateVehicle(
+    vehicle_uuid: string,
+    name: string | undefined,
+    minimum_charge: number | undefined,
+    maximum_charge: number | undefined,
+    provider_data: any | undefined
+  ): Promise<DBVehicle> {
+    debugger;
+    const [values, set] = queryHelper([
+      vehicle_uuid,
+      [name, `name = $2`],
+      [minimum_charge, `minimum_charge = $3`],
+      [maximum_charge, `maximum_charge = $4`],
+      [provider_data, `provider_data = jsonb_strip_nulls(provider_data || $5)`]
+    ]);
+    assert(set.length > 0);
+
+    return this.pg.one(
+      `UPDATE vehicle SET ${set.join(
+        ","
+      )} WHERE vehicle_uuid = $1 RETURNING *;`,
+      values
+    );
   }
   public static VehicleDebugToDBVehicleDebug(
     record: VehicleDebugInput
@@ -285,76 +299,6 @@ export class DBInterface {
       ts: record.timestamp,
       data: record.data
     };
-  }
-
-  public static DBProviderToProvider(a: DBProvider): Provider {
-    return {
-      id: a.provider_uuid,
-      name: a.provider_name,
-      data: a.data
-    };
-  }
-  public async newProvider(
-    account_uuid: string,
-    provider_name: string,
-    data: any
-  ): Promise<DBProvider> {
-    return await this.pg.one(
-      `INSERT INTO provider($[this:name]) VALUES($[this:csv]) RETURNING *;`,
-      { account_uuid, provider_name, data }
-    );
-  }
-
-  public async getProviders(
-    accountUUID: string | undefined,
-    accept: string[] | undefined
-  ): Promise<DBProvider[]> {
-    debugger;
-    const [values, where] = queryHelper([
-      [accountUUID, `account_uuid = $1`],
-      [accept, `provider_name IN ($2:csv)`]
-    ]);
-
-    assert(where.length > 0);
-
-    return this.pg.manyOrNone(
-      `SELECT * FROM provider WHERE ${where.join(" AND ")};`,
-      values
-    );
-  }
-  public async updateProviderData(
-    account_uuid: string | undefined,
-    provider_uuid: string | undefined,
-    provider_name: string | undefined,
-    filter: Object | undefined,
-    data: Object
-  ): Promise<DBProvider[]> {
-    debugger;
-    const [values, where] = queryHelper([
-      [account_uuid, `account_uuid = $1`],
-      [provider_uuid, `provider_uuid = $2`],
-      [provider_name, `provider_name = $3`],
-      [filter, `data @> $4`],
-      data
-    ]);
-
-    assert(where.length > 0);
-
-    return this.pg.manyOrNone(
-      `UPDATE provider SET data = jsonb_strip_nulls(data || $5) WHERE ${where.join(
-        " AND "
-      )} RETURNING *;`,
-      values
-    );
-  }
-  public async setProviderData(
-    providerUUID: string,
-    data: any
-  ): Promise<DBProvider> {
-    return this.pg.one(
-      `UPDATE provider SET data = $2 WHERE provider_uuid = $1 RETURNING *;`,
-      [providerUUID, data]
-    );
   }
 
   public static DBAccountToAccount(a: DBAccount): Account {
@@ -370,11 +314,4 @@ export class DBInterface {
       api_token
     ]);
   }
-
-  /*
-                  `SELECT location_uuid,name,location_micro_latitude::float/1e6 as location_latitude,location_micro_longitude::float/1e6 as location_longitude,radius, ` +
-                  `(SELECT cost::float/1e6 FROM location_data d WHERE d.location_uuid = l.location_uuid AND ts = ` +
-                  `(SELECT max(ts) FROM location_data m WHERE m.location_uuid = l.location_uuid AND ts < NOW())) as cost ` +
-                  `FROM location l WHERE l.location_uuid = $1`, [location_uuid]);
-          }*/
 }

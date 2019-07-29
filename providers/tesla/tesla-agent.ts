@@ -8,12 +8,11 @@
 
 import { strict as assert } from "assert";
 
-import { RestClient, RestToken, IRestToken } from "@shared/restclient";
+import { IRestToken } from "@shared/restclient";
 import * as fs from "fs";
 import { log, logFormat, LogLevel } from "@shared/utils";
 import { AgentJob, AbstractAgent } from "@shared/agent";
-import { PROJECT_AGENT } from "@shared/smartcharge-globals";
-import { SCClient } from "@shared/gql-client";
+import { SCClient } from "@shared/sc-client";
 import {
   ChargeConnection,
   Vehicle,
@@ -24,14 +23,11 @@ import {
 import config from "./tesla-config";
 import provider from "./index";
 import { IProviderAgent } from "@providers/provider-agents";
-
-const APP_NAME = `TeslaAgent`;
-const APP_VERSION = `${provider.version}`;
-const AGENT_NAME = `tesla`;
+import { TeslaAPI } from "./tesla-api";
 
 interface TeslaAgentJob extends AgentJob {
   data: {
-    token: RestToken; // token for API authentication
+    token: IRestToken; // token for API authentication
     sid: string; // tesla vehicle id
     vehicle: string; // smartcharge vehicle uuid
   };
@@ -49,140 +45,10 @@ interface TeslaAgentJob extends AgentJob {
   };
 }
 
-export const teslaAPI = new RestClient({
-  baseURL: config.TESLA_API_BASE_URL,
-  agent: `${PROJECT_AGENT} ${APP_NAME}/${APP_VERSION}`,
-  timeout: 120000
-});
-
 export class TeslaAgent extends AbstractAgent {
-  public name: string = AGENT_NAME;
+  public name: string = provider.name;
   constructor(private scClient: SCClient) {
     super();
-  }
-  public static async authenticate(
-    email: string,
-    password: string
-  ): Promise<IRestToken> {
-    try {
-      return (await teslaAPI.getToken("/oauth/token?grant_type=password", {
-        grant_type: "password",
-        client_id: config.TESLA_CLIENT_ID,
-        client_secret: config.TESLA_CLIENT_SECRET,
-        email: email,
-        password: password
-      })) as IRestToken;
-    } catch (error) {
-      log(
-        LogLevel.Debug,
-        `TeslaAgent.Authenticate error: ${error.data.response}`
-      );
-      throw error;
-    }
-  }
-  public static async maintainToken(
-    token: IRestToken
-  ): Promise<IRestToken | false> {
-    if (typeof token !== "object") {
-      throw new Error("invalid token");
-    }
-    assert(typeof token.access_token === "string");
-    assert(token.access_token.length === 64);
-    assert(typeof token.refresh_token === "string");
-    assert(token.refresh_token!.length === 64);
-    if (RestClient.tokenExpired(token)) {
-      log(LogLevel.Debug, `token needs renewal`);
-      return (await teslaAPI.getToken("/oauth/token?grant_type=refresh_token", {
-        grant_type: "refresh_token",
-        client_id: config.TESLA_CLIENT_ID,
-        client_secret: config.TESLA_CLIENT_SECRET,
-        refresh_token: token.refresh_token
-      })) as IRestToken;
-    } else {
-      return false;
-    }
-  }
-
-  public static async wakeUp(id: string, token: RestToken) {
-    const result = await teslaAPI.post(
-      `/api/1/vehicles/${id}/wake_up`,
-      undefined,
-      token
-    );
-    log(LogLevel.Trace, `wakeUp(${id}) => ${JSON.stringify(result)}`);
-  }
-  public static async setChargeLimit(
-    id: string,
-    limit: number,
-    token: RestToken
-  ) {
-    const result = await teslaAPI.post(
-      `/api/1/vehicles/${id}/command/set_charge_limit`,
-      { percent: limit },
-      token
-    );
-    log(
-      LogLevel.Trace,
-      `setChargeLimit(${id}, ${limit}) => ${JSON.stringify(result)}`
-    );
-  }
-  public static async chargeStart(id: string, token: RestToken) {
-    const result = await teslaAPI.post(
-      `/api/1/vehicles/${id}/command/charge_start`,
-      undefined,
-      token
-    );
-    log(LogLevel.Trace, `chargeStart(${id}) => ${JSON.stringify(result)}`);
-  }
-  public static async chargeStop(id: string, token: RestToken) {
-    const result = await teslaAPI.post(
-      `/api/1/vehicles/${id}/command/charge_stop`,
-      undefined,
-      token
-    );
-    log(LogLevel.Trace, `chargeStop(${id}) => ${JSON.stringify(result)}`);
-  }
-  public static async openChargePort(id: string, token: RestToken) {
-    const result = await teslaAPI.post(
-      `/api/1/vehicles/${id}/command/charge_port_door_open`,
-      undefined,
-      token
-    );
-    log(LogLevel.Trace, `openChargePort(${id}) => ${JSON.stringify(result)}`);
-  }
-  public static async closeChargePort(id: string, token: RestToken) {
-    const result = await teslaAPI.post(
-      `/api/1/vehicles/${id}/command/charge_port_door_close`,
-      undefined,
-      token
-    );
-    log(LogLevel.Trace, `closeChargePort(${id}) => ${JSON.stringify(result)}`);
-  }
-  public static async climateOn(id: string, token: RestToken) {
-    const result = await teslaAPI.post(
-      `/api/1/vehicles/${id}/command/auto_conditioning_start`,
-      undefined,
-      token
-    );
-    log(LogLevel.Trace, `climateOn(${id}) => ${JSON.stringify(result)}`);
-  }
-  public static async climateOff(id: string, token: RestToken) {
-    const result = await teslaAPI.post(
-      `/api/1/vehicles/${id}/command/auto_conditioning_stop`,
-      undefined,
-      token
-    );
-    log(LogLevel.Trace, `climateOff(${id}) => ${JSON.stringify(result)}`);
-  }
-  public static async listVehicle(id: string | undefined, token: RestToken) {
-    if (id === undefined) {
-      return await teslaAPI.get(`/api/1/vehicles`, token);
-    } else {
-      return await teslaAPI.get(`/api/1/vehicles/${id}`, token);
-    }
-  }
-  public static async getVehicleData(id: string, token: RestToken) {
-    return await teslaAPI.get(`/api/1/vehicles/${id}/vehicle_data`, token);
   }
 
   public async setStatus(job: TeslaAgentJob, status: string) {
@@ -204,7 +70,7 @@ export class TeslaAgent extends AbstractAgent {
       // API Token check and update
       let token = job.data.token as IRestToken;
 
-      const newToken = await TeslaAgent.maintainToken(token); // Check if token has expired
+      const newToken = await TeslaAPI.maintainToken(token); // Check if token has expired
       if (newToken) {
         await this.scClient.updateProvider({
           name: provider.name,
@@ -222,7 +88,7 @@ export class TeslaAgent extends AbstractAgent {
       ) {
         // or if we've been trying to sleep for TIME_BEING_TIRED seconds
 
-        const data = (await TeslaAgent.getVehicleData(
+        const data = (await TeslaAPI.getVehicleData(
           job.data.sid,
           job.data.token
         )).response;
@@ -352,10 +218,8 @@ export class TeslaAgent extends AbstractAgent {
         await this.scClient.updateVehicleData(input);
       } else {
         // Poll vehicle list to avoid keeping it awake
-        const data = (await TeslaAgent.listVehicle(
-          job.data.sid,
-          job.data.token
-        )).response;
+        const data = (await TeslaAPI.listVehicle(job.data.sid, job.data.token))
+          .response;
         if (config.AGENT_SAVE_TO_TRACEFILE) {
           const s = logFormat(LogLevel.Trace, data);
           fs.writeFileSync(config.AGENT_TRACE_FILENAME, `${s}\n`, {
@@ -489,7 +353,7 @@ export class TeslaAgent extends AbstractAgent {
             job.state.data.batteryLevel < job.state.data.chargingTo
           ) {
             log(LogLevel.Info, `Stop charging ${job.state.data.name}`);
-            TeslaAgent.chargeStop(job.data.sid, job.data.token);
+            TeslaAPI.chargeStop(job.data.sid, job.data.token);
           } else if (
             shouldCharge !== null &&
             job.state.data.batteryLevel < shouldCharge.level
@@ -499,7 +363,7 @@ export class TeslaAgent extends AbstractAgent {
               job.state.pollstate === "offline"
             ) {
               log(LogLevel.Info, `Waking up ${job.state.data.name}`);
-              await TeslaAgent.wakeUp(job.data.sid, job.data.token);
+              await TeslaAPI.wakeUp(job.data.sid, job.data.token);
             } else {
               if (job.state.pollstate === "tired") {
                 job.state.pollstate = "polling";
@@ -517,7 +381,7 @@ export class TeslaAgent extends AbstractAgent {
                     job.state.data.name
                   } to ${chargeto}%`
                 );
-                await TeslaAgent.setChargeLimit(
+                await TeslaAPI.setChargeLimit(
                   job.data.sid,
                   chargeto,
                   job.data.token
@@ -525,7 +389,7 @@ export class TeslaAgent extends AbstractAgent {
               }
               if (job.state.data.chargingTo === null) {
                 log(LogLevel.Info, `Start charging ${job.state.data.name}`);
-                await TeslaAgent.chargeStart(job.data.sid, job.data.token);
+                await TeslaAPI.chargeStart(job.data.sid, job.data.token);
               }
             }
           }
@@ -540,14 +404,14 @@ export class TeslaAgent extends AbstractAgent {
             job.state.triedOpen === undefined
           ) {
             // if port is closed and we did not try to open it yet
-            await TeslaAgent.openChargePort(job.data.sid, job.data.token);
+            await TeslaAPI.openChargePort(job.data.sid, job.data.token);
             job.state.triedOpen = now;
           } else if (
             now > job.state.parked + 3 * 60e3 && // keep port open for 3 minutes
             job.state.portOpen &&
             job.state.triedOpen !== undefined
           ) {
-            await TeslaAgent.closeChargePort(job.data.sid, job.data.token);
+            await TeslaAPI.closeChargePort(job.data.sid, job.data.token);
             job.state.triedOpen = undefined;
           }
         }
@@ -567,7 +431,7 @@ export class TeslaAgent extends AbstractAgent {
             LogLevel.Info,
             `Starting climate control on ${job.state.data.name}`
           );
-          await TeslaAgent.climateOn(job.data.sid, job.data.token);
+          await TeslaAPI.climateOn(job.data.sid, job.data.token);
         }
       }
     } catch (err) {

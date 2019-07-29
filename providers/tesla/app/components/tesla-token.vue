@@ -1,21 +1,25 @@
 <template>
-  <div class="newtoken">
+  <div>
     <p>Please enter a <b>refresh token</b> to continue</p>
     <v-text-field
       v-model="refresh_token_input"
       small
+      grow
       label="Tesla API refresh token"
       hint="<a href='/teslaToken.html' target='_blank'>Get it here</a>"
       persistent-hint
-      box
+      filled
     ></v-text-field>
-    <v-btn
-      color="primary"
-      :disabled="!properToken"
-      :loading="loading"
-      @click="newToken"
-      >continue <v-icon right>arrow_forward</v-icon></v-btn
-    >
+
+    <v-card-actions class="justify-center">
+      <v-btn
+        color="primary"
+        :disabled="!properToken || loading"
+        :loading="loading"
+        @click="newToken"
+        >continue <v-icon right>mdi-chevron-right</v-icon></v-btn
+      >
+    </v-card-actions>
   </div>
 </template>
 
@@ -39,10 +43,12 @@ export default class TeslaTokenVue extends Vue {
     console.debug(this.refresh_token_input);
     return (
       this.refresh_token_input !== undefined &&
-      this.refresh_token_input.match(/[0-9a-f]{64}/) !== null
+      this.refresh_token_input.match(/^[0-9a-f]{64}$/) !== null
     );
   }
   async newToken() {
+    eventBus.$emit("ALERT_CLEAR");
+    this.loading = true;
     try {
       const token = await apollo.providerMutate("tesla", {
         mutation: "refreshToken",
@@ -50,8 +56,12 @@ export default class TeslaTokenVue extends Vue {
       });
       this.$emit("token", token);
     } catch {
-      eventBus.$emit("WARNING", "Unable to verify new Tesla API refresh token");
+      eventBus.$emit(
+        "ALERT_WARNING",
+        "Unable to verify new Tesla API refresh token"
+      );
     }
+    this.loading = false;
   }
 }
 </script>

@@ -12,7 +12,7 @@ import { RestClient } from "@shared/restclient";
 import { AbstractAgent, AgentJob } from "@shared/agent";
 import { PROJECT_AGENT } from "@shared/smartcharge-globals";
 
-import { SCClient } from "@shared/gql-client";
+import { SCClient } from "@shared/sc-client";
 import { log, LogLevel } from "@shared/utils";
 import { UpdatePriceInput } from "@shared/gql-types";
 

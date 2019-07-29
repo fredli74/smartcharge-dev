@@ -20,25 +20,6 @@ const DBAccount_TSQL = `CREATE TABLE scserver.account
         CONSTRAINT account_pkey PRIMARY KEY (account_uuid)
     );`;
 
-export interface DBProvider {
-  provider_uuid: string; // provider job uuid
-  account_uuid: string; // account identifier
-  provider_name: string; // name of provider
-  data: any; // provider custom data
-}
-const DBProvider_TSQL = `CREATE TABLE scserver.provider
-    (
-        provider_uuid uuid DEFAULT sequential_uuid(),
-        account_uuid uuid NOT NULL,
-        provider_name character varying(64),
-        data jsonb,
-        CONSTRAINT provider_pkey PRIMARY KEY (provider_uuid),
-        CONSTRAINT provider_fkey FOREIGN KEY(account_uuid)
-                REFERENCES account(account_uuid) MATCH SIMPLE
-                ON UPDATE RESTRICT
-                ON DELETE CASCADE
-    );`;
-
 export interface DBLocation {
   location_uuid: string; // location uuid
   account_uuid: string; // account identifier
@@ -55,6 +36,7 @@ const DBLocation_TSQL = `CREATE TABLE scserver.location
         location_micro_latitude integer,
         location_micro_longitude integer,
         radius integer,
+        provider_data jsonb,
         CONSTRAINT location_pkey PRIMARY KEY(location_uuid),
         CONSTRAINT location_fkey FOREIGN KEY(account_uuid)
                 REFERENCES account(account_uuid) MATCH SIMPLE
@@ -104,7 +86,6 @@ export interface DBVehicle {
   status: string; // informative status string
   smart_status: string; // smart charging information
   updated: Date; // timestamp of last record update
-  provider_uuid: string | null; // provider uuid
   provider_data: any; // provider custom data
 }
 const DBVehicle_TSQL = `CREATE TABLE scserver.vehicle
@@ -133,7 +114,6 @@ const DBVehicle_TSQL = `CREATE TABLE scserver.vehicle
         status text,
         smart_status text,
         updated timestamp(0) with time zone NOT NULL DEFAULT NOW(),
-        provider_uuid uuid,
         provider_data jsonb,
         CONSTRAINT vehicle_pkey PRIMARY KEY (vehicle_uuid),
         CONSTRAINT vehicle_fkey FOREIGN KEY (account_uuid)
@@ -414,8 +394,6 @@ export const DB_SETUP_TSQL = [
     `,
 
   DBAccount_TSQL,
-
-  DBProvider_TSQL,
 
   DBLocation_TSQL,
   DBLocationData_TSQL,

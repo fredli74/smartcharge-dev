@@ -23,6 +23,7 @@
 import { Component, Vue } from "vue-property-decorator";
 import apollo from "../plugins/apollo";
 import eventBus from "../plugins/eventBus";
+import { strict as assert } from "assert";
 
 @Component({
   components: {}
@@ -33,17 +34,20 @@ export default class Login extends Vue {
   async login() {
     // loading...
     eventBus.$emit("ALERT_CLEAR");
-    const result = await apollo.loginWithPassword(this.password);
-    if (apollo.account) {
+    try {
+      await apollo.loginWithPassword(this.password);
+      assert(apollo.account);
       this.$router.push("/");
-    } else if (
-      result.graphQLErrors &&
-      result.graphQLErrors.length > 0 &&
-      result.graphQLErrors[0].extensions.code === "AUTHENTICATION_FAILED"
-    ) {
-      eventBus.$emit("ALERT_WARNING", `invalid password`);
-    } else {
-      eventBus.$emit("ALERT_ERROR", result.message || result);
+    } catch (err) {
+      if (err.graphQLErrors) {
+        for (const e of err.graphQLErrors) {
+          if (e.extensions && e.extensions.code === "AUTHENTICATION_FAILED") {
+            eventBus.$emit("ALERT_WARNING", `invalid password`);
+            return;
+          }
+        }
+      }
+      eventBus.$emit("ALERT_ERROR", err.message || err);
     }
   }
   mounted() {}

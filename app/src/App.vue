@@ -2,8 +2,10 @@
   <v-app>
     <v-app-bar app color="secondary" dark>
       <v-toolbar-title class="headline text-uppercase">
-        <span>smartcharge.d</span>
-        <span class="font-weight-light">ev</span>
+        <router-link id="homelink" to="/">
+          <span>smartcharge.d</span>
+          <span class="font-weight-light">ev</span>
+        </router-link>
       </v-toolbar-title>
       <v-spacer></v-spacer>
       <v-btn text @click="logout">logout</v-btn>
@@ -66,6 +68,24 @@ export default class App extends Vue {
       this.warning.show = false;
       this.error.show = false;
     });
+    if (!apollo.authorized) {
+      const token = localStorage.getItem("token");
+      if (token !== null) {
+        debugger;
+        try {
+          await apollo.loginWithToken(token);
+        } catch (err) {
+          if (err.networkError && err.networkError.statusCode === 401) {
+            eventBus.$emit(
+              "ALERT_WARNING",
+              "Invalid access token, new login required"
+            );
+          } else {
+            eventBus.$emit("ALERT_ERROR", err.message || err);
+          }
+        }
+      }
+    }
   }
   errorCaptured(err: Error, _vm: Vue, _info: string) {
     this.error.message = err.message || (err as any).toString();
@@ -80,4 +100,9 @@ export default class App extends Vue {
 }
 </script>
 
-<style></style>
+<style>
+a#homelink {
+  color: white;
+  text-decoration: none;
+}
+</style>

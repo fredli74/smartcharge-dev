@@ -11,10 +11,8 @@
 import { strict as assert } from "assert";
 
 import { Command } from "commander";
-import { RestToken, RestClient } from "@shared/restclient";
-import { log, LogLevel, delay, mergeURL } from "@shared/utils";
+import { log, LogLevel, delay } from "@shared/utils";
 import { AbstractAgent } from "@shared/agent";
-import { PROJECT_AGENT, BASE_API_PATH } from "@shared/smartcharge-globals";
 import { TibberAgent } from "../providers/tibber/tibber_agent";
 import { TeslaAgent } from "../providers/tesla/tesla-agent";
 
@@ -23,29 +21,18 @@ const program = new Command();
 const APP_NAME = `Agency`;
 const APP_VERSION = `1.0`;
 
-import { SCClient } from "@shared/gql-client";
+import { SCClient } from "@shared/sc-client";
 import { Provider } from "@shared/gql-types";
+
+import providers from "@providers/provider-agents";
 
 export class Agency {
   public ID: string | undefined;
-  public accessToken: RestToken;
-  public restclient: RestClient;
   public agents: { [agent: string]: AbstractAgent } = {}; // map of agent names to agent classes
   public agentJobs: { [uuid: string]: Provider } = {}; // map of job uuid to agent jobs
   private promiseList: Promise<any>[] = [];
   private stopped: boolean = false;
-  constructor(
-    access_token: string,
-    server_url: string,
-    private client: SCClient
-  ) {
-    this.accessToken = access_token;
-    this.restclient = new RestClient({
-      baseURL: mergeURL(server_url, BASE_API_PATH),
-      agent: `${PROJECT_AGENT} ${APP_NAME}/${APP_VERSION}`,
-      timeout: 120000
-    });
-  }
+  constructor(private client: SCClient) {}
   public async init() {
     // FUTURE: subscribe to a set of agents to split load between agencies
     // each agency should have its own id
@@ -106,48 +93,14 @@ export class Agency {
   public registerAgent(agent: AbstractAgent) {
     this.agents[agent.name] = agent;
   }
-  /*
-    public async agentCallback(subject: AgentSubject, event: AgentEvent) {
-        // Communication with central
-        switch (event.type) {
-            case 'AgentUpdate':
-                {
-                    //log(LogLevel.Trace, `Sending ${event.type} event for ${subject}.${subject.agent_data.id} => ${JSON.stringify(event.payload)}`);
-                    // await this.restclient.patch(`/agent/${encodeURIComponent(subject)}/${encodeURIComponent(subject.agent_data.id)}`, event.payload, this.accessToken);
-                    break;
-                }
-
-            case 'VehicleDataUpdate':
-                {
-                    //log(LogLevel.Trace, `Sending ${event.type} event for ${subject}.${subject.subject_id} => ${JSON.stringify(event.payload)}`);
-                    //await this.restclient.put(`/vehicle/${subject.subject_id}/data`, event.payload, this.accessToken);
-                    break;
-                }
-            case 'VehicleStatusUpdate':
-                {
-                    // log(LogLevel.Trace, `Sending ${event.type} event for ${subject}.${subject.subject_id} => ${JSON.stringify(event.payload)}`);
-                    // await this.restclient.put(`/vehicle/${subject.subject_id}/status`, event.payload, this.accessToken);
-                    break;
-                }
-            case 'VehicleSleepDebug':
-                {
-                    //log(LogLevel.Trace, `Sending ${event.type} event for ${subject.subject_id} to central`);
-                    //await this.restclient.post(`/vehicle/${subject.subject_id}/debug/sleep`, event.payload, this.accessToken);
-                    break;
-                }
-            default:
-                throw `Event type ${event.type} not implemented`;
-        }
-    }
-    */
   public async stop() {
     this.stopped = true;
     // FUTURE: unsubscribe to release agents to other agencies
-    await this.restclient.unsubscribe(
+    /* await this.restclient.unsubscribe(
       `/agency?agency_uuid=${this.ID}`,
       undefined,
       this.accessToken
-    );
+    );*/
     for (const name of Object.keys(this.agents)) {
       assert(this.agents[name] !== undefined);
       assert(this.agents[name].stop !== undefined);
@@ -161,11 +114,20 @@ program
   .version(`${APP_NAME} ${APP_VERSION}`, "-v, --version")
   .arguments("<access_token> <server_url>")
   .action(async (access_token, server_url) => {
-    const client = new SCClient(server_url, access_token);
-    const agency = new Agency(access_token, server_url, client);
+    const client = new SCClient(server_url);
+    await client.loginWithToken(access_token);
+
+    const agency = new Agency(client);
+
+    for (const provider of providers) {
+      if (provider.agent) {
+        const p = provider.agent(client);
+        agency.registerAgent(provider.agent(client));
+      }
+    }
 
     agency.registerAgent(new TibberAgent(client));
-    agency.registerAgent(new TeslaAgent(client));
+    //    agency.registerAgent(new TeslaAgent(client));
 
     await agency.init();
     log(LogLevel.Info, `Agency ID ${agency.ID} started`);

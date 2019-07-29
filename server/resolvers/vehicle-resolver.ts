@@ -54,25 +54,31 @@ export class VehicleResolver {
         input.name,
         input.minimumLevel,
         input.maximumLevel,
-        input.providerID,
         input.providerData
       )
     );
   }
-  @Mutation(_returns => Boolean)
+  @Mutation(_returns => Vehicle)
   async updateVehicle(
     @Arg("input") input: UpdateVehicleInput,
     @Ctx() context: IContext
-  ): Promise<Boolean> {
+  ): Promise<Vehicle> {
     const accountLimiter =
       context.accountUUID === INTERNAL_SERVICE_UUID
         ? undefined
         : context.accountUUID;
-    await context.db.getVehicle(input.id, accountLimiter); // verify vehicle ownage
-    if (input.status !== undefined) {
-      await context.db.setVehicleStatus(input.id, input.status);
-    }
-    return true;
+    // verify vehicle ownage
+    await context.db.getVehicle(input.id, accountLimiter);
+    debugger;
+    return DBInterface.DBVehicleToVehicle(
+      await context.db.updateVehicle(
+        input.id,
+        input.name,
+        input.minimumLevel,
+        input.maximumLevel,
+        input.providerData
+      )
+    );
   }
   @Mutation(_returns => Boolean)
   async updateVehicleData(

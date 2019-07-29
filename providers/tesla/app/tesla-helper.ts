@@ -1,23 +1,39 @@
 import { IRestToken } from "@shared/restclient";
 import apollo from "@app/plugins/apollo";
 import eventBus from "@app/plugins/eventBus";
+import { SCClient } from "@shared/sc-client";
 
+// List entry when adding a new Tesla vehicle
 export interface TeslaNewListEntry {
-  name: string;
-  vin: string;
-  id: string;
-  provider_uuid: string;
-  controlled: boolean;
+  name: string; // name of vehicle
+  id: string; // tesla id to control vehicle
+  tesla_token: IRestToken; // token to access teslaAPI
+  vin: string; // For UI display
+  controlled: boolean; // Already controlled by smartcharge
 }
 
-export async function refreshToken(token: IRestToken): Promise<IRestToken> {
+// Structure of databased stored provider specific information
+export interface TeslaProviderData {
+  provider: "tesla";
+  sid: string;
+  token: IRestToken;
+  invalidToken: boolean;
+}
+
+// Helper function to refresh token (through the server proxy) and at the
+// same time update the database
+export async function refreshToken(
+  client: SCClient,
+  token: IRestToken
+): Promise<IRestToken> {
   try {
-    return apollo.providerMutate("tesla", {
+    return client.providerMutate("tesla", {
       mutation: "refreshToken",
       token: token
     });
   } catch {
-    eventBus.$emit("WARNING", "Unable to verify Tesla API token");
+    // TODO: this should not be here, it should be wrappen in the tesla-app
+    eventBus.$emit("ALERT_WARNING", "Unable to verify Tesla API token");
   }
   return token;
 }
