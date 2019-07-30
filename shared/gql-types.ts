@@ -39,6 +39,8 @@ export abstract class Location {
   geoLocation!: GeoLocation;
   @Field(_type => Int, { description: `Radius in meters` })
   geoFenceRadius!: number;
+  @Field(_type => GraphQLJSONObject, { nullable: true })
+  providerData!: any;
 }
 
 @ObjectType("LocationPrice")
@@ -153,8 +155,6 @@ export abstract class Vehicle {
   smartStatus!: string;
   @Field()
   updated!: Date;
-  @Field(_type => ID, { nullable: true })
-  providerID!: string | null;
   @Field(_type => GraphQLJSONObject, { nullable: true })
   providerData!: any;
 }
@@ -182,7 +182,6 @@ export function VehicleToJS(input: Vehicle): Vehicle {
     status: input.status,
     smartStatus: input.smartStatus,
     updated: new Date(input.updated),
-    providerID: input.providerID,
     providerData: input.providerData
   };
 }
@@ -203,8 +202,6 @@ export abstract class UpdateVehicleInput {
   pausedUntil?: Date | null;
   @Field({ nullable: true })
   status?: string;
-  @Field(_type => ID, { nullable: true })
-  providerID?: string | null;
   @Field(_type => GraphQLJSONObject, { nullable: true })
   providerData?: any;
 }
@@ -287,24 +284,45 @@ export abstract class Account {
   token!: string;
 }
 
-@ObjectType("Provider")
-export abstract class Provider {
+@ObjectType()
+export abstract class ProviderSubject {
   @Field(_type => ID)
-  id!: string;
+  subjectID!: string;
+  @Field(_type => ID)
+  ownerID!: string;
   @Field()
-  name!: string;
+  providerType!: string;
+  @Field()
+  providerName!: string;
   @Field(_type => GraphQLJSONObject)
-  data!: any;
+  providerData!: any;
 }
 
 @InputType()
-export abstract class UpdateProviderInput {
-  @Field(_type => ID, { nullable: true })
-  id?: string;
+export abstract class NewLocationInput {
+  @Field()
+  name!: string;
+  @Field(_type => GeoLocation)
+  geoLocation!: GeoLocation;
+  @Field(_type => Int, { nullable: true, description: `Radius in meters` })
+  geoFenceRadius!: number;
+  @Field(_type => GraphQLJSONObject, {
+    nullable: true,
+    description: "Location provider data"
+  })
+  providerData?: any;
+}
+
+@InputType()
+export abstract class UpdateLocationInput {
+  @Field(_type => ID)
+  id!: string;
   @Field({ nullable: true })
   name?: string;
+  @Field(_type => GeoLocation, { nullable: true })
+  geoLocation?: GeoLocation;
+  @Field(_type => Int, { nullable: true, description: `Radius in meters` })
+  geoFenceRadius?: number;
   @Field(_type => GraphQLJSONObject, { nullable: true })
-  filter?: any;
-  @Field(_type => GraphQLJSONObject)
-  data!: any;
+  providerData?: any;
 }

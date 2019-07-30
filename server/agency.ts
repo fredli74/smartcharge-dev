@@ -12,9 +12,6 @@ import { strict as assert } from "assert";
 
 import { Command } from "commander";
 import { log, LogLevel, delay } from "@shared/utils";
-import { AbstractAgent } from "@shared/agent";
-import { TibberAgent } from "../providers/tibber/tibber_agent";
-import { TeslaAgent } from "../providers/tesla/tesla-agent";
 
 const program = new Command();
 
@@ -22,14 +19,15 @@ const APP_NAME = `Agency`;
 const APP_VERSION = `1.0`;
 
 import { SCClient } from "@shared/sc-client";
-import { Provider } from "@shared/gql-types";
+import { ProviderSubject } from "@shared/gql-types";
 
 import providers from "@providers/provider-agents";
+import { AbstractAgent } from "@providers/provider-agent";
 
 export class Agency {
   public ID: string | undefined;
   public agents: { [agent: string]: AbstractAgent } = {}; // map of agent names to agent classes
-  public agentJobs: { [uuid: string]: Provider } = {}; // map of job uuid to agent jobs
+  public agentJobs: { [subject_uuid: string]: ProviderSubject } = {}; // map of job uuid to agent jobs
   private promiseList: Promise<any>[] = [];
   private stopped: boolean = false;
   constructor(private client: SCClient) {}
@@ -39,30 +37,33 @@ export class Agency {
     this.ID = "internal";
   }
   public async list(accept: string[]) {
-    const agentList = await this.client.getProviders(accept);
-    const agentMap: { [uuid: string]: Provider } = {};
+    const subjectList = await this.client.getProviderSubjects(accept);
+    const subjectMap: { [subject_uuid: string]: ProviderSubject } = {};
 
     // Add new entries
-    for (const j of agentList) {
-      agentMap[j.id] = j;
-      if (this.agentJobs[j.id] === undefined) {
+    for (const j of subjectList) {
+      subjectMap[j.subjectID] = j;
+      if (this.agentJobs[j.subjectID] === undefined) {
         log(
           LogLevel.Info,
-          `Detected new agent job ${j.id} adding to ${j.name}`
+          `Detected new agent job ${j.subjectID} adding to ${j.providerName}`
         );
-        this.agents[j.name].add(j);
-        this.agentJobs[j.id] = j;
+        this.agents[j.providerName].add(j);
+        this.agentJobs[j.subjectID] = j;
       } else {
         // Update data from server
-        this.agents[j.name].updateData(j);
+        this.agents[j.providerName].updateData(j);
       }
     }
 
     // Remove orphan entries
     for (const [i, j] of Object.entries(this.agentJobs)) {
-      if (agentMap[i] === undefined) {
-        log(LogLevel.Info, `Removing agent job ${j.id} from ${j.name}`);
-        this.agents[j.name].remove(j);
+      if (subjectMap[i] === undefined) {
+        log(
+          LogLevel.Info,
+          `Removing agent job ${j.subjectID} from ${j.providerName}`
+        );
+        this.agents[j.providerName].remove(j);
         delete this.agentJobs[i];
       }
     }
@@ -126,7 +127,7 @@ program
       }
     }
 
-    agency.registerAgent(new TibberAgent(client));
+    // agency.registerAgent(new TibberAgent(client));
     //    agency.registerAgent(new TeslaAgent(client));
 
     await agency.init();

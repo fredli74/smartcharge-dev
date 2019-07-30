@@ -27,6 +27,7 @@ export interface DBLocation {
   location_micro_latitude: number; // 6 decimal precision converted to integer
   location_micro_longitude: number; // 6 decimal precision converted to integer
   radius: number; // radius tollerance (in meters)
+  provider_data: any; // provider custom data
 }
 const DBLocation_TSQL = `CREATE TABLE scserver.location
     (

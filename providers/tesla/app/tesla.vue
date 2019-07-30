@@ -31,16 +31,15 @@
 
 <script lang="ts">
 import { Component, Vue, Prop } from "vue-property-decorator";
-import { ProviderVuePage } from "@providers/provider-apps";
 import apollo from "@app/plugins/apollo";
 import { IRestToken } from "@shared/restclient";
-import { Provider } from "@shared/gql-types";
 import { TeslaNewListEntry, TeslaProviderData } from "./tesla-helper";
 import config from "../tesla-config";
 import TeslaTokenVue from "./components/tesla-token.vue";
 import TeslaNewVehicleList from "./components/tesla-new-list.vue";
 import { undefinedVarMessage } from "graphql/validation/rules/NoUndefinedVariables";
 import { LogLevel, log } from "@shared/utils";
+import { ProviderVuePage } from "@providers/provider-app";
 
 @Component({
   components: {
@@ -52,7 +51,6 @@ export default class TeslaVue extends Vue {
   @Prop({ default: "view" })
   page?: ProviderVuePage;
 
-  providers: Provider[] = [];
   knownVehicleIDs: { [id: string]: string } = {};
 
   // REACTIVE PROPERTIES
@@ -155,7 +153,6 @@ export default class TeslaVue extends Vue {
   async newProvider(token: IRestToken) {
     this.showTokenForm = false;
     this.loadTeslaVehicles(token);
-    // await apollo.newProvider("tesla", { token });
   }
 
   async selectVehicle(vehicle: TeslaNewListEntry) {

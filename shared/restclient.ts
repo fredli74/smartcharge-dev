@@ -36,15 +36,23 @@ export interface RestClientResponse {
   data: any;
 }
 
+export class RestClientError extends Error {
+  constructor(message: string, public code: number) {
+    super(message);
+    this.name = "RestClientError";
+  }
+}
+
 export class RestClient {
   private httpAgent: http.Agent | undefined;
   private httpsAgent: https.Agent | undefined;
   constructor(private options: Options) {}
   private static parseTokenResponse(data: any): RestToken {
     if (typeof data.access_token !== "string")
-      throw `Error parsing invalid OAuth2.0 token response ${JSON.stringify(
-        data
-      )}`;
+      throw new RestClientError(
+        `Error parsing invalid OAuth2.0 token response ${JSON.stringify(data)}`,
+        500
+      );
     const token: RestToken = {
       access_token: data.access_token,
       token_type: data.token_type || "Bearer"
@@ -71,7 +79,7 @@ export class RestClient {
       return RestClient.parseTokenResponse(res.data);
     } catch (e) {
       console.debug(`RestClient.getToken error: ${e}`);
-      throw e;
+      throw new RestClientError(e, 500);
     }
   }
 
@@ -126,12 +134,13 @@ export class RestClient {
       opt.headers["Content-Length"] = Buffer.byteLength(postData);
     }
     return new Promise<RestClientResponse>((resolve, reject) => {
-      const dispatchError = (e: any) =>
-        reject(
-          `RestClient request error: ${
-            typeof e === "string" ? e : JSON.stringify(e)
-          }`
-        );
+      const dispatchError = (e: any, code?: number) => {
+        const s = `RestClient request error: ${
+          typeof e === "string" ? e : JSON.stringify(e)
+        }`;
+        reject(new RestClientError(s, code || 500));
+      };
+
       const req = requester(url, opt, (res: http.IncomingMessage) => {
         let body = "";
         res.setEncoding("utf8");
@@ -147,10 +156,10 @@ export class RestClient {
                 data: data
               });
             } catch (e) {
-              dispatchError(e);
+              dispatchError(e.message);
             }
           } else {
-            dispatchError(`${res.statusCode} ${body}`);
+            dispatchError(res.statusMessage, res.statusCode);
           }
         });
       });

@@ -22,12 +22,14 @@ import { log, LogLevel, geoDistance, generateToken } from "@shared/utils";
 import config from "@shared/smartcharge-config.json";
 import {
   Vehicle,
-  Provider,
   Account,
   Location,
   VehicleToJS,
-  VehicleDebugInput
+  VehicleDebugInput,
+  ProviderSubject,
+  GeoLocation
 } from "@shared/gql-types";
+import { ValuesOfCorrectType } from "graphql/validation/rules/ValuesOfCorrectType";
 
 export const INTERNAL_SERVICE_UUID = `00000000-0000-0000-0000-000000000000`;
 
@@ -103,8 +105,35 @@ export class DBInterface {
         latitude: l.location_micro_latitude / 1e6,
         longitude: l.location_micro_longitude / 1e6
       },
-      geoFenceRadius: l.radius
+      geoFenceRadius: l.radius,
+      providerData: l.provider_data
     };
+  }
+  public async newLocation(
+    account_uuid: string,
+    name: string | undefined,
+    location: GeoLocation,
+    radius: number,
+    provider_data?: any
+  ): Promise<DBLocation> {
+    debugger;
+    const fields: any = {
+      account_uuid,
+      name,
+      location_micro_latitude: location.latitude * 1e6,
+      location_micro_longitude: location.longitude * 1e6,
+      radius,
+      provider_data
+    };
+    for (const key of Object.keys(fields)) {
+      if (fields[key] === undefined) {
+        delete fields[key];
+      }
+    }
+    return await this.pg.one(
+      `INSERT INTO location($[this:name]) VALUES($[this:csv]) RETURNING *;`,
+      fields
+    );
   }
   public async lookupKnownLocation(
     accountUUID: string,
@@ -159,6 +188,37 @@ export class DBInterface {
     return await this.pg.manyOrNone(
       `SELECT * FROM location WHERE account_uuid = $1`,
       [accountUUID]
+    );
+  }
+  public async updateLocation(
+    location_uuid: string,
+    name: string | undefined,
+    location: GeoLocation | undefined,
+    radius: number | undefined,
+    provider_data: any | undefined
+  ): Promise<DBLocation> {
+    debugger;
+    const [values, set] = queryHelper([
+      location_uuid,
+      [name, `name = $2`],
+      [
+        location ? location.latitude * 1e6 : undefined,
+        `location_micro_latitude = $3`
+      ],
+      [
+        location ? location.longitude * 1e6 : undefined,
+        `location_micro_longitude = $4`
+      ],
+      [radius, `radius = $5`],
+      [provider_data, `provider_data = jsonb_strip_nulls(provider_data || $6)`]
+    ]);
+    assert(set.length > 0);
+
+    return this.pg.one(
+      `UPDATE location SET ${set.join(
+        ","
+      )} WHERE location_uuid = $1 RETURNING *;`,
+      values
     );
   }
   public async updateLocationPrice(
@@ -271,6 +331,9 @@ export class DBInterface {
     name: string | undefined,
     minimum_charge: number | undefined,
     maximum_charge: number | undefined,
+    scheduled_trip: any | null | undefined,
+    charging_paused: Date | null | undefined,
+    status: string | undefined,
     provider_data: any | undefined
   ): Promise<DBVehicle> {
     debugger;
@@ -279,7 +342,10 @@ export class DBInterface {
       [name, `name = $2`],
       [minimum_charge, `minimum_charge = $3`],
       [maximum_charge, `maximum_charge = $4`],
-      [provider_data, `provider_data = jsonb_strip_nulls(provider_data || $5)`]
+      [scheduled_trip, `scheduled_trip = $5`],
+      [charging_paused, `charging_paused = $6`],
+      [status, `status = $7`],
+      [provider_data, `provider_data = jsonb_strip_nulls(provider_data || $8)`]
     ]);
     assert(set.length > 0);
 
@@ -313,5 +379,38 @@ export class DBInterface {
     return this.pg.one(`SELECT * FROM account WHERE api_token = $1`, [
       api_token
     ]);
+  }
+
+  public async getProviderSubjects(
+    accountUUID: string | undefined,
+    accept: string[] | undefined
+  ): Promise<ProviderSubject[]> {
+    debugger;
+    const [values, where] = queryHelper([
+      [accountUUID, `account_uuid = $1`],
+      [accept, `provider_name IN ($2:csv)`]
+    ]);
+
+    assert(where.length > 0);
+
+    const dblist = await this.pg.manyOrNone(
+      `WITH subjects AS (
+        SELECT account_uuid, vehicle_uuid as subject_uuid, provider_data, 'vehicle' as provider_type, provider_data->>'provider' as provider_name FROM vehicle
+        UNION
+        SELECT account_uuid, location_uuid as subject_uuid, provider_data, 'location' as provider_type, provider_data->>'provider' as provider_name FROM location
+      )
+      SELECT * FROM subjects WHERE ${where.join(" AND ")};`,
+      values
+    );
+    return dblist.map(
+      f =>
+        <ProviderSubject>{
+          ownerID: f.account_uuid,
+          subjectID: f.subject_uuid,
+          providerType: f.provider_type,
+          providerName: f.provider_name,
+          providerData: f.provider_data
+        }
+    );
   }
 }

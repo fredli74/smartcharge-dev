@@ -21,6 +21,9 @@
       "@app/*": [
         "app/src/*"
       ],
+      "@server/*": [
+        "server/*"
+      ],
       "@shared/*": [
         "shared/*"
       ],

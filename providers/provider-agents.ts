@@ -1,15 +1,6 @@
-import { IProvider } from ".";
-import { AbstractAgent } from "@shared/agent";
-import { SCClient } from "@shared/sc-client";
-
-export interface IProviderAgentInstantiator {
-  (scClient: SCClient): AbstractAgent;
-}
-export interface IProviderAgent extends IProvider {
-  agent?: IProviderAgentInstantiator;
-}
-
+import { IProviderAgent } from "./provider-agent";
 import Tesla from "./tesla/tesla-agent";
+import Tibber from "./tibber/tibber_agent";
 
-const providers: IProviderAgent[] = [Tesla];
+const providers: IProviderAgent[] = [Tesla, Tibber];
 export default providers;

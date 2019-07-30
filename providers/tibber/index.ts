@@ -1,10 +1,10 @@
 import { IProvider } from "..";
 
 const provider: IProvider = {
-  name: "tesla",
-  display: "Tesla",
+  name: "tibber",
+  display: "Tibber",
   version: "1.0",
-  type: "vehicle"
+  type: "location"
 };
 
 export default provider;

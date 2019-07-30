@@ -10,7 +10,7 @@
       </v-list-item-avatar>
 
       <v-list-item-content>
-        <v-list-item-title>{{ provider.name }}</v-list-item-title>
+        <v-list-item-title>{{ provider.display }}</v-list-item-title>
       </v-list-item-content>
     </v-list-item>
   </v-card>

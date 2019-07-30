@@ -1,11 +1,11 @@
-import { IProviderServer } from "@providers/provider-servers";
-import { IContext } from "server/gql-api";
+import { IContext } from "@server/gql-api";
 import provider from "./index";
 import { IRestToken } from "@shared/restclient";
 import { ApolloError } from "apollo-server-express";
-import { DBInterface } from "server/db-interface";
+import { DBInterface } from "@server/db-interface";
 import { TeslaAPI } from "./tesla-api";
 import { log, LogLevel } from "@shared/utils";
+import { IProviderServer } from "@providers/provider-server";
 
 export async function maintainToken(
   db: DBInterface,

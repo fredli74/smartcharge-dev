@@ -1,21 +1,21 @@
 import ApolloClient, { gql } from "apollo-boost";
 import { mergeURL } from "@shared/utils";
 import { GQL_API_PATH } from "@shared/smartcharge-globals";
-import { AuthenticationError } from "apollo-server-core";
 
 import fetch from "cross-fetch";
 
 import {
   Account,
   UpdatePriceInput,
-  Provider,
-  UpdateProviderInput,
   Vehicle,
   UpdateVehicleDataInput,
   VehicleDebugInput,
   UpdateVehicleInput,
   VehicleToJS,
-  NewVehicleInput
+  NewVehicleInput,
+  ProviderSubject,
+  NewLocationInput,
+  UpdateLocationInput
 } from "@shared/gql-types";
 
 export class SCClient extends ApolloClient<any> {
@@ -88,6 +88,59 @@ export class SCClient extends ApolloClient<any> {
     this.cache.reset();
   }
 
+  static locationFragment = `
+  id
+  ownerID
+  name
+  geoLocation {
+    latitude
+    longitude
+  }
+  geoFenceRadius
+  providerData`;
+
+  public async newLocation(input: NewLocationInput): Promise<Location> {
+    const mutation = gql`
+      mutation NewLocation($input: NewLocationInput!) {
+        newLocation(input: $input) { ${SCClient.locationFragment} }
+      }
+    `;
+    const result = await this.mutate({
+      mutation: mutation,
+      variables: { input }
+    });
+    return result.data.newLocation;
+  }
+  public async getLocation(LocationUUID: string): Promise<Location> {
+    // TODO: should be more flexible, returning just the fields you want into an <any> response instead
+    const query = gql`query GetLocation($id: String!) { Location(id: $id) { ${
+      SCClient.locationFragment
+    } } }`;
+    const result = await this.query({
+      query,
+      variables: { id: LocationUUID }
+    });
+    return result.data.Location;
+  }
+  public async getLocations(): Promise<Location[]> {
+    const query = gql`query GetLocations { Locations { ${
+      SCClient.locationFragment
+    } } }`;
+    const result = await this.query({ query });
+    return result.data.Locations as Location[];
+  }
+  public async updateLocation(input: UpdateLocationInput): Promise<boolean> {
+    const mutation = gql`
+      mutation UpdateLocation($input: UpdateLocationInput!) {
+        updateLocation(input: $input) { ${SCClient.locationFragment}}
+      }
+    `;
+    const result = await this.mutate({
+      mutation: mutation,
+      variables: { input }
+    });
+    return result.data.updateLocation;
+  }
   public async updatePrice(input: UpdatePriceInput): Promise<boolean> {
     const mutation = gql`
       mutation UpdatePrices($input: UpdatePriceInput!) {
@@ -134,7 +187,7 @@ export class SCClient extends ApolloClient<any> {
   updated
   providerData`;
 
-  public async newVehicle(input: NewVehicleInput): Promise<Provider> {
+  public async newVehicle(input: NewVehicleInput): Promise<Vehicle> {
     const mutation = gql`
       mutation NewVehicle($input: NewVehicleInput!) {
         newVehicle(input: $input) { ${SCClient.vehicleFragment} }
@@ -165,7 +218,6 @@ export class SCClient extends ApolloClient<any> {
     return (result.data.vehicles as Vehicle[]).map(v => VehicleToJS(v));
   }
   public async updateVehicle(input: UpdateVehicleInput): Promise<boolean> {
-    // TODO: should be more flexible, updating just the fields you want
     const mutation = gql`
       mutation UpdateVehicle($input: UpdateVehicleInput!) {
         updateVehicle(input: $input) { ${SCClient.vehicleFragment}}
@@ -205,26 +257,17 @@ export class SCClient extends ApolloClient<any> {
     return result.data.vehicleDebug;
   }
 
-  static providerFragment = `id name data`;
-  public async newProvider(name: string, data: any): Promise<Provider> {
-    const mutation = gql`
-      mutation NewProvider($name: String!, $data: JSONObject!) {
-        newProvider(name: $name, data: $data) { ${SCClient.providerFragment} }
-      }
-    `;
-    const result = await this.mutate({
-      mutation: mutation,
-      variables: { name, data }
-    });
-    return result.data.newProvider;
-  }
-  public async getProviders(accept: string[]): Promise<Provider[]> {
+  public async getProviderSubjects(
+    accept: string[]
+  ): Promise<ProviderSubject[]> {
     const query = gql`
-      query ListProviders($accept: [String!]!) {
-        providers(accept: $accept) {
-          id
-          name
-          data
+      query ProviderSubjects($accept: [String!]!) {
+        providerSubjects(accept: $accept) {
+          subjectID
+          ownerID
+          providerType
+          providerName
+          providerData
         }
       }
     `;
@@ -232,24 +275,9 @@ export class SCClient extends ApolloClient<any> {
       query,
       variables: { accept }
     });
-    return result.data.providers;
+    return result.data.providerSubjects;
   }
-  public async updateProvider(input: UpdateProviderInput): Promise<Provider> {
-    const mutation = gql`
-      mutation UpdateProviderData($input: UpdateProviderInput!) {
-        updateProviderData(input: $input) {
-          id
-          name
-          data
-        }
-      }
-    `;
-    const result = await this.mutate({
-      mutation: mutation,
-      variables: { input }
-    });
-    return result.data.updateProviderData;
-  }
+
   public async providerQuery(name: string, input: any): Promise<any> {
     const query = gql`
       query ProviderQuery($name: String!, $input: JSONObject!) {

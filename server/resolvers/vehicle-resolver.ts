@@ -5,13 +5,9 @@
  * @license MIT (MIT)
  */
 
-import { ApolloError } from "apollo-server-express";
-import providers, { IProviderServer } from "@providers/provider-servers";
 import { Arg, Resolver, Query, Ctx, Mutation } from "type-graphql";
 import { IContext } from "../gql-api";
 import {
-  Provider,
-  UpdateProviderInput,
   Vehicle,
   UpdateVehicleInput,
   UpdateVehicleDataInput,
@@ -76,6 +72,9 @@ export class VehicleResolver {
         input.name,
         input.minimumLevel,
         input.maximumLevel,
+        input.tripSchedule,
+        input.pausedUntil,
+        input.status,
         input.providerData
       )
     );

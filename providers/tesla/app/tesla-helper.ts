@@ -1,7 +1,6 @@
 import { IRestToken } from "@shared/restclient";
-import apollo from "@app/plugins/apollo";
-import eventBus from "@app/plugins/eventBus";
 import { SCClient } from "@shared/sc-client";
+import eventBus from "@app/plugins/eventBus";
 
 // List entry when adding a new Tesla vehicle
 export interface TeslaNewListEntry {
@@ -15,8 +14,8 @@ export interface TeslaNewListEntry {
 // Structure of databased stored provider specific information
 export interface TeslaProviderData {
   provider: "tesla";
-  sid: string;
-  token: IRestToken;
+  sid: string; // tesla vehicle id
+  token: IRestToken; // token for API authentication
   invalidToken: boolean;
 }
 

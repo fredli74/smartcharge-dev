@@ -19,51 +19,10 @@ import "reflect-metadata";
 import config from "@shared/smartcharge-config.json";
 import PASSWORD from "./smartcharge-password.json";
 
-import { UpdatePriceInput, Account, Location } from "@shared/gql-types";
 import { ProviderResolver } from "./resolvers/provider-resolver";
 import { VehicleResolver } from "./resolvers/vehicle-resolver";
-
-@Resolver()
-class LocationResolver {
-  @Query(_returns => [Location])
-  async locations(@Ctx() context: IContext): Promise<Location[]> {
-    const dblist = await context.db.getLocations(context.accountUUID);
-    return dblist.map(DBInterface.DBLocationToLocation);
-  }
-  @Query(_returns => Location)
-  async location(
-    @Arg("id") id: string,
-    @Ctx() context: IContext
-  ): Promise<Location> {
-    const accountLimiter =
-      context.accountUUID === INTERNAL_SERVICE_UUID
-        ? undefined
-        : context.accountUUID;
-    return DBInterface.DBLocationToLocation(
-      await context.db.getLocation(accountLimiter, id)
-    );
-  }
-  @Mutation(_returns => Boolean)
-  async updatePrice(
-    @Arg("input") input: UpdatePriceInput,
-    @Ctx() context: IContext
-  ): Promise<Boolean> {
-    const accountLimiter =
-      context.accountUUID === INTERNAL_SERVICE_UUID
-        ? undefined
-        : context.accountUUID;
-    const location = await context.db.getLocation(accountLimiter, input.id);
-    for (const point of input.prices) {
-      await context.db.updateLocationPrice(
-        input.id,
-        point.startAt,
-        point.price
-      );
-    }
-    await context.logic.refreshChargePlan(undefined, location.account_uuid);
-    return true;
-  }
-}
+import { LocationResolver } from "./resolvers/location-resolver";
+import { Account } from "@shared/gql-types";
 
 @Resolver()
 class AccountResolver {

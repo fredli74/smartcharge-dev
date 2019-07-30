@@ -4,22 +4,28 @@
  * @copyright 2019 Fredrik Lidström
  * @license MIT (MIT)
  */
-// import { strict as assert } from "assert";
+import { IProvider } from ".";
+import { SCClient } from "@shared/sc-client";
+import { log, LogLevel, delay } from "@shared/utils";
+import { ProviderSubject } from "@shared/gql-types";
 
-import { delay, log, LogLevel } from "./utils";
-import { Provider } from "./gql-types";
+export interface IProviderAgentInstantiator {
+  (scClient: SCClient): AbstractAgent;
+}
+export interface IProviderAgent extends IProvider {
+  agent?: IProviderAgentInstantiator;
+}
 
 export interface AgentJob {
-  uuid: string; // Unique agent job identifier
-  data: any; // agent job data
+  subjectID: string; // Unique agent job identifier
+  providerData: any; // agent job data
   state?: any; // current in memory agent job state
   running: boolean; // is the agent currently running a job
   nextrun: number; // when to run next itteration
 }
-
 export abstract class AbstractAgent {
   public abstract name: string;
-  public jobs: { [id: string]: AgentJob } = {};
+  public subjects: { [subjectID: string]: AgentJob } = {};
   private stopped: boolean = false;
   private workerPromise: Promise<any> | undefined;
   abstract async work(job: AgentJob): Promise<number>;
@@ -30,11 +36,11 @@ export abstract class AbstractAgent {
       while (!this.stopped) {
         const now = Date.now();
         (async () => {
-          for (const [id, job] of Object.entries(this.jobs)) {
+          for (const [id, job] of Object.entries(this.subjects)) {
             if (!job.running && now >= job.nextrun) {
               log(
                 LogLevel.Trace,
-                `Agent ${this.name} calling work for ${job.uuid}`
+                `Agent ${this.name} calling work for ${job.subjectID}`
               );
               job.running = true;
               let interval = 60;
@@ -45,7 +51,7 @@ export abstract class AbstractAgent {
               }
               job.nextrun = now + interval * 1000;
               job.running = false;
-              this.jobs[id] = job;
+              this.subjects[id] = job;
             }
           }
         })();
@@ -55,19 +61,19 @@ export abstract class AbstractAgent {
     })();
     return this.workerPromise;
   }
-  public add(job: Provider) {
-    this.jobs[job.id] = {
-      uuid: job.id,
-      data: job.data,
+  public add(subject: ProviderSubject) {
+    this.subjects[subject.subjectID] = {
+      subjectID: subject.subjectID,
+      providerData: subject.providerData,
       running: false,
       nextrun: 0
     };
   }
-  public remove(job: Provider) {
-    delete this.jobs[job.id];
+  public remove(subject: ProviderSubject) {
+    delete this.subjects[subject.subjectID];
   }
-  public updateData(job: Provider) {
-    this.jobs[job.id].data = job.data;
+  public updateData(subject: ProviderSubject) {
+    this.subjects[subject.subjectID].providerData = subject.providerData;
   }
   public async stop() {
     this.stopped = true;
