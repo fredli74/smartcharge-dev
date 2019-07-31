@@ -38,15 +38,28 @@ export async function maintainToken(
 
 const server: IProviderServer = {
   ...provider,
-  query: async (data: any, _context: IContext) => {
+  query: async (data: any, context: IContext) => {
     console.debug(data);
     switch (data.query) {
       case "vehicles": {
         try {
           return (await TeslaAPI.listVehicle(data.id, data.token)).response;
         } catch (err) {
-          debugger;
-          console.debug("!!!!!!!!!!!!! TODO : INVALIDATE TOKEN !!!!!!!!!!!!!");
+          if (err.code === 401) {
+            const dblist = await context.db.pg.manyOrNone(
+              `UPDATE vehicle SET provider_data = jsonb_strip_nulls(provider_data || $2) WHERE provider_data @> $1 RETURNING *;`,
+              [
+                { token: { access_token: data.token.access_token } },
+                { invalidToken: true }
+              ]
+            );
+            for (const v of dblist) {
+              log(
+                LogLevel.Info,
+                `Invalidating token for vehicle ${v.vehicle_uuid}`
+              );
+            }
+          }
           throw err;
         }
       }

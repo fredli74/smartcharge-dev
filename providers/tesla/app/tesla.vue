@@ -117,31 +117,31 @@ export default class TeslaVue extends Vue {
             };
             this.allProviderVehicles.push(entry);
           }
-          const known = vehicles.find(f => f.providerData.sid === v.id_s);
-          if (known) {
-            entry.controlled = true;
-            if (
-              !known.providerData.token ||
-              known.providerData.invalidToken ||
-              known.providerData.token.access_token !== token.access_token
-            ) {
-              log(
-                LogLevel.Info,
-                `Vehicle ${
-                  known.id
-                } did not have the correct token defined in providerData`
-              );
-              await apollo.updateVehicle({
-                id: known.id,
-                providerData: { provider: "tesla", token }
-              });
+          for (const f of vehicles) {
+            if (f.providerData.sid === v.id_s) {
+              entry.controlled = true;
+              if (
+                !f.providerData.token ||
+                f.providerData.invalidToken ||
+                f.providerData.token.access_token !== token.access_token
+              ) {
+                log(
+                  LogLevel.Info,
+                  `Vehicle ${
+                    f.id
+                  } did not have the correct token defined in providerData`
+                );
+                await apollo.updateVehicle({
+                  id: f.id,
+                  providerData: { provider: "tesla", token, invalidToken: null }
+                });
+              }
             }
           }
         }
       } catch (err) {
-        debugger;
         console.debug(err);
-        throw "handle 401 errors here!";
+        // No need to catch 401 errors here, the server will already handle it
       }
     }
     this.loading = false;
