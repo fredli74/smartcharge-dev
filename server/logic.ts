@@ -20,7 +20,8 @@ import { LogLevel, log, arrayMean, prettyTime } from "@shared/utils";
 import {
   UpdateVehicleDataInput,
   ChargePlan,
-  ScheduleToJS
+  ScheduleToJS,
+  ChargePlanToJS
 } from "@shared/gql-types";
 
 const TRIP_TOPUP_TIME = 15 * 60e3; // 15 minutes before trip time
@@ -225,7 +226,9 @@ export class Logic {
             }
             log(
               LogLevel.Debug,
-              `Updating charge ${vehicle.charge_id} with ${deltaUsed} Wm used in ${deltaTime}s`
+              `Updating charge ${
+                vehicle.charge_id
+              } with ${deltaUsed} Wm used in ${deltaTime}s`
             );
             charge = await this.db.pg.one(
               `UPDATE charge SET ($1:name) = ($1:csv) WHERE charge_id=$2 RETURNING *;`,
@@ -406,7 +409,9 @@ export class Logic {
             // totally ignore trips less than 1 km
             log(
               LogLevel.Debug,
-              `Removing trip ${trip.trip_id}, because it only recorded ${trip.distance} meters`
+              `Removing trip ${trip.trip_id}, because it only recorded ${
+                trip.distance
+              } meters`
             );
             await this.db.pg.none(`DELETE FROM trip WHERE trip_id=$1`, [
               vehicle.trip_id
@@ -826,9 +831,12 @@ export class Logic {
         if (vehicle.charge_plan && vehicle.level < vehicle.minimum_charge + 1) {
           // still on the fence, keep going if needed
           log(LogLevel.Trace, `keeping emergency charge plan running`);
-          plan = (vehicle.charge_plan as ChargePlan[]).filter(
-            f => f.chargeStart === null
-          ); // keep emergency plans that are running
+          // keep emergency plans that are running
+          for (const f of vehicle.charge_plan) {
+            if (f.chargeStart === null) {
+              plan.push(ChargePlanToJS(f));
+            }
+          }
         }
 
         if (vehicle.level <= vehicle.maximum_charge) {

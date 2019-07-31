@@ -1,5 +1,3 @@
-import provider from "./index";
-
 const config = {
   TESLA_API_BASE_URL: `https://owner-api.teslamotors.com/`,
   TESLA_CLIENT_ID: `81527cff06843c8634fdc09e8ac0abefb46ac849f38fe1e431c2ef2106796384`,
