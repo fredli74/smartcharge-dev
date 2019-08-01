@@ -172,6 +172,8 @@ export class SCClient extends ApolloClient<any> {
   batteryLevel
   odometer
   outsideTemperature
+  insideTemperature
+  climateControl
   isDriving
   isConnected
   chargePlan {

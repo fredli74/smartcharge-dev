@@ -5,7 +5,20 @@
  * @license MIT (MIT)
  */
 
-import { Arg, Resolver, Query, Ctx, Mutation } from "type-graphql";
+import { strict as assert } from "assert";
+
+import {
+  Arg,
+  Resolver,
+  Query,
+  Ctx,
+  Mutation,
+  Subscription,
+  PubSub,
+  PubSubEngine,
+  Root,
+  Args
+} from "type-graphql";
 import { IContext } from "../gql-api";
 import {
   Vehicle,
@@ -14,9 +27,13 @@ import {
   VehicleDebugInput,
   NewVehicleInput
 } from "@shared/gql-types";
-import { GraphQLJSONObject } from "graphql-type-json";
 import { DBInterface, INTERNAL_SERVICE_UUID } from "../db-interface";
-import { DBVehicle } from "server/db-schema";
+
+const VehicleSubscriptionTopic = "VEHICLE_UPDATE";
+interface VehicleSubscriptionPayload {
+  account_uuid: string;
+  vehicle_uuid: string;
+}
 
 @Resolver()
 export class VehicleResolver {
@@ -39,6 +56,31 @@ export class VehicleResolver {
     );
   }
 
+  @Subscription(_returns => Vehicle, {
+    topics: VehicleSubscriptionTopic,
+    filter: async ({ payload, args, context }) => {
+      return (
+        payload.vehicle_uuid === args.id &&
+        (context.accountUUID === INTERNAL_SERVICE_UUID ||
+          context.accountUUID === payload.account_uuid)
+      );
+    }
+  })
+  async vehicleSubscription(
+    @Root() payload: VehicleSubscriptionPayload,
+    @Arg("id") id: string,
+    @Ctx() context: IContext
+  ): Promise<Vehicle> {
+    assert(payload.vehicle_uuid === id);
+    assert(
+      context.accountUUID === INTERNAL_SERVICE_UUID ||
+        context.accountUUID === payload.account_uuid
+    );
+    return DBInterface.DBVehicleToVehicle(
+      await context.db.getVehicle(payload.vehicle_uuid, payload.account_uuid)
+    );
+  }
+
   @Mutation(_returns => Vehicle)
   async newVehicle(
     @Arg("input") input: NewVehicleInput,
@@ -57,7 +99,8 @@ export class VehicleResolver {
   @Mutation(_returns => Vehicle)
   async updateVehicle(
     @Arg("input") input: UpdateVehicleInput,
-    @Ctx() context: IContext
+    @Ctx() context: IContext,
+    @PubSub() pubSub: PubSubEngine
   ): Promise<Vehicle> {
     const accountLimiter =
       context.accountUUID === INTERNAL_SERVICE_UUID
@@ -65,8 +108,7 @@ export class VehicleResolver {
         : context.accountUUID;
     // verify vehicle ownage
     await context.db.getVehicle(input.id, accountLimiter);
-    debugger;
-    return DBInterface.DBVehicleToVehicle(
+    const result = DBInterface.DBVehicleToVehicle(
       await context.db.updateVehicle(
         input.id,
         input.name,
@@ -78,20 +120,30 @@ export class VehicleResolver {
         input.providerData
       )
     );
+    await pubSub.publish(VehicleSubscriptionTopic, {
+      vehicle_uuid: result.id,
+      account_uuid: result.ownerID
+    });
+    return result;
   }
   @Mutation(_returns => Boolean)
   async updateVehicleData(
     @Arg("input") input: UpdateVehicleDataInput,
-    @Ctx() context: IContext
+    @Ctx() context: IContext,
+    @PubSub() pubSub: PubSubEngine
   ): Promise<Boolean> {
     const accountLimiter =
       context.accountUUID === INTERNAL_SERVICE_UUID
         ? undefined
         : context.accountUUID;
-    await context.db.getVehicle(input.id, accountLimiter); // verify vehicle ownage
+    const vehicle = await context.db.getVehicle(input.id, accountLimiter); // verify vehicle ownage
 
     // TODO: Add the possibility to update only partial information
     await context.logic.updateVehicleData(input);
+    await pubSub.publish(VehicleSubscriptionTopic, {
+      vehicle_uuid: vehicle.vehicle_uuid,
+      account_uuid: vehicle.account_uuid
+    });
     return true;
   }
   @Mutation(_returns => Boolean)

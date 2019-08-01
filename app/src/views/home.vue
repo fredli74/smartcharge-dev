@@ -1,7 +1,7 @@
 <template>
   <div class="home">
     <div v-if="loading">
-      <v-progress-circular indeterminate color="primary"></v-progress-circular>
+      <v-progress-linear indeterminate color="primary"></v-progress-linear>
     </div>
     <v-card>
       <v-list-item
@@ -12,17 +12,35 @@
         @click="selectVehicle(vehicle)"
       >
         <v-container fluid grid-list-md>
-          <v-layout wrap>
-            <v-flex xs4 sm6>
+          <v-layout align-center justify-space-around>
+            <v-flex xs4 sm5>
               <v-img max-height="100" contain :src="vehiclePicture(vehicle)" />
             </v-flex>
-            <v-flex xs8 sm6>
+            <v-flex xs7 sm6>
               <v-list-item-content>
                 <v-list-item-title>{{ vehicle.name }}</v-list-item-title>
                 <v-list-item-subtitle class="text-lowercase">
                   {{ vehicle.status || "adding..." }}</v-list-item-subtitle
                 >
               </v-list-item-content>
+            </v-flex>
+            <v-flex xs1>
+              <v-progress-circular
+                :rotate="90"
+                :size="40"
+                :width="3"
+                :value="vehicle.batteryLevel"
+                :color="
+                  vehicle.batteryLevel > 20
+                    ? 'green'
+                    : vehicle.batteryLevel > 10
+                    ? 'orange'
+                    : 'red'
+                "
+                class="caption"
+              >
+                {{ vehicle.batteryLevel }}%
+              </v-progress-circular>
             </v-flex>
           </v-layout>
         </v-container>
@@ -40,8 +58,32 @@
 import { Component, Vue } from "vue-property-decorator";
 import apollo from "@app/plugins/apollo";
 import { Vehicle } from "@shared/gql-types";
+import { gql } from "apollo-boost";
+import providers from "@providers/provider-apps";
 
-@Component({ components: {} })
+@Component({
+  components: {},
+  apollo: {
+    vehicles: {
+      query: gql`
+        query GetVehicles {
+          vehicles {
+            id
+            name
+            batteryLevel
+            status
+            providerData
+          }
+        }
+      `,
+      //update: data => data.vehicles,
+      watchLoading(isLoading, countModifier) {
+        this.loading = isLoading;
+      },
+      pollInterval: 5000
+    }
+  }
+})
 export default class Home extends Vue {
   loading?: boolean;
   vehicles?: Vehicle[];
@@ -50,9 +92,9 @@ export default class Home extends Vue {
     return { loading: false, vehicles: undefined };
   }
   async mounted() {
-    this.loading = true;
-    this.vehicles = await apollo.getVehicles();
-    this.loading = false;
+    // this.loading = true;
+    // this.vehicles = await apollo.getVehicles();
+    // this.loading = false;
   }
 
   vehicleReady(vehicle: Vehicle) {
@@ -60,8 +102,18 @@ export default class Home extends Vue {
       vehicle.batteryLevel > 0 || vehicle.odometer > 0 || vehicle.status !== ""
     );
   }
-  vehiclePicture(_vehicle: Vehicle) {
-    return "https://static-assets.tesla.com/configurator/compositor?&options=$W39B,$PPSB,$DV4W&view=STUD_3QTR&model=m3&size=400&bkba_opt=1&version=0.0.25";
+  vehiclePicture(vehicle: Vehicle) {
+    const provider = providers.find(
+      p => p.name === vehicle.providerData.provider
+    );
+    if (provider && provider.image) {
+      return provider.image(vehicle);
+    } else {
+      return "";
+    }
+  }
+  selectVehicle(vehicle: Vehicle) {
+    this.$router.push(`/vehicle/${vehicle.id}`);
   }
 }
 </script>

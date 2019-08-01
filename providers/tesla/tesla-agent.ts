@@ -16,7 +16,8 @@ import {
   ChargeConnection,
   Vehicle,
   UpdateVehicleDataInput,
-  ChargePlan
+  ChargePlan,
+  UpdateVehicleInput
 } from "@shared/gql-types";
 
 import config from "./tesla-config";
@@ -55,6 +56,59 @@ export class TeslaAgent extends AbstractAgent {
     if (job.state && job.state.status !== status) {
       this.scClient.updateVehicle({ id: job.subjectID, status: status });
       job.state.status = status;
+    }
+  }
+
+  public async setOptionCodes(job: TeslaAgentJob, data: any) {
+    let option_codes = (data.option_codes as string).split(",");
+    if (option_codes.indexOf("MDL3") >= 0) {
+      /***** MODEL 3 option codes are not correct *****/
+      option_codes = [];
+      if (data.vehicle_config === undefined) {
+        return;
+      }
+
+      // Add new codes
+      const colors: any = {
+        MidnightSilver: "PMNG"
+        // TODO: Add more information
+        // Solid Black: "PBSB",
+        // Red Multi-Coat : "PPMR",
+        // Deep Blue Metallic : "PPSB",
+        // Pearl White Multi-Coat : "PPSW",
+        // Silver Metallic : "PMSS",
+      };
+      option_codes.push(colors[data.vehicle_config.exterior_color] || "PPSW");
+
+      const roofColors: any = {
+        Glass: "RF3G"
+        // TODO: Add more information
+      };
+      option_codes.push(roofColors[data.vehicle_config.roof_color] || "RF3G");
+
+      const wheels: any = {
+        Pinwheel18: "W38B"
+        // TODO: Add more information
+        // 19" Sport Wheels: "W39B", // default
+        // 20" Sport Wheels: "W32B"
+      };
+      option_codes.push(wheels[data.vehicle_config.wheel_type] || "W39B");
+
+      if (data.vehicle_config.spoiler_type !== "None") {
+        option_codes.push("SLR1");
+      }
+
+      option_codes.push(data.vehicle_config.rhd ? "DRRH" : "DRLH");
+    }
+
+    if (
+      JSON.stringify(job.providerData.option_codes) !==
+      JSON.stringify(option_codes)
+    ) {
+      await this.scClient.updateVehicle({
+        id: job.subjectID,
+        providerData: { option_codes: option_codes }
+      });
     }
   }
 
@@ -151,6 +205,8 @@ export class TeslaAgent extends AbstractAgent {
           batteryLevel: Math.trunc(data.charge_state.usable_battery_level), // battery level in %
           odometer: Math.trunc(data.vehicle_state.odometer * 1609.344), // 1 mile = 1.609344 km
           outsideTemperature: data.climate_state.outside_temp, // in celcius
+          insideTemperature: data.climate_state.inside_temp, // in celcius
+          climateControl: data.climate_state.is_climate_on,
           isDriving:
             data.drive_state.shift_state === "D" || // Driving if shift_state is in Drive
             data.drive_state.shift_state === "R", // ... or in Reverse
@@ -226,6 +282,7 @@ export class TeslaAgent extends AbstractAgent {
           }
         }
         await this.scClient.updateVehicleData(input);
+        await this.setOptionCodes(job, data);
       } else {
         // Poll vehicle list to avoid keeping it awake
         const data = (await TeslaAPI.listVehicle(
@@ -255,7 +312,7 @@ export class TeslaAgent extends AbstractAgent {
 
               job.state.pollstate = "polling"; // Start polling again
               job.state.statestart = now;
-              interval = 0; // Woke up, poll right away
+              interval = 15; // Woke up, poll right away
             }
             break;
           case "offline":
@@ -308,6 +365,7 @@ export class TeslaAgent extends AbstractAgent {
             console.error(s);
           }
         }
+        await this.setOptionCodes(job, data);
       }
 
       const wasDriving = Boolean(job.state.data && job.state.data.isDriving);
@@ -360,17 +418,21 @@ export class TeslaAgent extends AbstractAgent {
               JSON.stringify(job.state.data.chargePlan)
           );
 
+          let stopCharging = false;
+          let startCharging = false;
           if (
             shouldCharge === null &&
             job.state.data.chargingTo !== null &&
             job.state.data.batteryLevel < job.state.data.chargingTo
           ) {
-            log(LogLevel.Info, `Stop charging ${job.state.data.name}`);
-            TeslaAPI.chargeStop(job.providerData.sid, job.providerData.token);
+            stopCharging = true;
           } else if (
             shouldCharge !== null &&
             job.state.data.batteryLevel < shouldCharge.level
           ) {
+            startCharging = true;
+          }
+          if (stopCharging || startCharging) {
             if (
               job.state.pollstate === "asleep" ||
               job.state.pollstate === "offline"
@@ -380,12 +442,16 @@ export class TeslaAgent extends AbstractAgent {
                 job.providerData.sid,
                 job.providerData.token
               );
-            } else {
+              interval = 15;
+            } else if (stopCharging) {
+              log(LogLevel.Info, `Stop charging ${job.state.data.name}`);
+              TeslaAPI.chargeStop(job.providerData.sid, job.providerData.token);
+            } else if (startCharging) {
               if (job.state.pollstate === "tired") {
                 job.state.pollstate = "polling";
               }
 
-              const chargeto = Math.max(50, shouldCharge.level); // Minimum allowed charge for Tesla is 50
+              const chargeto = Math.max(50, shouldCharge!.level); // Minimum allowed charge for Tesla is 50
 
               if (
                 job.state.chargeLimit !== undefined && // Only controll if polled at least once

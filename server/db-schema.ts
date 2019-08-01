@@ -77,6 +77,8 @@ export interface DBVehicle {
   level: number; // current battery charge level %
   odometer: number; // odometer (in meter)
   outside_deci_temperature: number; // temperature (deci-celsius)
+  inside_deci_temperature: number; // temperature (deci-celsius)
+  climate_control: boolean; // climate control on
   connected: boolean; // connected to charger
   connected_id: number; // current charge session id
   charging_to: number; // currently charging to level %
@@ -105,6 +107,8 @@ const DBVehicle_TSQL = `CREATE TABLE scserver.vehicle
         level smallint,
         odometer integer,
         outside_deci_temperature smallint,
+        inside_deci_temperature smallint,
+        climate_control boolean,
         connected boolean,
         connected_id integer,
         charging_to integer,

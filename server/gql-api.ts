@@ -62,34 +62,14 @@ export interface IContext {
   accountUUID: string;
   account?: DBAccount;
 }
-
-export async function gqlServer(
-  app: express.Express,
-  db: DBInterface,
-  logic: Logic
-) {
-  const schema = await buildSchema({
-    resolvers: [
-      LocationResolver,
-      ProviderResolver,
-      VehicleResolver,
-      AccountResolver
-    ],
-    emitSchemaFile: true,
-    validate: false
-  });
-  const server = new ApolloServer({
-    playground: true,
-    schema,
-    context: ({ res }) => {
-      return <IContext>{
-        db,
-        logic,
-        accountUUID:
-          (res.locals.account && res.locals.account.account_uuid) || undefined,
-        account: res.locals.account
-      };
-    }
-  });
-  server.applyMiddleware({ app, path: "/api/gql" });
-}
+const schema = buildSchema({
+  resolvers: [
+    LocationResolver,
+    ProviderResolver,
+    VehicleResolver,
+    AccountResolver
+  ],
+  emitSchemaFile: true,
+  validate: false
+});
+export default schema;

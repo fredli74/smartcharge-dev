@@ -1,6 +1,7 @@
 import { IRestToken } from "@shared/restclient";
 import { SCClient } from "@shared/sc-client";
 import eventBus from "@app/plugins/eventBus";
+import { Vehicle } from "@shared/gql-types";
 
 // List entry when adding a new Tesla vehicle
 export interface TeslaNewListEntry {
@@ -17,6 +18,7 @@ export interface TeslaProviderData {
   sid: string; // tesla vehicle id
   token: IRestToken; // token for API authentication
   invalidToken: boolean;
+  option_codes: string;
 }
 
 // Helper function to refresh token (through the server proxy) and at the
@@ -35,4 +37,13 @@ export async function refreshToken(
     eventBus.$emit("ALERT_WARNING", "Unable to verify Tesla API token");
   }
   return token;
+}
+
+export function vehicleImage(vehicle: Vehicle): string {
+  let options = ["W32P", "PPMR", "SLR1"];
+  if (vehicle.providerData.option_codes) {
+    options = vehicle.providerData.option_codes;
+  }
+  const optionString = options.map(f => "$" + f).join(",");
+  return `https://static-assets.tesla.com/configurator/compositor?&options=${optionString}&view=STUD_3QTR&model=m3&size=1441&bkba_opt=1&version=0.0.25`;
 }

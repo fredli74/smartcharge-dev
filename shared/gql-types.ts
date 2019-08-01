@@ -77,6 +77,14 @@ export function ScheduleToJS(input: Schedule): Schedule {
   return { level: input.level, time: new Date(input.time) };
 }
 
+export enum ChargeType {
+  minimum = "minimum",
+  routine = "routine",
+  fill = "fill",
+  trip = "trip"
+}
+registerEnumType(ChargeType, { name: "ChargeType" });
+
 @ObjectType()
 export abstract class ChargePlan {
   @Field(_type => Date, {
@@ -91,6 +99,8 @@ export abstract class ChargePlan {
   chargeStop!: Date | null;
   @Field(_type => Int)
   level!: number;
+  @Field(_type => ChargeType)
+  chargeType!: ChargeType;
   @Field()
   comment!: string;
 }
@@ -98,6 +108,7 @@ export function ChargePlanToJS(input: ChargePlan): ChargePlan {
   return {
     chargeStart: (input.chargeStart && new Date(input.chargeStart)) || null,
     chargeStop: (input.chargeStop && new Date(input.chargeStop)) || null,
+    chargeType: input.chargeType,
     level: input.level,
     comment: input.comment || ""
   };
@@ -136,6 +147,10 @@ export abstract class Vehicle {
   odometer!: number;
   @Field(_type => Float, { description: `outside temperature (celcius)` })
   outsideTemperature!: number;
+  @Field(_type => Float, { description: `inside temperature (celcius)` })
+  insideTemperature!: number;
+  @Field({ description: `is climate control on` })
+  climateControl!: boolean;
   @Field()
   isDriving!: boolean;
   @Field({ description: `is a charger connected` })
@@ -173,6 +188,8 @@ export function VehicleToJS(input: Vehicle): Vehicle {
     batteryLevel: input.batteryLevel,
     odometer: input.odometer,
     outsideTemperature: input.outsideTemperature,
+    insideTemperature: input.insideTemperature,
+    climateControl: input.climateControl,
     isDriving: input.isDriving,
     isConnected: input.isConnected,
     chargePlan:
@@ -239,6 +256,10 @@ export abstract class UpdateVehicleDataInput {
   odometer!: number;
   @Field(_type => Float, { description: `outside temperature (celcius)` })
   outsideTemperature!: number;
+  @Field(_type => Float, { description: `inside temperature (celcius)` })
+  insideTemperature!: number;
+  @Field({ description: `is climate control on` })
+  climateControl!: boolean;
   @Field()
   isDriving!: boolean;
   @Field(_type => ChargeConnection, {

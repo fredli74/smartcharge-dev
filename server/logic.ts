@@ -21,7 +21,8 @@ import {
   UpdateVehicleDataInput,
   ChargePlan,
   ScheduleToJS,
-  ChargePlanToJS
+  ChargePlanToJS,
+  ChargeType
 } from "@shared/gql-types";
 
 const TRIP_TOPUP_TIME = 15 * 60e3; // 15 minutes before trip time
@@ -45,6 +46,8 @@ export class Logic {
       level: input.batteryLevel, // in %
       odometer: input.odometer, // in meter
       outside_temp: input.outsideTemperature * 10, // celsius to deci-celsius (20.5 = 205)
+      inside_temp: input.insideTemperature * 10, // celsius to deci-celsius (20.5 = 205)
+      climate_control: input.climateControl, // boolean
       driving: input.isDriving, // boolean
       connected: input.connectedCharger, // ac|dc|null
       charging_to: input.chargingTo, // in %
@@ -84,6 +87,8 @@ export class Logic {
             level: data.level,
             odometer: data.odometer,
             outside_deci_temperature: data.outside_temp,
+            inside_deci_temperature: data.inside_temp,
+            climate_control: data.climate_control,
             driving: data.driving,
             connected: data.connected !== null,
             charging_to: data.charging_to,
@@ -675,7 +680,7 @@ export class Logic {
     for (let i = 0; i < plan.length - 1; ++i) {
       const a = plan[i];
       const b = plan[i + 1];
-      if (a.comment === b.comment) {
+      if (a.chargeType === b.chargeType) {
         if (
           ((b.chargeStart && b.chargeStart.getTime()) || -Infinity) <=
           ((a.chargeStop && a.chargeStop.getTime()) || Infinity)
@@ -707,7 +712,8 @@ export class Logic {
     vehicle: DBVehicle,
     batteryLevel: number,
     before: number,
-    why: string
+    chargeType: ChargeType,
+    comment: string
   ): Promise<ChargePlan[]> {
     const stats = await this.currentStats(vehicle);
     const averagePrice =
@@ -738,6 +744,7 @@ export class Logic {
           chargeStart: null,
           chargeStop: new Date(now + timeNeeded),
           level: batteryLevel,
+          chargeType: ChargeType.routine,
           comment: `no price data`
         });
       }
@@ -746,23 +753,31 @@ export class Logic {
       for (const price of priceMap) {
         const ts = price.ts.getTime();
         const start = ts < now ? now : ts;
-        let end = start + timeLeft;
-        let level = batteryLevel;
-        let comment = why;
+        const fullHour = ts + 60 * 60 * 1e3;
+        let entry: ChargePlan;
+        let end = fullHour;
         if (price.price <= (averagePrice * stats.threshold) / 100) {
-          // VERY CHEAP just free charge
-          end += 60 * 60 * 1e3;
-          level = vehicle.maximum_charge;
-          comment = `price below automatic threshold`;
-        }
-        end = Math.min(before, ts + 60 * 60 * 1e3, end);
-        if (end > start) {
-          plan.push({
+          // Fill'er up
+          entry = {
             chargeStart: ts < start ? null : new Date(start),
             chargeStop: new Date(end),
-            level: level,
+            level: vehicle.maximum_charge,
+            chargeType: ChargeType.fill,
+            comment: `price below automatic threshold`
+          };
+        } else {
+          end = Math.min(start + timeLeft, before, fullHour);
+          entry = {
+            chargeStart: ts < start ? null : new Date(start),
+            chargeStop: new Date(end),
+            level: batteryLevel,
+            chargeType: chargeType,
             comment: comment
-          });
+          };
+        }
+
+        if (end > start) {
+          plan.push(entry);
           timeLeft -= end - start;
         }
       }
@@ -790,6 +805,7 @@ export class Logic {
         chargeStart: null,
         chargeStop: null,
         level: vehicle.maximum_charge,
+        chargeType: ChargeType.fill,
         comment: `learning`
       }); // run free
       this.setSmartStatus(vehicle, `Smart charging disabled (still learning)`);
@@ -817,6 +833,7 @@ export class Logic {
             chargeStart: null,
             chargeStop: new Date(now + timeNeeded),
             level: vehicle.minimum_charge,
+            chargeType: ChargeType.minimum,
             comment: `emergency charge`
           }
         ];
@@ -881,6 +898,7 @@ export class Logic {
               chargeStart: null,
               chargeStop: null,
               level: vehicle.maximum_charge,
+              chargeType: ChargeType.fill,
               comment: `learning`
             }); // run free
 
@@ -915,7 +933,8 @@ export class Logic {
               vehicle,
               minimumCharge,
               before,
-              `based on past usage pattern`
+              ChargeType.routine,
+              `based on past charging routine`
             );
             plan.push(...p);
           }
@@ -945,6 +964,7 @@ export class Logic {
               vehicle,
               tripCharge,
               topupStart,
+              ChargeType.trip,
               `upcoming trip`
             );
             plan.push(...p);
@@ -954,7 +974,8 @@ export class Logic {
                 chargeStart: new Date(topupStart),
                 chargeStop: null,
                 level: trip.level,
-                comment: `upcoming trip`
+                chargeType: ChargeType.trip,
+                comment: `topping up before trip`
               });
               if (now >= topupStart) {
                 this.setSmartStatus(

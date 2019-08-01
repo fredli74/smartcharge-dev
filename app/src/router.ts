@@ -42,6 +42,13 @@ const router = new Router({
         import(/* webpackChunkName: "providerwrapper" */ "./views/provider-wrapper.vue"),
       meta: {}
     },
+    {
+      path: "/vehicle/:id",
+      name: "vehicle",
+      component: () =>
+        import(/* webpackChunkName: "vehicle" */ "./views/vehicle.vue"),
+      meta: {}
+    },
     { path: "*", component: NotFoundComponent }
   ]
 });

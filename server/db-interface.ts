@@ -253,6 +253,8 @@ export class DBInterface {
       batteryLevel: v.level || 0,
       odometer: Math.trunc(v.odometer) || 0,
       outsideTemperature: v.outside_deci_temperature / 10,
+      insideTemperature: v.inside_deci_temperature / 10,
+      climateControl: v.climate_control || false,
       isDriving: v.driving || false,
       isConnected: v.connected || false,
       chargePlan: v.charge_plan,
@@ -271,7 +273,6 @@ export class DBInterface {
     maximum_charge: number,
     provider_data?: any
   ): Promise<DBVehicle> {
-    debugger;
     const fields: any = {
       account_uuid,
       name,
@@ -336,7 +337,6 @@ export class DBInterface {
     status: string | undefined,
     provider_data: any | undefined
   ): Promise<DBVehicle> {
-    debugger;
     const [values, set] = queryHelper([
       vehicle_uuid,
       [name, `name = $2`],
@@ -385,7 +385,6 @@ export class DBInterface {
     accountUUID: string | undefined,
     accept: string[] | undefined
   ): Promise<ProviderSubject[]> {
-    debugger;
     const [values, where] = queryHelper([
       [accountUUID, `account_uuid = $1`],
       [accept, `provider_name IN ($2:csv)`]
