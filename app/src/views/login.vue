@@ -1,21 +1,22 @@
 <template>
   <div class="login text-center">
-    <h2>LOGIN!</h2>
-    <form @submit.prevent="login">
+    <h2>LOGIN</h2>
+    <v-form id="login-form" @submit.prevent="login">
       <input
         v-show="false"
         type="text"
         name="username"
         autocomplete="username"
       />
-      <input
+      <v-text-field
         v-model="password"
         type="password"
-        name="password"
+        label="password"
+        required
         autocomplete="current-password"
-      />
-      <button type="submit">login</button>
-    </form>
+      ></v-text-field>
+      <v-btn type="submit" form="login-form">login</v-btn>
+    </v-form>
   </div>
 </template>
 
