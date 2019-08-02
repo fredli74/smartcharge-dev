@@ -1,4 +1,5 @@
-import ApolloClient, { gql } from "apollo-boost";
+import { gql, InMemoryCache } from "apollo-boost";
+import ApolloClient from "apollo-client";
 import { mergeURL } from "@shared/utils";
 import { GQL_API_PATH } from "@shared/smartcharge-globals";
 
@@ -17,39 +18,97 @@ import {
   NewLocationInput,
   UpdateLocationInput
 } from "@shared/gql-types";
+import { getMainDefinition } from "apollo-utilities";
+import { split, ApolloLink } from "apollo-link";
+import { WebSocketLink } from "apollo-link-ws";
+import { onError } from "apollo-link-error";
+import { setContext } from "apollo-link-context";
+import { HttpLink } from "apollo-link-http";
+import { SubscriptionClient } from "subscriptions-transport-ws";
 
 export class SCClient extends ApolloClient<any> {
   public account?: Account;
   private token?: string;
-  constructor(server_url: string) {
-    super({
-      uri: mergeURL(server_url, GQL_API_PATH),
-      fetch: fetch,
-      request: operation => {
-        operation.setContext({
-          headers: this.token ? { authorization: `Bearer ${this.token}` } : {}
-        });
-      },
-      onError: ({ graphQLErrors, networkError }) => {
-        if (graphQLErrors) {
-          graphQLErrors.map(({ message, locations, path }) => {
-            console.log(
-              `[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`
-            );
-            if (message === "Unauthorized") {
-              debugger;
-              this.logout();
-            }
-          });
-        }
-        if (networkError) {
-          if (this.token && (networkError as any).statusCode === 401) {
+  private wsClient?: SubscriptionClient;
+  constructor(
+    server_url: string,
+    subscription_url?: string,
+    webSocketImpl?: any
+  ) {
+    const errorLink = onError(({ graphQLErrors, networkError }) => {
+      if (graphQLErrors) {
+        graphQLErrors.map(({ message, locations, path }) => {
+          console.log(
+            `[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`
+          );
+          if (message === "Unauthorized") {
+            debugger;
             this.logout();
           }
-          console.log(`[Network error]: ${networkError}`);
+        });
+      }
+      if (networkError) {
+        if (this.token && (networkError as any).statusCode === 401) {
+          this.logout();
         }
+        console.log(`[Network error]: ${networkError}`);
       }
     });
+    const httpLink = ApolloLink.from([
+      setContext((_, { headers }) => {
+        return {
+          headers: this.token
+            ? {
+                ...headers,
+                authorization: `Bearer ${this.token}`
+              }
+            : headers
+        };
+      }),
+      new HttpLink({
+        // You should use an absolute URL here
+        uri: mergeURL(server_url, GQL_API_PATH),
+        fetch: fetch
+      })
+    ]);
+
+    if (subscription_url) {
+      const wsClient = new SubscriptionClient(
+        mergeURL(subscription_url, GQL_API_PATH),
+        {
+          connectionParams: () => {
+            return this.token ? { Authorization: `Bearer ${this.token}` } : {};
+          },
+          reconnect: true
+        },
+        webSocketImpl
+      );
+
+      /*
+      this.link.split(
+        ({ query }) => {
+          const definition = getMainDefinition(query);
+          return (
+            definition.kind === "OperationDefinition" &&
+            definition.operation === "subscription"
+          );
+        },
+        wsLink,
+        httpLink
+      );*/
+      super({
+        connectToDevTools: true,
+        link: errorLink.concat(new WebSocketLink(wsClient)),
+        cache: new InMemoryCache()
+      });
+      this.wsClient = wsClient;
+    } else {
+      super({
+        connectToDevTools: true,
+        link: errorLink.concat(httpLink),
+        cache: new InMemoryCache()
+      });
+    }
 
     this.defaultOptions = {
       watchQuery: { fetchPolicy: "no-cache", errorPolicy: "none" },
@@ -71,6 +130,9 @@ export class SCClient extends ApolloClient<any> {
     })).data.loginWithPassword;
     this.token = this.account!.token;
     localStorage.setItem("token", this.account!.token);
+    if (this.wsClient) {
+      this.wsClient.close(false, true);
+    }
   }
   public async loginWithToken(token: string) {
     this.token = token;
@@ -86,6 +148,9 @@ export class SCClient extends ApolloClient<any> {
     this.token = undefined;
     this.account = undefined;
     this.cache.reset();
+    if (this.wsClient) {
+      this.wsClient.close(false, true);
+    }
   }
 
   static locationFragment = `

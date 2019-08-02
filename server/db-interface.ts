@@ -254,24 +254,24 @@ export class DBInterface {
       odometer: Math.trunc(v.odometer) || 0,
       outsideTemperature: v.outside_deci_temperature / 10,
       insideTemperature: v.inside_deci_temperature / 10,
-      climateControl: v.climate_control || false,
-      isDriving: v.driving || false,
-      isConnected: v.connected || false,
+      climateControl: v.climate_control,
+      isDriving: v.driving,
+      isConnected: v.connected,
       chargePlan: v.charge_plan,
       chargingTo: v.charging_to,
       estimatedTimeLeft: v.estimate,
-      status: v.status || "",
-      smartStatus: v.smart_status || "",
+      status: v.status,
+      smartStatus: v.smart_status,
       updated: v.updated,
       providerData: v.provider_data
     });
   }
   public async newVehicle(
     account_uuid: string,
-    name: string | undefined,
+    name: string,
     minimum_charge: number,
     maximum_charge: number,
-    provider_data?: any
+    provider_data: any
   ): Promise<DBVehicle> {
     const fields: any = {
       account_uuid,
@@ -291,25 +291,32 @@ export class DBInterface {
     );
   }
 
-  public async getVehicle(
-    vehicle_uuid: string,
-    account_uuid?: string
-  ): Promise<DBVehicle> {
+  public async getVehicles(
+    account_uuid: string | undefined,
+    vehicle_uuid?: string
+  ): Promise<DBVehicle[]> {
     const [values, where] = queryHelper([
       [vehicle_uuid, `vehicle_uuid = $1`],
       [account_uuid, `account_uuid = $2`]
     ]);
-    return await this.pg.one(
+    return this.pg.manyOrNone(
       `SELECT * FROM vehicle WHERE ${where.join(" AND ")}`,
       values
     );
   }
-  public async getVehicles(accountUUID: string): Promise<DBVehicle[]> {
-    return await this.pg.manyOrNone(
-      `SELECT * FROM vehicle WHERE account_uuid = $1`,
-      [accountUUID]
-    );
+
+  public async getVehicle(
+    vehicle_uuid: string,
+    account_uuid?: string // Used as access limiter
+  ): Promise<DBVehicle> {
+    const dblist = await this.getVehicles(account_uuid, vehicle_uuid);
+    if (dblist.length === 0) {
+      throw new Error(`Unknown vehicle id ${vehicle_uuid}`);
+    }
+    assert(dblist.length === 1);
+    return dblist[0];
   }
+
   public async setVehicleStatus(
     vehicleUUID: string,
     status: string

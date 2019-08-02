@@ -225,8 +225,8 @@ export abstract class UpdateVehicleInput {
 
 @InputType()
 export abstract class NewVehicleInput {
-  @Field({ nullable: true })
-  name?: string;
+  @Field()
+  name!: string;
   @Field(_type => Int)
   minimumLevel!: number;
   @Field(_type => Int)

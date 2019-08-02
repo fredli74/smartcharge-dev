@@ -113,6 +113,10 @@ import { DBAccount } from "./db-schema";
         path: "/api/gql",
         onConnect: async (connectionParams: any, webSocket, context) => {
           const account = await authorize(connectionParams.Authorization);
+          log(
+            LogLevel.Info,
+            `WS connection with ${JSON.stringify(connectionParams)}`
+          );
           return <IContext>{
             db,
             logic,

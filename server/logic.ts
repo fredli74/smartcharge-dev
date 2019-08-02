@@ -1003,16 +1003,13 @@ export class Logic {
   }
 
   public async refreshChargePlan(vehicleUUID?: string, accountUUID?: string) {
-    if (vehicleUUID !== undefined) {
-      const v = await this.db.getVehicle(vehicleUUID, accountUUID);
-      await this.refreshVehicleChargePlan(v);
-    } else if (accountUUID !== undefined) {
-      const dblist = await this.db.getVehicles(accountUUID);
-      for (const v of dblist) {
-        await this.refreshVehicleChargePlan(v);
-      }
-    } else {
+    if (vehicleUUID === undefined && accountUUID === undefined) {
       throw "refreshChargePlan called with invalid arguments";
+    }
+
+    const dblist = await this.db.getVehicles(accountUUID, vehicleUUID);
+    for (const v of dblist) {
+      await this.refreshVehicleChargePlan(v);
     }
   }
 }

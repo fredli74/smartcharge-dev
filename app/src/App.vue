@@ -71,7 +71,6 @@ export default class App extends Vue {
     if (!apollo.authorized) {
       const token = localStorage.getItem("token");
       if (token !== null) {
-        debugger;
         try {
           await apollo.loginWithToken(token);
         } catch (err) {

@@ -6,6 +6,7 @@
     <div v-if="vehicle !== undefined">
       <h2>{{ vehicle.name }}</h2>
       <h6>{{ vehicle.status }}</h6>
+      {{ vehicle.updated }}
       <v-img contain :src="vehiclePicture(vehicle)" />
       <v-progress-linear
         :value="vehicle.batteryLevel"
@@ -20,7 +21,6 @@
         >{{ vehicle.batteryLevel }}%</v-progress-linear
       >
       {{ vehicle.smartStatus }}
-      {{ vehicle }}
     </div>
   </div>
 </template>
@@ -31,22 +31,14 @@ import { Vehicle } from "@shared/gql-types";
 import { gql } from "apollo-boost";
 import providers from "@providers/provider-apps";
 
+const vehicleFragment = `id name location batteryLevel climateControl status smartStatus providerData updated`;
 @Component({
   components: {},
   apollo: {
     vehicle: {
       query: gql`
         query GetVehicle($id: String!) {
-          vehicle(id: $id) {
-            id
-            name
-            location
-            batteryLevel
-            climateControl
-            status
-            smartStatus
-            providerData
-          }
+          vehicle(id: $id) { ${vehicleFragment} }
         }
       `,
       variables() {
@@ -54,11 +46,30 @@ import providers from "@providers/provider-apps";
           id: this.$route.params.id
         };
       },
+      fetchPolicy: "cache-and-network",
+      subscribeToMore: {
+        document: gql`subscription VehicleSubscription($id:String!) { vehicleSubscription(id: $id) { ${vehicleFragment} } }`,
+        variables() {
+          return {
+            id: this.$route.params.id
+          };
+        },
+        fetchPolicy: "cache-and-network",
+        // Mutate the previous result
+        updateQuery: (previousResult, { subscriptionData }) => {
+          return {
+            vehicle: {
+              ...previousResult.vehicle,
+              ...subscriptionData.data.vehicleSubscription
+            }
+          };
+        }
+      },
+
       //update: data => data.vehicles,
       watchLoading(isLoading, countModifier) {
         this.loading = isLoading;
-      },
-      pollInterval: 5000
+      }
     }
   }
 })

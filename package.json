@@ -40,6 +40,8 @@
     "apollo-boost": "^0.4.3",
     "apollo-client": "^2.6.3",
     "apollo-link": "^1.2.12",
+    "apollo-link-context": "^1.0.18",
+    "apollo-link-ws": "^1.0.18",
     "apollo-server-express": "^2.7.2",
     "babel-eslint": "^10.0.1",
     "babel-plugin-transform-typescript-metadata": "^0.2.2",

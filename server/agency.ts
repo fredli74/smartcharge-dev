@@ -12,6 +12,7 @@ import { strict as assert } from "assert";
 
 import { Command } from "commander";
 import { log, LogLevel, delay } from "@shared/utils";
+import ws from "ws";
 
 const program = new Command();
 
@@ -115,7 +116,7 @@ program
   .version(`${APP_NAME} ${APP_VERSION}`, "-v, --version")
   .arguments("<access_token> <server_url>")
   .action(async (access_token, server_url) => {
-    const client = new SCClient(server_url);
+    const client = new SCClient(server_url, undefined, undefined);
     await client.loginWithToken(access_token);
 
     const agency = new Agency(client);
