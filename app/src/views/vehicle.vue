@@ -37,8 +37,11 @@
         buffer-value="0"
       ></v-progress-linear>
       {{ vehicle.smartStatus }}
-      <apex type="line" :options="apex.options" :series="apex.series"></apex>
-
+      <chargeChart
+        v-if="vehicle && location"
+        :vehicle="vehicle.id"
+        :location="location.id"
+      ></chargeChart>
       {{ location }}
       {{ vehicle }}
       {{ locations }}
@@ -53,16 +56,16 @@ import { Component, Vue, Watch } from "vue-property-decorator";
 import { Vehicle, Location } from "@shared/gql-types";
 import { gql } from "apollo-boost";
 import providers from "@providers/provider-apps";
-import RelativeTime from "../components/relativeTime.vue";
+import RelativeTime from "../components/relative-time.vue";
+import ChargeChart from "../components/charge-chart.vue";
 import { geoDistance } from "../../../shared/utils";
 import apollo from "@app/plugins/apollo";
-import VueApexCharts from "vue-apexcharts";
 
 const vehicleFragment = `id name minimumLevel maximumLevel tripSchedule { level time } pausedUntil geoLocation { latitude longitude } location batteryLevel outsideTemperature insideTemperature climateControl isDriving isConnected chargePlan { chargeStart chargeStop level chargeType comment } chargingTo estimatedTimeLeft status smartStatus updated providerData`;
 const locationFragment = `id name geoLocation { latitude longitude } geoFenceRadius`;
 
 @Component({
-  components: { RelativeTime, apex: VueApexCharts },
+  components: { RelativeTime, ChargeChart },
   apollo: {
     vehicle: {
       query: gql`
@@ -121,51 +124,7 @@ export default class VehicleVue extends Vue {
       vehicle: undefined,
       location: undefined,
       locations: undefined,
-      prettyStatus: "",
-      apex: {
-        options: {
-          chart: {
-            animations: { enabled: false },
-            id: "vuechart-example",
-            toolbar: {
-              show: false
-            }
-          },
-          stroke: {
-            width: 3,
-            curve: "smooth"
-          },
-          title: {
-            text: "Social Media",
-            align: "center",
-            style: {
-              fontSize: "16px",
-              color: "#666"
-            }
-          },
-          fill: {
-            type: "gradient",
-            gradient: {
-              shade: "dark",
-              gradientToColors: ["#FDD835"],
-              shadeIntensity: 1,
-              type: "vertical",
-              opacityFrom: 1,
-              opacityTo: 1,
-              stops: [0, 100, 100, 100]
-            }
-          },
-          xaxis: {
-            categories: [1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998]
-          }
-        },
-        series: [
-          {
-            name: "price",
-            data: [30, 40, 45, 50, 49, 60, 70, 91]
-          }
-        ]
-      }
+      prettyStatus: ""
     };
   }
   async created() {

@@ -23,7 +23,7 @@
 <script lang="ts">
 import { Component, Vue } from "vue-property-decorator";
 import apollo from "../plugins/apollo";
-import eventBus from "../plugins/eventBus";
+import eventBus from "../plugins/event-bus";
 import { strict as assert } from "assert";
 
 @Component({

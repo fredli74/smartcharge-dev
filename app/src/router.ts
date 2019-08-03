@@ -2,7 +2,7 @@ import Vue from "vue";
 import Router from "vue-router";
 import Home from "./views/home.vue";
 import apollo from "./plugins/apollo";
-import eventBus from "./plugins/eventBus";
+import eventBus from "./plugins/event-bus";
 
 Vue.use(Router);
 

@@ -484,10 +484,13 @@ export class Logic {
     }
   }
 
-  private async currentStats(vehicle: DBVehicle): Promise<DBCurrentStats> {
+  public async currentStats(
+    vehicle_uuid: string,
+    location_uuid: string
+  ): Promise<DBCurrentStats> {
     const stats: DBCurrentStats | null = await this.db.pg.oneOrNone(
       `SELECT * FROM current_stats WHERE vehicle_uuid=$1 AND location_uuid=$2 AND date=current_date`,
-      [vehicle.vehicle_uuid, vehicle.location_uuid]
+      [vehicle_uuid, location_uuid]
     );
     if (stats !== null) {
       return stats;
@@ -496,7 +499,7 @@ export class Logic {
         `SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY duration) as seconds
                 FROM charge a JOIN charge_curve b ON (a.charge_id = b.charge_id)
                 WHERE a.vehicle_uuid = $1 AND location_uuid = $2`,
-        [vehicle.vehicle_uuid, vehicle.location_uuid]
+        [vehicle_uuid, location_uuid]
       )).seconds;
 
       // What is the current weekly average power price
@@ -507,7 +510,7 @@ export class Logic {
                 SELECT 
                     (SELECT AVG(price::float) FROM my_location_data WHERE ts >= current_date - interval '7 days') as avg7,
                     (SELECT AVG(price::float) FROM my_location_data WHERE ts >= current_date - interval '21 days') as avg21;`,
-        [vehicle.location_uuid]
+        [location_uuid]
       );
 
       let threshold = 0.6;
@@ -547,11 +550,19 @@ export class Logic {
           JOIN week_avg ON (day = date_trunc('day', hour))
         )
         SELECT * FROM connection_map ORDER BY connected_id,hour;`,
-        [vehicle.vehicle_uuid, vehicle.location_uuid]
+        [vehicle_uuid, location_uuid]
       );
 
       if (history.length > 0) {
         // Charge simulation
+        const charge_levels: {
+          minimum_charge: number;
+          maximum_charge: number;
+        } = await this.db.pg.one(
+          `SELECT minimum_charge, maximum_charge FROM vehicle WHERE vehicle_uuid = $1`,
+          [vehicle_uuid]
+        );
+
         const thresholdList = history.map(h => h.threshold).sort();
         let bestCost = Number.POSITIVE_INFINITY;
         for (const t of thresholdList) {
@@ -564,7 +575,10 @@ export class Logic {
             if (!current || current.connected_id !== h.connected_id) {
               if (current && current.connected_id + 1 === h.connected_id) {
                 lvl -= Math.max(0, current.end_level - h.start_level); // charge used between connections
-                if (lvl < h.start_level && lvl < vehicle.minimum_charge / 2) {
+                if (
+                  lvl < h.start_level &&
+                  lvl < charge_levels.minimum_charge / 2
+                ) {
                   // half of minimum charge is where I draw the line
                   lvl = -1;
                   break;
@@ -575,17 +589,17 @@ export class Logic {
               }
               current = h;
               neededLevel = Math.min(
-                vehicle.maximum_charge,
+                charge_levels.maximum_charge,
                 Math.max(
-                  vehicle.minimum_charge,
-                  vehicle.minimum_charge + current.needed * 1.1
+                  charge_levels.minimum_charge,
+                  charge_levels.minimum_charge + current.needed * 1.1
                 )
               );
             }
 
             let charge =
               h.threshold <= t
-                ? vehicle.maximum_charge - lvl
+                ? charge_levels.maximum_charge - lvl
                 : lvl < neededLevel
                 ? neededLevel - lvl
                 : 0;
@@ -595,7 +609,7 @@ export class Logic {
                 charge * level_charge_time
               );
               const newLevel = Math.min(
-                vehicle.maximum_charge,
+                charge_levels.maximum_charge,
                 lvl + chargeTime / level_charge_time
               );
               totalCharged += newLevel - lvl;
@@ -604,7 +618,7 @@ export class Logic {
             }
           }
           const f = totalCost / (totalCharged * totalCharged);
-          if (lvl > vehicle.minimum_charge && f < bestCost) {
+          if (lvl > charge_levels.minimum_charge && f < bestCost) {
             bestCost = f;
             threshold = t;
           }
@@ -614,8 +628,8 @@ export class Logic {
       return await this.db.pg.one(
         `INSERT INTO current_stats($[this:name]) VALUES ($[this:csv]) RETURNING *;`,
         {
-          vehicle_uuid: vehicle.vehicle_uuid,
-          location_uuid: vehicle.location_uuid,
+          vehicle_uuid: vehicle_uuid,
+          location_uuid: location_uuid,
           level_charge_time: Math.round(level_charge_time),
           weekly_avg7_price: Math.round(avg_prices.avg7),
           weekly_avg21_price: Math.round(avg_prices.avg21),
@@ -716,7 +730,11 @@ export class Logic {
     chargeType: ChargeType,
     comment: string
   ): Promise<ChargePlan[]> {
-    const stats = await this.currentStats(vehicle);
+    assert(vehicle.location_uuid !== undefined);
+    const stats = await this.currentStats(
+      vehicle.vehicle_uuid,
+      vehicle.location_uuid
+    );
     const averagePrice =
       stats.weekly_avg7_price +
       (stats.weekly_avg7_price - stats.weekly_avg21_price) / 2;
@@ -751,13 +769,14 @@ export class Logic {
       }
     } else {
       let timeLeft = timeNeeded;
+      const thresholdPrice = (averagePrice * stats.threshold) / 100;
       for (const price of priceMap) {
         const ts = price.ts.getTime();
         const start = ts < now ? now : ts;
         const fullHour = ts + 60 * 60 * 1e3;
         let entry: ChargePlan;
         let end = fullHour;
-        if (price.price <= (averagePrice * stats.threshold) / 100) {
+        if (price.price <= thresholdPrice) {
           // Fill'er up
           entry = {
             chargeStart: ts < start ? null : new Date(start),
@@ -796,7 +815,11 @@ export class Logic {
 
     const now = Date.now();
 
-    const stats = await this.currentStats(vehicle);
+    assert(vehicle.location_uuid !== undefined);
+    const stats = await this.currentStats(
+      vehicle.vehicle_uuid,
+      vehicle.location_uuid
+    );
     log(LogLevel.Trace, `stats: ${JSON.stringify(stats)}`);
 
     let plan: ChargePlan[] = [];

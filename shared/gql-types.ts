@@ -347,3 +347,19 @@ export abstract class UpdateLocationInput {
   @Field(_type => GraphQLJSONObject, { nullable: true })
   providerData?: any;
 }
+
+@ObjectType()
+export abstract class ChartData {
+  @Field(_type => ID)
+  locationID!: string;
+  @Field(_type => ID)
+  vehicleID!: string;
+  @Field(_type => Int)
+  levelChargeTime!: number;
+  @Field(_type => Int)
+  thresholdPrice!: number;
+  @Field(_type => LocationPrice)
+  prices!: LocationPrice[];
+  @Field(_type => [ChargePlan], { nullable: true })
+  chargePlan!: ChargePlan[] | null;
+}

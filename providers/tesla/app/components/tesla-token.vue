@@ -26,7 +26,7 @@
 <script lang="ts">
 import { Component, Vue } from "vue-property-decorator";
 import apollo from "@app/plugins/apollo";
-import eventBus from "@app/plugins/eventBus";
+import eventBus from "@app/plugins/event-bus";
 
 @Component({ components: {} })
 export default class TeslaTokenVue extends Vue {

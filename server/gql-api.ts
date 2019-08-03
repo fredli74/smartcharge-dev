@@ -22,7 +22,7 @@ import PASSWORD from "./smartcharge-password.json";
 import { ProviderResolver } from "./resolvers/provider-resolver";
 import { VehicleResolver } from "./resolvers/vehicle-resolver";
 import { LocationResolver } from "./resolvers/location-resolver";
-import { Account } from "@shared/gql-types";
+import { Account, ChartData } from "@shared/gql-types";
 
 @Resolver()
 class AccountResolver {
@@ -53,6 +53,38 @@ class AccountResolver {
     return DBInterface.DBAccountToAccount(
       await context.db.getAccount(INTERNAL_SERVICE_UUID)
     );
+  }
+
+  @Query(_returns => ChartData)
+  async chartData(
+    @Arg("vehicleID") vehicle_uuid: string,
+    @Arg("locationID") location_uuid: string,
+    @Ctx() context: IContext
+  ): Promise<ChartData> {
+    const vehicle = await context.db.getVehicle(
+      vehicle_uuid,
+      context.accountUUID
+    );
+
+    const location = await context.db.getLocation(
+      location_uuid,
+      context.accountUUID
+    );
+
+    const stats = await context.logic.currentStats(vehicle_uuid, location_uuid);
+    const averagePrice =
+      stats.weekly_avg7_price +
+      (stats.weekly_avg7_price - stats.weekly_avg21_price) / 2;
+
+    const chartData = await context.db.getChartData(location_uuid, 48);
+    return {
+      locationID: location.location_uuid,
+      vehicleID: vehicle.vehicle_uuid,
+      thresholdPrice: Math.trunc((averagePrice * stats.threshold) / 100),
+      levelChargeTime: stats.level_charge_time,
+      prices: chartData.map(f => ({ startAt: f.ts, price: f.price })),
+      chargePlan: vehicle.charge_plan
+    };
   }
 }
 

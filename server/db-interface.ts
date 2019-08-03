@@ -422,4 +422,15 @@ export class DBInterface {
         }
     );
   }
+
+  public async getChartData(
+    location_uuid: string,
+    interval: number
+  ): Promise<DBLocationData[]> {
+    return this.pg.manyOrNone(
+      `WITH data AS (SELECT * FROM location_data WHERE location_uuid = $1)
+      SELECT * FROM data WHERE ts > (SELECT max(ts) FROM data) - interval $2 ORDER BY ts`,
+      [location_uuid, `${interval} hours`]
+    );
+  }
 }
