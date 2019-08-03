@@ -60,6 +60,7 @@ export class Logic {
     const lastLocationUUID: string | null = vehicle.location_uuid;
     let currentLocationUUID: string | null = vehicle.location_uuid;
     if (
+      true || // this optimization does not work when adding a new location
       vehicle.location_micro_latitude !== data.latitude ||
       vehicle.location_micro_longitude !== data.longitude
     ) {

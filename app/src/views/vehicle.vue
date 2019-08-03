@@ -5,12 +5,23 @@
     </div>
     <div v-if="vehicle !== undefined">
       <h2>{{ vehicle.name }}</h2>
-      <h6>{{ vehicle.status }}</h6>
-      {{ vehicle.updated }}
+      <h3>
+        {{ prettyStatus }}
+        <div class="caption">
+          ({{ vehicle.status }}
+          <span>@ {{ (location && location.name) || "unknown location" }}</span
+          >)
+        </div>
+      </h3>
+      <div>
+        Updated <RelativeTime :time="new Date(vehicle.updated)"></RelativeTime>
+      </div>
+
       <v-img contain :src="vehiclePicture(vehicle)" />
       <v-progress-linear
+        class="batteryLevel"
         :value="vehicle.batteryLevel"
-        height="20"
+        height="33"
         :color="
           vehicle.batteryLevel > 20
             ? 'green'
@@ -19,21 +30,39 @@
             : 'red'
         "
         >{{ vehicle.batteryLevel }}%</v-progress-linear
-      >
+      ><v-progress-linear
+        :value="vehicle.batteryLevel"
+        height="3"
+        color="cyan"
+        buffer-value="0"
+      ></v-progress-linear>
       {{ vehicle.smartStatus }}
+      <apex type="line" :options="apex.options" :series="apex.series"></apex>
+
+      {{ location }}
+      {{ vehicle }}
+      {{ locations }}
     </div>
   </div>
 </template>
 
 <script lang="ts">
-import { Component, Vue } from "vue-property-decorator";
-import { Vehicle } from "@shared/gql-types";
+import { strict as assert } from "assert";
+
+import { Component, Vue, Watch } from "vue-property-decorator";
+import { Vehicle, Location } from "@shared/gql-types";
 import { gql } from "apollo-boost";
 import providers from "@providers/provider-apps";
+import RelativeTime from "../components/relativeTime.vue";
+import { geoDistance } from "../../../shared/utils";
+import apollo from "@app/plugins/apollo";
+import VueApexCharts from "vue-apexcharts";
 
-const vehicleFragment = `id name location batteryLevel climateControl status smartStatus providerData updated`;
+const vehicleFragment = `id name minimumLevel maximumLevel tripSchedule { level time } pausedUntil geoLocation { latitude longitude } location batteryLevel outsideTemperature insideTemperature climateControl isDriving isConnected chargePlan { chargeStart chargeStop level chargeType comment } chargingTo estimatedTimeLeft status smartStatus updated providerData`;
+const locationFragment = `id name geoLocation { latitude longitude } geoFenceRadius`;
+
 @Component({
-  components: {},
+  components: { RelativeTime, apex: VueApexCharts },
   apollo: {
     vehicle: {
       query: gql`
@@ -63,12 +92,18 @@ const vehicleFragment = `id name location batteryLevel climateControl status sma
               ...subscriptionData.data.vehicleSubscription
             }
           };
+        },
+        skip() {
+          return this.locations === undefined;
         }
       },
 
       //update: data => data.vehicles,
       watchLoading(isLoading, countModifier) {
         this.loading = isLoading;
+      },
+      skip() {
+        return this.locations === undefined;
       }
     }
   }
@@ -76,8 +111,66 @@ const vehicleFragment = `id name location batteryLevel climateControl status sma
 export default class VehicleVue extends Vue {
   loading?: boolean;
   vehicle?: Vehicle;
+  location?: Location;
+  locations!: Location[];
+  prettyStatus!: string;
+
   data() {
-    return { loading: false, vehicle: undefined };
+    return {
+      loading: false,
+      vehicle: undefined,
+      location: undefined,
+      locations: undefined,
+      prettyStatus: "",
+      apex: {
+        options: {
+          chart: {
+            animations: { enabled: false },
+            id: "vuechart-example",
+            toolbar: {
+              show: false
+            }
+          },
+          stroke: {
+            width: 3,
+            curve: "smooth"
+          },
+          title: {
+            text: "Social Media",
+            align: "center",
+            style: {
+              fontSize: "16px",
+              color: "#666"
+            }
+          },
+          fill: {
+            type: "gradient",
+            gradient: {
+              shade: "dark",
+              gradientToColors: ["#FDD835"],
+              shadeIntensity: 1,
+              type: "vertical",
+              opacityFrom: 1,
+              opacityTo: 1,
+              stops: [0, 100, 100, 100]
+            }
+          },
+          xaxis: {
+            categories: [1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998]
+          }
+        },
+        series: [
+          {
+            name: "price",
+            data: [30, 40, 45, 50, 49, 60, 70, 91]
+          }
+        ]
+      }
+    };
+  }
+  async created() {
+    this.locations = await apollo.getLocations();
+    this.$apollo.queries.vehicle.skip = false;
   }
   vehiclePicture(vehicle: Vehicle) {
     const provider = providers.find(
@@ -89,7 +182,59 @@ export default class VehicleVue extends Vue {
       return "";
     }
   }
+
+  @Watch("vehicle", { immediate: true, deep: true })
+  onVehicleUpdate(val: Vehicle, oldVal: Vehicle) {
+    console.debug(`val=${val}, oldVal=${oldVal}`);
+
+    if (val && val.location && this.locations) {
+      this.location = this.locations.find(f => f.id === val.location);
+      assert(location !== undefined);
+
+      if (val.isDriving) {
+        this.prettyStatus = `${val.status} near ${this.location!.name}`;
+      } else {
+        if (val.isConnected) {
+          this.prettyStatus = `Connected and ${val.status}`;
+        } else this.prettyStatus = val.status;
+      }
+      this.prettyStatus += ` @ ${this.location!.name}`;
+    } else {
+      if (!val) {
+        return;
+      }
+
+      // Find closest location
+      if (!this.locations || this.locations.length <= 0) {
+        this.prettyStatus = val.status;
+      } else {
+        let closest = Number.POSITIVE_INFINITY;
+        for (const l of this.locations) {
+          const dist = geoDistance(
+            val.geoLocation.latitude,
+            val.geoLocation.longitude,
+            l.geoLocation.latitude,
+            l.geoLocation.longitude
+          );
+          if (dist < closest) {
+            this.prettyStatus = `${val.status} ${Number(
+              (dist / 1e3).toFixed(1)
+            )} km from ${l.name}`;
+          }
+          console.debug(dist);
+        }
+        //
+      }
+    }
+  }
 }
 </script>
 
-<style></style>
+<style>
+.batteryLevel {
+  font-weight: bold;
+  color: #000;
+  border: 1px solid #424242;
+  text-shadow: 0 0 2px #ffffff;
+}
+</style>

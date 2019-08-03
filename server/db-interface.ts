@@ -168,28 +168,31 @@ export class DBInterface {
     }
     return DBInterface.DBLocationToLocation(bestLocation);
   }
-  public async getLocation(
-    accountUUID: string | undefined,
-    locationUUID: string
-  ): Promise<DBLocation> {
-    if (accountUUID !== undefined) {
-      return await this.pg.one(
-        `SELECT * FROM location WHERE account_uuid = $1 AND location_uuid = $2`,
-        [accountUUID, locationUUID]
-      );
-    } else {
-      return await this.pg.one(
-        `SELECT * FROM location WHERE location_uuid = $1`,
-        [locationUUID]
-      );
-    }
-  }
-  public async getLocations(accountUUID: string): Promise<DBLocation[]> {
-    return await this.pg.manyOrNone(
-      `SELECT * FROM location WHERE account_uuid = $1`,
-      [accountUUID]
+  public async getLocations(
+    account_uuid: string | undefined,
+    location_uuid?: string
+  ): Promise<DBLocation[]> {
+    const [values, where] = queryHelper([
+      [location_uuid, `location_uuid = $1`],
+      [account_uuid, `account_uuid = $2`]
+    ]);
+    return this.pg.manyOrNone(
+      `SELECT * FROM location WHERE ${where.join(" AND ")}`,
+      values
     );
   }
+  public async getLocation(
+    location_uuid: string,
+    account_uuid?: string // Used as access limiter
+  ): Promise<DBLocation> {
+    const dblist = await this.getLocations(account_uuid, location_uuid);
+    if (dblist.length === 0) {
+      throw new Error(`Unknown location id ${location_uuid}`);
+    }
+    assert(dblist.length === 1);
+    return dblist[0];
+  }
+
   public async updateLocation(
     location_uuid: string,
     name: string | undefined,

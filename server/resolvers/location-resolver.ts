@@ -32,7 +32,7 @@ export class LocationResolver {
         ? undefined
         : context.accountUUID;
     return DBInterface.DBLocationToLocation(
-      await context.db.getLocation(accountLimiter, id)
+      await context.db.getLocation(id, accountLimiter)
     );
   }
 
@@ -45,7 +45,7 @@ export class LocationResolver {
       context.accountUUID === INTERNAL_SERVICE_UUID
         ? undefined
         : context.accountUUID;
-    const location = await context.db.getLocation(accountLimiter, input.id);
+    const location = await context.db.getLocation(input.id, accountLimiter);
     for (const point of input.prices) {
       await context.db.updateLocationPrice(
         input.id,
@@ -82,7 +82,7 @@ export class LocationResolver {
         ? undefined
         : context.accountUUID;
     // verify Location ownage
-    await context.db.getLocation(accountLimiter, input.id);
+    await context.db.getLocation(input.id, accountLimiter);
     debugger;
     return DBInterface.DBLocationToLocation(
       await context.db.updateLocation(

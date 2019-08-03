@@ -16,7 +16,8 @@ import {
   NewVehicleInput,
   ProviderSubject,
   NewLocationInput,
-  UpdateLocationInput
+  UpdateLocationInput,
+  Location
 } from "@shared/gql-types";
 import { getMainDefinition } from "apollo-utilities";
 import { split, ApolloLink } from "apollo-link";
@@ -176,23 +177,23 @@ export class SCClient extends ApolloClient<any> {
     });
     return result.data.newLocation;
   }
-  public async getLocation(LocationUUID: string): Promise<Location> {
+  public async getLocation(locationUUID: string): Promise<Location> {
     // TODO: should be more flexible, returning just the fields you want into an <any> response instead
-    const query = gql`query GetLocation($id: String!) { Location(id: $id) { ${
+    const query = gql`query GetLocation($id: String!) { location(id: $id) { ${
       SCClient.locationFragment
     } } }`;
     const result = await this.query({
       query,
-      variables: { id: LocationUUID }
+      variables: { id: locationUUID }
     });
-    return result.data.Location;
+    return result.data.location;
   }
   public async getLocations(): Promise<Location[]> {
-    const query = gql`query GetLocations { Locations { ${
+    const query = gql`query GetLocations { locations { ${
       SCClient.locationFragment
     } } }`;
     const result = await this.query({ query });
-    return result.data.Locations as Location[];
+    return result.data.locations as Location[];
   }
   public async updateLocation(input: UpdateLocationInput): Promise<boolean> {
     const mutation = gql`
