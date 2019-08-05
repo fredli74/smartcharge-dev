@@ -37,7 +37,6 @@ import { TeslaNewListEntry, TeslaProviderData } from "./tesla-helper";
 import config from "../tesla-config";
 import TeslaTokenVue from "./components/tesla-token.vue";
 import TeslaNewVehicleList from "./components/tesla-new-list.vue";
-import { undefinedVarMessage } from "graphql/validation/rules/NoUndefinedVariables";
 import { LogLevel, log } from "@shared/utils";
 import { ProviderVuePage } from "@providers/provider-app";
 

@@ -69,9 +69,10 @@ import RelativeTime from "../components/relative-time.vue";
 import ChargeChart from "../components/charge-chart.vue";
 import { geoDistance } from "../../../shared/utils";
 import apollo from "@app/plugins/apollo";
+import { VueApolloComponentOption } from "vue-apollo/types/options";
 
 const vehicleFragment = `id name minimumLevel maximumLevel tripSchedule { level time } pausedUntil geoLocation { latitude longitude } location batteryLevel outsideTemperature insideTemperature climateControl isDriving isConnected chargePlan { chargeStart chargeStop level chargeType comment } chargingTo estimatedTimeLeft status smartStatus updated providerData`;
-const locationFragment = `id name geoLocation { latitude longitude } geoFenceRadius`;
+//const locationFragment = `id name geoLocation { latitude longitude } geoFenceRadius`;
 
 @Component({
   components: { RelativeTime, ChargeChart },
@@ -112,14 +113,14 @@ const locationFragment = `id name geoLocation { latitude longitude } geoFenceRad
       },
 
       //update: data => data.vehicles,
-      watchLoading(isLoading, countModifier) {
+      watchLoading(isLoading, _countModifier) {
         this.loading = isLoading;
       },
       skip() {
         return this.locations === undefined;
       }
     }
-  }
+  } as VueApolloComponentOption<VehicleVue> // needed because skip is not declared on subscribeToMore, but I am pretty sure I had to have it in my tests when the query had toggled skip()
 })
 export default class VehicleVue extends Vue {
   loading?: boolean;

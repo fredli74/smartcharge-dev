@@ -19,8 +19,7 @@ import {
   UpdateLocationInput,
   Location
 } from "@shared/gql-types";
-import { getMainDefinition } from "apollo-utilities";
-import { split, ApolloLink } from "apollo-link";
+import { ApolloLink } from "apollo-link";
 import { WebSocketLink } from "apollo-link-ws";
 import { onError } from "apollo-link-error";
 import { setContext } from "apollo-link-context";

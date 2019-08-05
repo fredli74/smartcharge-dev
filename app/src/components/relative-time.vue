@@ -4,8 +4,6 @@
 
 <script lang="ts">
 import { Component, Vue, Prop, Watch } from "vue-property-decorator";
-import { Vehicle } from "@shared/gql-types";
-import providers from "@providers/provider-apps";
 
 @Component({ components: {} })
 export default class RelativeTime extends Vue {
@@ -21,7 +19,7 @@ export default class RelativeTime extends Vue {
   }
 
   @Watch("time")
-  onTimeChange(newValue: Date, oldValue: Date) {
+  onTimeChange() {
     if (this.timer) {
       clearTimeout(this.timer);
     }

@@ -17,7 +17,6 @@ import {
   Vehicle,
   UpdateVehicleDataInput,
   ChargePlan,
-  UpdateVehicleInput,
   ChargeType
 } from "@shared/gql-types";
 

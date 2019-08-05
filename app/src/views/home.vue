@@ -56,7 +56,6 @@
 
 <script lang="ts">
 import { Component, Vue } from "vue-property-decorator";
-import apollo from "@app/plugins/apollo";
 import { Vehicle } from "@shared/gql-types";
 import { gql } from "apollo-boost";
 import providers from "@providers/provider-apps";
@@ -77,7 +76,7 @@ import providers from "@providers/provider-apps";
         }
       `,
       //update: data => data.vehicles,
-      watchLoading(isLoading, countModifier) {
+      watchLoading(isLoading, _countModifier) {
         this.loading = isLoading;
       },
       pollInterval: 5000

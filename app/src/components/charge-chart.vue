@@ -19,11 +19,9 @@
 
 <script lang="ts">
 import { Component, Vue, Prop, Watch } from "vue-property-decorator";
-import { Vehicle, ChartData } from "@shared/gql-types";
-import providers from "@providers/provider-apps";
+import { ChartData } from "@shared/gql-types";
 import VueApexCharts from "vue-apexcharts";
-import { gql, ApolloQueryResult } from "apollo-boost";
-import { ApexOptions } from "apexcharts";
+import { gql } from "apollo-boost";
 import deepmerge from "deepmerge";
 import { log, LogLevel } from "../../../shared/utils";
 
@@ -160,17 +158,8 @@ const defaultOptions = {
       },
       deep: true,
       pollInterval: 60e3,
-      result({
-        data,
-        loading,
-        networkStatus
-      }: ApolloQueryResult<chartDataResult>) {
+      result() {
         this.$data.fullUpdate = true;
-
-        /*data.chartData.prices = data.chartData.prices.map(p => ({
-          startAt: new Date(p.startAt).getTime(),
-          price: scalePrice(p.price)
-        }));*/
         log(LogLevel.Debug, "new chartDataResult");
       },
       fetchPolicy: "network-only"
@@ -220,7 +209,7 @@ export default class ChargeChart extends Vue {
   }
 
   @Watch("chartData")
-  onChartDataChange(val: ChartData, oldval: ChartData) {
+  onChartDataChange() {
     log(LogLevel.Trace, `onChartDataChange triggered`);
     this.fullUpdate = true;
   }

@@ -43,7 +43,7 @@ const vid: { [id: string]: string } = {};
           data.id_s
         )).vehicle_uuid;
       }
-      const vehicleUUID = vid[data.id_s];
+      const job = { subjectID: vid[data.id_s] };
 
       //
       // COPY OF tesla_agent.ts CODE
@@ -79,7 +79,7 @@ const vid: { [id: string]: string } = {};
 
       // Update info
       const input: UpdateVehicleDataInput = {
-        id: vehicleUUID,
+        id: job.subjectID,
         geoLocation: {
           latitude: data.drive_state.latitude,
           longitude: data.drive_state.longitude
@@ -87,6 +87,8 @@ const vid: { [id: string]: string } = {};
         batteryLevel: Math.trunc(data.charge_state.usable_battery_level), // battery level in %
         odometer: Math.trunc(data.vehicle_state.odometer * 1609.344), // 1 mile = 1.609344 km
         outsideTemperature: data.climate_state.outside_temp, // in celcius
+        insideTemperature: data.climate_state.inside_temp, // in celcius
+        climateControl: data.climate_state.is_climate_on,
         isDriving:
           data.drive_state.shift_state === "D" || // Driving if shift_state is in Drive
           data.drive_state.shift_state === "R", // ... or in Reverse
