@@ -17,7 +17,8 @@ import {
   Vehicle,
   UpdateVehicleDataInput,
   ChargePlan,
-  UpdateVehicleInput
+  UpdateVehicleInput,
+  ChargeType
 } from "@shared/gql-types";
 
 import config from "./tesla-config";
@@ -479,9 +480,11 @@ export class TeslaAgent extends AbstractAgent {
             }
           }
         } else if (
+          job.state.parked !== undefined &&
           job.state.data.chargePlan &&
-          job.state.data.batteryLevel < 50 &&
-          job.state.parked !== undefined
+          job.state.data.chargePlan.findIndex(
+            f => f.chargeType !== ChargeType.fill
+          ) >= 0
         ) {
           if (
             now < job.state.parked + 1 * 60e3 && // only open during the first minute
