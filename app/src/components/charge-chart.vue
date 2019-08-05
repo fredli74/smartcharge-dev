@@ -1,7 +1,19 @@
 <template>
   <div>
-    <apex class="chart" type="line" :options="options" :series="series"></apex>
-    {{ chartData }}
+    <apex
+      ref="pricechart"
+      class="chart"
+      height="400"
+      :options="priceoptions"
+      :series="priceseries"
+    ></apex>
+    <apex
+      ref="chargechart"
+      class="chart"
+      height="200"
+      :options="chargeoptions"
+      :series="chargeseries"
+    ></apex>
   </div>
 </template>
 
@@ -10,7 +22,143 @@ import { Component, Vue, Prop, Watch } from "vue-property-decorator";
 import { Vehicle, ChartData } from "@shared/gql-types";
 import providers from "@providers/provider-apps";
 import VueApexCharts from "vue-apexcharts";
-import { gql } from "apollo-boost";
+import { gql, ApolloQueryResult } from "apollo-boost";
+import { ApexOptions } from "apexcharts";
+import deepmerge from "deepmerge";
+
+interface chartDataResult {
+  chartData: ChartData;
+}
+function scalePrice(input: number): number {
+  return Math.round(input / 1e2) / 10;
+}
+function timeOnly(input: Date): string {
+  return `${("0" + input.getHours()).substr(-2)}:${(
+    "0" + input.getMinutes()
+  ).substr(-2)}`;
+}
+
+const defaultOptions = {
+  chart: {
+    type: "line",
+    animations: { enabled: false },
+    background: "none",
+    id: "price-chart",
+    // group: "chargechart",
+    toolbar: {
+      show: false
+    },
+    selection: { enabled: false },
+    zoom: { enabled: false }
+  },
+  title: {
+    text: "",
+    align: "center",
+    style: {
+      fontSize: "16px",
+      color: "#666"
+    }
+  },
+  annotations: {
+    position: "front",
+    yaxis: [],
+    xaxis: [],
+    points: []
+  },
+
+  stroke: {
+    show: true,
+    lineCap: "butt",
+    curve: ["stepline", "straight"],
+    colors: undefined,
+    width: 2,
+    dashArray: 0
+  },
+  xaxis: {
+    type: "datetime",
+    tooltip: {
+      enabled: true,
+      formatter: (value: number) => {
+        return timeOnly(new Date(value));
+      },
+      offsetY: 0,
+      style: {
+        fontSize: undefined,
+        fontFamily: undefined
+      }
+    }
+  },
+  colors: ["#33aa33", "#2E93fA", "#66DA26", "#546E7A", "#E91E63", "#FF9800"],
+  legend: {
+    show: false
+  },
+  markers: {
+    size: 0,
+    colors: undefined,
+    strokeColors: "#fff",
+    strokeWidth: 2,
+    strokeOpacity: 0.9,
+    fillOpacity: 1,
+    discrete: [],
+    shape: "circle",
+    radius: 2,
+    offsetX: 0,
+    offsetY: 0,
+    onClick: undefined,
+    onDblClick: undefined,
+    hover: {
+      size: undefined,
+      sizeOffset: 3
+    }
+  },
+  tooltip: {
+    enabled: true,
+    shared: true,
+    followCursor: false,
+    custom: undefined,
+    theme: "light",
+    style: {
+      fontSize: "12px",
+      fontFamily: undefined
+    },
+    onDatasetHover: {
+      highlightDataSeries: false
+    },
+    x: {
+      show: false
+    },
+    y: {
+      formatter: (value: any, { series, seriesIndex, dataPointIndex }: any) => {
+        if (seriesIndex === 0) {
+          return `${value} öre`;
+        } else {
+          return `${value}%`;
+        }
+      },
+      title: {
+        formatter: (
+          seriesName: any,
+          { series, seriesIndex, dataPointIndex }: any
+        ) => {
+          if (seriesIndex === 1) {
+            if (
+              series[seriesIndex][dataPointIndex] === series[seriesIndex][0]
+            ) {
+              return "Level";
+            } else {
+              return "Est. level";
+            }
+          } else {
+            return seriesName;
+          }
+        }
+      }
+    },
+    marker: {
+      show: true
+    }
+  }
+};
 
 @Component({
   components: { apex: VueApexCharts },
@@ -20,7 +168,9 @@ import { gql } from "apollo-boost";
         query ChartData($vehicleID: String!, $locationID: String!) {
           chartData(locationID: $locationID, vehicleID: $vehicleID) {
             locationID
+            locationName
             vehicleID
+            batteryLevel
             levelChargeTime
             thresholdPrice
             prices {
@@ -43,6 +193,20 @@ import { gql } from "apollo-boost";
           locationID: this.location
         };
       },
+      deep: true,
+      result({
+        data,
+        loading,
+        networkStatus
+      }: ApolloQueryResult<chartDataResult>) {
+        this.$data.fullUpdate = true;
+
+        /*data.chartData.prices = data.chartData.prices.map(p => ({
+          startAt: new Date(p.startAt).getTime(),
+          price: scalePrice(p.price)
+        }));*/
+        console.log("result");
+      },
       fetchPolicy: "network-only"
     }
   }
@@ -50,80 +214,390 @@ import { gql } from "apollo-boost";
 export default class ChargeChart extends Vue {
   @Prop(String) readonly vehicle!: string;
   @Prop(String) readonly location!: string;
+  dirtyAnnotations: boolean = true;
   chartData?: ChartData;
+  timer?: any;
+  chartReady: boolean = false;
+  minPrice?: number;
+  maxPrice?: number;
+  minLevel?: number;
+  maxLevel?: number;
+  fullUpdate!: boolean;
 
   data() {
     return {
       chartData: undefined,
-      options: {
-        chart: {
-          animations: { enabled: false },
-          id: "vuechart-example",
-          toolbar: {
-            show: false
-          }
-        },
-        stroke: {
-          width: 2,
-          curve: "straight"
-        },
-        title: {
-          text: "Social Media",
-          align: "center",
-          style: {
-            fontSize: "16px",
-            color: "#666"
-          }
-        },
-        fill: {
-          type: "gradient",
-          gradient: {
-            type: "vertical",
-            colorStops: [
-              [
-                {
-                  offset: 0,
-                  color: "#f00"
-                },
-                {
-                  offset: 20,
-                  color: "#ee0"
-                },
-                {
-                  offset: 30,
-                  color: "#0e0"
-                }
-              ]
-            ]
-          }
-        },
-        xaxis: { type: "datetime" }
-      }
+      minPrice: undefined,
+      maxPrice: undefined,
+      minLevel: undefined,
+      maxLevel: undefined,
+      fullUpdate: false
     };
   }
   mounted() {
     console.debug(this.vehicle);
     console.debug(this.location);
   }
-  get series() {
-    if (this.chartData) {
-      console.debug([
-        {
-          name: "price",
-          data: this.chartData!.prices.map(f => [f.startAt, f.price / 1e5])
-        }
-      ]);
-      return [
-        {
-          name: "price",
-          data: this.chartData!.prices.map(f => [
-            f.startAt,
-            Math.round(f.price / 1e2) / 10
-          ])
-        }
-      ];
+  created() {
+    let hour = new Date().getHours();
+    this.timer = setInterval(() => {
+      const lastHour = hour;
+      hour = new Date().getHours();
+      if (hour !== lastHour) {
+        this.$apollo.queries.chartData.refetch();
+      }
+      if (this.fullUpdate) {
+        const pricechart = (this.$refs.pricechart as any) as ApexCharts;
+        pricechart.updateSeries(this.priceseries);
+        const chargechart = (this.$refs.chargechart as any) as ApexCharts;
+        chargechart.updateSeries(this.chargeseries);
+        this.fullUpdate = false;
+      }
+      this.dirtyAnnotations = true;
+      this.annotate();
+    }, 60e3);
+  }
+  beforeDestroy() {
+    if (this.timer) {
+      clearTimeout(this.timer);
     }
-    return [];
+  }
+
+  @Watch("chartData")
+  onChartDataChange(val: ChartData, oldval: ChartData) {
+    this.fullUpdate = true;
+  }
+
+  annotate() {
+    const pricechart = (this.$refs.pricechart as any) as ApexCharts;
+    const chargechart = (this.$refs.chargechart as any) as ApexCharts;
+    if (this.chartReady && pricechart && this.chartData) {
+      const thisHour = Math.trunc(Date.now() / (60 * 60e3)) * (60 * 60e3);
+      const thisPrice = this.chartData!.prices.find(
+        f => new Date(f.startAt).getTime() === thisHour
+      );
+      if (thisPrice) {
+        (pricechart as any).clearAnnotations();
+        (chargechart as any).clearAnnotations();
+        pricechart.addPointAnnotation({
+          x: Date.now(),
+          y: scalePrice(thisPrice.price),
+          yAxisIndex: 0,
+          seriesIndex: 0,
+          marker: {
+            size: 3,
+            fillColor: "none",
+            strokeColor: "#ff0000aa",
+            strokeWidth: 1,
+            shape: "circle",
+            OffsetX: 0,
+            OffsetY: 0,
+            cssClass: ""
+          },
+          label: {
+            borderWidth: 1,
+            text: scalePrice(thisPrice.price).toString(),
+            textAnchor: "middle",
+            offsetX: 0,
+            offsetY: 0,
+            style: {
+              background: "#fff",
+              color: "#ff0000aa",
+              fontSize: "12px",
+              cssClass: "apexcharts-point-annotation-label",
+              padding: {
+                left: 5,
+                right: 5,
+                top: 1,
+                bottom: 1
+              }
+            }
+          }
+        });
+        pricechart.addXaxisAnnotation({
+          x: Date.now(),
+          strokeDashArray: 0,
+          borderColor: "#ff0000aa",
+          opacity: 0.1,
+          offsetX: 0,
+          offsetY: 0,
+          label: {
+            borderWidth: 0,
+            text: timeOnly(new Date()),
+            textAnchor: "middle",
+            position: "bottom",
+            orientation: "horizontal",
+            offsetX: 0,
+            offsetY: 14,
+            style: {
+              background: "none",
+              color: "#ff0000aa",
+              fontSize: "12px",
+              cssClass: "apexcharts-xaxis-annotation-label"
+            }
+          }
+        });
+        chargechart.addXaxisAnnotation({
+          x: Date.now(),
+          strokeDashArray: 0,
+          borderColor: "#ff0000aa",
+          opacity: 0.1,
+          offsetX: 0,
+          offsetY: 0,
+          label: {
+            borderWidth: 0,
+            text: timeOnly(new Date()),
+            textAnchor: "middle",
+            position: "bottom",
+            orientation: "horizontal",
+            offsetX: 0,
+            offsetY: 14,
+            style: {
+              background: "none",
+              color: "#ff0000aa",
+              fontSize: "12px",
+              cssClass: "apexcharts-xaxis-annotation-label"
+            }
+          }
+        });
+        pricechart.addYaxisAnnotation({
+          y: scalePrice(this.chartData.thresholdPrice),
+          strokeDashArray: [2, 5],
+          fillColor: "none",
+          borderColor: "#2E93fA",
+          borderWidth: 2,
+          opacity: 0.1,
+          offsetX: 0,
+          offsetY: 0,
+          label: {
+            borderWidth: 0,
+            text: scalePrice(this.chartData.thresholdPrice).toString(),
+            textAnchor: "end",
+            position: "right",
+            orientation: "horizontal",
+            offsetX: 0,
+            offsetY: 16,
+            style: {
+              background: "none",
+              color: "#2E93fA",
+              fontSize: "12px",
+              cssClass: "apexcharts-xaxis-annotation-label"
+            }
+          }
+        });
+
+        // Charge fields
+        if (this.chartData.chargePlan) {
+          for (const p of this.chartData.chargePlan) {
+            if (!p.chargeStop) {
+              continue;
+            }
+            const to = new Date(p.chargeStop).getTime();
+            if (to < Date.now()) {
+              continue;
+            }
+            const from = p.chargeStart
+              ? new Date(p.chargeStart).getTime()
+              : Date.now();
+
+            pricechart.addXaxisAnnotation({
+              x: from,
+              x2: to,
+              strokeDashArray: 0,
+              fillColor: "#2E93fA",
+              borderWidth: 0,
+              opacity: 0.1,
+              offsetX: 0,
+              offsetY: 0,
+              label: {
+                borderWidth: 0,
+                text: p.comment,
+                style: {
+                  background: "none",
+                  color: "#2E93fA"
+                }
+              }
+            });
+            chargechart.addXaxisAnnotation({
+              x: from,
+              x2: to,
+              strokeDashArray: 0,
+              fillColor: "#2E93fA",
+              borderWidth: 0,
+              opacity: 0.1,
+              offsetX: 0,
+              offsetY: 0,
+              label: {
+                borderWidth: 0,
+                text: p.chargeType,
+                style: {
+                  background: "none",
+                  color: "none"
+                }
+              }
+            });
+          }
+        }
+      }
+    }
+  }
+
+  get priceseries() {
+    const series = [];
+    let data: any = [];
+    if (this.chartData) {
+      data = this.chartData!.prices.map(p => [
+        new Date(p.startAt).getTime(),
+        scalePrice(p.price)
+      ]);
+    }
+    series.push({ name: "price", data });
+    if (data.length) {
+      this.minPrice = Number.POSITIVE_INFINITY;
+      this.maxPrice = Number.NEGATIVE_INFINITY;
+      for (const p of data) {
+        if (p[1] < this.minPrice!) this.minPrice = p[1];
+        if (p[1] > this.maxPrice!) this.maxPrice = p[1];
+      }
+      this.minPrice = Math.round(this.minPrice! * 0.95);
+      this.maxPrice = Math.round(this.maxPrice! * 1.05);
+    } else {
+      this.minPrice = undefined;
+      this.maxPrice = undefined;
+    }
+    return series;
+  }
+
+  get chargeseries() {
+    const series = [];
+    let data: any = [];
+    if (this.chartData && this.chartData.chargePlan) {
+      let level = this.chartData.batteryLevel;
+      const chartStart = new Date(this.chartData.prices[0].startAt).getTime();
+      const chartEnd = new Date(
+        this.chartData.prices[this.chartData.prices.length - 1].startAt
+      ).getTime();
+
+      data.push([chartStart, level]);
+      // Simulate charging
+      for (const c of this.chartData.chargePlan) {
+        let timeNeeded = (c.level - level) * this.chartData.levelChargeTime;
+        let cs = Date.now();
+        if (c.chargeStart) {
+          cs = Math.max(cs, new Date(c.chargeStart).getTime());
+        }
+        let ce = Math.min(cs + timeNeeded * 1e3, chartEnd);
+        if (c.chargeStop) {
+          ce = Math.min(ce, new Date(c.chargeStop).getTime());
+        }
+        if (ce < cs) continue;
+
+        if (cs > data[data.length - 1][0]) data.push([cs, level]);
+        level += Math.round((ce - cs) / 1e3 / this.chartData.levelChargeTime);
+        data.push([ce, level]);
+      }
+      data.push([chartEnd, level]);
+    }
+    series.push({ name: "none", data: [] });
+    series.push({ name: "level", data });
+    if (data.length) {
+      this.minLevel = Number.POSITIVE_INFINITY;
+      this.maxLevel = Number.NEGATIVE_INFINITY;
+      for (const p of data) {
+        if (p[1] < this.minLevel!) this.minLevel = p[1];
+        if (p[1] > this.maxLevel!) this.maxLevel = p[1];
+      }
+      this.minLevel = Math.round(this.minLevel! * 0.95);
+      this.maxLevel = Math.round(this.maxLevel! * 1.05);
+    } else {
+      this.minLevel = undefined;
+      this.maxLevel = undefined;
+    }
+    return series;
+  }
+
+  get priceoptions() {
+    return deepmerge(defaultOptions, {
+      chart: {
+        id: "price-chart",
+        events: {
+          updated: (chartContext: any, config: any) => {
+            if (/*this.dirtyAnnotations &&*/ this.chartData) {
+              this.chartReady = true;
+              this.annotate();
+              this.dirtyAnnotations = false;
+            }
+          }
+        }
+      },
+      yaxis: [
+        {
+          show: true,
+          tickAmount: 6,
+          min: this.chartData ? this.minPrice : undefined,
+          max: this.chartData ? this.maxPrice : undefined
+        },
+        {
+          show: false,
+          tickAmount: 4,
+          min: this.chartData ? this.minLevel : undefined,
+          max: this.chartData ? this.maxLevel : undefined
+        }
+      ],
+      subtitle: {
+        text: `Price per kw/h${
+          this.chartData
+            ? " when charging at " + this.chartData.locationName
+            : ""
+        }`,
+        align: "left",
+        margin: 10,
+        offsetX: 0,
+        offsetY: 0,
+        floating: false,
+        style: {
+          fontSize: "14px",
+          color: "#9699a2"
+        }
+      }
+    });
+  }
+
+  get chargeoptions() {
+    return deepmerge(defaultOptions, {
+      chart: {
+        id: "price-chart"
+      },
+      yaxis: [
+        {
+          show: false,
+          tickAmount: 6,
+          min: this.chartData ? this.minPrice : undefined,
+          max: this.chartData ? this.maxPrice : undefined
+        },
+        {
+          show: true,
+          tickAmount: 4,
+          min: this.chartData ? this.minLevel : undefined,
+          max: this.chartData ? this.maxLevel : undefined
+        }
+      ],
+      markers: {
+        size: 4
+      },
+      subtitle: {
+        text: "Estimated level if connected to charger",
+        align: "left",
+        margin: 10,
+        offsetX: 0,
+        offsetY: 0,
+        floating: false,
+        style: {
+          fontSize: "14px",
+          color: "#9699a2"
+        }
+      }
+    });
   }
 }
 </script>

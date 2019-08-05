@@ -352,8 +352,12 @@ export abstract class UpdateLocationInput {
 export abstract class ChartData {
   @Field(_type => ID)
   locationID!: string;
+  @Field()
+  locationName!: string;
   @Field(_type => ID)
   vehicleID!: string;
+  @Field(_type => Int)
+  batteryLevel!: number;
   @Field(_type => Int)
   levelChargeTime!: number;
   @Field(_type => Int)
@@ -362,4 +366,8 @@ export abstract class ChartData {
   prices!: LocationPrice[];
   @Field(_type => [ChargePlan], { nullable: true })
   chargePlan!: ChargePlan[] | null;
+  @Field(_type => Int)
+  minimumLevel!: number;
+  @Field(_type => Int)
+  maximumLevel!: number;
 }

@@ -22,7 +22,7 @@ import PASSWORD from "./smartcharge-password.json";
 import { ProviderResolver } from "./resolvers/provider-resolver";
 import { VehicleResolver } from "./resolvers/vehicle-resolver";
 import { LocationResolver } from "./resolvers/location-resolver";
-import { Account, ChartData } from "@shared/gql-types";
+import { Account, ChartData, ChargePlanToJS } from "@shared/gql-types";
 
 @Resolver()
 class AccountResolver {
@@ -79,11 +79,17 @@ class AccountResolver {
     const chartData = await context.db.getChartData(location_uuid, 48);
     return {
       locationID: location.location_uuid,
+      locationName: location.name,
       vehicleID: vehicle.vehicle_uuid,
+      batteryLevel: vehicle.level,
       thresholdPrice: Math.trunc((averagePrice * stats.threshold) / 100),
       levelChargeTime: stats.level_charge_time,
       prices: chartData.map(f => ({ startAt: f.ts, price: f.price })),
-      chargePlan: vehicle.charge_plan
+      chargePlan:
+        (vehicle.charge_plan && vehicle.charge_plan.map(ChargePlanToJS)) ||
+        null,
+      minimumLevel: vehicle.minimum_charge,
+      maximumLevel: vehicle.maximum_charge
     };
   }
 }

@@ -22,7 +22,6 @@ export default class RelativeTime extends Vue {
 
   @Watch("time")
   onTimeChange(newValue: Date, oldValue: Date) {
-    console.debug("onTimeChange");
     if (this.timer) {
       clearTimeout(this.timer);
     }

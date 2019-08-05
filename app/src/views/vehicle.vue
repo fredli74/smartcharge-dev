@@ -3,49 +3,58 @@
     <div v-if="loading">
       <v-progress-linear indeterminate color="primary"></v-progress-linear>
     </div>
-    <div v-if="vehicle !== undefined">
-      <h2>{{ vehicle.name }}</h2>
-      <h3>
-        {{ prettyStatus }}
-        <div class="caption">
-          ({{ vehicle.status }}
-          <span>@ {{ (location && location.name) || "unknown location" }}</span
-          >)
-        </div>
-      </h3>
-      <div>
-        Updated <RelativeTime :time="new Date(vehicle.updated)"></RelativeTime>
-      </div>
-
-      <v-img contain :src="vehiclePicture(vehicle)" />
-      <v-progress-linear
-        class="batteryLevel"
-        :value="vehicle.batteryLevel"
-        height="33"
-        :color="
-          vehicle.batteryLevel > 20
-            ? 'green'
-            : vehicle.batteryLevel > 10
-            ? 'orange'
-            : 'red'
-        "
-        >{{ vehicle.batteryLevel }}%</v-progress-linear
-      ><v-progress-linear
-        :value="vehicle.batteryLevel"
-        height="3"
-        color="cyan"
-        buffer-value="0"
-      ></v-progress-linear>
-      {{ vehicle.smartStatus }}
-      <chargeChart
-        v-if="vehicle && location"
-        :vehicle="vehicle.id"
-        :location="location.id"
-      ></chargeChart>
-      {{ location }}
-      {{ vehicle }}
-      {{ locations }}
-    </div>
+    <v-container v-if="vehicle !== undefined" grid-list-md text-center>
+      <v-layout wrap>
+        <v-flex sm6>
+          <h2>{{ vehicle.name }}</h2>
+          <h3>
+            {{ prettyStatus }}
+            <div class="caption">
+              ({{ vehicle.status }}
+              <span
+                >@ {{ (location && location.name) || "unknown location" }}</span
+              >)
+            </div>
+          </h3>
+          <div>
+            Updated
+            <RelativeTime :time="new Date(vehicle.updated)"></RelativeTime>
+          </div>
+        </v-flex>
+        <v-flex sm6>
+          <v-img contain :src="vehiclePicture(vehicle)" />
+          <v-progress-linear
+            class="batteryLevel"
+            :value="vehicle.batteryLevel"
+            height="33"
+            :buffer-value="vehicle.maximumLevel"
+            :color="
+              vehicle.batteryLevel > 20
+                ? 'green'
+                : vehicle.batteryLevel > 10
+                ? 'orange'
+                : 'red'
+            "
+            >{{ vehicle.batteryLevel }}%</v-progress-linear
+          ><v-progress-linear
+            :value="vehicle.batteryLevel"
+            height="3"
+            color="cyan"
+            :buffer-value="vehicle.maximumLevel"
+          ></v-progress-linear>
+        </v-flex>
+        <v-flex sm12 class="caption">
+          {{ vehicle.smartStatus }}
+        </v-flex>
+        <v-flex sm12>
+          <chargeChart
+            v-if="vehicle && location"
+            :vehicle="vehicle.id"
+            :location="location.id"
+          ></chargeChart>
+        </v-flex>
+      </v-layout>
+    </v-container>
   </div>
 </template>
 
@@ -194,6 +203,6 @@ export default class VehicleVue extends Vue {
   font-weight: bold;
   color: #000;
   border: 1px solid #424242;
-  text-shadow: 0 0 2px #ffffff;
+  /* text-shadow: 0 0 2px #ffffff;*/
 }
 </style>
