@@ -22,7 +22,7 @@
           </div>
         </v-flex>
         <v-flex sm6>
-          <v-img contain :src="vehiclePicture(vehicle)" />
+          <v-img contain :src="vehiclePicture" />
           <v-progress-linear
             class="batteryLevel"
             :value="vehicle.batteryLevel"
@@ -43,16 +43,29 @@
             :buffer-value="vehicle.maximumLevel"
           ></v-progress-linear>
         </v-flex>
-        <v-flex sm12 class="caption">
-          {{ vehicle.smartStatus }}
+        <v-flex v-if="vehicleConnectedAtUnknownLocation" sm12>
+          <p class="mt-5">
+            Vehicle is connected at an unknown location and smart charging is
+            disabled.
+          </p>
+          <v-card-actions class="justify-center">
+            <router-link :to="addLocationURL">
+              <v-btn text small color="primary">add location</v-btn>
+            </router-link>
+          </v-card-actions>
         </v-flex>
-        <v-flex sm12>
-          <chargeChart
-            v-if="vehicle && location"
-            :vehicle="vehicle.id"
-            :location="location.id"
-          ></chargeChart>
-        </v-flex>
+        <template v-else>
+          <v-flex sm12 class="caption">
+            {{ vehicle.smartStatus }}
+          </v-flex>
+          <v-flex sm12>
+            <chargeChart
+              v-if="vehicle && location"
+              :vehicle="vehicle.id"
+              :location="location.id"
+            ></chargeChart>
+          </v-flex>
+        </template>
       </v-layout>
     </v-container>
   </div>
@@ -70,9 +83,9 @@ import ChargeChart from "../components/charge-chart.vue";
 import { geoDistance } from "../../../shared/utils";
 import apollo from "@app/plugins/apollo";
 import { VueApolloComponentOption } from "vue-apollo/types/options";
+import { RawLocation } from "vue-router";
 
 const vehicleFragment = `id name minimumLevel maximumLevel tripSchedule { level time } pausedUntil geoLocation { latitude longitude } location batteryLevel outsideTemperature insideTemperature climateControl isDriving isConnected chargePlan { chargeStart chargeStop level chargeType comment } chargingTo estimatedTimeLeft status smartStatus updated providerData`;
-//const locationFragment = `id name geoLocation { latitude longitude } geoFenceRadius`;
 
 @Component({
   components: { RelativeTime, ChargeChart },
@@ -142,60 +155,81 @@ export default class VehicleVue extends Vue {
     this.locations = await apollo.getLocations();
     this.$apollo.queries.vehicle.skip = false;
   }
-  vehiclePicture(vehicle: Vehicle) {
-    const provider = providers.find(
-      p => p.name === vehicle.providerData.provider
-    );
-    if (provider && provider.image) {
-      return provider.image(vehicle);
-    } else {
-      return "";
+  get vehiclePicture() {
+    if (this.vehicle !== undefined) {
+      const provider = providers.find(
+        p => p.name === this.vehicle!.providerData.provider
+      );
+      if (provider && provider.image) {
+        return provider.image(this.vehicle);
+      }
     }
+    return "";
+  }
+  get vehicleConnectedAtUnknownLocation(): boolean {
+    return (
+      this.vehicle !== undefined &&
+      this.vehicle.isConnected &&
+      this.vehicle.location === null
+    );
+  }
+  get addLocationURL(): RawLocation {
+    assert(this.vehicle !== undefined);
+    return {
+      path: "/add/location",
+      query: {
+        lat: this.vehicle!.geoLocation.latitude.toString(),
+        long: this.vehicle!.geoLocation.longitude.toString()
+      }
+    };
   }
 
   @Watch("vehicle", { immediate: true, deep: true })
   onVehicleUpdate(val: Vehicle, oldVal: Vehicle) {
     console.debug(`val=${val}, oldVal=${oldVal}`);
 
-    if (val && val.location && this.locations) {
+    if (!val) return;
+    let prefix = "";
+    let suffix = "";
+
+    if (val.isConnected) {
+      prefix = "Connected and";
+    }
+
+    if (val.location && this.locations) {
       this.location = this.locations.find(f => f.id === val.location);
-      assert(location !== undefined);
+      assert(this.location !== undefined);
 
       if (val.isDriving) {
-        this.prettyStatus = `${val.status} near ${this.location!.name}`;
-      } else {
-        if (val.isConnected) {
-          this.prettyStatus = `Connected and ${val.status}`;
-        } else this.prettyStatus = val.status;
+        suffix = `${val.isDriving ? "near" : "@"} ${this.location!.name}`;
       }
-      this.prettyStatus += ` @ ${this.location!.name}`;
     } else {
-      if (!val) {
-        return;
-      }
-
       // Find closest location
-      if (!this.locations || this.locations.length <= 0) {
-        this.prettyStatus = val.status;
-      } else {
+      if (this.locations && this.locations.length > 0) {
         let closest = Number.POSITIVE_INFINITY;
         for (const l of this.locations) {
-          const dist = geoDistance(
-            val.geoLocation.latitude,
-            val.geoLocation.longitude,
-            l.geoLocation.latitude,
-            l.geoLocation.longitude
-          );
+          const dist =
+            geoDistance(
+              val.geoLocation.latitude,
+              val.geoLocation.longitude,
+              l.geoLocation.latitude,
+              l.geoLocation.longitude
+            ) / 1e3;
           if (dist < closest) {
-            this.prettyStatus = `${val.status} ${Number(
-              (dist / 1e3).toFixed(1)
-            )} km from ${l.name}`;
+            if (dist < 1) {
+              suffix = "near";
+            } else {
+              suffix = Number(dist.toFixed(1)).toString() + " km from";
+            }
+            suffix += " " + l.name;
           }
-          console.debug(dist);
         }
-        //
       }
     }
+
+    this.prettyStatus =
+      (prefix ? prefix + " " + val.status.toLowerCase() : val.status) +
+      (suffix ? " " + suffix : "");
   }
 }
 </script>
