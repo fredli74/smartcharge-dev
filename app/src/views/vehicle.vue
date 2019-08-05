@@ -88,6 +88,7 @@ const locationFragment = `id name geoLocation { latitude longitude } geoFenceRad
         };
       },
       fetchPolicy: "cache-and-network",
+      pollInterval: 5 * 60e3, // poll at least every 5 minutes
       subscribeToMore: {
         document: gql`subscription VehicleSubscription($id:String!) { vehicleSubscription(id: $id) { ${vehicleFragment} } }`,
         variables() {
