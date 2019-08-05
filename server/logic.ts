@@ -59,11 +59,11 @@ export class Logic {
     // Did we move?
     const lastLocationUUID: string | null = vehicle.location_uuid;
     let currentLocationUUID: string | null = vehicle.location_uuid;
-    if (
-      true || // this optimization does not work when adding a new location
-      vehicle.location_micro_latitude !== data.latitude ||
+    /*
+      this optimization does not work when adding a new location
+    if (vehicle.location_micro_latitude !== data.latitude ||
       vehicle.location_micro_longitude !== data.longitude
-    ) {
+    )*/ {
       const location = await this.db.lookupKnownLocation(
         vehicle.account_uuid,
         data.latitude,
@@ -750,8 +750,12 @@ export class Logic {
     );
 
     // Get our future price map
-    const priceMap: { ts: Date; price: number }[] = await this.db.pg.manyOrNone(
-      `SELECT ts, price FROM location_data WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' AND ts < $2 ORDER BY price`,
+    const priceMap: {
+      ts: Date;
+      price: number;
+      in_range: boolean;
+    }[] = await this.db.pg.manyOrNone(
+      `SELECT ts, price, case when ts < $2 then true else false end as in_range FROM location_data WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' ORDER BY in_range desc, price`,
       [vehicle.location_uuid, new Date(before)]
     );
 
@@ -785,7 +789,7 @@ export class Logic {
             chargeType: ChargeType.fill,
             comment: `price below automatic threshold`
           };
-        } else {
+        } else if (price.in_range) {
           end = Math.min(start + timeLeft, before, fullHour);
           entry = {
             chargeStart: ts < start ? null : new Date(start),
@@ -794,6 +798,8 @@ export class Logic {
             chargeType: chargeType,
             comment: comment
           };
+        } else {
+          continue;
         }
 
         if (end > start) {
