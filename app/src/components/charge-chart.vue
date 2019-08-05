@@ -25,6 +25,7 @@ import VueApexCharts from "vue-apexcharts";
 import { gql, ApolloQueryResult } from "apollo-boost";
 import { ApexOptions } from "apexcharts";
 import deepmerge from "deepmerge";
+import { log, LogLevel } from "../../../shared/utils";
 
 interface chartDataResult {
   chartData: ChartData;
@@ -43,8 +44,6 @@ const defaultOptions = {
     type: "line",
     animations: { enabled: false },
     background: "none",
-    id: "price-chart",
-    // group: "chargechart",
     toolbar: {
       show: false
     },
@@ -52,12 +51,7 @@ const defaultOptions = {
     zoom: { enabled: false }
   },
   title: {
-    text: "",
-    align: "center",
-    style: {
-      fontSize: "16px",
-      color: "#666"
-    }
+    text: ""
   },
   annotations: {
     position: "front",
@@ -69,7 +63,6 @@ const defaultOptions = {
   stroke: {
     show: true,
     lineCap: "butt",
-    curve: ["stepline", "straight"],
     colors: undefined,
     width: 2,
     dashArray: 0
@@ -88,7 +81,6 @@ const defaultOptions = {
       }
     }
   },
-  colors: ["#33aa33", "#2E93fA", "#66DA26", "#546E7A", "#E91E63", "#FF9800"],
   legend: {
     show: false
   },
@@ -126,33 +118,6 @@ const defaultOptions = {
     },
     x: {
       show: false
-    },
-    y: {
-      formatter: (value: any, { series, seriesIndex, dataPointIndex }: any) => {
-        if (seriesIndex === 0) {
-          return `${value} öre`;
-        } else {
-          return `${value}%`;
-        }
-      },
-      title: {
-        formatter: (
-          seriesName: any,
-          { series, seriesIndex, dataPointIndex }: any
-        ) => {
-          if (seriesIndex === 1) {
-            if (
-              series[seriesIndex][dataPointIndex] === series[seriesIndex][0]
-            ) {
-              return "Level";
-            } else {
-              return "Est. level";
-            }
-          } else {
-            return seriesName;
-          }
-        }
-      }
     },
     marker: {
       show: true
@@ -194,6 +159,7 @@ const defaultOptions = {
         };
       },
       deep: true,
+      pollInterval: 60e3,
       result({
         data,
         loading,
@@ -205,7 +171,7 @@ const defaultOptions = {
           startAt: new Date(p.startAt).getTime(),
           price: scalePrice(p.price)
         }));*/
-        console.log("result");
+        log(LogLevel.Debug, "new chartDataResult");
       },
       fetchPolicy: "network-only"
     }
@@ -214,7 +180,6 @@ const defaultOptions = {
 export default class ChargeChart extends Vue {
   @Prop(String) readonly vehicle!: string;
   @Prop(String) readonly location!: string;
-  dirtyAnnotations: boolean = true;
   chartData?: ChartData;
   timer?: any;
   chartReady: boolean = false;
@@ -234,18 +199,10 @@ export default class ChargeChart extends Vue {
       fullUpdate: false
     };
   }
-  mounted() {
-    console.debug(this.vehicle);
-    console.debug(this.location);
-  }
+  mounted() {}
   created() {
-    let hour = new Date().getHours();
     this.timer = setInterval(() => {
-      const lastHour = hour;
-      hour = new Date().getHours();
-      if (hour !== lastHour) {
-        this.$apollo.queries.chartData.refetch();
-      }
+      log(LogLevel.Trace, `timer tick fullUpdate=${this.fullUpdate}`);
       if (this.fullUpdate) {
         const pricechart = (this.$refs.pricechart as any) as ApexCharts;
         pricechart.updateSeries(this.priceseries);
@@ -253,8 +210,7 @@ export default class ChargeChart extends Vue {
         chargechart.updateSeries(this.chargeseries);
         this.fullUpdate = false;
       }
-      this.dirtyAnnotations = true;
-      this.annotate();
+      this.annotate(); // Move the timeline
     }, 60e3);
   }
   beforeDestroy() {
@@ -265,6 +221,7 @@ export default class ChargeChart extends Vue {
 
   @Watch("chartData")
   onChartDataChange(val: ChartData, oldval: ChartData) {
+    log(LogLevel.Trace, `onChartDataChange triggered`);
     this.fullUpdate = true;
   }
 
@@ -388,54 +345,64 @@ export default class ChargeChart extends Vue {
 
         // Charge fields
         if (this.chartData.chargePlan) {
+          const chartStart = new Date(
+            this.chartData.prices[0].startAt
+          ).getTime();
+          const chartEnd = new Date(
+            this.chartData.prices[this.chartData.prices.length - 1].startAt
+          ).getTime();
+
           for (const p of this.chartData.chargePlan) {
             if (!p.chargeStop) {
               continue;
             }
-            const to = new Date(p.chargeStop).getTime();
+            const to = Math.min(chartEnd, new Date(p.chargeStop).getTime());
             if (to < Date.now()) {
               continue;
             }
-            const from = p.chargeStart
-              ? new Date(p.chargeStart).getTime()
-              : Date.now();
+            const from = Math.max(
+              chartStart,
+              p.chargeStart ? new Date(p.chargeStart).getTime() : Date.now()
+            );
 
-            pricechart.addXaxisAnnotation({
-              x: from,
-              x2: to,
-              strokeDashArray: 0,
-              fillColor: "#2E93fA",
-              borderWidth: 0,
-              opacity: 0.1,
-              offsetX: 0,
-              offsetY: 0,
-              label: {
+            if (to > from) {
+              pricechart.addXaxisAnnotation({
+                x: from,
+                x2: to,
+                strokeDashArray: 0,
+                fillColor: "#2E93fA",
                 borderWidth: 0,
-                text: p.comment,
-                style: {
-                  background: "none",
-                  color: "#2E93fA"
+                opacity: 0.1,
+                offsetX: 0,
+                offsetY: 0,
+                label: {
+                  borderWidth: 0,
+                  text: p.comment,
+                  style: {
+                    background: "none",
+                    color: "#2E93fA"
+                  }
                 }
-              }
-            });
-            chargechart.addXaxisAnnotation({
-              x: from,
-              x2: to,
-              strokeDashArray: 0,
-              fillColor: "#2E93fA",
-              borderWidth: 0,
-              opacity: 0.1,
-              offsetX: 0,
-              offsetY: 0,
-              label: {
+              });
+              chargechart.addXaxisAnnotation({
+                x: from,
+                x2: to,
+                strokeDashArray: 0,
+                fillColor: "#2E93fA",
                 borderWidth: 0,
-                text: p.chargeType,
-                style: {
-                  background: "none",
-                  color: "none"
+                opacity: 0.1,
+                offsetX: 0,
+                offsetY: 0,
+                label: {
+                  borderWidth: 0,
+                  text: p.chargeType,
+                  style: {
+                    background: "none",
+                    color: "none"
+                  }
                 }
-              }
-            });
+              });
+            }
           }
         }
       }
@@ -443,7 +410,7 @@ export default class ChargeChart extends Vue {
   }
 
   get priceseries() {
-    const series = [];
+    log(LogLevel.Trace, `priceseries()`);
     let data: any = [];
     if (this.chartData) {
       data = this.chartData!.prices.map(p => [
@@ -451,7 +418,6 @@ export default class ChargeChart extends Vue {
         scalePrice(p.price)
       ]);
     }
-    series.push({ name: "price", data });
     if (data.length) {
       this.minPrice = Number.POSITIVE_INFINITY;
       this.maxPrice = Number.NEGATIVE_INFINITY;
@@ -465,41 +431,40 @@ export default class ChargeChart extends Vue {
       this.minPrice = undefined;
       this.maxPrice = undefined;
     }
-    return series;
+    return [{ name: "price", data }];
   }
 
   get chargeseries() {
-    const series = [];
+    log(LogLevel.Trace, `chargeseries()`);
     let data: any = [];
-    if (this.chartData && this.chartData.chargePlan) {
+    if (this.chartData) {
       let level = this.chartData.batteryLevel;
       const chartStart = new Date(this.chartData.prices[0].startAt).getTime();
       const chartEnd = new Date(
         this.chartData.prices[this.chartData.prices.length - 1].startAt
       ).getTime();
-
       data.push([chartStart, level]);
       // Simulate charging
-      for (const c of this.chartData.chargePlan) {
-        let timeNeeded = (c.level - level) * this.chartData.levelChargeTime;
-        let cs = Date.now();
-        if (c.chargeStart) {
-          cs = Math.max(cs, new Date(c.chargeStart).getTime());
-        }
-        let ce = Math.min(cs + timeNeeded * 1e3, chartEnd);
-        if (c.chargeStop) {
-          ce = Math.min(ce, new Date(c.chargeStop).getTime());
-        }
-        if (ce < cs) continue;
+      if (this.chartData.chargePlan) {
+        for (const c of this.chartData.chargePlan) {
+          let timeNeeded = (c.level - level) * this.chartData.levelChargeTime;
+          let cs = Date.now();
+          if (c.chargeStart) {
+            cs = Math.max(cs, new Date(c.chargeStart).getTime());
+          }
+          let ce = Math.min(cs + timeNeeded * 1e3, chartEnd);
+          if (c.chargeStop) {
+            ce = Math.min(ce, new Date(c.chargeStop).getTime());
+          }
+          if (ce < cs) continue;
 
-        if (cs > data[data.length - 1][0]) data.push([cs, level]);
-        level += Math.round((ce - cs) / 1e3 / this.chartData.levelChargeTime);
-        data.push([ce, level]);
+          if (cs > data[data.length - 1][0]) data.push([cs, level]);
+          level += Math.round((ce - cs) / 1e3 / this.chartData.levelChargeTime);
+          data.push([ce, level]);
+        }
       }
       data.push([chartEnd, level]);
     }
-    series.push({ name: "none", data: [] });
-    series.push({ name: "level", data });
     if (data.length) {
       this.minLevel = Number.POSITIVE_INFINITY;
       this.maxLevel = Number.NEGATIVE_INFINITY;
@@ -513,7 +478,7 @@ export default class ChargeChart extends Vue {
       this.minLevel = undefined;
       this.maxLevel = undefined;
     }
-    return series;
+    return [{ name: "level", data }];
   }
 
   get priceoptions() {
@@ -521,29 +486,35 @@ export default class ChargeChart extends Vue {
       chart: {
         id: "price-chart",
         events: {
-          updated: (chartContext: any, config: any) => {
-            if (/*this.dirtyAnnotations &&*/ this.chartData) {
+          updated: (_chartContext: any, _config: any) => {
+            if (this.chartData) {
               this.chartReady = true;
               this.annotate();
-              this.dirtyAnnotations = false;
             }
           }
         }
       },
+      stroke: {
+        curve: "stepline"
+      },
+      colors: ["#33aa33"],
       yaxis: [
         {
-          show: true,
           tickAmount: 6,
           min: this.chartData ? this.minPrice : undefined,
           max: this.chartData ? this.maxPrice : undefined
-        },
-        {
-          show: false,
-          tickAmount: 4,
-          min: this.chartData ? this.minLevel : undefined,
-          max: this.chartData ? this.maxLevel : undefined
         }
       ],
+      tooltip: {
+        y: {
+          formatter: (
+            value: any,
+            { _series, _seriesIndex, _dataPointIndex }: any
+          ) => {
+            return value + " öre";
+          }
+        }
+      },
       subtitle: {
         text: `Price per kw/h${
           this.chartData
@@ -568,20 +539,41 @@ export default class ChargeChart extends Vue {
       chart: {
         id: "price-chart"
       },
+      stroke: {
+        curve: "straight"
+      },
+      colors: ["#2E93fA"],
       yaxis: [
         {
-          show: false,
-          tickAmount: 6,
-          min: this.chartData ? this.minPrice : undefined,
-          max: this.chartData ? this.maxPrice : undefined
-        },
-        {
-          show: true,
           tickAmount: 4,
           min: this.chartData ? this.minLevel : undefined,
           max: this.chartData ? this.maxLevel : undefined
         }
       ],
+      tooltip: {
+        y: {
+          formatter: (
+            value: any,
+            { _series, _seriesIndex, _dataPointIndex }: any
+          ) => {
+            return value + "%";
+          },
+          title: {
+            formatter: (
+              _seriesName: any,
+              { series, seriesIndex, dataPointIndex }: any
+            ) => {
+              if (
+                series[seriesIndex][dataPointIndex] === series[seriesIndex][0]
+              ) {
+                return "Level";
+              } else {
+                return "Est. level";
+              }
+            }
+          }
+        }
+      },
       markers: {
         size: 4
       },
@@ -602,8 +594,4 @@ export default class ChargeChart extends Vue {
 }
 </script>
 
-<style>
-.chart {
-  overflow: hidden;
-}
-</style>
+<style></style>

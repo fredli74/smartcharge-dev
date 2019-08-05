@@ -13,7 +13,7 @@
     <v-content>
       <v-container fluid>
         <v-layout justify-space-around>
-          <v-flex xs12 sm8>
+          <v-flex xs12 sm11 md10>
             <v-alert v-model="error.show" type="error" prominent>{{
               error.message
             }}</v-alert>
