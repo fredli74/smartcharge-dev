@@ -3,7 +3,7 @@ import provider from "./index";
 import { IRestToken } from "@shared/restclient";
 import { ApolloError } from "apollo-server-express";
 import { DBInterface } from "@server/db-interface";
-import { TeslaAPI } from "./tesla-api";
+import teslaAPI from "./tesla-api";
 import { log, LogLevel } from "@shared/utils";
 import { IProviderServer } from "@providers/provider-server";
 
@@ -13,7 +13,7 @@ export async function maintainToken(
   oldToken: IRestToken
 ): Promise<IRestToken> {
   try {
-    const newToken = await TeslaAPI.maintainToken(oldToken);
+    const newToken = await teslaAPI.maintainToken(oldToken);
     if (!newToken) {
       return oldToken;
     }
@@ -43,7 +43,7 @@ const server: IProviderServer = {
     switch (data.query) {
       case "vehicles": {
         try {
-          return (await TeslaAPI.listVehicle(data.id, data.token)).response;
+          return (await teslaAPI.listVehicle(data.id, data.token)).response;
         } catch (err) {
           if (err.code === 401) {
             const dblist = await context.db.pg.manyOrNone(
