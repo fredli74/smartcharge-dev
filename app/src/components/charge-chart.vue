@@ -142,6 +142,7 @@ const defaultOptions = {
             locationName
             vehicleID
             batteryLevel
+            minimumLevel
             levelChargeTime
             thresholdPrice
             prices {
@@ -180,19 +181,19 @@ export default class ChargeChart extends Vue {
   chartData?: ChartData;
   timer?: any;
   chartReady: boolean = false;
-  minPrice?: number;
-  maxPrice?: number;
-  minLevel?: number;
-  maxLevel?: number;
+  minPrice!: number;
+  maxPrice!: number;
+  minLevel!: number;
+  maxLevel!: number;
   fullUpdate!: boolean;
 
   data() {
     return {
       chartData: undefined,
-      minPrice: undefined,
-      maxPrice: undefined,
-      minLevel: undefined,
-      maxLevel: undefined,
+      minPrice: 0,
+      maxPrice: 1,
+      minLevel: 0,
+      maxLevel: 100,
       fullUpdate: false
     };
   }
@@ -270,12 +271,14 @@ export default class ChargeChart extends Vue {
               x2: to,
               strokeDashArray: 0,
               fillColor: p.chargeType === "fill" ? "#2ec2fa" : "#2e93fa",
+              borderColor: "none",
               borderWidth: 0,
               opacity: 0.2,
               offsetX: 0,
               offsetY: 0,
               label: {
                 borderWidth: 0,
+                offsetX: 3,
                 text: p.comment,
                 style: {
                   background: "none",
@@ -288,6 +291,7 @@ export default class ChargeChart extends Vue {
               x2: to,
               strokeDashArray: 0,
               fillColor: p.chargeType === "fill" ? "#2ec2fa" : "#2e93fa",
+              borderColor: "none",
               borderWidth: 0,
               opacity: 0.2,
               offsetX: 0,
@@ -410,6 +414,27 @@ export default class ChargeChart extends Vue {
           }
         }
       });
+      if (this.minLevel && this.minLevel < this.chartData.minimumLevel) {
+        chargechart.addYaxisAnnotation({
+          y: this.minLevel,
+          y2: this.chartData.minimumLevel,
+          strokeDashArray: 0,
+          fillColor: "#ffaa00",
+          borderColor: "none",
+          borderWidth: 0,
+          opacity: 0.1,
+          offsetX: 0,
+          offsetY: 0,
+          label: {
+            borderWidth: 0,
+            text: this.chartData.minimumLevel.toString(),
+            style: {
+              background: "none",
+              color: "none"
+            }
+          }
+        });
+      }
     }
   }
 
@@ -429,11 +454,11 @@ export default class ChargeChart extends Vue {
         if (p[1] < this.minPrice!) this.minPrice = p[1];
         if (p[1] > this.maxPrice!) this.maxPrice = p[1];
       }
-      this.minPrice = Math.round(this.minPrice! * 0.95);
-      this.maxPrice = Math.round(this.maxPrice! * 1.05);
+      this.minPrice = Math.round(this.minPrice * 0.95);
+      this.maxPrice = Math.round(this.maxPrice * 1.05);
     } else {
-      this.minPrice = undefined;
-      this.maxPrice = undefined;
+      this.minPrice = 0;
+      this.maxPrice = 1;
     }
     return [{ name: "price", data }];
   }
@@ -476,11 +501,11 @@ export default class ChargeChart extends Vue {
         if (p[1] < this.minLevel!) this.minLevel = p[1];
         if (p[1] > this.maxLevel!) this.maxLevel = p[1];
       }
-      this.minLevel = Math.round(this.minLevel! * 0.95);
-      this.maxLevel = Math.round(this.maxLevel! * 1.05);
+      this.minLevel = Math.max(0, Math.floor((this.minLevel - 5) / 10) * 10);
+      this.maxLevel = Math.max(0, Math.ceil((this.maxLevel + 5) / 10) * 10);
     } else {
-      this.minLevel = undefined;
-      this.maxLevel = undefined;
+      this.minLevel = 0;
+      this.maxLevel = 100;
     }
     return [{ name: "level", data }];
   }
