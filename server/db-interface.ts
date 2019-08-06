@@ -52,7 +52,10 @@ export class DBInterface {
   public pg: pgp.IDatabase<unknown>;
   constructor() {
     const pg = pgp(DB_OPTIONS);
-    this.pg = pg(config.DB_CONNECTION);
+    this.pg = pg({
+      connectionString: config.DATABASE_URL,
+      ssl: config.DATABASE_SSL === "true"
+    });
   }
   public async init() {
     let version = "";
