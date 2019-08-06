@@ -19,22 +19,9 @@ import {
   AbstractAgent,
   IProviderAgent
 } from "@providers/provider-agent";
-import provider from ".";
-
-const APP_NAME = `TibberAgent`;
-const APP_VERSION = `1.0`;
-
-const AGENT_NAME = "tibber";
-
-const TIBBER_API_BASE_URL = "https://api.tibber.com/v1-beta/gql";
-
-export interface TibberProviderData {
-  provider: "tibber";
-  home: string; // tibber home id
-  currency: string; // currency used for price points
-  token: string; // token for API authentication
-  invalidToken: boolean;
-}
+import provider, { TibberProviderData } from ".";
+import config from "./tibber-config";
+import tibberAPI from "./tibber-api";
 
 interface TibberAgentSubject extends AgentJob {
   providerData: TibberProviderData;
@@ -49,14 +36,14 @@ interface PricePoint {
 }
 
 export class TibberAgent extends AbstractAgent {
-  public name: string = AGENT_NAME;
+  public name: string = provider.name;
   private tibberAPI: RestClient;
   constructor(private scClient: SCClient) {
     super();
     // TODO replace with gql apollo client ?
     this.tibberAPI = new RestClient({
-      baseURL: TIBBER_API_BASE_URL,
-      agent: `${PROJECT_AGENT} ${APP_NAME}/${APP_VERSION}`,
+      baseURL: config.TIBBER_API_BASE_URL,
+      agent: `${PROJECT_AGENT}`,
       timeout: 120000
     });
   }
@@ -68,18 +55,8 @@ export class TibberAgent extends AbstractAgent {
       return interval;
     }
 
-    const res = await this.tibberAPI.post(
-      "",
-      {
-        query:
-          `{ viewer { home(id: "${
-            job.providerData.home
-          }") { currentSubscription { priceInfo { ` +
-          `   current { currency } ` +
-          `   today { total, startsAt, level, currency } ` +
-          `   tomorrow { total, startsAt, level }` +
-          `} } } } }`
-      },
+    const res = await tibberAPI.getPrices(
+      job.providerData.home,
       job.providerData.token
     );
     if (
@@ -113,7 +90,7 @@ export class TibberAgent extends AbstractAgent {
 
       log(
         LogLevel.Trace,
-        `Sending updatePrice for ${AGENT_NAME}.${
+        `Sending updatePrice for ${this.name}.${
           job.subjectID
         } => ${JSON.stringify(update)}`
       );

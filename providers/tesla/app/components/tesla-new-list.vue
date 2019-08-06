@@ -17,11 +17,11 @@
 
 <script lang="ts">
 import { Component, Vue, Prop } from "vue-property-decorator";
-import { Vehicle } from "@shared/gql-types";
+import { TeslaNewListEntry } from "../tesla-helper";
 
 @Component
 export default class TeslaNewVehicleList extends Vue {
-  @Prop({ required: true }) readonly list!: Vehicle[];
+  @Prop({ required: true }) readonly list!: TeslaNewListEntry[];
   @Prop({}) readonly subheader?: string;
 }
 </script>

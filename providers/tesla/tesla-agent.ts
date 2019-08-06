@@ -21,7 +21,7 @@ import {
 } from "@shared/gql-types";
 
 import config from "./tesla-config";
-import { TeslaAPI } from "./tesla-api";
+import teslaAPI from "./tesla-api";
 import {
   AgentJob,
   AbstractAgent,
@@ -152,7 +152,7 @@ export class TeslaAgent extends AbstractAgent {
       ) {
         // or if we've been trying to sleep for TIME_BEING_TIRED seconds
 
-        const data = (await TeslaAPI.getVehicleData(
+        const data = (await teslaAPI.getVehicleData(
           job.providerData.sid,
           job.providerData.token
         )).response;
@@ -285,7 +285,7 @@ export class TeslaAgent extends AbstractAgent {
         await this.setOptionCodes(job, data);
       } else {
         // Poll vehicle list to avoid keeping it awake
-        const data = (await TeslaAPI.listVehicle(
+        const data = (await teslaAPI.listVehicle(
           job.providerData.sid,
           job.providerData.token
         )).response;
@@ -438,14 +438,14 @@ export class TeslaAgent extends AbstractAgent {
               job.state.pollstate === "offline"
             ) {
               log(LogLevel.Info, `Waking up ${job.state.data.name}`);
-              await TeslaAPI.wakeUp(
+              await teslaAPI.wakeUp(
                 job.providerData.sid,
                 job.providerData.token
               );
               interval = 15;
             } else if (stopCharging) {
               log(LogLevel.Info, `Stop charging ${job.state.data.name}`);
-              TeslaAPI.chargeStop(job.providerData.sid, job.providerData.token);
+              teslaAPI.chargeStop(job.providerData.sid, job.providerData.token);
             } else if (startCharging) {
               if (job.state.pollstate === "tired") {
                 job.state.pollstate = "polling";
@@ -463,7 +463,7 @@ export class TeslaAgent extends AbstractAgent {
                     job.state.data.name
                   } to ${chargeto}%`
                 );
-                await TeslaAPI.setChargeLimit(
+                await teslaAPI.setChargeLimit(
                   job.providerData.sid,
                   chargeto,
                   job.providerData.token
@@ -471,7 +471,7 @@ export class TeslaAgent extends AbstractAgent {
               }
               if (job.state.data.chargingTo === null) {
                 log(LogLevel.Info, `Start charging ${job.state.data.name}`);
-                await TeslaAPI.chargeStart(
+                await teslaAPI.chargeStart(
                   job.providerData.sid,
                   job.providerData.token
                 );
@@ -491,7 +491,7 @@ export class TeslaAgent extends AbstractAgent {
             job.state.triedOpen === undefined
           ) {
             // if port is closed and we did not try to open it yet
-            await TeslaAPI.openChargePort(
+            await teslaAPI.openChargePort(
               job.providerData.sid,
               job.providerData.token
             );
@@ -501,7 +501,7 @@ export class TeslaAgent extends AbstractAgent {
             job.state.portOpen &&
             job.state.triedOpen !== undefined
           ) {
-            await TeslaAPI.closeChargePort(
+            await teslaAPI.closeChargePort(
               job.providerData.sid,
               job.providerData.token
             );
@@ -524,7 +524,7 @@ export class TeslaAgent extends AbstractAgent {
             LogLevel.Info,
             `Starting climate control on ${job.state.data.name}`
           );
-          await TeslaAPI.climateOn(
+          await teslaAPI.climateOn(
             job.providerData.sid,
             job.providerData.token
           );

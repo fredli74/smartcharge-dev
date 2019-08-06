@@ -16,8 +16,7 @@ import {
   Subscription,
   PubSub,
   PubSubEngine,
-  Root,
-  Args
+  Root
 } from "type-graphql";
 import { IContext } from "../gql-api";
 import {

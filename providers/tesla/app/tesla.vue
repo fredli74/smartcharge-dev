@@ -1,5 +1,5 @@
 <template>
-  <div class="tesla">
+  <div class="provider.name">
     <div v-if="page === 'new'">
       <TeslaTokenVue v-if="showTokenForm" @token="newProvider" />
       <div v-else>
@@ -39,6 +39,7 @@ import TeslaTokenVue from "./components/tesla-token.vue";
 import TeslaNewVehicleList from "./components/tesla-new-list.vue";
 import { LogLevel, log } from "@shared/utils";
 import { ProviderVuePage } from "@providers/provider-app";
+import provider from "..";
 
 @Component({
   components: {
@@ -82,7 +83,7 @@ export default class TeslaVue extends Vue {
     this.loading = true;
 
     const vehicles = (await apollo.getVehicles()).filter(
-      f => f.providerData && f.providerData.provider === "tesla"
+      f => f.providerData && f.providerData.provider === provider.name
     );
     const providers: { [token: string]: IRestToken } = newProvider
       ? {
@@ -101,7 +102,7 @@ export default class TeslaVue extends Vue {
     for (const token of Object.values(providers)) {
       // TODO: break this out into a helper function ?
       try {
-        for (const v of await apollo.providerQuery("tesla", {
+        for (const v of await apollo.providerQuery(provider.name, {
           query: "vehicles",
           token
         })) {
@@ -132,7 +133,11 @@ export default class TeslaVue extends Vue {
                 );
                 await apollo.updateVehicle({
                   id: f.id,
-                  providerData: { provider: "tesla", token, invalidToken: null }
+                  providerData: {
+                    provider: provider.name,
+                    token,
+                    invalidToken: null
+                  }
                 });
               }
             }
@@ -161,7 +166,7 @@ export default class TeslaVue extends Vue {
       minimumLevel: config.DEFAULT_MINIMUM_LEVEL,
       maximumLevel: config.DEFAULT_MAXIMUM_LEVEL,
       providerData: {
-        provider: "tesla",
+        provider: provider.name,
         sid: vehicle.id,
         token: vehicle.tesla_token
       } as TeslaProviderData

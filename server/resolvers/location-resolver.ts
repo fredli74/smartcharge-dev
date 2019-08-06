@@ -83,7 +83,6 @@ export class LocationResolver {
         : context.accountUUID;
     // verify Location ownage
     await context.db.getLocation(input.id, accountLimiter);
-    debugger;
     return DBInterface.DBLocationToLocation(
       await context.db.updateLocation(
         input.id,

@@ -661,7 +661,7 @@ export class Logic {
     } else {
       current =
         (await this.db.pg.one(
-          `SELECT AVG(duration) FROM charge a JOIN charge_curve b ON (a.charge_id = b.charge_id) WHERE vehicle_uuid = $1 AND location_uuid = $2;`,
+          `SELECT AVG(duration) FROM charge a JOIN charge_curve b ON (a.charge_id = b.charge_id) WHERE a.vehicle_uuid = $1 AND location_uuid = $2;`,
           [vehicleUUID, locationUUID]
         )).avg ||
         (await this.db.pg.one(
@@ -830,7 +830,7 @@ export class Logic {
 
     let plan: ChargePlan[] = [];
 
-    if (!stats || stats.level_charge_time === null) {
+    if (!stats || !stats.level_charge_time) {
       plan.push({
         chargeStart: null,
         chargeStop: null,

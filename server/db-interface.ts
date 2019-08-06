@@ -29,7 +29,6 @@ import {
   ProviderSubject,
   GeoLocation
 } from "@shared/gql-types";
-import { ValuesOfCorrectType } from "graphql/validation/rules/ValuesOfCorrectType";
 
 export const INTERNAL_SERVICE_UUID = `00000000-0000-0000-0000-000000000000`;
 
@@ -116,7 +115,6 @@ export class DBInterface {
     radius: number,
     provider_data?: any
   ): Promise<DBLocation> {
-    debugger;
     const fields: any = {
       account_uuid,
       name,
@@ -130,11 +128,14 @@ export class DBInterface {
         delete fields[key];
       }
     }
-    return await this.pg.one(
+    const result = await this.pg.one(
       `INSERT INTO location($[this:name]) VALUES($[this:csv]) RETURNING *;`,
       fields
     );
+    await this.updateAllLocations(account_uuid);
+    return result;
   }
+
   public async lookupKnownLocation(
     accountUUID: string,
     latitude: number,
@@ -168,6 +169,20 @@ export class DBInterface {
     }
     return DBInterface.DBLocationToLocation(bestLocation);
   }
+  public async updateAllLocations(accountUUID: string) {
+    for (const v of await this.getVehicles(accountUUID)) {
+      const location = await this.lookupKnownLocation(
+        v.account_uuid,
+        v.location_micro_latitude,
+        v.location_micro_longitude
+      );
+      this.pg.none(
+        `UPDATE vehicle SET location_uuid=$1 WHERE vehicle_uuid=$2;`,
+        [location ? location.id : null, v.vehicle_uuid]
+      );
+    }
+  }
+
   public async getLocations(
     account_uuid: string | undefined,
     location_uuid?: string
@@ -177,7 +192,7 @@ export class DBInterface {
       [account_uuid, `account_uuid = $2`]
     ]);
     return this.pg.manyOrNone(
-      `SELECT * FROM location WHERE ${where.join(" AND ")}`,
+      `SELECT * FROM location WHERE ${where.join(" AND ")};`,
       values
     );
   }
@@ -200,7 +215,6 @@ export class DBInterface {
     radius: number | undefined,
     provider_data: any | undefined
   ): Promise<DBLocation> {
-    debugger;
     const [values, set] = queryHelper([
       location_uuid,
       [name, `name = $2`],
@@ -303,7 +317,7 @@ export class DBInterface {
       [account_uuid, `account_uuid = $2`]
     ]);
     return this.pg.manyOrNone(
-      `SELECT * FROM vehicle WHERE ${where.join(" AND ")}`,
+      `SELECT * FROM vehicle WHERE ${where.join(" AND ")};`,
       values
     );
   }
@@ -386,7 +400,7 @@ export class DBInterface {
     ]);
   }
   public async lookupAccount(api_token: string): Promise<DBAccount> {
-    return this.pg.one(`SELECT * FROM account WHERE api_token = $1`, [
+    return this.pg.one(`SELECT * FROM account WHERE api_token = $1;`, [
       api_token
     ]);
   }
@@ -429,7 +443,7 @@ export class DBInterface {
   ): Promise<DBLocationData[]> {
     return this.pg.manyOrNone(
       `WITH data AS (SELECT * FROM location_data WHERE location_uuid = $1)
-      SELECT * FROM data WHERE ts > (SELECT max(ts) FROM data) - interval $2 ORDER BY ts`,
+      SELECT * FROM data WHERE ts > (SELECT max(ts) FROM data) - interval $2 ORDER BY ts;`,
       [location_uuid, `${interval} hours`]
     );
   }

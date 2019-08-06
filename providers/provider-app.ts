@@ -6,6 +6,6 @@ export type ProviderVuePage = "new" | "config" | "view";
 
 export interface IProviderApp extends IProvider {
   logo: any;
-  image: any;
+  image?: any;
   vue: VueConstructor<Vue>;
 }

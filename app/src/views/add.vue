@@ -28,7 +28,10 @@ export default class Add extends Vue {
     return providers.filter(f => f.type === this.$route.params.type);
   }
   addProvider(name: string) {
-    this.$router.replace(`/provider/${name}/new`);
+    this.$router.replace({
+      path: `/provider/${name}/new`,
+      query: this.$route.query
+    });
   }
 }
 </script>

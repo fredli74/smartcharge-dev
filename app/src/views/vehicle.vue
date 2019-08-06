@@ -20,6 +20,9 @@
             Updated
             <RelativeTime :time="new Date(vehicle.updated)"></RelativeTime>
           </div>
+          <div v-if="vehicle.pausedUntil">
+            Smart charge paused until: {{ vehicle.pausedUntil }}
+          </div>
         </v-flex>
         <v-flex sm6>
           <v-img contain :src="vehiclePicture" />
@@ -112,10 +115,10 @@ const vehicleFragment = `id name minimumLevel maximumLevel tripSchedule { level 
         },
         fetchPolicy: "cache-and-network",
         // Mutate the previous result
-        updateQuery: (previousResult, { subscriptionData }) => {
+        updateQuery: (previousResult: any, { subscriptionData }: any) => {
           return {
             vehicle: {
-              ...previousResult.vehicle,
+              ...((previousResult && previousResult.vehicle) || undefined),
               ...subscriptionData.data.vehicleSubscription
             }
           };
@@ -200,9 +203,7 @@ export default class VehicleVue extends Vue {
       this.location = this.locations.find(f => f.id === val.location);
       assert(this.location !== undefined);
 
-      if (val.isDriving) {
-        suffix = `${val.isDriving ? "near" : "@"} ${this.location!.name}`;
-      }
+      suffix = `${val.isDriving ? "near" : "@"} ${this.location!.name}`;
     } else {
       // Find closest location
       if (this.locations && this.locations.length > 0) {
