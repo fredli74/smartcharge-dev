@@ -468,11 +468,11 @@ export default class ChargeChart extends Vue {
     let data: any = [];
     if (this.chartData && this.chartData.prices.length > 1) {
       let level = this.chartData.batteryLevel;
-      const chartStart = new Date(this.chartData.prices[0].startAt).getTime();
+      // const chartStart = new Date(this.chartData.prices[0].startAt).getTime();
       const chartEnd = new Date(
         this.chartData.prices[this.chartData.prices.length - 1].startAt
       ).getTime();
-      data.push([chartStart, level]);
+      data.push([new Date().getTime(), level]);
       // Simulate charging
       if (this.chartData.chargePlan) {
         for (const c of this.chartData.chargePlan) {
@@ -481,14 +481,24 @@ export default class ChargeChart extends Vue {
           if (c.chargeStart) {
             cs = Math.max(cs, new Date(c.chargeStart).getTime());
           }
-          let ce = Math.min(cs + timeNeeded * 1e3, chartEnd);
-          if (c.chargeStop) {
-            ce = Math.min(ce, new Date(c.chargeStop).getTime());
+          let ce = cs + timeNeeded * 1e3;
+          if (
+            c.chargeStop &&
+            new Date(c.chargeStop).getTime() - ce <
+              this.chartData.levelChargeTime * 1e3
+          ) {
+            ce = new Date(c.chargeStop).getTime();
           }
+          ce = Math.min(ce, chartEnd);
+
           if (ce < cs) continue;
 
-          if (cs > data[data.length - 1][0]) data.push([cs, level]);
-          level += Math.round((ce - cs) / 1e3 / this.chartData.levelChargeTime);
+          if (data.length < 1 || cs > data[data.length - 1][0])
+            data.push([cs, level]);
+          level = Math.min(
+            c.level,
+            level + Math.round((ce - cs) / 1e3 / this.chartData.levelChargeTime)
+          );
           data.push([ce, level]);
         }
       }
@@ -572,6 +582,18 @@ export default class ChargeChart extends Vue {
         curve: "straight"
       },
       colors: ["#2E93fA"],
+      xaxis: {
+        min:
+          this.chartData && this.chartData.prices
+            ? new Date(this.chartData.prices[0].startAt).getTime()
+            : undefined,
+        max:
+          this.chartData && this.chartData.prices
+            ? new Date(
+                this.chartData.prices[this.chartData.prices.length - 1].startAt
+              ).getTime()
+            : undefined
+      },
       yaxis: [
         {
           tickAmount: 4,
