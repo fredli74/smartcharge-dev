@@ -12,7 +12,6 @@ import { strict as assert } from "assert";
 
 import { Command } from "commander";
 import { log, LogLevel, delay } from "@shared/utils";
-import ws from "ws";
 
 const program = new Command();
 
@@ -123,7 +122,6 @@ program
 
     for (const provider of providers) {
       if (provider.agent) {
-        const p = provider.agent(client);
         agency.registerAgent(provider.agent(client));
       }
     }

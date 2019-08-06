@@ -19,7 +19,7 @@ import {
 } from "./db-schema";
 import { log, LogLevel, geoDistance, generateToken } from "@shared/utils";
 
-import config from "@shared/smartcharge-config.json";
+import config from "@shared/smartcharge-config";
 import {
   Vehicle,
   Account,
@@ -30,7 +30,9 @@ import {
   GeoLocation
 } from "@shared/gql-types";
 
-export const INTERNAL_SERVICE_UUID = `00000000-0000-0000-0000-000000000000`;
+export const DB_OPTIONS = {};
+export const INTERNAL_SERVICE_UUID = `b085e774-1582-4334-be3b-f52d5803e718`;
+export const SINGLE_USER_UUID = `c60053d3-a99c-44f2-9104-a10db8eba916`;
 
 function queryHelper(fields: any[]): [any[], string[]] {
   let values: any[] = [];
@@ -49,7 +51,7 @@ function queryHelper(fields: any[]): [any[], string[]] {
 export class DBInterface {
   public pg: pgp.IDatabase<unknown>;
   constructor() {
-    const pg = pgp(config.DB_OPTIONS);
+    const pg = pgp(DB_OPTIONS);
     this.pg = pg(config.DB_CONNECTION);
   }
   public async init() {
@@ -93,6 +95,16 @@ export class DBInterface {
       }
     );
     log(LogLevel.Info, `Internal agency api_token is: ${k.api_token}`);
+
+    // Creating the single user
+    await this.pg.one(
+      `INSERT INTO account($[this:name]) VALUES($[this:csv]) RETURNING *;`,
+      {
+        account_uuid: SINGLE_USER_UUID,
+        name: "single user",
+        api_token: generateToken(48)
+      }
+    );
   }
 
   public static DBLocationToLocation(l: DBLocation): Location {

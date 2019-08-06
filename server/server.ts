@@ -18,7 +18,7 @@ import gqlSchema, { IContext } from "./gql-api";
 import { DBInterface } from "./db-interface";
 import { Logic } from "./logic";
 
-import config from "@shared/smartcharge-config.json";
+import config from "@shared/smartcharge-config";
 import { ApolloServer } from "apollo-server-express";
 import { DBAccount } from "./db-schema";
 
@@ -111,7 +111,7 @@ import { DBAccount } from "./db-schema";
       },
       subscriptions: {
         path: "/api/gql",
-        onConnect: async (connectionParams: any, webSocket, context) => {
+        onConnect: async (connectionParams: any, _webSocket, _context) => {
           const account = await authorize(connectionParams.Authorization);
           log(
             LogLevel.Info,
@@ -151,7 +151,7 @@ import { DBAccount } from "./db-schema";
     // Start server
     httpServer.listen(
       config.SERVER_LISTEN_PORT,
-      config.SERVER_LISTEN_IP,
+      Number(config.SERVER_LISTEN_IP),
       () => {
         log(
           LogLevel.Info,

@@ -7,17 +7,15 @@
 
 // import { strict as assert } from 'assert';
 
-import { ApolloServer, ApolloError } from "apollo-server-express";
+import { ApolloError } from "apollo-server-express";
 import { buildSchema, Arg, Resolver, Query, Ctx, Mutation } from "type-graphql";
-import { DBInterface, INTERNAL_SERVICE_UUID } from "./db-interface";
+import { DBInterface, SINGLE_USER_UUID } from "./db-interface";
 import { DBAccount } from "./db-schema";
 import { Logic } from "./logic";
 
-import express from "express";
 import "reflect-metadata";
 
-import config from "@shared/smartcharge-config.json";
-import PASSWORD from "./smartcharge-password.json";
+import config from "@shared/smartcharge-config";
 
 import { ProviderResolver } from "./resolvers/provider-resolver";
 import { VehicleResolver } from "./resolvers/vehicle-resolver";
@@ -38,20 +36,20 @@ class AccountResolver {
     @Arg("password") password: string,
     @Ctx() context: IContext
   ): Promise<Account> {
-    if (!config.SINGLE_USER) {
+    if (config.SINGLE_USER !== "true") {
       throw new ApolloError(
         `loginWithPassword only allowed in SINGLE_USER mode`,
         `AUTHENTICATION_FAILED`
       );
     }
-    if (password !== PASSWORD.SINGLE_USER_PASSWORD) {
+    if (password !== config.SINGLE_USER_PASSWORD) {
       throw new ApolloError(
         `loginWithPassword called with invalid password`,
         `AUTHENTICATION_FAILED`
       );
     }
     return DBInterface.DBAccountToAccount(
-      await context.db.getAccount(INTERNAL_SERVICE_UUID)
+      await context.db.getAccount(SINGLE_USER_UUID)
     );
   }
 

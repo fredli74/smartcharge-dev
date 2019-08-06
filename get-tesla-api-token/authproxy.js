@@ -74,6 +74,6 @@ http
       });
   })
   .listen(PORT)
-  .on("listening", a => {
+  .on("listening", () => {
     console.log(`Connect to http://localhost:${PORT}`);
   });
