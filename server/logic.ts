@@ -684,30 +684,35 @@ export class Logic {
   }
 
   private static cleanupPlan(plan: ChargePlan[]): ChargePlan[] {
+    function nstart(n: Date | null) {
+      return (n && n.getTime()) || -Infinity;
+    }
+    function nstop(n: Date | null) {
+      return (n && n.getTime()) || Infinity;
+    }
     plan.sort(
       (a, b) =>
-        ((a.chargeStart && a.chargeStart.getTime()) || -Infinity) -
-          ((b.chargeStart && b.chargeStart.getTime()) || -Infinity) ||
-        ((a.chargeStop && a.chargeStop.getTime()) || Infinity) -
-          ((b.chargeStop && b.chargeStop.getTime()) || Infinity)
+        nstart(a.chargeStart) - nstart(b.chargeStart) ||
+        nstop(a.chargeStop) - nstop(b.chargeStop)
     );
 
     for (let i = 0; i < plan.length - 1; ++i) {
       const a = plan[i];
       const b = plan[i + 1];
-      if (a.chargeType === b.chargeType) {
+      if (nstart(b.chargeStart) <= nstop(a.chargeStop)) {
         if (
-          ((b.chargeStart && b.chargeStart.getTime()) || -Infinity) <=
-          ((a.chargeStop && a.chargeStop.getTime()) || Infinity)
+          a.chargeType === b.chargeType ||
+          nstop(b.chargeStop) <= nstop(a.chargeStop)
         ) {
-          if (
-            ((b.chargeStop && b.chargeStop.getTime()) || Infinity) >
-            ((a.chargeStop && a.chargeStop.getTime()) || Infinity)
-          ) {
+          // Merge them
+          if (nstop(b.chargeStop) > nstop(a.chargeStop)) {
             a.chargeStop = b.chargeStop;
           }
           plan.splice(i + 1, 1);
           --i;
+        } else {
+          // Adjust them
+          b.chargeStart = a.chargeStop;
         }
       }
     }
@@ -783,7 +788,7 @@ export class Logic {
         if (price.price <= thresholdPrice) {
           // Fill'er up
           entry = {
-            chargeStart: ts < start ? null : new Date(start),
+            chargeStart: ts < start ? new Date(ts) : new Date(start),
             chargeStop: new Date(end),
             level: vehicle.maximum_charge,
             chargeType: ChargeType.fill,
@@ -792,7 +797,7 @@ export class Logic {
         } else if (price.in_range) {
           end = Math.min(start + timeLeft, before, fullHour);
           entry = {
-            chargeStart: ts < start ? null : new Date(start),
+            chargeStart: ts < start ? new Date(ts) : new Date(start),
             chargeStop: new Date(end),
             level: batteryLevel,
             chargeType: chargeType,
@@ -885,19 +890,20 @@ export class Logic {
             }
           }
         }
+      }
 
-        if (vehicle.level <= vehicle.maximum_charge) {
-          // ****** ANALYSE AND THINK ABOUT IT!  ******
+      if (vehicle.level <= vehicle.maximum_charge) {
+        // ****** ANALYSE AND THINK ABOUT IT!  ******
 
-          // Take the time when we connected and compare that to connections for the past 4 weeks
-          // how much battery level did we use from those drives until next connection
-          // now compare that to the average use between connections and go with the greatest number
+        // Take the time when we connected and compare that to connections for the past 4 weeks
+        // how much battery level did we use from those drives until next connection
+        // now compare that to the average use between connections and go with the greatest number
 
-          const guess: {
-            charge: number;
-            before: number;
-          } = await this.db.pg.one(
-            `WITH connections AS (
+        const guess: {
+          charge: number;
+          before: number;
+        } = await this.db.pg.one(
+          `WITH connections AS (
                 SELECT connected_id, start_ts, end_ts,
                     end_level-(SELECT start_level FROM connected B WHERE B.vehicle_uuid = A.vehicle_uuid AND B.connected_id > A.connected_id ORDER BY connected_id LIMIT 1) as used					 
                 FROM connected A
@@ -915,107 +921,106 @@ export class Logic {
                     (SELECT percentile_cont(0.6) WITHIN GROUP (ORDER BY used) as used FROM past_weeks)
                 ) as charge,
                 (SELECT percentile_cont(0.25) WITHIN GROUP (ORDER BY extract(epoch from before)) FROM past_weeks) as before;`,
-            [vehicle.vehicle_uuid]
+          [vehicle.vehicle_uuid]
+        );
+
+        if (!guess.before || !guess.charge) {
+          // missing data to guess
+          log(
+            LogLevel.Debug,
+            `Missing data for qualified guess, just charge now.`
+          );
+          plan.push({
+            chargeStart: null,
+            chargeStop: null,
+            level: vehicle.maximum_charge,
+            chargeType: ChargeType.fill,
+            comment: `learning`
+          }); // run free
+
+          this.setSmartStatus(
+            vehicle,
+            `Smart charging disabled (still learning)`
+          );
+        } else {
+          const minimumCharge = Math.min(
+            vehicle.maximum_charge,
+            Math.round(vehicle.minimum_charge + guess.charge)
+          );
+          const neededCharge = minimumCharge - vehicle.level;
+          const before = guess.before * 1e3; // epoch to ms
+
+          this.setSmartStatus(
+            vehicle,
+            `Predicting battery level ${minimumCharge}% (${
+              neededCharge > 0 ? Math.round(neededCharge) + "%" : "no"
+            } charge) is needed before ${new Date(before).toISOString()}`
           );
 
-          if (!guess.before || !guess.charge) {
-            // missing data to guess
-            log(
-              LogLevel.Debug,
-              `Missing data for qualified guess, just charge now.`
-            );
-            plan.push({
-              chargeStart: null,
-              chargeStop: null,
-              level: vehicle.maximum_charge,
-              chargeType: ChargeType.fill,
-              comment: `learning`
-            }); // run free
+          log(
+            LogLevel.Debug,
+            `Current level: ${vehicle.level}, predicting ${minimumCharge}% (${
+              vehicle.minimum_charge
+            }+${guess.charge}) is needed before ${new Date(
+              before
+            ).toISOString()}`
+          );
 
-            this.setSmartStatus(
-              vehicle,
-              `Smart charging disabled (still learning)`
-            );
-          } else {
-            const minimumCharge = Math.round(
-              vehicle.minimum_charge + guess.charge
-            );
-            const neededCharge = minimumCharge - vehicle.level;
-            const before = guess.before * 1e3; // epoch to ms
-
-            this.setSmartStatus(
-              vehicle,
-              `Predicting battery level ${minimumCharge}% (${
-                neededCharge > 0 ? Math.round(neededCharge) + "%" : "no"
-              } charge) is needed before ${new Date(before).toISOString()}`
-            );
-
-            log(
-              LogLevel.Debug,
-              `Current level: ${vehicle.level}, predicting ${minimumCharge}% (${
-                vehicle.minimum_charge
-              }+${guess.charge}) is needed before ${new Date(
-                before
-              ).toISOString()}`
-            );
-
-            const p = await this.generateChargePlan(
-              vehicle,
-              minimumCharge,
-              before,
-              ChargeType.routine,
-              `based on past charging routine`
-            );
-            plan.push(...p);
-          }
+          const p = await this.generateChargePlan(
+            vehicle,
+            minimumCharge,
+            before,
+            ChargeType.routine,
+            `based on past charging routine`
+          );
+          plan.push(...p);
         }
+      }
 
-        // Trip charging
-        if (vehicle.scheduled_trip) {
-          const trip = ScheduleToJS(vehicle.scheduled_trip);
-          if (now > trip.time.getTime() + 3600e3) {
-            // remove trip 1 hour after the fact
-            await this.db.pg.none(
-              `UPDATE vehicle SET scheduled_trip = null WHERE vehicle_uuid = $1;`,
-              [vehicle.vehicle_uuid]
-            );
-          } else {
-            const tripCharge = Math.min(trip.level, vehicle.maximum_charge);
-            const topupTime = await this.chargeDuration(
-              vehicle.vehicle_uuid,
-              vehicle.location_uuid,
-              tripCharge,
-              trip.level
-            );
-            const topupStart =
-              trip.time.getTime() - topupTime - TRIP_TOPUP_TIME;
+      // Trip charging
+      if (vehicle.scheduled_trip) {
+        const trip = ScheduleToJS(vehicle.scheduled_trip);
+        if (now > trip.time.getTime() + 3600e3) {
+          // remove trip 1 hour after the fact
+          await this.db.pg.none(
+            `UPDATE vehicle SET scheduled_trip = null WHERE vehicle_uuid = $1;`,
+            [vehicle.vehicle_uuid]
+          );
+        } else {
+          const tripCharge = Math.min(trip.level, vehicle.maximum_charge);
+          const topupTime = await this.chargeDuration(
+            vehicle.vehicle_uuid,
+            vehicle.location_uuid,
+            tripCharge,
+            trip.level
+          );
+          const topupStart = trip.time.getTime() - topupTime - TRIP_TOPUP_TIME;
 
-            const p = await this.generateChargePlan(
-              vehicle,
-              tripCharge,
-              topupStart,
-              ChargeType.trip,
-              `upcoming trip`
-            );
-            plan.push(...p);
+          const p = await this.generateChargePlan(
+            vehicle,
+            tripCharge,
+            topupStart,
+            ChargeType.trip,
+            `upcoming trip`
+          );
+          plan.push(...p);
 
-            if (topupTime > 0) {
-              plan.push({
-                chargeStart: new Date(topupStart),
-                chargeStop: null,
-                level: trip.level,
-                chargeType: ChargeType.trip,
-                comment: `topping up before trip`
-              });
-              if (now >= topupStart) {
-                this.setSmartStatus(
-                  vehicle,
-                  (vehicle.connected
-                    ? `Trip charging to `
-                    : `Connect charger to charge to `) +
-                    `${trip.level}% (est. ${prettyTime(topupTime / 1e3)})`
-                );
-              }
+          if (topupTime > 0) {
+            plan.push({
+              chargeStart: new Date(topupStart),
+              chargeStop: null,
+              level: trip.level,
+              chargeType: ChargeType.trip,
+              comment: `topping up before trip`
+            });
+            if (now >= topupStart) {
+              this.setSmartStatus(
+                vehicle,
+                (vehicle.connected
+                  ? `Trip charging to `
+                  : `Connect charger to charge to `) +
+                  `${trip.level}% (est. ${prettyTime(topupTime / 1e3)})`
+              );
             }
           }
         }
