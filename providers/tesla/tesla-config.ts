@@ -11,7 +11,7 @@ const config = {
   DEFAULT_MAXIMUM_LEVEL: 90,
 
   AGENT_SAVE_TO_TRACEFILE: true,
-  AGENT_TRACE_FILENAME: "../../logs/tesla_trace.log"
+  AGENT_TRACE_FILENAME: "logs/tesla_trace.log"
 };
 
 export default config;
