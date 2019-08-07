@@ -20,8 +20,14 @@
               <v-list-item-content>
                 <v-list-item-title>{{ vehicle.name }}</v-list-item-title>
                 <v-list-item-subtitle class="text-lowercase">
-                  {{ vehicle.status || "adding..." }}</v-list-item-subtitle
+                  {{ vehicle.status || "not polled yet" }}</v-list-item-subtitle
                 >
+                <v-list-item-subtitle
+                  v-if="vehicle.status === ''"
+                  class="text-lowercase caption"
+                >
+                  make sure the vehicle is awake and accessible
+                </v-list-item-subtitle>
               </v-list-item-content>
             </v-flex>
             <v-flex xs1>
