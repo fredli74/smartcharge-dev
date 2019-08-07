@@ -468,10 +468,11 @@ export default class ChargeChart extends Vue {
     let data: any = [];
     if (this.chartData && this.chartData.prices.length > 1) {
       let level = this.chartData.batteryLevel;
-      // const chartStart = new Date(this.chartData.prices[0].startAt).getTime();
+      const chartStart = new Date(this.chartData.prices[0].startAt).getTime();
       const chartEnd = new Date(
         this.chartData.prices[this.chartData.prices.length - 1].startAt
       ).getTime();
+      data.push([chartStart, null]);
       data.push([new Date().getTime(), level]);
       // Simulate charging
       if (this.chartData.chargePlan) {
@@ -582,18 +583,6 @@ export default class ChargeChart extends Vue {
         curve: "straight"
       },
       colors: ["#2E93fA"],
-      xaxis: {
-        min:
-          this.chartData && this.chartData.prices
-            ? new Date(this.chartData.prices[0].startAt).getTime()
-            : undefined,
-        max:
-          this.chartData && this.chartData.prices
-            ? new Date(
-                this.chartData.prices[this.chartData.prices.length - 1].startAt
-              ).getTime()
-            : undefined
-      },
       yaxis: [
         {
           tickAmount: 4,
