@@ -10,7 +10,7 @@
     "_babel:providers": "npm run _babel -- providers --out-dir dist/providers",
     "_babel:shared": "npm run _babel -- shared --out-dir dist/shared",
     "_babel:server": "npm run _babel -- server --out-dir dist/server",
-    "start:worker": "node dist/server/agency.js INTERNAL_SERVICE_TOKEN http://localhost:3000",
+    "start:worker": "node dist/server/agency.js -d INTERNAL_SERVICE_TOKEN http://localhost:3000",
     "start:server": "node dist/server/server.js",
     "build:server": "npm run _babel:shared && npm run _babel:providers && npm run _babel:server",
     "build:app": "vue-cli-service build"

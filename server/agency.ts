@@ -90,6 +90,7 @@ export class Agency {
       log(LogLevel.Info, `Agency ${this.ID} worker stopped`);
     })();
     this.promiseList.push(workerPromise);
+    return Promise.all(this.promiseList);
   }
   public registerAgent(agent: AbstractAgent) {
     this.agents[agent.name] = agent;
@@ -114,11 +115,9 @@ export class Agency {
 program
   .version(`${APP_NAME} ${APP_VERSION}`, "-v, --version")
   .arguments("<access_token> <server_url>")
+  .option("-d, --daemon", "keep running while logging errors")
   .action(async (access_token, server_url) => {
     const client = new SCClient(server_url, undefined, undefined);
-    const token = process.env[access_token] || access_token;
-    await client.loginWithToken(token);
-
     const agency = new Agency(client);
 
     for (const provider of providers) {
@@ -126,12 +125,6 @@ program
         agency.registerAgent(provider.agent(client));
       }
     }
-
-    // agency.registerAgent(new TibberAgent(client));
-    //    agency.registerAgent(new TeslaAgent(client));
-
-    await agency.init();
-    log(LogLevel.Info, `Agency ID ${agency.ID} started`);
 
     process.on("SIGINT", async function() {
       log(LogLevel.Info, `Caught interrupt signal, shutting down.`);
@@ -144,7 +137,22 @@ program
       process.exit();
     });
 
-    agency.worker();
+    for (;;) {
+      try {
+        await agency.stop();
+        const token = process.env[access_token] || access_token;
+        await client.loginWithToken(token);
+        await agency.init();
+        log(LogLevel.Info, `Agency ID ${agency.ID} started`);
+        await agency.worker();
+      } catch (err) {
+        log(LogLevel.Error, err);
+        if (!program.daemon) {
+          throw err;
+        }
+      }
+      await delay(10000);
+    }
   })
   .parse(process.argv);
 
