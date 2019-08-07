@@ -6,7 +6,7 @@
       small
       grow
       label="Tesla API refresh token"
-      hint="<a href='/teslaToken.html' target='_blank'>Get it here</a>"
+      hint="<a href='https://tesla-token.netlify.com/' target='_blank'>Get it here</a>"
       persistent-hint
       filled
     ></v-text-field>
