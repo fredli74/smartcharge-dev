@@ -451,8 +451,8 @@ export default class ChargeChart extends Vue {
       this.minPrice = Number.POSITIVE_INFINITY;
       this.maxPrice = Number.NEGATIVE_INFINITY;
       for (const p of data) {
-        if (p[1] < this.minPrice!) this.minPrice = p[1];
-        if (p[1] > this.maxPrice!) this.maxPrice = p[1];
+        if (p[1] !== null && p[1] < this.minPrice!) this.minPrice = p[1];
+        if (p[1] !== null && p[1] > this.maxPrice!) this.maxPrice = p[1];
       }
       this.minPrice = Math.round(this.minPrice * 0.95);
       this.maxPrice = Math.round(this.maxPrice * 1.05);
@@ -509,8 +509,8 @@ export default class ChargeChart extends Vue {
       this.minLevel = Number.POSITIVE_INFINITY;
       this.maxLevel = Number.NEGATIVE_INFINITY;
       for (const p of data) {
-        if (p[1] < this.minLevel!) this.minLevel = p[1];
-        if (p[1] > this.maxLevel!) this.maxLevel = p[1];
+        if (p[1] !== null && p[1] < this.minLevel!) this.minLevel = p[1];
+        if (p[1] !== null && p[1] > this.maxLevel!) this.maxLevel = p[1];
       }
       this.minLevel = Math.max(0, Math.floor((this.minLevel - 5) / 10) * 10);
       this.maxLevel = Math.max(0, Math.ceil((this.maxLevel + 5) / 10) * 10);
