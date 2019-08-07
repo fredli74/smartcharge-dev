@@ -12,17 +12,13 @@ import { strict as assert } from "assert";
 
 import { Command } from "commander";
 import { log, LogLevel, delay } from "@shared/utils";
-
-const program = new Command();
-
-const APP_NAME = `Agency`;
-const APP_VERSION = `1.0`;
-
 import { SCClient } from "@shared/sc-client";
 import { ProviderSubject } from "@shared/gql-types";
-
 import providers from "@providers/provider-agents";
 import { AbstractAgent } from "@providers/provider-agent";
+
+const APP_NAME = `smartcharge-agency`;
+const APP_VERSION = `1.0`;
 
 export class Agency {
   public ID: string | undefined;
@@ -112,6 +108,7 @@ export class Agency {
   }
 }
 
+const program = new Command();
 program
   .version(`${APP_NAME} ${APP_VERSION}`, "-v, --version")
   .arguments("<access_token> <server_url>")
