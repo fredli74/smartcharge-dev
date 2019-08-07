@@ -1,4 +1,4 @@
-#!/usr/bin / env node
+#!/usr/bin/env node
 
 /**
  * @file Agency CLI for smartcharge.dev project

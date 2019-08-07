@@ -53,6 +53,7 @@
     "babel-plugin-transform-typescript-metadata": "^0.2.2",
     "compression": "^1.7.4",
     "connect-history-api-fallback": "^1.6.0",
+    "copy-webpack-plugin": "^5.0.4",
     "core-js": "^3.1.4",
     "cors": "^2.8.5",
     "cross-fetch": "^3.0.4",

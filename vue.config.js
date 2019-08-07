@@ -1,12 +1,24 @@
 const path = require("path");
 const webpack = require("webpack");
+const CopyPlugin = require("copy-webpack-plugin");
 
 module.exports = {
   outputDir: path.resolve(__dirname, "./dist/app"),
   devServer: {
     contentBase: [
-      path.join(__dirname, "app/public"),
-      path.join(__dirname, "public")
+      path.resolve(__dirname, "app/public"),
+      path.resolve(__dirname, "public")
+    ]
+  },
+  configureWebpack: {
+    plugins: [
+      new CopyPlugin([
+        {
+          from: path.resolve(__dirname, "./app/public/"),
+          to: ".",
+          ignore: ["index.html", ".DS_Store"]
+        }
+      ])
     ]
   },
   chainWebpack: config => {

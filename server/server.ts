@@ -1,4 +1,4 @@
-#!/usr/bin / env node
+#!/usr/bin/env node
 
 /**
  * @file Server coordinator for smartcharge.dev project
@@ -17,6 +17,7 @@ import http from "http";
 import express from "express";
 import cors from "cors";
 import compression from "compression";
+import path from "path";
 import { log, LogLevel } from "@shared/utils";
 import gqlSchema, { IContext } from "./gql-api";
 import { DBInterface } from "./db-interface";
@@ -139,21 +140,13 @@ import { DBAccount } from "./db-schema";
     //
 
     app
-      .use(express.static("../app"))
+      .use(express.static(path.resolve(__dirname, "../app")))
       .use(
         history({
           index: "/index.html"
         })
       )
-      .use(express.static("../app"));
-    /*
-    app.get("/", function(req, res) {
-      res.sendFile(path.join(__dirname, "../app/index.html"));
-    });
-    app.use(express.static("../app"));
-
-    console.log(path.join(__dirname, "../app/index.html"));
-*/
+      .use(express.static(path.resolve(__dirname, "../app")));
 
     // Add 404 handling
     app.use(function(req, res, _next) {
