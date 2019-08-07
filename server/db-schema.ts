@@ -371,6 +371,7 @@ const DBSetting_TSQL = `CREATE TABLE scserver.setting
 
 export const DB_SETUP_TSQL = [
   `CREATE SCHEMA IF NOT EXISTS scserver;`,
+  `ALTER ROLE current_user SET search_path = "$user",scserver,public;`,
 
   /*
         PostgreSQL sequential uuid function
