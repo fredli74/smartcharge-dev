@@ -370,7 +370,7 @@ const DBSetting_TSQL = `CREATE TABLE scserver.setting
     INSERT INTO setting(key,value) VALUES('version', '"${DB_VERSION}"');`;
 
 export const DB_SETUP_TSQL = [
-  `CREATE SCHEMA IF NOT EXISTS scserver AUTHORIZATION scserver;`,
+  `CREATE SCHEMA IF NOT EXISTS scserver;`,
 
   /*
         PostgreSQL sequential uuid function
