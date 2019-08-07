@@ -2,6 +2,7 @@ const path = require("path");
 const webpack = require("webpack");
 
 module.exports = {
+  outputDir: path.resolve(__dirname, "./dist/app"),
   devServer: {
     contentBase: [
       path.join(__dirname, "app/public"),

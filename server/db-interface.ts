@@ -94,7 +94,7 @@ export class DBInterface {
       {
         account_uuid: INTERNAL_SERVICE_UUID,
         name: "internal",
-        api_token: generateToken(48)
+        api_token: process.env["INTERNAL_SERVICE_TOKEN"] || generateToken(48)
       }
     );
     log(LogLevel.Info, `Internal agency api_token is: ${k.api_token}`);

@@ -7,7 +7,7 @@
  * @license MIT (MIT)
  * @description Agency coordinates with the server which agent jobs to run
  */
-
+import "./env";
 import { strict as assert } from "assert";
 
 import { Command } from "commander";
@@ -116,7 +116,8 @@ program
   .arguments("<access_token> <server_url>")
   .action(async (access_token, server_url) => {
     const client = new SCClient(server_url, undefined, undefined);
-    await client.loginWithToken(access_token);
+    const token = process.env[access_token] || access_token;
+    await client.loginWithToken(token);
 
     const agency = new Agency(client);
 

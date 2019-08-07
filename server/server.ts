@@ -1,13 +1,17 @@
+#!/usr/bin / env node
+
 /**
  * @file Server coordinator for smartcharge.dev project
  * @author Fredrik Lidström
  * @copyright 2019 Fredrik Lidström
  * @license MIT (MIT)
  */
+import "./env";
 import { strict as assert } from "assert";
 
 import "core-js/stable";
 import "regenerator-runtime/runtime";
+import history from "connect-history-api-fallback";
 
 import http from "http";
 import express from "express";
@@ -133,6 +137,23 @@ import { DBAccount } from "./db-schema";
     //		res.sendfile('default.html', { root: __dirname + "/relative_path_of_file" });
     //	});
     //
+
+    app
+      .use(express.static("../app"))
+      .use(
+        history({
+          index: "/index.html"
+        })
+      )
+      .use(express.static("../app"));
+    /*
+    app.get("/", function(req, res) {
+      res.sendFile(path.join(__dirname, "../app/index.html"));
+    });
+    app.use(express.static("../app"));
+
+    console.log(path.join(__dirname, "../app/index.html"));
+*/
 
     // Add 404 handling
     app.use(function(req, res, _next) {
