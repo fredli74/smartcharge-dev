@@ -83,7 +83,7 @@ import { gql } from "apollo-boost";
 import providers from "@providers/provider-apps";
 import RelativeTime from "../components/relative-time.vue";
 import ChargeChart from "../components/charge-chart.vue";
-import { geoDistance } from "../../../shared/utils";
+import { geoDistance } from "@shared/utils";
 import apollo from "@app/plugins/apollo";
 import { VueApolloComponentOption } from "vue-apollo/types/options";
 import { RawLocation } from "vue-router";

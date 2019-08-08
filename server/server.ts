@@ -107,6 +107,7 @@ program
       // GraphQL Server
       const apiServer = new ApolloServer({
         playground: true,
+        introspection: true,
         schema: await gqlSchema,
         context: ({ res, connection }) => {
           if (connection) {
@@ -172,7 +173,7 @@ program
       apiServer.installSubscriptionHandlers(httpServer);
 
       const PORT = Number(program.port || config.SERVER_PORT);
-      const IP = Number(program.ip || config.SERVER_LISTEN_IP);
+      const IP = Number(program.ip || config.SERVER_IP);
 
       // Start server
       httpServer.listen(PORT, IP, () => {

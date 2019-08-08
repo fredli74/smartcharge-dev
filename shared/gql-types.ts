@@ -87,6 +87,8 @@ registerEnumType(ChargeType, { name: "ChargeType" });
 
 @ObjectType()
 export abstract class ChargePlan {
+  @Field(_type => ChargeType)
+  chargeType!: ChargeType;
   @Field(_type => Date, {
     nullable: true,
     description: `time to start or null for now`
@@ -99,8 +101,6 @@ export abstract class ChargePlan {
   chargeStop!: Date | null;
   @Field(_type => Int)
   level!: number;
-  @Field(_type => ChargeType)
-  chargeType!: ChargeType;
   @Field()
   comment!: string;
 }

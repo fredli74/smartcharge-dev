@@ -25,13 +25,13 @@
 </template>
 
 <script lang="ts">
+// import { strict as assert } from "assert";
 import { Component, Vue, Prop, Watch } from "vue-property-decorator";
 import { ChartData } from "@shared/gql-types";
 import VueApexCharts from "vue-apexcharts";
 import { gql } from "apollo-boost";
 import deepmerge from "deepmerge";
-import { log, LogLevel } from "../../../shared/utils";
-import { strict as assert } from "assert";
+import { log, LogLevel } from "@shared/utils";
 
 interface chartDataResult {
   chartData: ChartData;
