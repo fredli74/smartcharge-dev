@@ -175,7 +175,7 @@ export default class TibberVue extends Vue {
         latitude: Number(this.$route.query.lat),
         longitude: Number(this.$route.query.long)
       },
-      geoFenceRadius: 1000,
+      geoFenceRadius: 250,
       providerData: {
         provider: provider.name,
         home: home.id,

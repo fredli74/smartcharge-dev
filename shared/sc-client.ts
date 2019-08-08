@@ -242,6 +242,7 @@ export class SCClient extends ApolloClient<any> {
   isDriving
   isConnected
   chargePlan {
+    chargeType
     chargeStart
     chargeStop
     level
