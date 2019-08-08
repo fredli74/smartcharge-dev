@@ -203,9 +203,9 @@ export default class ChargeChart extends Vue {
       log(LogLevel.Trace, `timer tick fullUpdate=${this.fullUpdate}`);
       if (this.fullUpdate) {
         const pricechart = (this.$refs.pricechart as any) as ApexCharts;
-        pricechart.updateSeries(this.priceseries);
+        pricechart && pricechart.updateSeries(this.priceseries);
         const chargechart = (this.$refs.chargechart as any) as ApexCharts;
-        chargechart.updateSeries(this.chargeseries);
+        chargechart && chargechart.updateSeries(this.chargeseries);
         this.fullUpdate = false;
       }
       this.annotate(); // Move the timeline
@@ -233,17 +233,15 @@ export default class ChargeChart extends Vue {
       return;
     }
     const pricechart = (this.$refs.pricechart as any) as ApexCharts;
-    assert(pricechart !== undefined);
     const chargechart = (this.$refs.chargechart as any) as ApexCharts;
-    assert(pricechart !== undefined);
 
     const thisHour = Math.trunc(Date.now() / (60 * 60e3)) * (60 * 60e3);
     const thisPrice = this.chartData!.prices.find(
       f => new Date(f.startAt).getTime() === thisHour
     );
     if (thisPrice) {
-      (pricechart as any).clearAnnotations();
-      (chargechart as any).clearAnnotations();
+      pricechart && (pricechart as any).clearAnnotations();
+      chargechart && (chargechart as any).clearAnnotations();
 
       // Charge fields
       if (this.chartData.chargePlan) {
@@ -266,174 +264,181 @@ export default class ChargeChart extends Vue {
           );
 
           if (to > from) {
-            pricechart.addXaxisAnnotation({
-              x: from,
-              x2: to,
-              strokeDashArray: 0,
-              fillColor: p.chargeType === "fill" ? "#2ec2fa" : "#2e93fa",
-              borderColor: "none",
-              borderWidth: 0,
-              opacity: 0.2,
-              offsetX: 0,
-              offsetY: 0,
-              label: {
+            pricechart &&
+              pricechart.addXaxisAnnotation({
+                x: from,
+                x2: to,
+                strokeDashArray: 0,
+                fillColor: p.chargeType === "fill" ? "#2ec2fa" : "#2e93fa",
+                borderColor: "none",
                 borderWidth: 0,
-                offsetX: 3,
-                text: p.comment,
-                style: {
-                  background: "none",
-                  color: "#507faf"
+                opacity: 0.2,
+                offsetX: 0,
+                offsetY: 0,
+                label: {
+                  borderWidth: 0,
+                  offsetX: 3,
+                  text: p.comment,
+                  style: {
+                    background: "none",
+                    color: "#507faf"
+                  }
                 }
-              }
-            });
-            chargechart.addXaxisAnnotation({
-              x: from,
-              x2: to,
-              strokeDashArray: 0,
-              fillColor: p.chargeType === "fill" ? "#2ec2fa" : "#2e93fa",
-              borderColor: "none",
-              borderWidth: 0,
-              opacity: 0.2,
-              offsetX: 0,
-              offsetY: 0,
-              label: {
+              });
+            chargechart &&
+              chargechart.addXaxisAnnotation({
+                x: from,
+                x2: to,
+                strokeDashArray: 0,
+                fillColor: p.chargeType === "fill" ? "#2ec2fa" : "#2e93fa",
+                borderColor: "none",
                 borderWidth: 0,
-                text: p.chargeType,
-                style: {
-                  background: "none",
-                  color: "none"
+                opacity: 0.2,
+                offsetX: 0,
+                offsetY: 0,
+                label: {
+                  borderWidth: 0,
+                  text: p.chargeType,
+                  style: {
+                    background: "none",
+                    color: "none"
+                  }
                 }
-              }
-            });
+              });
           }
         }
       }
 
-      pricechart.addPointAnnotation({
-        x: Date.now(),
-        y: scalePrice(thisPrice.price),
-        yAxisIndex: 0,
-        seriesIndex: 0,
-        marker: {
-          size: 3,
-          fillColor: "none",
-          strokeColor: "#ff0000aa",
-          strokeWidth: 1,
-          shape: "circle",
-          OffsetX: 0,
-          OffsetY: 0,
-          cssClass: ""
-        },
-        label: {
-          borderWidth: 1,
-          text: scalePrice(thisPrice.price).toString(),
-          textAnchor: "middle",
-          offsetX: 0,
-          offsetY: 0,
-          style: {
-            background: "#fff",
-            color: "#ff0000aa",
-            fontSize: "12px",
-            cssClass: "apexcharts-point-annotation-label",
-            padding: {
-              left: 5,
-              right: 5,
-              top: 1,
-              bottom: 1
+      pricechart &&
+        pricechart.addPointAnnotation({
+          x: Date.now(),
+          y: scalePrice(thisPrice.price),
+          yAxisIndex: 0,
+          seriesIndex: 0,
+          marker: {
+            size: 3,
+            fillColor: "none",
+            strokeColor: "#ff0000aa",
+            strokeWidth: 1,
+            shape: "circle",
+            OffsetX: 0,
+            OffsetY: 0,
+            cssClass: ""
+          },
+          label: {
+            borderWidth: 1,
+            text: scalePrice(thisPrice.price).toString(),
+            textAnchor: "middle",
+            offsetX: 0,
+            offsetY: 0,
+            style: {
+              background: "#fff",
+              color: "#ff0000aa",
+              fontSize: "12px",
+              cssClass: "apexcharts-point-annotation-label",
+              padding: {
+                left: 5,
+                right: 5,
+                top: 1,
+                bottom: 1
+              }
             }
           }
-        }
-      });
-      pricechart.addXaxisAnnotation({
-        x: Date.now(),
-        strokeDashArray: 0,
-        borderColor: "#ff0000aa",
-        opacity: 0.1,
-        offsetX: 0,
-        offsetY: 0,
-        label: {
-          borderWidth: 0,
-          text: timeOnly(new Date()),
-          textAnchor: "middle",
-          position: "bottom",
-          orientation: "horizontal",
-          offsetX: 0,
-          offsetY: 14,
-          style: {
-            background: "none",
-            color: "#ff0000aa",
-            fontSize: "12px",
-            cssClass: "apexcharts-xaxis-annotation-label"
-          }
-        }
-      });
-      chargechart.addXaxisAnnotation({
-        x: Date.now(),
-        strokeDashArray: 0,
-        borderColor: "#ff0000aa",
-        opacity: 0.1,
-        offsetX: 0,
-        offsetY: 0,
-        label: {
-          borderWidth: 0,
-          text: timeOnly(new Date()),
-          textAnchor: "middle",
-          position: "bottom",
-          orientation: "horizontal",
-          offsetX: 0,
-          offsetY: 14,
-          style: {
-            background: "none",
-            color: "#ff0000aa",
-            fontSize: "12px",
-            cssClass: "apexcharts-xaxis-annotation-label"
-          }
-        }
-      });
-      pricechart.addYaxisAnnotation({
-        y: scalePrice(this.chartData.thresholdPrice),
-        strokeDashArray: [2, 5],
-        fillColor: "none",
-        borderColor: "#2E93fA",
-        borderWidth: 2,
-        opacity: 0.2,
-        offsetX: 0,
-        offsetY: 0,
-        label: {
-          borderWidth: 0,
-          text: scalePrice(this.chartData.thresholdPrice).toString(),
-          textAnchor: "end",
-          position: "left",
-          offsetX: -2,
-          offsetY: 7,
-          style: {
-            background: "none",
-            color: "#558ec7",
-            fontSize: "12px",
-            cssClass: "apexcharts-xaxis-annotation-label"
-          }
-        }
-      });
-      if (this.minLevel && this.minLevel < this.chartData.minimumLevel) {
-        chargechart.addYaxisAnnotation({
-          y: this.minLevel,
-          y2: this.chartData.minimumLevel,
+        });
+      pricechart &&
+        pricechart.addXaxisAnnotation({
+          x: Date.now(),
           strokeDashArray: 0,
-          fillColor: "#ffaa00",
-          borderColor: "none",
-          borderWidth: 0,
+          borderColor: "#ff0000aa",
           opacity: 0.1,
           offsetX: 0,
           offsetY: 0,
           label: {
             borderWidth: 0,
-            text: this.chartData.minimumLevel.toString(),
+            text: timeOnly(new Date()),
+            textAnchor: "middle",
+            position: "bottom",
+            orientation: "horizontal",
+            offsetX: 0,
+            offsetY: 14,
             style: {
               background: "none",
-              color: "none"
+              color: "#ff0000aa",
+              fontSize: "12px",
+              cssClass: "apexcharts-xaxis-annotation-label"
             }
           }
         });
+      chargechart &&
+        chargechart.addXaxisAnnotation({
+          x: Date.now(),
+          strokeDashArray: 0,
+          borderColor: "#ff0000aa",
+          opacity: 0.1,
+          offsetX: 0,
+          offsetY: 0,
+          label: {
+            borderWidth: 0,
+            text: timeOnly(new Date()),
+            textAnchor: "middle",
+            position: "bottom",
+            orientation: "horizontal",
+            offsetX: 0,
+            offsetY: 14,
+            style: {
+              background: "none",
+              color: "#ff0000aa",
+              fontSize: "12px",
+              cssClass: "apexcharts-xaxis-annotation-label"
+            }
+          }
+        });
+      pricechart &&
+        pricechart.addYaxisAnnotation({
+          y: scalePrice(this.chartData.thresholdPrice),
+          strokeDashArray: [2, 5],
+          fillColor: "none",
+          borderColor: "#2E93fA",
+          borderWidth: 2,
+          opacity: 0.2,
+          offsetX: 0,
+          offsetY: 0,
+          label: {
+            borderWidth: 0,
+            text: scalePrice(this.chartData.thresholdPrice).toString(),
+            textAnchor: "end",
+            position: "left",
+            offsetX: -2,
+            offsetY: 7,
+            style: {
+              background: "none",
+              color: "#558ec7",
+              fontSize: "12px",
+              cssClass: "apexcharts-xaxis-annotation-label"
+            }
+          }
+        });
+      if (this.minLevel && this.minLevel < this.chartData.minimumLevel) {
+        chargechart &&
+          chargechart.addYaxisAnnotation({
+            y: this.minLevel,
+            y2: this.chartData.minimumLevel,
+            strokeDashArray: 0,
+            fillColor: "#ffaa00",
+            borderColor: "none",
+            borderWidth: 0,
+            opacity: 0.1,
+            offsetX: 0,
+            offsetY: 0,
+            label: {
+              borderWidth: 0,
+              text: this.chartData.minimumLevel.toString(),
+              style: {
+                background: "none",
+                color: "none"
+              }
+            }
+          });
       }
     }
   }
