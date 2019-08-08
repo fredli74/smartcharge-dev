@@ -70,14 +70,21 @@ export class VehicleResolver {
     @Arg("id") id: string,
     @Ctx() context: IContext
   ): Promise<Vehicle> {
-    assert(payload.vehicle_uuid === id);
-    assert(
-      context.accountUUID === INTERNAL_SERVICE_UUID ||
-        context.accountUUID === payload.account_uuid
-    );
-    return DBInterface.DBVehicleToVehicle(
-      await context.db.getVehicle(payload.vehicle_uuid, payload.account_uuid)
-    );
+    if (payload) {
+      assert(payload.vehicle_uuid === id);
+      assert(
+        context.accountUUID === INTERNAL_SERVICE_UUID ||
+          context.accountUUID === payload.account_uuid
+      );
+      return DBInterface.DBVehicleToVehicle(
+        await context.db.getVehicle(payload.vehicle_uuid, payload.account_uuid)
+      );
+    } else {
+      // This happens when called without websockets
+      return DBInterface.DBVehicleToVehicle(
+        await context.db.getVehicle(id, context.accountUUID)
+      );
+    }
   }
 
   @Mutation(_returns => Vehicle)
