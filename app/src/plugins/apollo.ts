@@ -6,7 +6,7 @@ import { SCClient } from "@shared/sc-client";
 Vue.use(VueApollo);
 
 const url = config.PUBLIC_URL || (location && location.origin);
-const ws_url = url.replace(/^https?/, "ws");
+const ws_url = url.replace(/^http/, "ws");
 
 const client = new SCClient(url, ws_url);
 export default client;
