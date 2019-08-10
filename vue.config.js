@@ -1,6 +1,7 @@
 const path = require("path");
 const webpack = require("webpack");
 const CopyPlugin = require("copy-webpack-plugin");
+const globals = require("./shared/smartcharge-globals.json");
 
 module.exports = {
   outputDir: path.resolve(__dirname, "./dist/app"),
@@ -11,8 +12,14 @@ module.exports = {
       filename: "index.html"
     }
   },
-
   devServer: {
+    proxy: {
+      [globals.API_PATH]: {
+        target: `http://localhost:${process.env.SERVER_PORT ||
+          globals.DEFAULT_PORT}`,
+        ws: true
+      }
+    },
     contentBase: [
       path.resolve(__dirname, "app/public"),
       path.resolve(__dirname, "public")

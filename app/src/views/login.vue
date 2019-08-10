@@ -37,6 +37,7 @@ export default class Login extends Vue {
     eventBus.$emit("ALERT_CLEAR");
     try {
       await apollo.loginWithPassword(this.password);
+      eventBus.$emit("AUTHENTICATION_CHANGED");
       assert(apollo.account);
       this.$router.push("/");
     } catch (err) {

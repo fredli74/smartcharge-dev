@@ -1,6 +1,7 @@
 import Vue from "vue";
 import Router from "vue-router";
 import Home from "./views/home.vue";
+import About from "./views/about.vue";
 import apollo from "./plugins/apollo";
 import eventBus from "./plugins/event-bus";
 
@@ -18,17 +19,24 @@ const router = new Router({
   base: process.env.BASE_URL,
   routes: [
     {
+      path: "/",
+      name: "home",
+      component: Home
+    },
+    {
+      path: "/about",
+      name: "about",
+      component: About,
+      meta: { public: true }
+    },
+    {
       path: "/login",
       name: "login",
       component: () =>
         import(/* webpackChunkName: "login" */ "./views/login.vue"),
       meta: { public: true }
     },
-    {
-      path: "/",
-      name: "home",
-      component: Home
-    },
+
     {
       path: "/add/:type",
       name: "add",
@@ -53,9 +61,8 @@ const router = new Router({
   ]
 });
 router.beforeEach((to, _from, next) => {
-  console.log(to);
   if (!to.meta.public && !apollo.authorized) {
-    next({ name: "login" });
+    next({ name: "about" });
   } else {
     next();
   }

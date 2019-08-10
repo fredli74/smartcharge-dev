@@ -1,6 +1,6 @@
 {
-  "name": "smartcharge-app",
-  "short_name": "smartcharge-app",
+  "name": "smartcharge",
+  "short_name": "smartcharge",
   "icons": [
     {
       "src": "./img/icons/android-chrome-192x192.png",

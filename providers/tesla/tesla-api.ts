@@ -8,7 +8,7 @@
 import { strict as assert } from "assert";
 
 import { RestClient, IRestToken } from "@shared/restclient";
-import { PROJECT_AGENT } from "@shared/smartcharge-globals";
+import { PROJECT_AGENT } from "@shared/smartcharge-globals.json";
 import config from "./tesla-config";
 import { log, LogLevel } from "@shared/utils";
 import provider from ".";

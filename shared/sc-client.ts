@@ -1,7 +1,7 @@
 import { gql, InMemoryCache } from "apollo-boost";
 import ApolloClient from "apollo-client";
 import { mergeURL, log, LogLevel } from "@shared/utils";
-import { GQL_API_PATH } from "@shared/smartcharge-globals";
+import { API_PATH } from "@shared/smartcharge-globals.json";
 
 import fetch from "cross-fetch";
 
@@ -71,14 +71,14 @@ export class SCClient extends ApolloClient<any> {
       }),
       new HttpLink({
         // You should use an absolute URL here
-        uri: mergeURL(server_url, GQL_API_PATH),
+        uri: mergeURL(server_url, API_PATH),
         fetch: fetch
       })
     ]);
 
     if (subscription_url) {
       const wsClient = new SubscriptionClient(
-        mergeURL(subscription_url, GQL_API_PATH),
+        mergeURL(subscription_url, API_PATH),
         {
           connectionParams: () => {
             return this.token ? { Authorization: `Bearer ${this.token}` } : {};

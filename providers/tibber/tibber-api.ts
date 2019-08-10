@@ -8,7 +8,7 @@
 import { strict as assert } from "assert";
 
 import { RestClient, RestToken } from "@shared/restclient";
-import { PROJECT_AGENT } from "@shared/smartcharge-globals";
+import { PROJECT_AGENT } from "@shared/smartcharge-globals.json";
 import config from "./tibber-config";
 import provider from ".";
 

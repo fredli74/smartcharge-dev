@@ -9,7 +9,7 @@
 import { strict as assert } from "assert";
 
 import { RestClient } from "@shared/restclient";
-import { PROJECT_AGENT } from "@shared/smartcharge-globals";
+import { PROJECT_AGENT } from "@shared/smartcharge-globals.json";
 
 import { SCClient } from "@shared/sc-client";
 import { log, LogLevel } from "@shared/utils";
