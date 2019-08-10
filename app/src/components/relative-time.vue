@@ -1,5 +1,7 @@
 <template>
-  <span>{{ relativeTime }}</span>
+  <span :style="{ visibility: relativeShow ? 'visible' : 'hidden' }"
+    ><slot></slot> {{ relativeTime }}</span
+  >
 </template>
 
 <script lang="ts">
@@ -8,11 +10,13 @@ import { Component, Vue, Prop, Watch } from "vue-property-decorator";
 @Component({ components: {} })
 export default class RelativeTime extends Vue {
   @Prop(Date) readonly time!: Date;
+  @Prop() readonly hideBelow?: string;
   timer?: any;
+  relativeShow!: boolean;
   relativeTime!: string;
 
   data() {
-    return { relativeTime: "" };
+    return { relativeShow: false, relativeTime: "" };
   }
   mounted() {
     this.updateRelative();
@@ -40,6 +44,8 @@ export default class RelativeTime extends Vue {
     let span = (Date.now() - this.time.getTime()) / 1e3;
     this.relativeTime = ((span: number): string => {
       span = Math.trunc(span);
+      this.relativeShow =
+        this.hideBelow === undefined || span >= Number(this.hideBelow);
       if (span < 4) {
         return `now`;
       }

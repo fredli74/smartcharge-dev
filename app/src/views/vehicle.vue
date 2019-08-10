@@ -17,8 +17,9 @@
             </div>
           </h3>
           <div>
-            Updated
-            <RelativeTime :time="new Date(vehicle.updated)"></RelativeTime>
+            <RelativeTime hide-below="10" :time="new Date(vehicle.updated)"
+              >Updated
+            </RelativeTime>
           </div>
           <div v-if="vehicle.pausedUntil">
             Smart charge paused until: {{ vehicle.pausedUntil }}
