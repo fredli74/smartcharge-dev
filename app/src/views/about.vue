@@ -1,5 +1,5 @@
 <template>
-  <div style="font-size:1.2em" class="mt-12">
+  <v-flex xs11 style="font-size:1.2em" class="xvga-limit mt-12">
     <p>
       After switching to the Swedish energy provider
       <a href="https://tibber.com">tibber.com</a>, I was inspired to create an
@@ -36,7 +36,7 @@
         could also have an online public version for convenience.
       </li>
     </ul>
-  </div>
+  </v-flex>
 </template>
 
 <script lang="ts">

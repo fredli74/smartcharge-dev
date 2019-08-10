@@ -1,7 +1,7 @@
 <template>
-  <div>
+  <v-flex xs12 sm11 class="svga-limit">
     <component :is="$route.params.provider" :page="$route.params.page" />
-  </div>
+  </v-flex>
 </template>
 
 <script lang="ts">

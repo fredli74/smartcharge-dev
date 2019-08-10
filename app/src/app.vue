@@ -13,16 +13,18 @@
     </v-app-bar>
     <v-content>
       <v-container fluid>
-        <v-layout justify-space-around>
-          <v-flex xs12 sm11 md10>
+        <v-layout row justify-space-around>
+          <v-flex xs12 sm10 md8>
             <v-alert v-model="error.show" type="error" prominent>{{
               error.message
             }}</v-alert>
             <v-alert v-model="warning.show" type="warning">{{
               warning.message
             }}</v-alert>
-            <router-view></router-view>
           </v-flex>
+        </v-layout>
+        <v-layout row justify-space-around>
+          <router-view></router-view>
         </v-layout>
       </v-container>
     </v-content>
@@ -96,5 +98,20 @@ export default class App extends Vue {
 a#homelink {
   color: white;
   text-decoration: none;
+}
+@media (min-width: 640px) {
+  .vga-limit {
+    max-width: 640px !important;
+  }
+}
+@media (min-width: 800px) {
+  .svga-limit {
+    max-width: 800px !important;
+  }
+}
+@media (min-width: 1024px) {
+  .xvga-limit {
+    max-width: 1024px !important;
+  }
 }
 </style>

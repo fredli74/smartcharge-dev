@@ -1,19 +1,21 @@
 <template>
-  <v-card>
-    <v-list-item
-      v-for="provider in providers"
-      :key="provider.name"
-      @click="addProvider(provider.name)"
-    >
-      <v-list-item-avatar tile>
-        <img :src="provider.logo" />
-      </v-list-item-avatar>
+  <v-flex xs12 class="svga-limit">
+    <v-card>
+      <v-list-item
+        v-for="provider in providers"
+        :key="provider.name"
+        @click="addProvider(provider.name)"
+      >
+        <v-list-item-avatar tile>
+          <img :src="provider.logo" />
+        </v-list-item-avatar>
 
-      <v-list-item-content>
-        <v-list-item-title>{{ provider.display }}</v-list-item-title>
-      </v-list-item-content>
-    </v-list-item>
-  </v-card>
+        <v-list-item-content>
+          <v-list-item-title>{{ provider.display }}</v-list-item-title>
+        </v-list-item-content>
+      </v-list-item>
+    </v-card>
+  </v-flex>
 </template>
 
 <script lang="ts">

@@ -1,5 +1,5 @@
 <template>
-  <div class="login text-center">
+  <v-flex xs11 sm10 class="vga-limit login text-center">
     <h2>LOGIN</h2>
     <v-form id="login-form" @submit.prevent="login">
       <input
@@ -17,7 +17,7 @@
       ></v-text-field>
       <v-btn type="submit" form="login-form">login</v-btn>
     </v-form>
-  </div>
+  </v-flex>
 </template>
 
 <script lang="ts">

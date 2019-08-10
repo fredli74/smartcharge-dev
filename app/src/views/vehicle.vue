@@ -1,5 +1,5 @@
 <template>
-  <div class="vehicle">
+  <v-flex xs12 class="vehicle">
     <div v-if="loading">
       <v-progress-linear indeterminate color="primary"></v-progress-linear>
     </div>
@@ -16,11 +16,9 @@
               >)
             </div>
           </h3>
-          <div>
-            <RelativeTime hide-below="10" :time="new Date(vehicle.updated)"
-              >Updated
-            </RelativeTime>
-          </div>
+          <RelativeTime hide-below="10" :time="new Date(vehicle.updated)"
+            >Updated
+          </RelativeTime>
           <div v-if="vehicle.pausedUntil">
             Smart charge paused until: {{ vehicle.pausedUntil }}
           </div>
@@ -35,13 +33,12 @@
                 <v-btn
                   depressed
                   outlined
-                  x-small
                   fab
                   color=""
                   :loading="refreshLoading"
                   v-on="on"
                   @click="refreshClick()"
-                  ><v-icon>mdi-refresh</v-icon></v-btn
+                  ><v-icon large>mdi-refresh</v-icon></v-btn
                 >
               </template>
               <span>Update</span>
@@ -51,15 +48,14 @@
                 <v-btn
                   depressed
                   outlined
-                  x-small
                   fab
                   color=""
                   :loading="wakeupLoading"
                   v-on="on"
                   @click="wakeupClick()"
-                  ><v-icon>mdi-sleep-off</v-icon></v-btn
-                ></template
-              >
+                  ><v-icon large>mdi-sleep-off</v-icon></v-btn
+                >
+              </template>
               <span>Wake Up</span>
             </v-tooltip>
             <v-tooltip top>
@@ -67,49 +63,44 @@
                 <v-btn
                   depressed
                   :outlined="!vehicle.climateControl"
-                  x-small
                   fab
                   :color="vehicle.climateControl ? 'primary' : ''"
                   :loading="hvacLoading"
                   v-on="on"
                   @click="hvacClick()"
-                  ><v-icon
+                  ><v-icon large
                     >mdi-fan{{ vehicle.climateControl ? "" : "-off" }}</v-icon
                   ></v-btn
                 >
               </template>
               <span>Climate Control</span>
             </v-tooltip>
-
             <v-tooltip top>
               <template v-slot:activator="{ on }">
                 <v-btn
                   depressed
                   outlined
-                  x-small
                   fab
                   color=""
                   v-on="on"
                   @click="tripClick()"
-                  ><v-icon>mdi-road-variant</v-icon></v-btn
-                ></template
-              >
+                  ><v-icon large>mdi-road-variant</v-icon></v-btn
+                >
+              </template>
               <span>Trip</span>
             </v-tooltip>
-
             <v-tooltip top>
               <template v-slot:activator="{ on }">
                 <v-btn
                   depressed
                   outlined
-                  x-small
                   fab
                   color=""
                   v-on="on"
                   @click="pauseClick()"
-                  ><v-icon>mdi-pause</v-icon></v-btn
-                ></template
-              >
+                  ><v-icon large>mdi-pause</v-icon></v-btn
+                >
+              </template>
               <span>Pause Smart Charging</span>
             </v-tooltip>
             <v-tooltip top>
@@ -117,14 +108,13 @@
                 <v-btn
                   depressed
                   outlined
-                  x-small
                   fab
                   color=""
                   v-on="on"
                   @click="settingsClick()"
-                  ><v-icon>mdi-settings</v-icon></v-btn
-                ></template
-              >
+                  ><v-icon large>mdi-settings</v-icon></v-btn
+                >
+              </template>
               <span>Settings</span>
             </v-tooltip>
           </v-card-actions>
@@ -188,7 +178,7 @@
         </template>
       </v-layout>
     </v-container>
-  </div>
+  </v-flex>
 </template>
 
 <script lang="ts">
@@ -373,6 +363,7 @@ export default class VehicleVue extends Vue {
 
       suffix = `${val.isDriving ? "near" : "@"} ${this.location!.name}`;
     } else {
+      this.location = undefined;
       // Find closest location
       if (this.locations && this.locations.length > 0) {
         let closest = Number.POSITIVE_INFINITY;
@@ -460,6 +451,6 @@ export default class VehicleVue extends Vue {
   border-color: #909090;
 }
 #vehicle-actions > button {
-  margin-left: 8px;
+  margin-left: 12px;
 }
 </style>

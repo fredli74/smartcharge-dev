@@ -1,9 +1,9 @@
 <template>
-  <div class="home">
+  <v-flex xs12 sm11 class="xvga-limit home">
     <div v-if="loading">
       <v-progress-linear indeterminate color="primary"></v-progress-linear>
     </div>
-    <v-card>
+    <v-card xs12 sm10 md8>
       <v-list-item
         v-for="vehicle in vehicles"
         :key="vehicle.id"
@@ -57,7 +57,7 @@
         <v-btn text small color="primary">add vehicle</v-btn>
       </router-link>
     </v-card-actions>
-  </div>
+  </v-flex>
 </template>
 
 <script lang="ts">
