@@ -4,6 +4,14 @@ const CopyPlugin = require("copy-webpack-plugin");
 
 module.exports = {
   outputDir: path.resolve(__dirname, "./dist/app"),
+  pages: {
+    index: {
+      entry: "app/src/main.ts",
+      template: "app/public/index.html",
+      filename: "index.html"
+    }
+  },
+
   devServer: {
     contentBase: [
       path.resolve(__dirname, "app/public"),
