@@ -23,7 +23,6 @@ import { GraphQLJSONObject } from "graphql-type-json";
 import { INTERNAL_SERVICE_UUID } from "@server/db-interface";
 import { ApolloError } from "apollo-server-core";
 import { withFilter } from "graphql-subscriptions";
-import { apolloProvider } from "@app/plugins/apollo";
 import providers from "@providers/provider-servers";
 import { IProviderServer } from "@providers/provider-server";
 
@@ -132,7 +131,7 @@ export class AgentResolver {
       actionMemDatabase[actionObj.actionID] = actionObj;
     }
 
-    await apolloProvider.publish(SubscriptionTopic.ActionUpdate, actionObj);
+    await apolloPubSub.publish(SubscriptionTopic.ActionUpdate, actionObj);
     return actionObj;
   }
 
