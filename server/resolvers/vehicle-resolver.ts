@@ -7,6 +7,7 @@
 
 import { strict as assert } from "assert";
 
+import { SubscriptionTopic } from "./subscriptions";
 import {
   Arg,
   Resolver,
@@ -18,7 +19,7 @@ import {
   PubSubEngine,
   Root
 } from "type-graphql";
-import { IContext, SubscriptionTopic } from "../gql-api";
+import { IContext } from "../gql-api";
 import {
   Vehicle,
   UpdateVehicleInput,

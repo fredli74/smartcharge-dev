@@ -7,7 +7,7 @@
 
 // import { strict as assert } from 'assert';
 
-import { AuthenticationError, PubSub } from "apollo-server-express";
+import { AuthenticationError } from "apollo-server-express";
 import { buildSchema, Arg, Resolver, Query, Ctx, Mutation } from "type-graphql";
 import { DBInterface, SINGLE_USER_UUID } from "./db-interface";
 import { DBAccount } from "./db-schema";
@@ -89,12 +89,6 @@ class AccountResolver {
     };
   }
 }
-
-export enum SubscriptionTopic {
-  ActionUpdate = "ACTION_UPDATE",
-  VehicleUpdate = "VEHICLE_UPDATE"
-}
-export const apolloPubSub = new PubSub();
 
 export interface IContext {
   db: DBInterface;

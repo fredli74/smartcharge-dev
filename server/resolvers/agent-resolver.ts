@@ -5,6 +5,7 @@
  * @license MIT (MIT)
  */
 
+import { SubscriptionTopic, apolloPubSub } from "./subscriptions";
 import {
   Resolver,
   Ctx,
@@ -17,7 +18,7 @@ import {
   Query
 } from "type-graphql";
 import { Action, ProviderSubject } from "@shared/gql-types";
-import { IContext, SubscriptionTopic, apolloPubSub } from "@server/gql-api";
+import { IContext } from "@server/gql-api";
 import { GraphQLJSONObject } from "graphql-type-json";
 import { INTERNAL_SERVICE_UUID } from "@server/db-interface";
 import { ApolloError } from "apollo-server-core";
