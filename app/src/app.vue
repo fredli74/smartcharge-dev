@@ -42,8 +42,7 @@ class AlertMessage {
   message: string = "";
 }
 @Component({
-  components: {},
-  errorCaptured: (_err, _vm, _info) => alert("I have a broken child :(")
+  components: {}
 })
 export default class App extends Vue {
   warning!: AlertMessage;

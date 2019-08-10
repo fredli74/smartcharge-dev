@@ -6,6 +6,7 @@ import { DBInterface } from "@server/db-interface";
 import teslaAPI from "./tesla-api";
 import { log, LogLevel } from "@shared/utils";
 import { IProviderServer } from "@providers/provider-server";
+import { TeslaProviderData } from "./app/tesla-helper";
 
 export async function maintainToken(
   db: DBInterface,
@@ -69,7 +70,6 @@ const server: IProviderServer = {
   },
   mutation: async (data: any, context: IContext) => {
     debugger;
-    console.debug(data);
     switch (data.mutation) {
       case "refreshToken": {
         return await maintainToken(
@@ -77,6 +77,19 @@ const server: IProviderServer = {
           context.accountUUID,
           data.token ? data.token : { refresh_token: data.refresh_token }
         );
+      }
+      case "wakeup": {
+        const vehicle = await context.db.getVehicle(
+          data.id,
+          context.accountUUID
+        );
+        const providerData = vehicle.provider_data as TeslaProviderData;
+        const token = await maintainToken(
+          context.db,
+          context.accountUUID,
+          providerData.token
+        );
+        return await teslaAPI.wakeUp(providerData.sid, token);
       }
       default:
         throw new Error(`Invalid query ${data.mutation} sent to tesla-server`);

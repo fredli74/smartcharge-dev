@@ -18,7 +18,7 @@ import {
   PubSubEngine,
   Root
 } from "type-graphql";
-import { IContext } from "../gql-api";
+import { IContext, SubscriptionTopic } from "../gql-api";
 import {
   Vehicle,
   UpdateVehicleInput,
@@ -28,7 +28,6 @@ import {
 } from "@shared/gql-types";
 import { DBInterface, INTERNAL_SERVICE_UUID } from "../db-interface";
 
-const VehicleSubscriptionTopic = "VEHICLE_UPDATE";
 interface VehicleSubscriptionPayload {
   account_uuid: string;
   vehicle_uuid: string;
@@ -56,7 +55,8 @@ export class VehicleResolver {
   }
 
   @Subscription(_returns => Vehicle, {
-    topics: VehicleSubscriptionTopic,
+    // TODO: convert this into a subscribe: using apolloPubSub
+    topics: SubscriptionTopic.VehicleUpdate,
     filter: async ({ payload, args, context }) => {
       return (
         payload.vehicle_uuid === args.id &&
@@ -126,7 +126,7 @@ export class VehicleResolver {
         input.providerData
       )
     );
-    await pubSub.publish(VehicleSubscriptionTopic, {
+    await pubSub.publish(SubscriptionTopic.VehicleUpdate, {
       vehicle_uuid: result.id,
       account_uuid: result.ownerID
     });
@@ -146,7 +146,7 @@ export class VehicleResolver {
 
     // TODO: Add the possibility to update only partial information
     await context.logic.updateVehicleData(input);
-    await pubSub.publish(VehicleSubscriptionTopic, {
+    await pubSub.publish(SubscriptionTopic.VehicleUpdate, {
       vehicle_uuid: vehicle.vehicle_uuid,
       account_uuid: vehicle.account_uuid
     });

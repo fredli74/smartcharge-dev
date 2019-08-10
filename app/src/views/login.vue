@@ -42,7 +42,7 @@ export default class Login extends Vue {
     } catch (err) {
       if (err.graphQLErrors) {
         for (const e of err.graphQLErrors) {
-          if (e.extensions && e.extensions.code === "AUTHENTICATION_FAILED") {
+          if (e.extensions && e.extensions.code === "UNAUTHENTICATED") {
             eventBus.$emit("ALERT_WARNING", `invalid password`);
             return;
           }

@@ -7,7 +7,6 @@
  * @license MIT (MIT)
  * @description Agency coordinates with the server which agent jobs to run
  */
-import "./env";
 import { strict as assert } from "assert";
 
 import { Command } from "commander";
@@ -16,6 +15,7 @@ import { SCClient } from "@shared/sc-client";
 import { ProviderSubject } from "@shared/gql-types";
 import providers from "@providers/provider-agents";
 import { AbstractAgent } from "@providers/provider-agent";
+import WebSocket from "ws";
 
 const APP_NAME = `smartcharge-agency`;
 const APP_VERSION = `1.0`;
@@ -114,7 +114,8 @@ program
   .arguments("<access_token> <server_url>")
   .option("-d, --daemon", "keep running while logging errors")
   .action(async (access_token, server_url) => {
-    const client = new SCClient(server_url, undefined, undefined);
+    const ws_url = server_url.replace(/^http/, "ws");
+    const client = new SCClient(server_url, ws_url, WebSocket);
     const agency = new Agency(client);
 
     for (const provider of providers) {

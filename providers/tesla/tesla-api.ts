@@ -61,6 +61,7 @@ export class TeslaAPI extends RestClient {
       token
     );
     log(LogLevel.Trace, `wakeUp(${id}) => ${JSON.stringify(result)}`);
+    return result;
   }
   public async setChargeLimit(id: string, limit: number, token: IRestToken) {
     const result = await this.post(

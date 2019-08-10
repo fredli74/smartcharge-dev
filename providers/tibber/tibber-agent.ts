@@ -17,7 +17,8 @@ import { UpdatePriceInput } from "@shared/gql-types";
 import {
   AgentJob,
   AbstractAgent,
-  IProviderAgent
+  IProviderAgent,
+  AgentAction
 } from "@providers/provider-agent";
 import provider, { TibberProviderData } from ".";
 import config from "./tibber-config";
@@ -38,8 +39,8 @@ interface PricePoint {
 export class TibberAgent extends AbstractAgent {
   public name: string = provider.name;
   private tibberAPI: RestClient;
-  constructor(private scClient: SCClient) {
-    super();
+  constructor(scClient: SCClient) {
+    super(scClient);
     // TODO replace with gql apollo client ?
     this.tibberAPI = new RestClient({
       baseURL: config.TIBBER_API_BASE_URL,
@@ -48,13 +49,16 @@ export class TibberAgent extends AbstractAgent {
     });
   }
 
-  public async work(job: TibberAgentSubject): Promise<number> {
-    const now = Date.now();
-    let interval = 60;
+  public newState() {
+    return {};
+  }
+
+  public async [AgentAction.Update](job: TibberAgentSubject): Promise<boolean> {
     if (job.providerData.invalidToken) {
-      return interval;
+      return false;
     }
 
+    const now = Date.now();
     const res = await tibberAPI.getPrices(
       job.providerData.home,
       job.providerData.token
@@ -96,9 +100,9 @@ export class TibberAgent extends AbstractAgent {
       );
       await this.scClient.updatePrice(update);
       const ts = Math.trunc(now / 1e3); // epoch seconds
-      interval = Math.trunc(ts / 3600 + 1) * 3600 - ts; // Run again next whole hour
+      job.interval = Math.trunc(ts / 3600 + 1) * 3600 - ts; // Run again next whole hour
     }
-    return interval;
+    return true;
   }
 }
 

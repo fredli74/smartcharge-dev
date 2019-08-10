@@ -1,3 +1,10 @@
+/**
+ * @file Location API resolver for smartcharge.dev project
+ * @author Fredrik Lidström
+ * @copyright 2019 Fredrik Lidström
+ * @license MIT (MIT)
+ */
+
 import { Resolver, Query, Ctx, Arg, Mutation } from "type-graphql";
 import { IContext } from "@server/gql-api";
 import { DBInterface, INTERNAL_SERVICE_UUID } from "@server/db-interface";
@@ -7,13 +14,6 @@ import {
   NewLocationInput,
   UpdateLocationInput
 } from "@shared/gql-types";
-
-/**
- * @file Location API resolver for smartcharge.dev project
- * @author Fredrik Lidström
- * @copyright 2019 Fredrik Lidström
- * @license MIT (MIT)
- */
 
 @Resolver()
 export class LocationResolver {

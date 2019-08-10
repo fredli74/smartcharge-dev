@@ -4,8 +4,8 @@
       <v-progress-linear indeterminate color="primary"></v-progress-linear>
     </div>
     <v-container v-if="vehicle !== undefined" grid-list-md text-center>
-      <v-layout wrap>
-        <v-flex sm6>
+      <v-layout row align-center>
+        <v-flex sm6 xs12>
           <h2>{{ vehicle.name }}</h2>
           <h3>
             {{ prettyStatus }}
@@ -24,28 +24,96 @@
             Smart charge paused until: {{ vehicle.pausedUntil }}
           </div>
         </v-flex>
-        <v-flex sm6>
-          <v-img contain :src="vehiclePicture" />
-          <v-progress-linear
-            class="batteryLevel"
-            :value="vehicle.batteryLevel"
-            height="33"
-            :buffer-value="vehicle.maximumLevel"
-            :color="
-              vehicle.batteryLevel > 20
-                ? 'green'
-                : vehicle.batteryLevel > 10
-                ? 'orange'
-                : 'red'
-            "
-            >{{ vehicle.batteryLevel }}%</v-progress-linear
-          ><v-progress-linear
-            :value="vehicle.batteryLevel"
-            height="3"
-            color="cyan"
-            :buffer-value="vehicle.maximumLevel"
-          ></v-progress-linear>
+        <v-flex sm6 class="hidden-xs-only">
+          <v-img max-height="200" :src="vehiclePicture" />
         </v-flex>
+        <v-flex sm6 xs12>
+          <v-card-actions class="justify-center">
+            <v-btn
+              v-if="!sleeping"
+              depressed
+              outlined
+              x-small
+              fab
+              color=""
+              :loading="refreshLoading"
+              @click="refreshClick()"
+              ><v-icon>mdi-refresh</v-icon></v-btn
+            >
+            <v-btn
+              v-if="sleeping"
+              depressed
+              outlined
+              x-small
+              fab
+              color=""
+              :loading="wakeupLoading"
+              @click="wakeupClick()"
+              ><v-icon>mdi-sleep-off</v-icon></v-btn
+            >
+            <v-btn
+              depressed
+              outlined
+              x-small
+              fab
+              color=""
+              :loading="hvacLoading"
+              @click="hvacClick()"
+              ><v-icon
+                >mdi-fan{{ vehicle.climateControl ? "-off" : "" }}</v-icon
+              ></v-btn
+            >
+            <v-btn depressed outlined x-small fab color="" @click="tripClick()"
+              ><v-icon>mdi-road-variant</v-icon></v-btn
+            >
+            <v-btn depressed outlined x-small fab color="" @click="pauseClick()"
+              ><v-icon>mdi-pause</v-icon></v-btn
+            >
+            <v-btn
+              depressed
+              outlined
+              x-small
+              fab
+              color=""
+              @click="settingsClick()"
+              ><v-icon>mdi-settings</v-icon></v-btn
+            >
+          </v-card-actions>
+        </v-flex>
+        <v-flex sm6 xs12>
+          <div class="batteryLevel">
+            <v-progress-linear
+              :style="`width:${vehicle.maximumLevel}%`"
+              :value="vehicle.batteryLevel"
+              height="25"
+              :stream="vehicle.chargingTo"
+              :buffer-value="vehicle.chargingTo || vehicle.batteryLevel"
+              :color="
+                vehicle.batteryLevel > 20
+                  ? 'green'
+                  : vehicle.batteryLevel > 10
+                  ? 'orange'
+                  : 'red'
+              "
+              ><div
+                class="batteryText"
+                :style="`margin-left:${100 - vehicle.maximumLevel}%`"
+              >
+                {{ vehicle.batteryLevel }}%
+              </div></v-progress-linear
+            >
+          </div>
+          <div v-if="vehicle.chargingTo" class="caption">
+            Charging to {{ vehicle.chargingTo }}% (est.
+            <RelativeTime
+              :time="new Date(Date.now() + vehicle.estimatedTimeLeft)"
+            ></RelativeTime
+            >)
+          </div>
+          {{ vehicle.estimatedTimeLeft }}
+        </v-flex>
+      </v-layout>
+      <v-layout row align-center>
         <v-flex v-if="vehicleConnectedAtUnknownLocation" sm12>
           <p class="mt-5">
             Vehicle is connected at an unknown location and smart charging is
@@ -78,15 +146,16 @@
 import { strict as assert } from "assert";
 
 import { Component, Vue, Watch } from "vue-property-decorator";
-import { Vehicle, Location } from "@shared/gql-types";
+import { Vehicle, Location, Action } from "@shared/gql-types";
 import { gql } from "apollo-boost";
 import providers from "@providers/provider-apps";
 import RelativeTime from "../components/relative-time.vue";
 import ChargeChart from "../components/charge-chart.vue";
-import { geoDistance } from "@shared/utils";
+import { geoDistance, delay } from "@shared/utils";
 import apollo from "@app/plugins/apollo";
 import { VueApolloComponentOption } from "vue-apollo/types/options";
 import { RawLocation } from "vue-router";
+import { AgentAction } from "../../../providers/provider-agent";
 
 const vehicleFragment = `id name minimumLevel maximumLevel tripSchedule { level time } pausedUntil geoLocation { latitude longitude } location batteryLevel outsideTemperature insideTemperature climateControl isDriving isConnected chargePlan { chargeStart chargeStop level chargeType comment } chargingTo estimatedTimeLeft status smartStatus updated providerData`;
 
@@ -135,15 +204,57 @@ const vehicleFragment = `id name minimumLevel maximumLevel tripSchedule { level 
       skip() {
         return this.locations === undefined;
       }
+    },
+    $subscribe: {
+      actions: {
+        query: gql`
+          subscription ActionSubscription(
+            $providerName: String
+            $targetID: ID
+          ) {
+            actionSubscription(
+              providerName: $providerName
+              targetID: $targetID
+            ) {
+              actionID
+              targetID
+              providerName
+              action
+              data
+            }
+          }
+        `,
+        variables() {
+          return {
+            targetID: this.$route.params.id
+          };
+        },
+        result({ data }: any) {
+          const action = data.actionSubscription as Action;
+          assert(action.targetID === this.$route.params.id);
+          if (action.data.error) {
+            throw new Error(action.data.error);
+          }
+          console.debug(action);
+          if (action.action === AgentAction.Update) {
+            this.$data.refreshLoading = action.data.result === undefined;
+          }
+          if (action.action === AgentAction.WakeUp) {
+            this.$data.wakeupLoading = action.data.result === undefined;
+          }
+        }
+      }
     }
   } as VueApolloComponentOption<VehicleVue> // needed because skip is not declared on subscribeToMore, but I am pretty sure I had to have it in my tests when the query had toggled skip()
 })
 export default class VehicleVue extends Vue {
-  loading?: boolean;
+  loading!: boolean;
   vehicle?: Vehicle;
   location?: Location;
   locations!: Location[];
   prettyStatus!: string;
+  wakeupLoading!: boolean;
+  refreshLoading!: boolean;
 
   data() {
     return {
@@ -151,7 +262,9 @@ export default class VehicleVue extends Vue {
       vehicle: undefined,
       location: undefined,
       locations: undefined,
-      prettyStatus: ""
+      prettyStatus: "",
+      wakeupLoading: false,
+      refreshLoading: false
     };
   }
   async created() {
@@ -232,14 +345,68 @@ export default class VehicleVue extends Vue {
       (prefix ? prefix + " " + val.status.toLowerCase() : val.status) +
       (suffix ? " " + suffix : "");
   }
+
+  get sleeping() {
+    return (
+      this.vehicle &&
+      (this.vehicle!.status.toLowerCase() === "offline" ||
+        this.vehicle!.status.toLowerCase() === "sleeping")
+    );
+  }
+  get hvacLoading() {
+    return false;
+  }
+
+  async refreshClick() {
+    this.refreshLoading = true;
+    apollo.action(
+      this.vehicle!.id,
+      this.vehicle!.providerData.provider,
+      AgentAction.Update
+    );
+  }
+  async wakeupClick() {
+    this.wakeupLoading = true;
+    try {
+      await apollo.action(
+        this.vehicle!.id,
+        this.vehicle!.providerData.provider,
+        AgentAction.WakeUp
+      );
+      while (this.sleeping) {
+        await delay(1000);
+      }
+      debugger;
+      return;
+    } finally {
+      this.wakeupLoading = false;
+    }
+  }
+  async hvacClick() {
+    return true;
+  }
+  tripClick() {
+    return true;
+  }
+  pauseClick() {
+    return true;
+  }
+  settingsClick() {
+    return true;
+  }
 }
 </script>
 
 <style>
 .batteryLevel {
-  font-weight: bold;
-  color: #000;
-  border: 1px solid #424242;
-  /* text-shadow: 0 0 2px #ffffff;*/
+  background: #f7f7f7;
+  border: 1px solid #9e9e9e;
+}
+.batteryLevel > div {
+  background: #ffffff;
+  border-right: 1px solid #dcdcdc;
+}
+.v-btn--outlined {
+  border-color: #909090;
 }
 </style>

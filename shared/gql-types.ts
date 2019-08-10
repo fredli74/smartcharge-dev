@@ -371,3 +371,17 @@ export abstract class ChartData {
   @Field(_type => Int)
   maximumLevel!: number;
 }
+
+@ObjectType()
+export abstract class Action {
+  @Field(_type => Int)
+  actionID!: number;
+  @Field(_type => ID)
+  targetID!: string;
+  @Field()
+  providerName!: string;
+  @Field()
+  action!: string;
+  @Field(_type => GraphQLJSONObject)
+  data!: any;
+}

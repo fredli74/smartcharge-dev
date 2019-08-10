@@ -25,7 +25,11 @@ import { Logic } from "./logic";
 import { Command } from "commander";
 
 import config from "@shared/smartcharge-config";
-import { ApolloServer } from "apollo-server-express";
+import {
+  ApolloServer,
+  ApolloError,
+  AuthenticationError
+} from "apollo-server-express";
 import { DBAccount } from "./db-schema";
 
 const APP_NAME = `smartcharge-server`;
@@ -43,11 +47,10 @@ program
       try {
         const cred = auth && auth.match(/Bearer (.{64})/i);
         if (cred) {
-          return db.lookupAccount(cred[1]);
+          return await db.lookupAccount(cred[1]);
         }
       } catch (error) {
-        console.debug(error);
-        throw new Error("Authorization failed");
+        throw new AuthenticationError("Authorization failed");
       }
     }
     const db = new DBInterface();
@@ -142,12 +145,6 @@ program
         }
       });
       apiServer.applyMiddleware({ app, path: "/api/gql" });
-
-      // Web server
-      //	app.get('/', function (req, res) {
-      //		res.sendfile('default.html', { root: __dirname + "/relative_path_of_file" });
-      //	});
-      //
 
       app
         .use(express.static(path.resolve(__dirname, "../app")))

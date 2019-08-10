@@ -25,21 +25,21 @@ import teslaAPI from "./tesla-api";
 import {
   AgentJob,
   AbstractAgent,
-  IProviderAgent
+  IProviderAgent,
+  AgentAction
 } from "@providers/provider-agent";
 import { TeslaProviderData } from "./app/tesla-helper";
 import provider from ".";
 
 interface TeslaAgentJob extends AgentJob {
   providerData: TeslaProviderData;
-  state?: {
+  state: {
     data?: Vehicle;
     pollstate: "polling" | "tired" | "offline" | "asleep";
     statestart: number;
     status: string;
     debugSleep?: any;
     chargeLimit?: number;
-    hvac?: boolean;
     portOpen?: boolean;
     parked?: number;
     triedOpen?: number;
@@ -48,8 +48,12 @@ interface TeslaAgentJob extends AgentJob {
 
 export class TeslaAgent extends AbstractAgent {
   public name: string = provider.name;
-  constructor(private scClient: SCClient) {
-    super();
+  constructor(scClient: SCClient) {
+    super(scClient);
+  }
+
+  public newState() {
+    return { pollstate: "offline", statestart: Date.now(), status: "" };
   }
 
   public async setStatus(job: TeslaAgentJob, status: string) {
@@ -112,46 +116,61 @@ export class TeslaAgent extends AbstractAgent {
     }
   }
 
-  public async work(job: TeslaAgentJob): Promise<number> {
-    const now = Date.now();
-    let interval = 60;
-    if (job.providerData.invalidToken) {
-      return interval;
-    }
+  public async maintainToken(job: TeslaAgentJob) {
+    // API Token check and update
+    let token = job.providerData.token as IRestToken;
 
-    if (job.state === undefined) {
-      job.state = { pollstate: "offline", statestart: now, status: "" };
-    }
-
-    try {
-      // API Token check and update
-      let token = job.providerData.token as IRestToken;
-
-      if (RestClient.tokenExpired(token)) {
-        // Token has expired, run it through server
-        const newToken = await this.scClient.providerMutate("tesla", {
-          mutation: "refreshToken",
-          token
-        });
-        for (const j of Object.values(this.subjects)) {
-          if (
-            (j as TeslaAgentJob).providerData.token.refresh_token ===
-            token.refresh_token
-          ) {
-            (j as TeslaAgentJob).providerData.token = newToken;
-          }
+    if (RestClient.tokenExpired(token)) {
+      // Token has expired, run it through server
+      const newToken = await this.scClient.providerMutate("tesla", {
+        mutation: "refreshToken",
+        token
+      });
+      for (const j of Object.values(this.subjects)) {
+        if (
+          (j as TeslaAgentJob).providerData.token.refresh_token ===
+          token.refresh_token
+        ) {
+          (j as TeslaAgentJob).providerData.token = newToken;
         }
-        assert(job.providerData.token.access_token === newToken.access_token);
       }
+      assert(job.providerData.token.access_token === newToken.access_token);
+    }
+  }
+  public async [AgentAction.WakeUp](job: TeslaAgentJob): Promise<any> {
+    if (job.providerData.invalidToken) {
+      // provider requires a valid token
+      return false;
+    }
+
+    await this.maintainToken(job);
+    const data = await teslaAPI.wakeUp(
+      job.providerData.sid,
+      job.providerData.token
+    );
+    return (
+      data &&
+      data.response &&
+      data.response.state !== "asleep" &&
+      data.response.state !== "offline"
+    );
+  }
+  public async [AgentAction.Update](job: TeslaAgentJob): Promise<boolean> {
+    if (job.providerData.invalidToken) {
+      // provider requires a valid token
+      return false;
+    }
+
+    const now = Date.now();
+    try {
+      await this.maintainToken(job);
 
       // API Poll
       if (
         job.state.pollstate === "polling" || // Poll vehicle data if we are in polling state
         (job.state.pollstate === "tired" &&
-          now >= job.state.statestart + config.TIME_BEING_TIRED)
+          now >= job.state.statestart + config.TIME_BEING_TIRED) // or if we've been trying to sleep for TIME_BEING_TIRED seconds
       ) {
-        // or if we've been trying to sleep for TIME_BEING_TIRED seconds
-
         const data = (await teslaAPI.getVehicleData(
           job.providerData.sid,
           job.providerData.token
@@ -165,7 +184,6 @@ export class TeslaAgent extends AbstractAgent {
 
         job.state.chargeLimit = data.charge_state.charge_limit_soc;
         job.state.portOpen = data.charge_state.charge_port_door_open;
-        job.state.hvac = data.climate_state.is_climate_on;
 
         const chargingTo =
           data.charge_state.charging_state === "Charging"
@@ -228,13 +246,14 @@ export class TeslaAgent extends AbstractAgent {
           await this.setStatus(job, "Charging"); // We are charging
           job.state.pollstate = "polling"; // Keep active polling when charging
           job.state.statestart = now; // Reset state starts
-          interval = 15; // Poll more often when charging
+          job.interval = 10; // Poll more often when charging
         } else if (input.isDriving) {
           await this.setStatus(job, "Driving"); // We are driving
           job.state.pollstate = "polling"; // Keep active polling when driving
           job.state.statestart = now; // Reset state starts
-          interval = 15; // Poll more often when driving
+          job.interval = 10; // Poll more often when driving
         } else {
+          job.interval = 60;
           let insomnia = false; // Are we in a state where sleep is not possible
 
           if (data.vehicle_state.is_user_present) {
@@ -312,7 +331,7 @@ export class TeslaAgent extends AbstractAgent {
 
               job.state.pollstate = "polling"; // Start polling again
               job.state.statestart = now;
-              interval = 15; // Woke up, poll right away
+              job.interval = 5; // Woke up, poll right away
             }
             break;
           case "offline":
@@ -442,7 +461,7 @@ export class TeslaAgent extends AbstractAgent {
                 job.providerData.sid,
                 job.providerData.token
               );
-              interval = 15;
+              job.interval = 5;
             } else if (stopCharging) {
               log(LogLevel.Info, `Stop charging ${job.state.data.name}`);
               teslaAPI.chargeStop(job.providerData.sid, job.providerData.token);
@@ -510,7 +529,7 @@ export class TeslaAgent extends AbstractAgent {
         }
 
         if (
-          job.state.hvac === false &&
+          job.state.data.climateControl === false &&
           job.state.data.tripSchedule && // only control hvac if we have a trip
           now >
             job.state.data.tripSchedule.time.getTime() -
@@ -531,31 +550,35 @@ export class TeslaAgent extends AbstractAgent {
         }
       }
     } catch (err) {
-      if (config.AGENT_SAVE_TO_TRACEFILE) {
-        const s = logFormat(LogLevel.Error, err);
-        fs.writeFileSync(config.AGENT_TRACE_FILENAME, `${s}\n`, { flag: "as" });
-      }
-      job.state.pollstate = "offline";
-      interval = 15; // Try again
-
-      // TODO: handle different errors?
-      if (err.code === 401) {
-        await this.scClient.updateVehicle({
-          id: job.subjectID,
-          providerData: { invalidToken: true }
-        });
-      }
-
-      if (err.response && err.response.data) {
-        log(LogLevel.Error, err.response.data);
-        if (err.response.data.error) {
-          await this.setStatus(job, err.response.data.error);
-        }
-      } else {
-        log(LogLevel.Error, err);
-      }
+      await this.handleError(job, err);
+      throw new Error(err);
     }
-    return interval;
+    return true;
+  }
+  async handleError(job: TeslaAgentJob, err: any) {
+    if (config.AGENT_SAVE_TO_TRACEFILE) {
+      const s = logFormat(LogLevel.Error, err);
+      fs.writeFileSync(config.AGENT_TRACE_FILENAME, `${s}\n`, { flag: "as" });
+    }
+    job.state.pollstate = "offline";
+    job.interval = 10; // Try again
+
+    // TODO: handle different errors?
+    if (err.code === 401) {
+      await this.scClient.updateVehicle({
+        id: job.subjectID,
+        providerData: { invalidToken: true }
+      });
+    }
+
+    if (err.response && err.response.data) {
+      log(LogLevel.Error, err.response.data);
+      if (err.response.data.error) {
+        await this.setStatus(job, err.response.data.error);
+      }
+    } else {
+      log(LogLevel.Error, err);
+    }
   }
 }
 

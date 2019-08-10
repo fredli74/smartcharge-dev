@@ -1,6 +1,6 @@
 import { gql, InMemoryCache } from "apollo-boost";
 import ApolloClient from "apollo-client";
-import { mergeURL } from "@shared/utils";
+import { mergeURL, log, LogLevel } from "@shared/utils";
 import { GQL_API_PATH } from "@shared/smartcharge-globals";
 
 import fetch from "cross-fetch";
@@ -17,7 +17,8 @@ import {
   ProviderSubject,
   NewLocationInput,
   UpdateLocationInput,
-  Location
+  Location,
+  Action
 } from "@shared/gql-types";
 import { ApolloLink } from "apollo-link";
 import { WebSocketLink } from "apollo-link-ws";
@@ -42,13 +43,16 @@ export class SCClient extends ApolloClient<any> {
             `[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`
           );
           if (message === "Unauthorized") {
-            debugger;
             this.logout();
           }
         });
       }
       if (networkError) {
-        if (this.token && (networkError as any).statusCode === 401) {
+        if (
+          this.token &&
+          (networkError.message === "Authorization failed" ||
+            (networkError as any).statusCode === 401)
+        ) {
           this.logout();
         }
         console.log(`[Network error]: ${networkError}`);
@@ -369,5 +373,86 @@ export class SCClient extends ApolloClient<any> {
       variables: { name, input }
     });
     return result.data.providerMutate.result;
+  }
+  private async actionMutation(
+    actionID: number | undefined,
+    targetID: string,
+    providerName: string,
+    action: string,
+    data?: any
+  ) {
+    const mutation = gql`
+      mutation PerformAction(
+        $actionID: Int
+        $targetID: ID!
+        $providerName: String!
+        $action: String!
+        $data: JSONObject
+      ) {
+        performAction(
+          actionID: $actionID
+          targetID: $targetID
+          providerName: $providerName
+          action: $action
+          data: $data
+        )
+      }
+    `;
+
+    const result = await this.mutate({
+      mutation,
+      variables: { actionID, targetID, providerName, action, data }
+    });
+    return result.data.performAction;
+  }
+
+  public async action(
+    targetID: string,
+    providerName: string,
+    action: string,
+    data?: any
+  ): Promise<Action> {
+    return this.actionMutation(undefined, targetID, providerName, action, data);
+  }
+  public async updateAction(action: Action) {
+    return this.actionMutation(
+      action.actionID,
+      action.targetID,
+      action.providerName,
+      action.action,
+      action.data
+    );
+  }
+
+  public subscribeActions(
+    providerName: string | undefined,
+    targetID: string | undefined,
+    callback: (action: Action) => any
+  ) {
+    const query = gql`
+      subscription ActionSubscription($providerName: String, $targetID: ID) {
+        actionSubscription(providerName: $providerName, targetID: $targetID) {
+          actionID
+          targetID
+          providerName
+          action
+          data
+        }
+      }
+    `;
+    const result = this.subscribe({
+      query,
+      variables: { providerName, targetID }
+    });
+    result.subscribe({
+      next(value: any) {
+        const action = value.data.actionSubscription;
+        callback(action);
+      },
+      error(err) {
+        log(LogLevel.Error, err);
+        throw new Error(err);
+      }
+    });
   }
 }
