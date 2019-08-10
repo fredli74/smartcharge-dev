@@ -148,12 +148,11 @@ export class TeslaAgent extends AbstractAgent {
       job.providerData.sid,
       job.providerData.token
     );
-    return (
-      data &&
-      data.response &&
-      data.response.state !== "asleep" &&
-      data.response.state !== "offline"
-    );
+    if (data && data.response && data.response.state === "online") {
+      job.state.pollstate = "polling";
+      return await this[AgentAction.Update](job);
+    }
+    return false;
   }
   public async [AgentAction.Update](job: TeslaAgentJob): Promise<boolean> {
     if (job.providerData.invalidToken) {

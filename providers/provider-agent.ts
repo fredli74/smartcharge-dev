@@ -118,8 +118,8 @@ export abstract class AbstractAgent {
                 } catch (error) {
                   log(LogLevel.Error, error);
                 }
+                job.nextrun = now + job.interval * 1000;
               }
-              job.nextrun = now + job.interval * 1000;
               job.running = false;
               this.subjects[id] = job;
             }
