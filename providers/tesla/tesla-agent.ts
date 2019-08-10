@@ -17,7 +17,8 @@ import {
   Vehicle,
   UpdateVehicleDataInput,
   ChargePlan,
-  ChargeType
+  ChargeType,
+  Action
 } from "@shared/gql-types";
 
 import config from "./tesla-config";
@@ -35,6 +36,7 @@ interface TeslaAgentJob extends AgentJob {
   providerData: TeslaProviderData;
   state: {
     data?: Vehicle;
+    online: boolean;
     pollstate: "polling" | "tired" | "offline" | "asleep";
     statestart: number;
     status: string;
@@ -53,7 +55,12 @@ export class TeslaAgent extends AbstractAgent {
   }
 
   public newState() {
-    return { pollstate: "offline", statestart: Date.now(), status: "" };
+    return {
+      online: false,
+      pollstate: "offline",
+      statestart: Date.now(),
+      status: ""
+    };
   }
 
   public async setStatus(job: TeslaAgentJob, status: string) {
@@ -137,23 +144,7 @@ export class TeslaAgent extends AbstractAgent {
       assert(job.providerData.token.access_token === newToken.access_token);
     }
   }
-  public async [AgentAction.WakeUp](job: TeslaAgentJob): Promise<any> {
-    if (job.providerData.invalidToken) {
-      // provider requires a valid token
-      return false;
-    }
 
-    await this.maintainToken(job);
-    const data = await teslaAPI.wakeUp(
-      job.providerData.sid,
-      job.providerData.token
-    );
-    if (data && data.response && data.response.state === "online") {
-      job.state.pollstate = "polling";
-      return await this[AgentAction.Update](job);
-    }
-    return false;
-  }
   public async [AgentAction.Update](job: TeslaAgentJob): Promise<boolean> {
     if (job.providerData.invalidToken) {
       // provider requires a valid token
@@ -183,6 +174,7 @@ export class TeslaAgent extends AbstractAgent {
 
         job.state.chargeLimit = data.charge_state.charge_limit_soc;
         job.state.portOpen = data.charge_state.charge_port_door_open;
+        job.state.online = true;
 
         const chargingTo =
           data.charge_state.charging_state === "Charging"
@@ -245,14 +237,14 @@ export class TeslaAgent extends AbstractAgent {
           await this.setStatus(job, "Charging"); // We are charging
           job.state.pollstate = "polling"; // Keep active polling when charging
           job.state.statestart = now; // Reset state starts
-          job.interval = 10; // Poll more often when charging
+          this.adjustInterval(job, 10); // Poll more often when charging
         } else if (input.isDriving) {
           await this.setStatus(job, "Driving"); // We are driving
           job.state.pollstate = "polling"; // Keep active polling when driving
           job.state.statestart = now; // Reset state starts
-          job.interval = 10; // Poll more often when driving
+          this.adjustInterval(job, 10); // Poll more often when driving
         } else {
-          job.interval = 60;
+          this.adjustInterval(job, 60);
           let insomnia = false; // Are we in a state where sleep is not possible
 
           if (data.vehicle_state.is_user_present) {
@@ -314,7 +306,7 @@ export class TeslaAgent extends AbstractAgent {
           });
         }
 
-        job.interval = 60;
+        this.adjustInterval(job, 60);
         switch (data.state) {
           case "online":
             if (
@@ -330,8 +322,9 @@ export class TeslaAgent extends AbstractAgent {
               );
 
               job.state.pollstate = "polling"; // Start polling again
+              job.state.online = true;
               job.state.statestart = now;
-              job.interval = 0; // Woke up, poll right away
+              this.adjustInterval(job, 0); // Woke up, poll right away
             }
             break;
           case "offline":
@@ -344,6 +337,7 @@ export class TeslaAgent extends AbstractAgent {
               );
 
               job.state.pollstate = "offline";
+              job.state.online = false;
               job.state.statestart = now;
               await this.setStatus(job, "Offline");
             }
@@ -358,6 +352,7 @@ export class TeslaAgent extends AbstractAgent {
               );
 
               job.state.pollstate = "asleep";
+              job.state.online = false;
               job.state.statestart = now;
               await this.setStatus(job, "Sleeping");
 
@@ -461,7 +456,7 @@ export class TeslaAgent extends AbstractAgent {
                 job.providerData.sid,
                 job.providerData.token
               );
-              job.interval = 5;
+              this.adjustInterval(job, 5);
             } else if (stopCharging) {
               log(LogLevel.Info, `Stop charging ${job.state.data.name}`);
               teslaAPI.chargeStop(job.providerData.sid, job.providerData.token);
@@ -550,6 +545,7 @@ export class TeslaAgent extends AbstractAgent {
         }
       }
     } catch (err) {
+      debugger;
       await this.handleError(job, err);
       throw new Error(err);
     }
@@ -561,7 +557,7 @@ export class TeslaAgent extends AbstractAgent {
       fs.writeFileSync(config.AGENT_TRACE_FILENAME, `${s}\n`, { flag: "as" });
     }
     job.state.pollstate = "offline";
-    job.interval = 10; // Try again
+    this.adjustInterval(job, 10); // Try again
 
     // TODO: handle different errors?
     if (err.code === 401) {
@@ -579,6 +575,58 @@ export class TeslaAgent extends AbstractAgent {
     } else {
       log(LogLevel.Error, err);
     }
+  }
+  public async [AgentAction.WakeUp](job: TeslaAgentJob): Promise<any> {
+    if (job.providerData.invalidToken) {
+      // provider requires a valid token
+      return false;
+    }
+
+    await this.maintainToken(job);
+    const data = await teslaAPI.wakeUp(
+      job.providerData.sid,
+      job.providerData.token
+    );
+    this.adjustInterval(job, 0); // Poll more often after an action
+    if (data && data.response && data.response.state === "online") {
+      job.state.pollstate = "polling"; // shortcut cause we already know its up
+    }
+    return false;
+  }
+  public async [AgentAction.ClimateControl](
+    job: TeslaAgentJob,
+    action?: Action
+  ): Promise<any> {
+    if (!action || job.providerData.invalidToken) {
+      // provider requires a valid token
+      return false;
+    }
+
+    await this.maintainToken(job);
+    if (!job.state.online) {
+      await this[AgentAction.WakeUp](job);
+      return false; // try again later
+    }
+    if (action.data.enable === job.state.data!.climateControl) {
+      return true;
+    }
+
+    let data;
+    if (action.data.enable) {
+      data = await teslaAPI.climateOn(
+        job.providerData.sid,
+        job.providerData.token
+      );
+    } else {
+      data = await teslaAPI.climateOff(
+        job.providerData.sid,
+        job.providerData.token
+      );
+    }
+    if (data && data.response && data.response.result) {
+      this.adjustInterval(job, 0); // Poll more often after an action
+    }
+    return false;
   }
 }
 

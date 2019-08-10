@@ -1,5 +1,5 @@
 <template>
-  <div style="font-size:1.1em">
+  <div style="font-size:1.2em" class="mt-12">
     <p>
       After switching to the Swedish energy provider
       <a href="https://tibber.com">tibber.com</a>, I was inspired to create an
@@ -9,7 +9,7 @@
       hours, which is better for the energy grid and your wallet if your
       provider has Time-of-Use pricing. Tibber already has this functionality
       for a lot of vehicle brands, but I wanted to create an open-source app
-      that could expand.
+      that I could expand with more features and providers.
     </p>
     <p>
       I have only implemented providers for Tesla and Tibber because it is what

@@ -73,6 +73,7 @@ export class TeslaAPI extends RestClient {
       LogLevel.Trace,
       `setChargeLimit(${id}, ${limit}) => ${JSON.stringify(result)}`
     );
+    return result;
   }
   public async chargeStart(id: string, token: IRestToken) {
     const result = await this.post(
@@ -81,6 +82,7 @@ export class TeslaAPI extends RestClient {
       token
     );
     log(LogLevel.Trace, `chargeStart(${id}) => ${JSON.stringify(result)}`);
+    return result;
   }
   public async chargeStop(id: string, token: IRestToken) {
     const result = await this.post(
@@ -89,6 +91,7 @@ export class TeslaAPI extends RestClient {
       token
     );
     log(LogLevel.Trace, `chargeStop(${id}) => ${JSON.stringify(result)}`);
+    return result;
   }
   public async openChargePort(id: string, token: IRestToken) {
     const result = await this.post(
@@ -97,6 +100,7 @@ export class TeslaAPI extends RestClient {
       token
     );
     log(LogLevel.Trace, `openChargePort(${id}) => ${JSON.stringify(result)}`);
+    return result;
   }
   public async closeChargePort(id: string, token: IRestToken) {
     const result = await this.post(
@@ -105,6 +109,7 @@ export class TeslaAPI extends RestClient {
       token
     );
     log(LogLevel.Trace, `closeChargePort(${id}) => ${JSON.stringify(result)}`);
+    return result;
   }
   public async climateOn(id: string, token: IRestToken) {
     const result = await this.post(
@@ -113,6 +118,7 @@ export class TeslaAPI extends RestClient {
       token
     );
     log(LogLevel.Trace, `climateOn(${id}) => ${JSON.stringify(result)}`);
+    return result;
   }
   public async climateOff(id: string, token: IRestToken) {
     const result = await this.post(
@@ -121,6 +127,7 @@ export class TeslaAPI extends RestClient {
       token
     );
     log(LogLevel.Trace, `climateOff(${id}) => ${JSON.stringify(result)}`);
+    return result;
   }
   public async listVehicle(id: string | undefined, token: IRestToken) {
     if (id === undefined) {

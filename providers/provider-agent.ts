@@ -18,7 +18,8 @@ export interface IProviderAgent extends IProvider {
 
 export enum AgentAction {
   Update = "update",
-  WakeUp = "wakeup"
+  WakeUp = "wakeup",
+  ClimateControl = "climate"
 }
 
 export interface AgentJob {
@@ -31,7 +32,7 @@ export interface AgentJob {
   actionQueue: Action[];
 }
 export interface AgentActionFunction {
-  (job: AgentJob): Promise<boolean>;
+  (job: AgentJob, action?: Action): Promise<boolean>;
 }
 
 export abstract class AbstractAgent {
@@ -41,6 +42,15 @@ export abstract class AbstractAgent {
   protected workerPromise: Promise<any> | undefined;
   protected abstract newState(): any;
   constructor(protected scClient: SCClient) {}
+  public adjustInterval(job: AgentJob, target: number) {
+    if (target > job.interval) {
+      job.interval += Math.ceil(job.interval / 2) + 1;
+    } else {
+      job.interval = target;
+    }
+    const nextrun = Date.now() + job.interval * 1000;
+    job.nextrun = Math.min(job.nextrun, nextrun);
+  }
   public async worker() {
     this.workerPromise = (async () => {
       log(LogLevel.Info, `Agent ${this.name} worker started`);
@@ -84,7 +94,10 @@ export abstract class AbstractAgent {
                 );
                 try {
                   if (typeof (this as any)[action.action] === "function") {
-                    const result = await (this as any)[action.action](job);
+                    const result = await (this as any)[action.action](
+                      job,
+                      action
+                    );
                     if (result !== false) {
                       action.data.result = result;
                     }

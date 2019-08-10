@@ -29,56 +29,104 @@
           <v-img max-height="200" :src="vehiclePicture" />
         </v-flex>
         <v-flex sm6 xs12>
-          <v-card-actions class="justify-center">
-            <v-btn
-              v-if="!sleeping"
-              depressed
-              outlined
-              x-small
-              fab
-              color=""
-              :loading="refreshLoading"
-              @click="refreshClick()"
-              ><v-icon>mdi-refresh</v-icon></v-btn
-            >
-            <v-btn
-              v-if="sleeping"
-              depressed
-              outlined
-              x-small
-              fab
-              color=""
-              :loading="wakeupLoading"
-              @click="wakeupClick()"
-              ><v-icon>mdi-sleep-off</v-icon></v-btn
-            >
-            <v-btn
-              depressed
-              outlined
-              x-small
-              fab
-              color=""
-              :loading="hvacLoading"
-              @click="hvacClick()"
-              ><v-icon
-                >mdi-fan{{ vehicle.climateControl ? "-off" : "" }}</v-icon
-              ></v-btn
-            >
-            <v-btn depressed outlined x-small fab color="" @click="tripClick()"
-              ><v-icon>mdi-road-variant</v-icon></v-btn
-            >
-            <v-btn depressed outlined x-small fab color="" @click="pauseClick()"
-              ><v-icon>mdi-pause</v-icon></v-btn
-            >
-            <v-btn
-              depressed
-              outlined
-              x-small
-              fab
-              color=""
-              @click="settingsClick()"
-              ><v-icon>mdi-settings</v-icon></v-btn
-            >
+          <v-card-actions id="vehicle-actions" class="justify-center">
+            <v-tooltip v-if="!sleeping" top>
+              <template v-slot:activator="{ on }">
+                <v-btn
+                  depressed
+                  outlined
+                  x-small
+                  fab
+                  color=""
+                  :loading="refreshLoading"
+                  v-on="on"
+                  @click="refreshClick()"
+                  ><v-icon>mdi-refresh</v-icon></v-btn
+                >
+              </template>
+              <span>Update</span>
+            </v-tooltip>
+            <v-tooltip v-else top>
+              <template v-slot:activator="{ on }">
+                <v-btn
+                  depressed
+                  outlined
+                  x-small
+                  fab
+                  color=""
+                  :loading="wakeupLoading"
+                  v-on="on"
+                  @click="wakeupClick()"
+                  ><v-icon>mdi-sleep-off</v-icon></v-btn
+                ></template
+              >
+              <span>Wake Up</span>
+            </v-tooltip>
+            <v-tooltip top>
+              <template v-slot:activator="{ on }">
+                <v-btn
+                  depressed
+                  :outlined="!vehicle.climateControl"
+                  x-small
+                  fab
+                  :color="vehicle.climateControl ? 'primary' : ''"
+                  :loading="hvacLoading"
+                  v-on="on"
+                  @click="hvacClick()"
+                  ><v-icon
+                    >mdi-fan{{ vehicle.climateControl ? "" : "-off" }}</v-icon
+                  ></v-btn
+                >
+              </template>
+              <span>Climate Control</span>
+            </v-tooltip>
+
+            <v-tooltip top>
+              <template v-slot:activator="{ on }">
+                <v-btn
+                  depressed
+                  outlined
+                  x-small
+                  fab
+                  color=""
+                  v-on="on"
+                  @click="tripClick()"
+                  ><v-icon>mdi-road-variant</v-icon></v-btn
+                ></template
+              >
+              <span>Trip</span>
+            </v-tooltip>
+
+            <v-tooltip top>
+              <template v-slot:activator="{ on }">
+                <v-btn
+                  depressed
+                  outlined
+                  x-small
+                  fab
+                  color=""
+                  v-on="on"
+                  @click="pauseClick()"
+                  ><v-icon>mdi-pause</v-icon></v-btn
+                ></template
+              >
+              <span>Pause Smart Charging</span>
+            </v-tooltip>
+            <v-tooltip top>
+              <template v-slot:activator="{ on }">
+                <v-btn
+                  depressed
+                  outlined
+                  x-small
+                  fab
+                  color=""
+                  v-on="on"
+                  @click="settingsClick()"
+                  ><v-icon>mdi-settings</v-icon></v-btn
+                ></template
+              >
+              <span>Settings</span>
+            </v-tooltip>
           </v-card-actions>
         </v-flex>
         <v-flex sm6 xs12>
@@ -152,11 +200,12 @@ import { gql } from "apollo-boost";
 import providers from "@providers/provider-apps";
 import RelativeTime from "../components/relative-time.vue";
 import ChargeChart from "../components/charge-chart.vue";
-import { geoDistance, delay } from "@shared/utils";
+import { geoDistance } from "@shared/utils";
 import apollo from "@app/plugins/apollo";
 import { VueApolloComponentOption } from "vue-apollo/types/options";
 import { RawLocation } from "vue-router";
 import { AgentAction } from "../../../providers/provider-agent";
+import eventBus from "../plugins/event-bus";
 
 const vehicleFragment = `id name minimumLevel maximumLevel tripSchedule { level time } pausedUntil geoLocation { latitude longitude } location batteryLevel outsideTemperature insideTemperature climateControl isDriving isConnected chargePlan { chargeStart chargeStop level chargeType comment } chargingTo estimatedTimeLeft status smartStatus updated providerData`;
 
@@ -234,7 +283,7 @@ const vehicleFragment = `id name minimumLevel maximumLevel tripSchedule { level 
           const action = data.actionSubscription as Action;
           assert(action.targetID === this.$route.params.id);
           if (action.data.error) {
-            throw new Error(action.data.error);
+            eventBus.$emit("ALERT_ERROR", action.data.error);
           }
           console.debug(action);
           if (action.action === AgentAction.Update) {
@@ -242,6 +291,9 @@ const vehicleFragment = `id name minimumLevel maximumLevel tripSchedule { level 
           }
           if (action.action === AgentAction.WakeUp) {
             this.$data.wakeupLoading = action.data.result === undefined;
+          }
+          if (action.action === AgentAction.ClimateControl) {
+            this.$data.hvacLoading = action.data.result === undefined;
           }
         }
       }
@@ -256,6 +308,7 @@ export default class VehicleVue extends Vue {
   prettyStatus!: string;
   wakeupLoading!: boolean;
   refreshLoading!: boolean;
+  hvacLoading!: boolean;
 
   data() {
     return {
@@ -265,7 +318,8 @@ export default class VehicleVue extends Vue {
       locations: undefined,
       prettyStatus: "",
       wakeupLoading: false,
-      refreshLoading: false
+      refreshLoading: false,
+      hvacLoading: false
     };
   }
   async created() {
@@ -354,9 +408,6 @@ export default class VehicleVue extends Vue {
         this.vehicle!.status.toLowerCase() === "sleeping")
     );
   }
-  get hvacLoading() {
-    return false;
-  }
 
   async refreshClick() {
     this.refreshLoading = true;
@@ -368,24 +419,22 @@ export default class VehicleVue extends Vue {
   }
   async wakeupClick() {
     this.wakeupLoading = true;
-    try {
-      await apollo.action(
-        this.vehicle!.id,
-        this.vehicle!.providerData.provider,
-        AgentAction.WakeUp
-      );
-      while (this.sleeping) {
-        await delay(1000);
-      }
-      debugger;
-      return;
-    } finally {
-      this.wakeupLoading = false;
-    }
+    apollo.action(
+      this.vehicle!.id,
+      this.vehicle!.providerData.provider,
+      AgentAction.WakeUp
+    );
   }
   async hvacClick() {
-    return true;
+    this.hvacLoading = true;
+    apollo.action(
+      this.vehicle!.id,
+      this.vehicle!.providerData.provider,
+      AgentAction.ClimateControl,
+      { enable: !this.vehicle!.climateControl }
+    );
   }
+
   tripClick() {
     return true;
   }
@@ -409,5 +458,8 @@ export default class VehicleVue extends Vue {
 }
 .v-btn--outlined {
   border-color: #909090;
+}
+#vehicle-actions > button {
+  margin-left: 8px;
 }
 </style>
