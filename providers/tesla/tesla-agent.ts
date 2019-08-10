@@ -314,6 +314,7 @@ export class TeslaAgent extends AbstractAgent {
           });
         }
 
+        job.interval = 60;
         switch (data.state) {
           case "online":
             if (
@@ -330,7 +331,7 @@ export class TeslaAgent extends AbstractAgent {
 
               job.state.pollstate = "polling"; // Start polling again
               job.state.statestart = now;
-              job.interval = 5; // Woke up, poll right away
+              job.interval = 0; // Woke up, poll right away
             }
             break;
           case "offline":
