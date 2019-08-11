@@ -7,17 +7,14 @@
       <v-layout row align-center>
         <v-flex sm6 xs12>
           <h2>{{ vehicle.name }}</h2>
-          <h3>
-            {{ prettyStatus }}
-            <div class="caption">
-              ({{ vehicle.status }}
-              <span
-                >@ {{ (location && location.name) || "unknown location" }}</span
-              >)
-            </div>
-          </h3>
-          <RelativeTime hide-below="10" :time="new Date(vehicle.updated)"
-            >Updated
+          <h4>{{ prettyStatus }}</h4>
+          <RelativeTime
+            :hide-below="15"
+            :units="1"
+            :time="new Date(vehicle.updated)"
+            >Updated<template v-slot:suffix
+              >ago
+            </template>
           </RelativeTime>
           <div v-if="vehicle.pausedUntil">
             Smart charge paused until: {{ vehicle.pausedUntil }}
@@ -26,106 +23,27 @@
         <v-flex sm6 class="hidden-xs-only">
           <v-img max-height="200" :src="vehiclePicture" />
         </v-flex>
-        <v-flex sm6 xs12>
-          <v-card-actions id="vehicle-actions" class="justify-center">
-            <v-tooltip v-if="!sleeping" top>
-              <template v-slot:activator="{ on }">
-                <v-btn
-                  depressed
-                  outlined
-                  fab
-                  color=""
-                  :loading="refreshLoading"
-                  v-on="on"
-                  @click="refreshClick()"
-                  ><v-icon large>mdi-refresh</v-icon></v-btn
-                >
-              </template>
-              <span>Update</span>
-            </v-tooltip>
-            <v-tooltip v-else top>
-              <template v-slot:activator="{ on }">
-                <v-btn
-                  depressed
-                  outlined
-                  fab
-                  color=""
-                  :loading="wakeupLoading"
-                  v-on="on"
-                  @click="wakeupClick()"
-                  ><v-icon large>mdi-sleep-off</v-icon></v-btn
-                >
-              </template>
-              <span>Wake Up</span>
-            </v-tooltip>
-            <v-tooltip top>
-              <template v-slot:activator="{ on }">
-                <v-btn
-                  depressed
-                  :outlined="!vehicle.climateControl"
-                  fab
-                  :color="vehicle.climateControl ? 'primary' : ''"
-                  :loading="hvacLoading"
-                  v-on="on"
-                  @click="hvacClick()"
-                  ><v-icon large
-                    >mdi-fan{{ vehicle.climateControl ? "" : "-off" }}</v-icon
-                  ></v-btn
-                >
-              </template>
-              <span>Climate Control</span>
-            </v-tooltip>
-            <v-tooltip top>
-              <template v-slot:activator="{ on }">
-                <v-btn
-                  depressed
-                  outlined
-                  fab
-                  color=""
-                  v-on="on"
-                  @click="tripClick()"
-                  ><v-icon large>mdi-road-variant</v-icon></v-btn
-                >
-              </template>
-              <span>Trip</span>
-            </v-tooltip>
-            <v-tooltip top>
-              <template v-slot:activator="{ on }">
-                <v-btn
-                  depressed
-                  outlined
-                  fab
-                  color=""
-                  v-on="on"
-                  @click="pauseClick()"
-                  ><v-icon large>mdi-pause</v-icon></v-btn
-                >
-              </template>
-              <span>Pause Smart Charging</span>
-            </v-tooltip>
-            <v-tooltip top>
-              <template v-slot:activator="{ on }">
-                <v-btn
-                  depressed
-                  outlined
-                  fab
-                  color=""
-                  v-on="on"
-                  @click="settingsClick()"
-                  ><v-icon large>mdi-settings</v-icon></v-btn
-                >
-              </template>
-              <span>Settings</span>
-            </v-tooltip>
-          </v-card-actions>
+        <v-flex v-if="vehicle !== undefined" sm6 xs12 class="mb-5">
+          <VehicleActions :vehicle="vehicle"></VehicleActions>
         </v-flex>
-        <v-flex sm6 xs12>
+        <v-flex sm6 xs12 class="mb-5">
+          <div v-if="vehicle.chargingTo" class="mt-n5 caption">
+            Charging to {{ vehicle.chargingTo }}%
+            <RelativeTime
+              until
+              :hide-below="120"
+              :units="2"
+              :time="new Date(Date.now() + vehicle.estimatedTimeLeft * 60e3)"
+              >(est.<template v-slot:suffix
+                >)
+              </template>
+            </RelativeTime>
+          </div>
           <div class="batteryLevel">
             <v-progress-linear
-              :style="`width:${vehicle.maximumLevel}%`"
               :value="vehicle.batteryLevel"
               height="25"
-              :stream="vehicle.chargingTo"
+              :stream="vehicle.chargingTo !== null"
               :buffer-value="vehicle.chargingTo || vehicle.batteryLevel"
               :color="
                 vehicle.batteryLevel > 20
@@ -134,22 +52,12 @@
                   ? 'orange'
                   : 'red'
               "
-              ><div
-                class="batteryText"
-                :style="`margin-left:${100 - vehicle.maximumLevel}%`"
-              >
+              ><div class="batteryText">
                 {{ vehicle.batteryLevel }}%
               </div></v-progress-linear
             >
+            <div class="nochargezone" :style="nochargestyle"></div>
           </div>
-          <div v-if="vehicle.chargingTo" class="caption">
-            Charging to {{ vehicle.chargingTo }}% (est.
-            <RelativeTime
-              :time="new Date(Date.now() + vehicle.estimatedTimeLeft)"
-            ></RelativeTime
-            >)
-          </div>
-          {{ vehicle.estimatedTimeLeft }}
         </v-flex>
       </v-layout>
       <v-layout row align-center>
@@ -185,22 +93,21 @@
 import { strict as assert } from "assert";
 
 import { Component, Vue, Watch } from "vue-property-decorator";
-import { Vehicle, Location, Action } from "@shared/gql-types";
+import { Vehicle, Location } from "@shared/gql-types";
 import { gql } from "apollo-boost";
 import providers from "@providers/provider-apps";
 import RelativeTime from "../components/relative-time.vue";
 import ChargeChart from "../components/charge-chart.vue";
+import VehicleActions from "../components/vehicle-actions.vue";
 import { geoDistance } from "@shared/utils";
 import apollo from "@app/plugins/apollo";
 import { VueApolloComponentOption } from "vue-apollo/types/options";
 import { RawLocation } from "vue-router";
-import { AgentAction } from "../../../providers/provider-agent";
-import eventBus from "../plugins/event-bus";
 
 const vehicleFragment = `id name minimumLevel maximumLevel tripSchedule { level time } pausedUntil geoLocation { latitude longitude } location batteryLevel outsideTemperature insideTemperature climateControl isDriving isConnected chargePlan { chargeStart chargeStop level chargeType comment } chargingTo estimatedTimeLeft status smartStatus updated providerData`;
 
 @Component({
-  components: { RelativeTime, ChargeChart },
+  components: { VehicleActions, RelativeTime, ChargeChart },
   apollo: {
     vehicle: {
       query: gql`
@@ -244,49 +151,6 @@ const vehicleFragment = `id name minimumLevel maximumLevel tripSchedule { level 
       skip() {
         return this.locations === undefined;
       }
-    },
-    $subscribe: {
-      actions: {
-        query: gql`
-          subscription ActionSubscription(
-            $providerName: String
-            $targetID: ID
-          ) {
-            actionSubscription(
-              providerName: $providerName
-              targetID: $targetID
-            ) {
-              actionID
-              targetID
-              providerName
-              action
-              data
-            }
-          }
-        `,
-        variables() {
-          return {
-            targetID: this.$route.params.id
-          };
-        },
-        result({ data }: any) {
-          const action = data.actionSubscription as Action;
-          assert(action.targetID === this.$route.params.id);
-          if (action.data.error) {
-            eventBus.$emit("ALERT_ERROR", action.data.error);
-          }
-          console.debug(action);
-          if (action.action === AgentAction.Update) {
-            this.$data.refreshLoading = action.data.result === undefined;
-          }
-          if (action.action === AgentAction.WakeUp) {
-            this.$data.wakeupLoading = action.data.result === undefined;
-          }
-          if (action.action === AgentAction.ClimateControl) {
-            this.$data.hvacLoading = action.data.result === undefined;
-          }
-        }
-      }
     }
   } as VueApolloComponentOption<VehicleVue> // needed because skip is not declared on subscribeToMore, but I am pretty sure I had to have it in my tests when the query had toggled skip()
 })
@@ -296,9 +160,6 @@ export default class VehicleVue extends Vue {
   location?: Location;
   locations!: Location[];
   prettyStatus!: string;
-  wakeupLoading!: boolean;
-  refreshLoading!: boolean;
-  hvacLoading!: boolean;
 
   data() {
     return {
@@ -306,10 +167,7 @@ export default class VehicleVue extends Vue {
       vehicle: undefined,
       location: undefined,
       locations: undefined,
-      prettyStatus: "",
-      wakeupLoading: false,
-      refreshLoading: false,
-      hvacLoading: false
+      prettyStatus: ""
     };
   }
   async created() {
@@ -353,7 +211,7 @@ export default class VehicleVue extends Vue {
     let prefix = "";
     let suffix = "";
 
-    if (val.isConnected) {
+    if (val.isConnected && !val.chargingTo) {
       prefix = "Connected and";
     }
 
@@ -391,61 +249,25 @@ export default class VehicleVue extends Vue {
       (prefix ? prefix + " " + val.status.toLowerCase() : val.status) +
       (suffix ? " " + suffix : "");
   }
-
-  get sleeping() {
-    return (
-      this.vehicle &&
-      (this.vehicle!.status.toLowerCase() === "offline" ||
-        this.vehicle!.status.toLowerCase() === "sleeping")
-    );
-  }
-
-  async refreshClick() {
-    this.refreshLoading = true;
-    apollo.action(
-      this.vehicle!.id,
-      this.vehicle!.providerData.provider,
-      AgentAction.Update
-    );
-  }
-  async wakeupClick() {
-    this.wakeupLoading = true;
-    apollo.action(
-      this.vehicle!.id,
-      this.vehicle!.providerData.provider,
-      AgentAction.WakeUp
-    );
-  }
-  async hvacClick() {
-    this.hvacLoading = true;
-    apollo.action(
-      this.vehicle!.id,
-      this.vehicle!.providerData.provider,
-      AgentAction.ClimateControl,
-      { enable: !this.vehicle!.climateControl }
-    );
-  }
-
-  tripClick() {
-    return true;
-  }
-  pauseClick() {
-    return true;
-  }
-  settingsClick() {
-    return true;
+  get nochargestyle() {
+    return `height:25px; width:${100 -
+      Math.max(this.vehicle.batteryLevel, this.vehicle.maximumLevel)}%`;
   }
 }
 </script>
 
 <style>
 .batteryLevel {
-  background: #f7f7f7;
+  position: relative;
+  background: white;
   border: 1px solid #9e9e9e;
 }
-.batteryLevel > div {
-  background: #ffffff;
-  border-right: 1px solid #dcdcdc;
+.nochargezone {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: #00000008;
+  border-left: 1px solid #dcdcdc;
 }
 .v-btn--outlined {
   border-color: #909090;

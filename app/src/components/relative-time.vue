@@ -1,16 +1,19 @@
 <template>
   <span :style="{ visibility: relativeShow ? 'visible' : 'hidden' }"
-    ><slot></slot> {{ relativeTime }}</span
-  >
+    ><slot></slot>{{ relativeTime }}<slot name="suffix"></slot
+  ></span>
 </template>
 
 <script lang="ts">
 import { Component, Vue, Prop, Watch } from "vue-property-decorator";
+import { secondsToString } from "@shared/utils";
 
 @Component({ components: {} })
 export default class RelativeTime extends Vue {
-  @Prop(Date) readonly time!: Date;
-  @Prop() readonly hideBelow?: string;
+  @Prop({ type: Date, required: true }) readonly time!: Date;
+  @Prop({ type: Number, default: undefined }) readonly hideBelow?: number;
+  @Prop({ type: Boolean, default: false }) readonly until!: boolean;
+  @Prop({ type: Number, default: 1 }) readonly units!: number;
   timer?: any;
   relativeShow!: boolean;
   relativeTime!: string;
@@ -37,36 +40,21 @@ export default class RelativeTime extends Vue {
 
   updateRelative() {
     if (this.time === undefined) {
-      return "";
-    }
+      this.relativeTime = "";
+    } else {
+      let span = (Date.now() - this.time.getTime()) / 1e3; // seconds
+      span *= this.until ? -1 : 1;
+      if (this.hideBelow !== undefined && span < this.hideBelow) {
+        this.relativeTime = "";
+        this.relativeShow = false;
+      } else {
+        this.relativeTime = secondsToString(span, this.units, this.until);
+        this.relativeShow = true;
+      }
 
-    let nextInterval = 1000;
-    let span = (Date.now() - this.time.getTime()) / 1e3;
-    this.relativeTime = ((span: number): string => {
-      span = Math.trunc(span);
-      this.relativeShow =
-        this.hideBelow === undefined || span >= Number(this.hideBelow);
-      if (span < 4) {
-        return `now`;
-      }
-      if (span < 120) {
-        return `${span} seconds ago`;
-      }
-      nextInterval *= 10;
-      span = Math.trunc(span / 60);
-      if (span < 120) {
-        return `${span} minutes ago`;
-      }
-      nextInterval *= 10;
-      span = Math.trunc(span / 60);
-      if (span < 24) {
-        return `${span} hours ago`;
-      }
-      nextInterval *= 10;
-      span = Math.trunc(span / 24);
-      return `${span} day${span === 1 ? "" : "s"} ago`;
-    })(span);
-    this.timer = setTimeout(this.updateRelative, nextInterval);
+      const nextInterval = 1000 * Math.ceil(span / 100);
+      this.timer = setTimeout(this.updateRelative, nextInterval);
+    }
   }
 }
 </script>

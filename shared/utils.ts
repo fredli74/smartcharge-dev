@@ -164,3 +164,35 @@ export function mergeURL(
     ? relative
     : base.replace(/\/+$/, "") + "/" + relative.replace(/^\/+/, "");
 }
+
+export function secondsToString(
+  span: number,
+  precision?: number,
+  roundUp?: boolean
+): string {
+  precision = precision || 1;
+  const factors = [1, 60, 60 * 60, 24 * 60 * 60];
+  {
+    let i = 0;
+    for (; i < factors.length && span > factors[i]; ++i);
+    i = Math.max(0, i - precision);
+
+    if (roundUp) {
+      span = Math.ceil(span / factors[i]) * factors[i];
+    } else {
+      span = Math.floor(span / factors[i]) * factors[i];
+    }
+  }
+
+  const decompose = [];
+  for (let s = span, i = factors.length - 1; i >= 0; --i) {
+    const v = Math.floor(s / factors[i]);
+    s -= v * factors[i];
+    decompose.push(v);
+  }
+  const units = ["day", "hour", "minute", "second"];
+  const pretty = decompose.map((f, i) => {
+    return f > 0 ? `${f} ${units[i]}${f > 1 ? "s" : ""}` : "";
+  });
+  return pretty.join(" ").trim() || "now";
+}

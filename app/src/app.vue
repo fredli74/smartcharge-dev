@@ -95,6 +95,9 @@ export default class App extends Vue {
 </script>
 
 <style>
+body {
+  font-size: 20px;
+}
 a#homelink {
   color: white;
   text-decoration: none;
