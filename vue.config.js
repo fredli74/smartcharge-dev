@@ -3,10 +3,12 @@ const webpack = require("webpack");
 const CopyPlugin = require("copy-webpack-plugin");
 const globals = require("./shared/smartcharge-globals.json");
 
-let commitHash = require("child_process")
-  .execSync("git rev-parse --short HEAD")
-  .toString()
-  .trim();
+let commitHash =
+  process.env.SOURCE_VERSION ||
+  require("child_process")
+    .execSync("git rev-parse --short HEAD")
+    .toString()
+    .trim();
 
 module.exports = {
   outputDir: path.resolve(__dirname, "./dist/app"),
