@@ -100,7 +100,7 @@ export default class TibberVue extends Vue {
 
     // Pickup provider list from all connected vehicles
     for (const h of homes) {
-      if (!h.providerData.invalidToken && h.providerData.token) {
+      if (!h.providerData.invalid_token && h.providerData.token) {
         providers[h.providerData.token.access_token] = h.providerData.token;
       }
     }
@@ -130,7 +130,7 @@ export default class TibberVue extends Vue {
               entry.controlled = true;
               if (
                 !f.providerData.token ||
-                f.providerData.invalidToken ||
+                f.providerData.invalid_token ||
                 f.providerData.token !== token
               ) {
                 log(
@@ -144,7 +144,7 @@ export default class TibberVue extends Vue {
                   providerData: {
                     provider: provider.name,
                     token,
-                    invalidToken: null
+                    invalid_token: null
                   }
                 });
               }

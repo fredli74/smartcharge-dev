@@ -51,7 +51,7 @@ const server: IProviderServer = {
               `UPDATE vehicle SET provider_data = jsonb_strip_nulls(provider_data || $2) WHERE provider_data @> $1 RETURNING *;`,
               [
                 { token: { access_token: data.token.access_token } },
-                { invalidToken: true }
+                { invalid_token: true }
               ]
             );
             for (const v of dblist) {

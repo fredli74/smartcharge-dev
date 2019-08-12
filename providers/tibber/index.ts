@@ -5,7 +5,7 @@ export interface TibberProviderData {
   home: string; // tibber home id
   currency: string; // currency used for price points
   token: string; // token for API authentication
-  invalidToken: boolean;
+  invalid_token: boolean;
 }
 
 const provider: IProvider = {

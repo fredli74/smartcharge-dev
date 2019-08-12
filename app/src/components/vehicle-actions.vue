@@ -8,18 +8,27 @@
       v-model="dialogShow"
       :fullscreen="$vuetify.breakpoint.xsOnly"
       max-width="600"
-    ><v-card>
-      <v-toolbar dark color="primary">
-        <v-btn icon dark @click="dialogShow = false">
-          <v-icon>{{
-            $vuetify.breakpoint.xsOnly ? "mdi-chevron-left" : "mdi-close"
-          }}</v-icon>
-        </v-btn>
-        <v-toolbar-title>{{ dialogTitle }}</v-toolbar-title>
-        <v-spacer></v-spacer>
-        <v-progress-circular      indeterminate      color="white"    ></v-progress-circular>
-      </v-toolbar>
-      <component :is="dialogContent" :vehicle="vehicle" />
+      ><v-card>
+        <v-toolbar dark color="primary">
+          <v-btn icon dark @click="dialogShow = false">
+            <v-icon>{{
+              $vuetify.breakpoint.xsOnly ? "mdi-chevron-left" : "mdi-close"
+            }}</v-icon>
+          </v-btn>
+          <v-toolbar-title>{{ dialogTitle }}</v-toolbar-title>
+          <v-spacer />
+          <v-progress-circular
+            v-if="saving"
+            indeterminate
+            color="white"
+          ></v-progress-circular>
+          <v-icon v-else-if="changed">mdi-circle-medium</v-icon>
+        </v-toolbar>
+        <component
+          :is="dialogContent"
+          :vehicle="vehicle"
+          @changed="queueSave"
+        />
       </v-card>
     </v-dialog>
 
@@ -129,10 +138,11 @@ import { Vehicle, Action } from "@shared/gql-types";
 import { gql } from "apollo-boost";
 import { AgentAction } from "@providers/provider-agent";
 import apollo from "@app/plugins/apollo";
-import eventBus from "../plugins/event-bus";
 import { delay } from "@shared/utils";
 import { VueConstructor } from "vue";
 import VehicleSettings from "./vehicle-settings.vue";
+import eventBus from "@app/plugins/event-bus";
+import deepmerge from "deepmerge";
 
 @Component({
   apollo: {
@@ -186,6 +196,8 @@ import VehicleSettings from "./vehicle-settings.vue";
 export default class VehicleActions extends Vue {
   @Prop({ type: Object, required: true }) readonly vehicle!: Vehicle;
 
+  changed!: boolean;
+  saving!: boolean;
   wakeupLoading!: boolean;
   refreshLoading!: boolean;
   hvacLoading!: boolean;
@@ -196,6 +208,8 @@ export default class VehicleActions extends Vue {
 
   data() {
     return {
+      saving: false,
+      changed: false,
       wakeupLoading: false,
       refreshLoading: false,
       hvacLoading: false,
@@ -273,6 +287,30 @@ export default class VehicleActions extends Vue {
     this.dialogTitle = "Settings";
     this.dialogContent = VehicleSettings;
     return true;
+  }
+
+  saveTimer?: any;
+  unsavedData?: any;
+  queueSave(data: any) {
+    this.unsavedData = deepmerge(this.unsavedData, data);
+    this.changed = true;
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer);
+    }
+    this.saveTimer = setTimeout(() => {
+      this.save();
+      this.saveTimer = undefined;
+    }, 5000);
+  }
+  async save() {
+    this.saving = true;
+    this.changed = false;
+    /* await apollo.updateVehicle({
+      id:this.vehicle.id,
+      ...this.unsavedData
+    });*/
+    await delay(5000);
+    this.saving = false;
   }
 }</script
 ><style></style>

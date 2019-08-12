@@ -146,7 +146,7 @@ export class TeslaAgent extends AbstractAgent {
   }
 
   public async [AgentAction.Update](job: TeslaAgentJob): Promise<boolean> {
-    if (job.providerData.invalidToken) {
+    if (job.providerData.invalid_token) {
       // provider requires a valid token
       return false;
     }
@@ -563,7 +563,7 @@ export class TeslaAgent extends AbstractAgent {
     if (err.code === 401) {
       await this.scClient.updateVehicle({
         id: job.subjectID,
-        providerData: { invalidToken: true }
+        providerData: { invalid_token: true }
       });
     }
 
@@ -577,7 +577,7 @@ export class TeslaAgent extends AbstractAgent {
     }
   }
   public async [AgentAction.WakeUp](job: TeslaAgentJob): Promise<any> {
-    if (job.providerData.invalidToken) {
+    if (job.providerData.invalid_token) {
       // provider requires a valid token
       return false;
     }
@@ -597,7 +597,7 @@ export class TeslaAgent extends AbstractAgent {
     job: TeslaAgentJob,
     action?: Action
   ): Promise<any> {
-    if (!action || job.providerData.invalidToken) {
+    if (!action || job.providerData.invalid_token) {
       // provider requires a valid token
       return false;
     }

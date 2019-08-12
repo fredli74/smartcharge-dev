@@ -54,7 +54,7 @@ export class TibberAgent extends AbstractAgent {
   }
 
   public async [AgentAction.Update](job: TibberAgentSubject): Promise<boolean> {
-    if (job.providerData.invalidToken) {
+    if (job.providerData.invalid_token) {
       return false;
     }
 
@@ -70,7 +70,7 @@ export class TibberAgent extends AbstractAgent {
     ) {
       await this.scClient.updateLocation({
         id: job.subjectID,
-        providerData: { invalidToken: true }
+        providerData: { invalid_token: true }
       });
     } else {
       const priceInfo = res.data.viewer.home.currentSubscription.priceInfo;

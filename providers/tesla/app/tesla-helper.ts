@@ -17,7 +17,7 @@ export interface TeslaProviderData {
   provider: "tesla";
   sid: string; // tesla vehicle id
   token: IRestToken; // token for API authentication
-  invalidToken: boolean;
+  invalid_token: boolean;
   option_codes: string;
 }
 

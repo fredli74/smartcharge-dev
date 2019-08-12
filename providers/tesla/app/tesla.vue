@@ -93,7 +93,7 @@ export default class TeslaVue extends Vue {
 
     // Pickup provider list from all connected vehicles
     for (const v of vehicles) {
-      if (!v.providerData.invalidToken && v.providerData.token) {
+      if (!v.providerData.invalid_token && v.providerData.token) {
         providers[v.providerData.token.access_token] = v.providerData.token;
       }
     }
@@ -122,7 +122,7 @@ export default class TeslaVue extends Vue {
               entry.controlled = true;
               if (
                 !f.providerData.token ||
-                f.providerData.invalidToken ||
+                f.providerData.invalid_token ||
                 f.providerData.token.access_token !== token.access_token
               ) {
                 log(
@@ -136,7 +136,7 @@ export default class TeslaVue extends Vue {
                   providerData: {
                     provider: provider.name,
                     token,
-                    invalidToken: null
+                    invalid_token: null
                   }
                 });
               }
