@@ -68,9 +68,10 @@ export interface DBVehicle {
   name: string; // name of vehicle
   minimum_charge: number; // minimum allowed charge
   maximum_charge: number; // maximum normal (non trip) charge
+  anxiety_level: number; // current smart charging anxiety level
   scheduled_trip: any; // currently scheduled trip (or null)
+  smart_pause: Date | null; // smart charging is paused
   charge_plan: any; // current charge plan (or null)
-  charging_paused: Date | null; // smart charging should be paused until (or null)
   location_micro_latitude: number; // 6 decimal precision converted to integer
   location_micro_longitude: number; // 6 decimal precision converted to integer
   location_uuid: string; // known location id
@@ -98,7 +99,9 @@ const DBVehicle_TSQL = `CREATE TABLE scserver.vehicle
         name text,
         minimum_charge smallint NOT NULL,
         maximum_charge smallint NOT NULL,
+        anxiety_level smallint,
         scheduled_trip jsonb,
+        smart_pause timestamp(0) with time zone,      
         charge_plan jsonb,
         charging_paused timestamp(0) with time zone,
         location_micro_latitude integer,

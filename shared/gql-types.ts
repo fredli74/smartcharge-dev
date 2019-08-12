@@ -130,6 +130,10 @@ export abstract class Vehicle {
     description: `maximum level to charge to unless a trip is scheduled (%)`
   })
   maximumLevel!: number;
+  @Field(_type => Int, {
+    description: `smart charging anxiety level`
+  })
+  anxietyLevel!: number;
   @Field(_type => Schedule, { nullable: true, description: `trip schedule` })
   tripSchedule!: Schedule | null;
   @Field(_type => Date, {
@@ -180,6 +184,7 @@ export function VehicleToJS(input: Vehicle): Vehicle {
     name: input.name,
     minimumLevel: input.minimumLevel,
     maximumLevel: input.maximumLevel,
+    anxietyLevel: input.anxietyLevel,
     tripSchedule:
       (input.tripSchedule && ScheduleToJS(input.tripSchedule)) || null,
     pausedUntil: (input.pausedUntil && new Date(input.pausedUntil)) || null,

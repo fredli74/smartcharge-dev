@@ -20,6 +20,10 @@
           <div v-if="vehicle.pausedUntil">
             Smart charge paused until: {{ vehicle.pausedUntil }}
           </div>
+          <v-slider v-model="vehicle.batteryLevel"></v-slider>
+          <v-slider v-model="vehicle.maximumLevel"></v-slider>
+          <v-slider v-model="vehicle.minimumLevel"></v-slider>
+          <v-slider v-model="vehicle.chargingTo"></v-slider>
         </v-flex>
         <v-flex sm6 class="hidden-xs-only">
           <v-img max-height="200" :src="vehiclePicture" />
@@ -41,23 +45,21 @@
             </RelativeTime>
           </div>
           <div class="batteryLevel">
+            <div
+              v-if="vehicle.chargingTo"
+              class="chargezone"
+              :style="`border-color:${batteryColor}`"
+            ></div>
+            <div class="nochargezone" :style="nochargestyle"></div>
             <v-progress-linear
               :value="vehicle.batteryLevel"
-              height="25"
-              :stream="vehicle.chargingTo !== null"
-              :buffer-value="vehicle.chargingTo || vehicle.batteryLevel"
-              :color="
-                vehicle.batteryLevel > 20
-                  ? 'green'
-                  : vehicle.batteryLevel > 10
-                  ? 'orange'
-                  : 'red'
-              "
+              height="1.5em"
+              :buffer-value="vehicle.chargingTo || 0"
+              :color="batteryColor"
               ><div class="batteryText">
                 {{ vehicle.batteryLevel }}%
               </div></v-progress-linear
             >
-            <div class="nochargezone" :style="nochargestyle"></div>
           </div>
         </v-flex>
       </v-layout>
@@ -250,9 +252,23 @@ export default class VehicleVue extends Vue {
       (prefix ? prefix + " " + val.status.toLowerCase() : val.status) +
       (suffix ? " " + suffix : "");
   }
+  get batteryColor() {
+    return this.vehicle!.batteryLevel > this.vehicle!.maximumLevel
+      ? "#9cef19"
+      : this.vehicle!.batteryLevel > this.vehicle!.minimumLevel
+      ? "#4cd853"
+      : this.vehicle!.batteryLevel > 10
+      ? "orange"
+      : "red";
+  }
   get nochargestyle() {
-    return `height:25px; width:${100 -
-      Math.max(this.vehicle!.batteryLevel, this.vehicle!.maximumLevel)}%`;
+    const width =
+      100 - Math.max(this.vehicle!.chargingTo || 0, this.vehicle!.maximumLevel);
+    if (width > 0) {
+      return `width:${width}%`;
+    } else {
+      return `display:none`;
+    }
   }
 }
 </script>
@@ -262,13 +278,42 @@ export default class VehicleVue extends Vue {
   position: relative;
   background: white;
   border: 1px solid #9e9e9e;
+  overflow: hidden;
+}
+.batteryText {
+  font-weight: bold;
+}
+.chargezone {
+  animation: stream 0.25s infinite linear;
+  border-top: 4px dotted;
+  bottom: 0;
+  opacity: 0.5;
+  pointer-events: none;
+  position: absolute;
+  right: -8px;
+  top: calc(50% - 2px);
+  transition: inherit;
+  width: 100%;
 }
 .nochargezone {
   position: absolute;
   top: 0;
   right: 0;
-  background: #00000008;
+  height: 100%;
   border-left: 1px solid #dcdcdc;
+  background-color: #fdfdfd;
+  background-image: linear-gradient(
+    135deg,
+    rgba(0, 0, 0, 0.05) 25%,
+    transparent 0,
+    transparent 50%,
+    rgba(0, 0, 0, 0.05) 0,
+    rgba(0, 0, 0, 0.05) 75%,
+    transparent 0,
+    transparent
+  );
+  background-size: 20px 20px;
+  background-repeat: repeat;
 }
 .v-btn--outlined {
   border-color: #909090;

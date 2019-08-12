@@ -275,8 +275,9 @@ export class DBInterface {
       name: v.name,
       minimumLevel: Math.trunc(v.minimum_charge),
       maximumLevel: Math.trunc(v.maximum_charge),
+      anxietyLevel: v.anxiety_level,
       tripSchedule: v.scheduled_trip,
-      pausedUntil: v.charging_paused,
+      pausedUntil: v.smart_pause,
       geoLocation: {
         latitude: v.location_micro_latitude / 1e6,
         longitude: v.location_micro_longitude / 1e6
@@ -310,6 +311,7 @@ export class DBInterface {
       name,
       minimum_charge,
       maximum_charge,
+      anxiety_level: 1,
       provider_data
     };
     for (const key of Object.keys(fields)) {

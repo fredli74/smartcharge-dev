@@ -8,7 +8,7 @@
       v-model="dialogShow"
       :fullscreen="$vuetify.breakpoint.xsOnly"
       max-width="600"
-    >
+    ><v-card>
       <v-toolbar dark color="primary">
         <v-btn icon dark @click="dialogShow = false">
           <v-icon>{{
@@ -16,8 +16,11 @@
           }}</v-icon>
         </v-btn>
         <v-toolbar-title>{{ dialogTitle }}</v-toolbar-title>
+        <v-spacer></v-spacer>
+        <v-progress-circular      indeterminate      color="white"    ></v-progress-circular>
       </v-toolbar>
       <component :is="dialogContent" :vehicle="vehicle" />
+      </v-card>
     </v-dialog>
 
     <v-tooltip v-if="!isSleeping" top>
@@ -129,6 +132,7 @@ import apollo from "@app/plugins/apollo";
 import eventBus from "../plugins/event-bus";
 import { delay } from "@shared/utils";
 import { VueConstructor } from "vue";
+import VehicleSettings from "./vehicle-settings.vue";
 
 @Component({
   apollo: {
@@ -267,7 +271,7 @@ export default class VehicleActions extends Vue {
   settingsClick() {
     this.dialogShow = true;
     this.dialogTitle = "Settings";
-    this.dialogContent = VehicleActions;
+    this.dialogContent = VehicleSettings;
     return true;
   }
 }</script
