@@ -12,8 +12,9 @@
             :hide-below="15"
             :units="1"
             :time="new Date(vehicle.updated)"
-            >Updated<template v-slot:suffix
-              >ago
+            >Updated
+            <template v-slot:suffix>
+              ago
             </template>
           </RelativeTime>
           <div v-if="vehicle.pausedUntil">
@@ -251,7 +252,7 @@ export default class VehicleVue extends Vue {
   }
   get nochargestyle() {
     return `height:25px; width:${100 -
-      Math.max(this.vehicle.batteryLevel, this.vehicle.maximumLevel)}%`;
+      Math.max(this.vehicle!.batteryLevel, this.vehicle!.maximumLevel)}%`;
   }
 }
 </script>

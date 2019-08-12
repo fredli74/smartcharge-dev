@@ -3,6 +3,11 @@ const webpack = require("webpack");
 const CopyPlugin = require("copy-webpack-plugin");
 const globals = require("./shared/smartcharge-globals.json");
 
+let commitHash = require("child_process")
+  .execSync("git rev-parse --short HEAD")
+  .toString()
+  .trim();
+
 module.exports = {
   outputDir: path.resolve(__dirname, "./dist/app"),
   pages: {
@@ -27,6 +32,9 @@ module.exports = {
   },
   configureWebpack: {
     plugins: [
+      new webpack.DefinePlugin({
+        COMMIT_HASH: JSON.stringify(commitHash)
+      }),
       new CopyPlugin([
         {
           from: path.resolve(__dirname, "./app/public/"),
@@ -58,5 +66,10 @@ module.exports = {
         );
       }
     ]);
+  },
+  pwa: {
+    workboxOptions: {
+      skipWaiting: true
+    }
   }
 };
