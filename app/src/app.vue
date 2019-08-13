@@ -96,7 +96,9 @@ export default class App extends Vue {
   }
 
   get version() {
-    return typeof COMMIT_HASH === "string" ? `(${COMMIT_HASH})` : "";
+    return typeof COMMIT_HASH === "string"
+      ? `(#${COMMIT_HASH.substr(0, 6)})`
+      : "";
   }
 }
 </script>
@@ -110,8 +112,8 @@ a#homelink {
   text-decoration: none;
 }
 #version {
-  font-size: 0.8em;
-  font-weight: 100;
+  font-size: 0.6em;
+  font-family: monospace;
   color: #eee;
   margin-left: 1em;
 }
