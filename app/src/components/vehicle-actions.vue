@@ -7,7 +7,7 @@
     <v-dialog
       v-model="dialogShow"
       :fullscreen="$vuetify.breakpoint.xsOnly"
-      max-width="600"
+      :max-width="dialogWidth"
       ><v-card>
         <v-toolbar dark color="primary">
           <v-btn icon dark @click="dialogShow = false">
@@ -16,13 +16,6 @@
             }}</v-icon>
           </v-btn>
           <v-toolbar-title>{{ dialogTitle }}</v-toolbar-title>
-          <v-spacer />
-          <v-progress-circular
-            v-if="saving"
-            indeterminate
-            color="white"
-          ></v-progress-circular>
-          <v-icon v-else-if="changed">mdi-circle-medium</v-icon>
         </v-toolbar>
         <component
           :is="dialogContent"
@@ -71,7 +64,7 @@
           :small="smallButton"
           :outlined="!vehicle.climateControl"
           fab
-          :color="vehicle.climateControl ? 'primary' : ''"
+          :color="vehicle.climateControl ? 'success' : ''"
           :loading="hvacLoading"
           v-on="on"
           @click="hvacClick()"
@@ -102,9 +95,9 @@
         <v-btn
           depressed
           :small="smallButton"
-          outlined
+          :outlined="!Boolean(vehicle.pausedUntil)"
           fab
-          color=""
+          :color="Boolean(vehicle.pausedUntil) ? 'warning' : ''"
           v-on="on"
           @click="pauseClick()"
           ><v-icon :large="!smallButton">mdi-pause</v-icon></v-btn
@@ -143,6 +136,7 @@ import VehicleSettings from "./vehicle-settings.vue";
 import eventBus from "@app/plugins/event-bus";
 import deepmerge from "deepmerge";
 import { Action, Vehicle } from "@server/gql/vehicle-type";
+import VehiclePause from "./vehicle-pause.vue";
 
 @Component({
   apollo: {
@@ -205,6 +199,7 @@ export default class VehicleActions extends Vue {
   dialogShow!: boolean;
   dialogContent?: VueConstructor<Vue>;
   dialogTitle?: string;
+  dialogWidth?: string;
 
   data() {
     return {
@@ -216,7 +211,8 @@ export default class VehicleActions extends Vue {
       smallButton: false,
       dialogShow: false,
       dialogContent: undefined,
-      dialogTitle: undefined
+      dialogTitle: undefined,
+      dialogWidth: "600px"
     };
   }
   onResize() {
@@ -257,6 +253,7 @@ export default class VehicleActions extends Vue {
   }
   async hvacClick() {
     this.hvacLoading = true;
+    this.wakeupLoading = true;
     const want = !this.vehicle!.climateControl;
     apollo.action(
       this.vehicle!.id,
@@ -267,31 +264,36 @@ export default class VehicleActions extends Vue {
     while (this.vehicle!.climateControl !== want) {
       await delay(1000);
     }
+    this.wakeupLoading = false;
     this.hvacLoading = false;
   }
 
   tripClick() {
     this.dialogShow = true;
     this.dialogTitle = "Trip";
+    this.dialogWidth = "500px";
     this.dialogContent = VehicleActions;
     return true;
   }
   pauseClick() {
     this.dialogShow = true;
     this.dialogTitle = "Pause";
-    this.dialogContent = VehicleActions;
+    this.dialogWidth = "500px";
+    this.dialogContent = VehiclePause;
     return true;
   }
   settingsClick() {
     this.dialogShow = true;
     this.dialogTitle = "Settings";
+    this.dialogWidth = "600px";
     this.dialogContent = VehicleSettings;
     return true;
   }
 
   saveTimer?: any;
-  unsavedData?: any;
-  queueSave(data: any) {
+  unsavedData?: any = {};
+  queueSave(delay: number, data: any) {
+    console.debug("Queue:", data);
     this.unsavedData = deepmerge(this.unsavedData, data);
     this.changed = true;
     if (this.saveTimer) {
@@ -300,9 +302,10 @@ export default class VehicleActions extends Vue {
     this.saveTimer = setTimeout(() => {
       this.save();
       this.saveTimer = undefined;
-    }, 5000);
+    }, delay);
   }
   async save() {
+    console.debug("Save:", this.unsavedData);
     this.saving = true;
     this.changed = false;
     await apollo.updateVehicle({

@@ -17,13 +17,10 @@
               ago
             </template>
           </RelativeTime>
-          <div v-if="vehicle.pausedUntil">
-            Smart charge paused until: {{ vehicle.pausedUntil }}
+          <div v-if="Boolean(vehicle.pausedUntil)" class="pt-4">
+            Smart charge paused until
+            <div class="text-no-wrap">{{ pauseText }}</div>
           </div>
-          <v-slider v-model="vehicle.batteryLevel"></v-slider>
-          <v-slider v-model="vehicle.maximumLevel"></v-slider>
-          <v-slider v-model="vehicle.minimumLevel"></v-slider>
-          <v-slider v-model="vehicle.chargingTo"></v-slider>
         </v-flex>
         <v-flex sm6 class="hidden-xs-only">
           <v-img max-height="200" :src="vehiclePicture" />
@@ -107,8 +104,9 @@ import { VueApolloComponentOption } from "vue-apollo/types/options";
 import { RawLocation } from "vue-router";
 import { Location } from "@server/gql/location-type";
 import { Vehicle } from "@server/gql/vehicle-type";
+import moment from "moment";
 
-const vehicleFragment = `id name minimumLevel maximumLevel tripSchedule { level time } pausedUntil geoLocation { latitude longitude } location batteryLevel outsideTemperature insideTemperature climateControl isDriving isConnected chargePlan { chargeStart chargeStop level chargeType comment } chargingTo estimatedTimeLeft status smartStatus updated providerData`;
+const vehicleFragment = `id name minimumLevel maximumLevel anxietyLevel tripSchedule { level time } pausedUntil geoLocation { latitude longitude } location batteryLevel outsideTemperature insideTemperature climateControl isDriving isConnected chargePlan { chargeStart chargeStop level chargeType comment } chargingTo estimatedTimeLeft status smartStatus updated providerData`;
 
 @Component({
   components: { VehicleActions, RelativeTime, ChargeChart },
@@ -148,7 +146,16 @@ const vehicleFragment = `id name minimumLevel maximumLevel tripSchedule { level 
         }
       },
 
-      //update: data => data.vehicles,
+      update(data) {
+        if (data.vehicle && data.vehicle.pausedUntil) {
+          const when = new Date(data.vehicle.pausedUntil).getTime();
+          const now = Date.now();
+          if (when <= now) {
+            data.vehicle.pausedUntil = null;
+          }
+        }
+        return data.vehicle;
+      },
       watchLoading(isLoading, _countModifier) {
         this.loading = isLoading;
       },
@@ -174,10 +181,27 @@ export default class VehicleVue extends Vue {
       prettyStatus: ""
     };
   }
+
+  timer?: any;
   async created() {
     this.locations = await apollo.getLocations();
     this.$apollo.queries.vehicle.skip = false;
+    this.timer = setInterval(() => {
+      if (this.vehicle && this.vehicle.pausedUntil) {
+        const when = new Date(this.vehicle.pausedUntil).getTime();
+        const now = Date.now();
+        if (when <= now) {
+          this.vehicle.pausedUntil = null;
+        }
+      }
+    }, 30e3);
   }
+  beforeDestroy() {
+    if (this.timer) {
+      clearTimeout(this.timer);
+    }
+  }
+
   get vehiclePicture() {
     if (this.vehicle !== undefined) {
       const provider = providers.find(
@@ -270,6 +294,14 @@ export default class VehicleVue extends Vue {
     } else {
       return `display:none`;
     }
+  }
+
+  get pauseText() {
+    return (
+      this.vehicle &&
+      this.vehicle.pausedUntil &&
+      moment(this.vehicle.pausedUntil).format("YYYY-MM-DD HH:mm")
+    );
   }
 }
 </script>

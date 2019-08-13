@@ -179,7 +179,6 @@ export default class ChargeChart extends Vue {
   @Prop(String) readonly vehicle!: string;
   @Prop(String) readonly location!: string;
   chartData?: ChartData;
-  timer?: any;
   chartReady: boolean = false;
   minPrice!: number;
   maxPrice!: number;
@@ -198,6 +197,8 @@ export default class ChargeChart extends Vue {
     };
   }
   mounted() {}
+
+  timer?: any;
   created() {
     this.timer = setInterval(() => {
       if (this.fullUpdate) {

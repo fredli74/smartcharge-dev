@@ -367,8 +367,9 @@ export class DBInterface {
     name: string | undefined,
     minimum_charge: number | undefined,
     maximum_charge: number | undefined,
+    anxiety_level: number | undefined,
     scheduled_trip: any | null | undefined,
-    charging_paused: Date | null | undefined,
+    smart_pause: Date | null | undefined,
     status: string | undefined,
     provider_data: any | undefined
   ): Promise<DBVehicle> {
@@ -377,10 +378,11 @@ export class DBInterface {
       [name, `name = $2`],
       [minimum_charge, `minimum_charge = $3`],
       [maximum_charge, `maximum_charge = $4`],
-      [scheduled_trip, `scheduled_trip = $5`],
-      [charging_paused, `charging_paused = $6`],
-      [status, `status = $7`],
-      [provider_data, `provider_data = jsonb_strip_nulls(provider_data || $8)`]
+      [anxiety_level, `anxiety_level = $5`],
+      [scheduled_trip, `scheduled_trip = $6`],
+      [smart_pause, `smart_pause = $7`],
+      [status, `status = $8`],
+      [provider_data, `provider_data = jsonb_strip_nulls(provider_data || $9)`]
     ]);
     assert(set.length > 0);
 

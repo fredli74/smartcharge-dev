@@ -103,7 +103,6 @@ const DBVehicle_TSQL = `CREATE TABLE scserver.vehicle
         scheduled_trip jsonb,
         smart_pause timestamp(0) with time zone,      
         charge_plan jsonb,
-        charging_paused timestamp(0) with time zone,
         location_micro_latitude integer,
         location_micro_longitude integer,
         location_uuid uuid,

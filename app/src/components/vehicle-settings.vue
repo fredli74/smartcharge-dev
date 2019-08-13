@@ -60,11 +60,12 @@
         <v-flex xs12 sm4> </v-flex
         ><v-flex xs12 sm8>
           <v-switch
+            v-model="chargePort"
             color="primary"
             inset
             label="Auto open charge port"
             persistent-hint
-            hint="Opens port if charging is needed"
+            hint="Open port after parking if charge is needed"
           ></v-switch>
         </v-flex>
       </v-layout>
@@ -89,7 +90,13 @@ export default class VehicleSettings extends Vue {
   }
 
   doChange() {
-    this.$emit("changed", this.formData);
+    if (
+      typeof this.formData.name === "string" &&
+      this.formData.name.length < 1
+    ) {
+      delete this.formData.name;
+    }
+    this.$emit("changed", 1500, this.formData);
     return true;
   }
 
@@ -143,14 +150,23 @@ export default class VehicleSettings extends Vue {
     }
   }
   get chargePort() {
-    if (this.formData.providerData.auto_port === undefined) {
-      this.formData.providerData.auto_port =
-        this.vehicle.providerData && this.vehicle.providerData.auto_port;
+    if (
+      !this.formData.providerData ||
+      this.formData.providerData.auto_port === undefined
+    ) {
+      this.formData.providerData = {
+        auto_port: Boolean(
+          this.vehicle.providerData && this.vehicle.providerData.auto_port
+        )
+      };
     }
     return this.formData.providerData.auto_port;
   }
   set chargePort(value: boolean) {
-    if (this.formData.providerData.auto_port !== value) {
+    if (
+      !this.formData.providerData ||
+      this.formData.providerData.auto_port !== value
+    ) {
       this.formData.providerData.auto_port = value;
       this.doChange();
     }

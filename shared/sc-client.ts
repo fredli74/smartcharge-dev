@@ -230,6 +230,7 @@ export class SCClient extends ApolloClient<any> {
   name
   minimumLevel
   maximumLevel
+  anxietyLevel
   tripSchedule {
     level
     time

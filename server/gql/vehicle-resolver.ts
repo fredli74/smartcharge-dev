@@ -25,7 +25,8 @@ import {
   NewVehicleInput,
   UpdateVehicleInput,
   UpdateVehicleDataInput,
-  VehicleDebugInput
+  VehicleDebugInput,
+  ChargePlanToJS
 } from "./vehicle-type";
 import { ChartData } from "./location-type";
 
@@ -114,6 +115,7 @@ export class VehicleResolver {
         ? undefined
         : context.accountUUID;
     // verify vehicle ownage
+    console.debug(input);
     await context.db.getVehicle(input.id, accountLimiter);
     const result = DBInterface.DBVehicleToVehicle(
       await context.db.updateVehicle(
@@ -121,6 +123,7 @@ export class VehicleResolver {
         input.name,
         input.minimumLevel,
         input.maximumLevel,
+        input.anxietyLevel,
         input.tripSchedule,
         input.pausedUntil,
         input.status,
