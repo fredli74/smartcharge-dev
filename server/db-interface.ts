@@ -18,17 +18,11 @@ import {
   DBLocationData
 } from "./db-schema";
 import { log, LogLevel, geoDistance, generateToken } from "@shared/utils";
-
 import config from "@shared/smartcharge-config";
-import {
-  Vehicle,
-  Account,
-  Location,
-  VehicleToJS,
-  VehicleDebugInput,
-  ProviderSubject,
-  GeoLocation
-} from "@shared/gql-types";
+import { Location, GeoLocation } from "./gql/location-type";
+import { Vehicle, VehicleToJS, VehicleDebugInput } from "./gql/vehicle-type";
+import { Account } from "./gql/account-type";
+import { ProviderSubject } from "./gql/agent-type";
 
 export const DB_OPTIONS = {};
 export const INTERNAL_SERVICE_UUID = `b085e774-1582-4334-be3b-f52d5803e718`;

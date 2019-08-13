@@ -1,5 +1,5 @@
 /**
- * @file GraphQL API Types for smartcharge.dev project
+ * @file GraphQL API Vehicle types for smartcharge.dev project
  * @author Fredrik Lidström
  * @copyright 2019 Fredrik Lidström
  * @license MIT (MIT)
@@ -15,53 +15,8 @@ import {
   Float
 } from "type-graphql";
 import { GraphQLJSONObject } from "graphql-type-json";
-
+import { GeoLocation } from "./location-type";
 import "reflect-metadata";
-
-@ObjectType()
-@InputType("GeoLocationInput")
-export abstract class GeoLocation {
-  @Field()
-  latitude!: number;
-  @Field()
-  longitude!: number;
-}
-
-@ObjectType()
-export abstract class Location {
-  @Field(_type => ID)
-  id!: string;
-  @Field(_type => ID)
-  ownerID!: string;
-  @Field()
-  name!: string;
-  @Field()
-  geoLocation!: GeoLocation;
-  @Field(_type => Int, { description: `Radius in meters` })
-  geoFenceRadius!: number;
-  @Field(_type => GraphQLJSONObject, { nullable: true })
-  providerData!: any;
-}
-
-@ObjectType("LocationPrice")
-@InputType("LocationPriceInput")
-export abstract class LocationPrice {
-  @Field({ description: `Price tariff start time` })
-  startAt!: Date;
-  @Field({ description: `Price in currency per kWh (5 decimal precision)` })
-  price!: number;
-}
-export function LocationPriceToJS(input: LocationPrice): LocationPrice {
-  return { price: input.price, startAt: new Date(input.startAt) };
-}
-
-@InputType()
-export abstract class UpdatePriceInput {
-  @Field(_type => ID)
-  id!: string;
-  @Field(_type => LocationPrice)
-  prices!: LocationPrice[];
-}
 
 @ObjectType("Schedule")
 @InputType("ScheduleInput")
@@ -218,6 +173,8 @@ export abstract class UpdateVehicleInput {
   minimumLevel?: number;
   @Field(_type => Int, { nullable: true })
   maximumLevel?: number;
+  @Field(_type => Int, { nullable: true })
+  anxietyLevel?: number;
   @Field(_type => Schedule, { nullable: true })
   tripSchedule?: Schedule | null;
   @Field(_type => Date, { nullable: true })
@@ -298,83 +255,6 @@ export abstract class VehicleDebugInput {
   category!: string;
   @Field(_type => GraphQLJSONObject)
   data!: any;
-}
-
-@ObjectType()
-export abstract class Account {
-  @Field(_type => ID)
-  id!: string;
-  @Field()
-  name!: string;
-  @Field()
-  token!: string;
-}
-
-@ObjectType()
-export abstract class ProviderSubject {
-  @Field(_type => ID)
-  subjectID!: string;
-  @Field(_type => ID)
-  ownerID!: string;
-  @Field()
-  providerType!: string;
-  @Field()
-  providerName!: string;
-  @Field(_type => GraphQLJSONObject)
-  providerData!: any;
-}
-
-@InputType()
-export abstract class NewLocationInput {
-  @Field()
-  name!: string;
-  @Field(_type => GeoLocation)
-  geoLocation!: GeoLocation;
-  @Field(_type => Int, { nullable: true, description: `Radius in meters` })
-  geoFenceRadius!: number;
-  @Field(_type => GraphQLJSONObject, {
-    nullable: true,
-    description: "Location provider data"
-  })
-  providerData?: any;
-}
-
-@InputType()
-export abstract class UpdateLocationInput {
-  @Field(_type => ID)
-  id!: string;
-  @Field({ nullable: true })
-  name?: string;
-  @Field(_type => GeoLocation, { nullable: true })
-  geoLocation?: GeoLocation;
-  @Field(_type => Int, { nullable: true, description: `Radius in meters` })
-  geoFenceRadius?: number;
-  @Field(_type => GraphQLJSONObject, { nullable: true })
-  providerData?: any;
-}
-
-@ObjectType()
-export abstract class ChartData {
-  @Field(_type => ID)
-  locationID!: string;
-  @Field()
-  locationName!: string;
-  @Field(_type => ID)
-  vehicleID!: string;
-  @Field(_type => Int)
-  batteryLevel!: number;
-  @Field(_type => Int)
-  levelChargeTime!: number;
-  @Field(_type => Int)
-  thresholdPrice!: number;
-  @Field(_type => LocationPrice)
-  prices!: LocationPrice[];
-  @Field(_type => [ChargePlan], { nullable: true })
-  chargePlan!: ChargePlan[] | null;
-  @Field(_type => Int)
-  minimumLevel!: number;
-  @Field(_type => Int)
-  maximumLevel!: number;
 }
 
 @ObjectType()

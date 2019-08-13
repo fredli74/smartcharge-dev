@@ -5,27 +5,29 @@ import { API_PATH } from "@shared/smartcharge-globals.json";
 
 import fetch from "cross-fetch";
 
-import {
-  Account,
-  UpdatePriceInput,
-  Vehicle,
-  UpdateVehicleDataInput,
-  VehicleDebugInput,
-  UpdateVehicleInput,
-  VehicleToJS,
-  NewVehicleInput,
-  ProviderSubject,
-  NewLocationInput,
-  UpdateLocationInput,
-  Location,
-  Action
-} from "@shared/gql-types";
 import { ApolloLink } from "apollo-link";
 import { WebSocketLink } from "apollo-link-ws";
 import { onError } from "apollo-link-error";
 import { setContext } from "apollo-link-context";
 import { HttpLink } from "apollo-link-http";
 import { SubscriptionClient } from "subscriptions-transport-ws";
+import { Account } from "@server/gql/account-type";
+import {
+  NewLocationInput,
+  UpdateLocationInput,
+  UpdatePriceInput,
+  Location
+} from "@server/gql/location-type";
+import {
+  NewVehicleInput,
+  Vehicle,
+  VehicleToJS,
+  UpdateVehicleInput,
+  UpdateVehicleDataInput,
+  VehicleDebugInput,
+  Action
+} from "@server/gql/vehicle-type";
+import { ProviderSubject } from "@server/gql/agent-type";
 
 export class SCClient extends ApolloClient<any> {
   public account?: Account;

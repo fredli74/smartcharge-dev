@@ -1,5 +1,5 @@
 /**
- * @file Subscription helper for smartcharge.dev project
+ * @file GraphQL API Subscription helper for smartcharge.dev project
  * @author Fredrik Lidström
  * @copyright 2019 Fredrik Lidström
  * @license MIT (MIT)

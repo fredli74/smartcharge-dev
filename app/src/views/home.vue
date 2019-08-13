@@ -62,9 +62,9 @@
 
 <script lang="ts">
 import { Component, Vue } from "vue-property-decorator";
-import { Vehicle } from "@shared/gql-types";
 import { gql } from "apollo-boost";
 import providers from "@providers/provider-apps";
+import { Vehicle } from "@server/gql/vehicle-type";
 
 @Component({
   components: {},

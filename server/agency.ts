@@ -12,10 +12,10 @@ import { strict as assert } from "assert";
 import { Command } from "commander";
 import { log, LogLevel, delay } from "@shared/utils";
 import { SCClient } from "@shared/sc-client";
-import { ProviderSubject } from "@shared/gql-types";
 import providers from "@providers/provider-agents";
 import { AbstractAgent } from "@providers/provider-agent";
 import WebSocket from "ws";
+import { ProviderSubject } from "./gql/agent-type";
 
 const APP_NAME = `smartcharge-agency`;
 const APP_VERSION = `1.0`;

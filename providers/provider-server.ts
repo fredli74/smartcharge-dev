@@ -1,5 +1,5 @@
 import { IProvider } from ".";
-import { IContext } from "@server/gql-api";
+import { IContext } from "@server/gql/api";
 
 export interface IProviderServerQuery {
   (data: any, context: IContext): any;

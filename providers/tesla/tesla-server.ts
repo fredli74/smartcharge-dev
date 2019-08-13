@@ -1,4 +1,4 @@
-import { IContext } from "@server/gql-api";
+import { IContext } from "@server/gql/api";
 import provider from "./index";
 import { IRestToken } from "@shared/restclient";
 import { ApolloError } from "apollo-server-express";

@@ -20,10 +20,10 @@ import { LogLevel, log, arrayMean, prettyTime } from "@shared/utils";
 import {
   UpdateVehicleDataInput,
   ChargePlan,
-  ScheduleToJS,
+  ChargeType,
   ChargePlanToJS,
-  ChargeType
-} from "@shared/gql-types";
+  ScheduleToJS
+} from "./gql/vehicle-type";
 
 const TRIP_TOPUP_TIME = 15 * 60e3; // 15 minutes before trip time
 

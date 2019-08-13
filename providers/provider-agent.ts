@@ -7,7 +7,8 @@
 import { IProvider } from ".";
 import { SCClient } from "@shared/sc-client";
 import { log, LogLevel, delay } from "@shared/utils";
-import { ProviderSubject, Action } from "@shared/gql-types";
+import { Action } from "@server/gql/vehicle-type";
+import { ProviderSubject } from "@server/gql/agent-type";
 
 export interface IProviderAgentInstantiator {
   (scClient: SCClient): AbstractAgent;

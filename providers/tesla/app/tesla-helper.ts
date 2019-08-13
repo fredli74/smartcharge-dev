@@ -1,7 +1,7 @@
 import { IRestToken } from "@shared/restclient";
 import { SCClient } from "@shared/sc-client";
 import eventBus from "@app/plugins/event-bus";
-import { Vehicle } from "@shared/gql-types";
+import { Vehicle } from "@server/gql/vehicle-type";
 
 // List entry when adding a new Tesla vehicle
 export interface TeslaNewListEntry {

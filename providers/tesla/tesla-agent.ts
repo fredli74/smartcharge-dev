@@ -12,15 +12,6 @@ import { IRestToken, RestClient } from "@shared/restclient";
 import * as fs from "fs";
 import { log, logFormat, LogLevel } from "@shared/utils";
 import { SCClient } from "@shared/sc-client";
-import {
-  ChargeConnection,
-  Vehicle,
-  UpdateVehicleDataInput,
-  ChargePlan,
-  ChargeType,
-  Action
-} from "@shared/gql-types";
-
 import config from "./tesla-config";
 import teslaAPI from "./tesla-api";
 import {
@@ -31,6 +22,14 @@ import {
 } from "@providers/provider-agent";
 import { TeslaProviderData } from "./app/tesla-helper";
 import provider from ".";
+import {
+  Vehicle,
+  UpdateVehicleDataInput,
+  ChargeConnection,
+  ChargePlan,
+  ChargeType,
+  Action
+} from "@server/gql/vehicle-type";
 
 interface TeslaAgentJob extends AgentJob {
   providerData: TeslaProviderData;

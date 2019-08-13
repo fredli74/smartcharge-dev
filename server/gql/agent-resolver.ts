@@ -1,11 +1,11 @@
 /**
- * @file Agent resolver for smartcharge.dev project
+ * @file GraphQL API Agent resolver for smartcharge.dev project
  * @author Fredrik Lidström
  * @copyright 2019 Fredrik Lidström
  * @license MIT (MIT)
  */
 
-import { SubscriptionTopic, apolloPubSub } from "./subscriptions";
+import { SubscriptionTopic, apolloPubSub } from "./subscription";
 import {
   Resolver,
   Ctx,
@@ -17,14 +17,15 @@ import {
   Int,
   Query
 } from "type-graphql";
-import { Action, ProviderSubject } from "@shared/gql-types";
-import { IContext } from "@server/gql-api";
+import { IContext } from "@server/gql/api";
 import { GraphQLJSONObject } from "graphql-type-json";
 import { INTERNAL_SERVICE_UUID } from "@server/db-interface";
 import { ApolloError } from "apollo-server-core";
 import { withFilter } from "graphql-subscriptions";
 import providers from "@providers/provider-servers";
 import { IProviderServer } from "@providers/provider-server";
+import { Action } from "./vehicle-type";
+import { ProviderSubject } from "./agent-type";
 
 const actionMemDatabase: { [id: string]: Action } = {};
 let actionMemDatabaseSN = 0;

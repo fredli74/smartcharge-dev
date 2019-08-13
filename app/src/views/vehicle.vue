@@ -96,16 +96,17 @@
 import { strict as assert } from "assert";
 
 import { Component, Vue, Watch } from "vue-property-decorator";
-import { Vehicle, Location } from "@shared/gql-types";
 import { gql } from "apollo-boost";
 import providers from "@providers/provider-apps";
-import RelativeTime from "../components/relative-time.vue";
-import ChargeChart from "../components/charge-chart.vue";
-import VehicleActions from "../components/vehicle-actions.vue";
+import RelativeTime from "@app/components/relative-time.vue";
+import ChargeChart from "@app/components/charge-chart.vue";
+import VehicleActions from "@app/components/vehicle-actions.vue";
 import { geoDistance } from "@shared/utils";
 import apollo from "@app/plugins/apollo";
 import { VueApolloComponentOption } from "vue-apollo/types/options";
 import { RawLocation } from "vue-router";
+import { Location } from "@server/gql/location-type";
+import { Vehicle } from "@server/gql/vehicle-type";
 
 const vehicleFragment = `id name minimumLevel maximumLevel tripSchedule { level time } pausedUntil geoLocation { latitude longitude } location batteryLevel outsideTemperature insideTemperature climateControl isDriving isConnected chargePlan { chargeStart chargeStop level chargeType comment } chargingTo estimatedTimeLeft status smartStatus updated providerData`;
 

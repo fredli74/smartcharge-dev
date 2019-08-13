@@ -110,7 +110,7 @@ a#homelink {
   text-decoration: none;
 }
 #version {
-  font-size: 0.9em;
+  font-size: 0.8em;
   font-weight: 100;
   color: #eee;
   margin-left: 1em;

@@ -10,9 +10,9 @@
 
 import fs from "fs";
 import { delay, LogLevel, setLogLevel } from "@shared/utils";
-import { UpdateVehicleDataInput, ChargeConnection } from "@shared/gql-types";
 import { Logic } from "./logic";
 import { DBInterface } from "./db-interface";
+import { ChargeConnection, UpdateVehicleDataInput } from "./gql/vehicle-type";
 
 if (process.argv.length < 3) {
   console.log(`Missing argument`);

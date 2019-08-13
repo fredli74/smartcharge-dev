@@ -16,8 +16,8 @@
           <label class="subtitle-1">Smart charge focus</label> </v-flex
         ><v-flex xs12 sm8>
           <v-btn-toggle
-            active-class="selected-charge"
             v-model="anxietyLevel"
+            active-class="selected-charge"
             color="primary"
             xs10
             label="hej"
@@ -73,16 +73,8 @@
 </template>
 
 <script lang="ts">
-import { strict as assert } from "assert";
-
 import { Component, Vue, Prop } from "vue-property-decorator";
-import { Vehicle, Action } from "@shared/gql-types";
-import { gql } from "apollo-boost";
-import { AgentAction } from "@providers/provider-agent";
-import apollo from "@app/plugins/apollo";
-import eventBus from "../plugins/event-bus";
-import { delay } from "@shared/utils";
-import { VueConstructor } from "vue";
+import { Vehicle } from "@server/gql/vehicle-type";
 
 @Component({})
 export default class VehicleSettings extends Vue {

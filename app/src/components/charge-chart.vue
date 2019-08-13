@@ -27,11 +27,11 @@
 <script lang="ts">
 // import { strict as assert } from "assert";
 import { Component, Vue, Prop, Watch } from "vue-property-decorator";
-import { ChartData } from "@shared/gql-types";
 import VueApexCharts from "vue-apexcharts";
 import { gql } from "apollo-boost";
 import deepmerge from "deepmerge";
 import { log, LogLevel } from "@shared/utils";
+import { ChartData } from "@server/gql/location-type";
 
 interface chartDataResult {
   chartData: ChartData;
@@ -200,7 +200,6 @@ export default class ChargeChart extends Vue {
   mounted() {}
   created() {
     this.timer = setInterval(() => {
-      log(LogLevel.Trace, `timer tick fullUpdate=${this.fullUpdate}`);
       if (this.fullUpdate) {
         const pricechart = (this.$refs.pricechart as any) as ApexCharts;
         pricechart && pricechart.updateSeries(this.priceseries);

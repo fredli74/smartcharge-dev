@@ -22,8 +22,8 @@
 
 <script lang="ts">
 import { Component, Vue } from "vue-property-decorator";
-import apollo from "../plugins/apollo";
-import eventBus from "../plugins/event-bus";
+import apollo from "@app/plugins/apollo";
+import eventBus from "@app/plugins/event-bus";
 import { strict as assert } from "assert";
 
 @Component({

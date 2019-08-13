@@ -13,7 +13,6 @@ import { PROJECT_AGENT } from "@shared/smartcharge-globals.json";
 
 import { SCClient } from "@shared/sc-client";
 import { log, LogLevel } from "@shared/utils";
-import { UpdatePriceInput } from "@shared/gql-types";
 import {
   AgentJob,
   AbstractAgent,
@@ -23,6 +22,7 @@ import {
 import provider, { TibberProviderData } from ".";
 import config from "./tibber-config";
 import tibberAPI from "./tibber-api";
+import { UpdatePriceInput } from "@server/gql/location-type";
 
 interface TibberAgentSubject extends AgentJob {
   providerData: TibberProviderData;

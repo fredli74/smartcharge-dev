@@ -1,13 +1,12 @@
 /**
- * @file Vehicle API resolver for smartcharge.dev project
+ * @file GraphQL API Vehicle resolver for smartcharge.dev project
  * @author Fredrik Lidström
  * @copyright 2019 Fredrik Lidström
  * @license MIT (MIT)
  */
-
 import { strict as assert } from "assert";
 
-import { SubscriptionTopic } from "./subscriptions";
+import { SubscriptionTopic } from "./subscription";
 import {
   Arg,
   Resolver,
@@ -19,15 +18,16 @@ import {
   PubSubEngine,
   Root
 } from "type-graphql";
-import { IContext } from "../gql-api";
+import { IContext } from "./api";
+import { DBInterface, INTERNAL_SERVICE_UUID } from "@server/db-interface";
 import {
   Vehicle,
+  NewVehicleInput,
   UpdateVehicleInput,
   UpdateVehicleDataInput,
-  VehicleDebugInput,
-  NewVehicleInput
-} from "@shared/gql-types";
-import { DBInterface, INTERNAL_SERVICE_UUID } from "../db-interface";
+  VehicleDebugInput
+} from "./vehicle-type";
+import { ChartData } from "./location-type";
 
 interface VehicleSubscriptionPayload {
   account_uuid: string;
@@ -162,5 +162,43 @@ export class VehicleResolver {
       DBInterface.VehicleDebugToDBVehicleDebug(input)
     );
     return true;
+  }
+
+  @Query(_returns => ChartData)
+  async chartData(
+    @Arg("vehicleID") vehicle_uuid: string,
+    @Arg("locationID") location_uuid: string,
+    @Ctx() context: IContext
+  ): Promise<ChartData> {
+    const vehicle = await context.db.getVehicle(
+      vehicle_uuid,
+      context.accountUUID
+    );
+
+    const location = await context.db.getLocation(
+      location_uuid,
+      context.accountUUID
+    );
+
+    const stats = await context.logic.currentStats(vehicle_uuid, location_uuid);
+    const averagePrice =
+      stats.weekly_avg7_price +
+      (stats.weekly_avg7_price - stats.weekly_avg21_price) / 2;
+
+    const chartData = await context.db.getChartData(location_uuid, 48);
+    return {
+      locationID: location.location_uuid,
+      locationName: location.name,
+      vehicleID: vehicle.vehicle_uuid,
+      batteryLevel: vehicle.level,
+      thresholdPrice: Math.trunc((averagePrice * stats.threshold) / 100),
+      levelChargeTime: stats.level_charge_time,
+      prices: chartData.map(f => ({ startAt: f.ts, price: f.price })),
+      chargePlan:
+        (vehicle.charge_plan && vehicle.charge_plan.map(ChargePlanToJS)) ||
+        null,
+      minimumLevel: vehicle.minimum_charge,
+      maximumLevel: vehicle.maximum_charge
+    };
   }
 }

@@ -1,19 +1,19 @@
 /**
- * @file Location API resolver for smartcharge.dev project
+ * @file GraphQL API Location resolver for smartcharge.dev project
  * @author Fredrik Lidström
  * @copyright 2019 Fredrik Lidström
  * @license MIT (MIT)
  */
 
 import { Resolver, Query, Ctx, Arg, Mutation } from "type-graphql";
-import { IContext } from "@server/gql-api";
+import { IContext } from "@server/gql/api";
 import { DBInterface, INTERNAL_SERVICE_UUID } from "@server/db-interface";
 import {
-  Location,
   UpdatePriceInput,
   NewLocationInput,
-  UpdateLocationInput
-} from "@shared/gql-types";
+  UpdateLocationInput,
+  Location
+} from "./location-type";
 
 @Resolver()
 export class LocationResolver {
@@ -72,6 +72,7 @@ export class LocationResolver {
       )
     );
   }
+
   @Mutation(_returns => Location)
   async updateLocation(
     @Arg("input") input: UpdateLocationInput,

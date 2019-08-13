@@ -19,17 +19,13 @@ import cors from "cors";
 import compression from "compression";
 import path from "path";
 import { log, LogLevel } from "@shared/utils";
-import gqlSchema, { IContext } from "./gql-api";
+import gqlSchema, { IContext } from "./gql/api";
 import { DBInterface } from "./db-interface";
 import { Logic } from "./logic";
 import { Command } from "commander";
 
 import config from "@shared/smartcharge-config";
-import {
-  ApolloServer,
-  ApolloError,
-  AuthenticationError
-} from "apollo-server-express";
+import { ApolloServer, AuthenticationError } from "apollo-server-express";
 import { DBAccount } from "./db-schema";
 
 const APP_NAME = `smartcharge-server`;

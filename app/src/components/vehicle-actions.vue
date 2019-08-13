@@ -134,7 +134,6 @@
 import { strict as assert } from "assert";
 
 import { Component, Vue, Prop } from "vue-property-decorator";
-import { Vehicle, Action } from "@shared/gql-types";
 import { gql } from "apollo-boost";
 import { AgentAction } from "@providers/provider-agent";
 import apollo from "@app/plugins/apollo";
@@ -143,6 +142,7 @@ import { VueConstructor } from "vue";
 import VehicleSettings from "./vehicle-settings.vue";
 import eventBus from "@app/plugins/event-bus";
 import deepmerge from "deepmerge";
+import { Action, Vehicle } from "@server/gql/vehicle-type";
 
 @Component({
   apollo: {
@@ -305,11 +305,10 @@ export default class VehicleActions extends Vue {
   async save() {
     this.saving = true;
     this.changed = false;
-    /* await apollo.updateVehicle({
-      id:this.vehicle.id,
+    await apollo.updateVehicle({
+      id: this.vehicle.id,
       ...this.unsavedData
-    });*/
-    await delay(5000);
+    });
     this.saving = false;
   }
 }</script
