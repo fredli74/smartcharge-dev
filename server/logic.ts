@@ -1016,18 +1016,18 @@ export class Logic {
             [vehicle.vehicle_uuid]
           );
         } else {
-          const tripCharge = Math.min(trip.level, vehicle.maximum_charge);
+          const tripLevel = Math.min(trip.level, vehicle.maximum_charge);
           const topupTime = await this.chargeDuration(
             vehicle.vehicle_uuid,
             vehicle.location_uuid,
-            tripCharge,
+            tripLevel,
             trip.level
           );
           const topupStart = trip.time.getTime() - topupTime - TRIP_TOPUP_TIME;
 
           const p = await this.generateChargePlan(
             vehicle,
-            tripCharge,
+            tripLevel,
             topupStart,
             ChargeType.trip,
             `upcoming trip`
@@ -1046,9 +1046,11 @@ export class Logic {
               this.setSmartStatus(
                 vehicle,
                 (vehicle.connected
-                  ? `Trip charging to `
-                  : `Connect charger to charge to `) +
-                  `${trip.level}% (est. ${prettyTime(topupTime / 1e3)})`
+                  ? `Trip charging `
+                  : `Connect charger to charge `) +
+                  `from ${tripLevel}% to ${trip.level}% (est. ${prettyTime(
+                    topupTime / 1e3
+                  )})`
               );
             }
           }
