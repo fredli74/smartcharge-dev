@@ -844,20 +844,31 @@ export class Logic {
     );
     log(LogLevel.Trace, `stats: ${JSON.stringify(stats)}`);
 
-    let plan: ChargePlan[] = [];
+    let plan: ChargePlan[] = vehicle.charge_plan
+      ? (vehicle.charge_plan as ChargePlan[])
+          .filter(f => {
+            return (
+              f.chargeStart === null &&
+              vehicle.level < vehicle.minimum_charge + 1
+            );
+          })
+          .map(f => ChargePlanToJS(f))
+      : [];
 
     if (!stats || !stats.level_charge_time) {
-      plan.push({
-        chargeStart: null,
-        chargeStop: null,
-        level: vehicle.maximum_charge,
-        chargeType: ChargeType.fill,
-        comment: `learning`
-      }); // run free
+      plan = [
+        {
+          chargeStart: null,
+          chargeStop: null,
+          level: vehicle.maximum_charge,
+          chargeType: ChargeType.fill,
+          comment: `learning`
+        }
+      ]; // run free
       this.setSmartStatus(vehicle, `Smart charging disabled (still learning)`);
     } else {
-      // Emergency charge up to minimum level
       if (vehicle.level < vehicle.minimum_charge) {
+        // Emergency charge up to minimum level
         // new emergency plan needed
         const chargeNeeded = vehicle.minimum_charge - vehicle.level - 0.25; // remove 0.25 because then we likely end on the correct percentage
         const timeNeeded = await this.chargeDuration(
@@ -867,7 +878,6 @@ export class Logic {
           vehicle.minimum_charge
         );
 
-        // Scrap the old plan
         log(
           LogLevel.Trace,
           `emergency charge ${vehicle.vehicle_uuid}: timePerLevel:${
@@ -883,6 +893,7 @@ export class Logic {
             comment: `emergency charge`
           }
         ];
+
         this.setSmartStatus(
           vehicle,
           (vehicle.connected
@@ -890,17 +901,6 @@ export class Logic {
             : `Connect charger to charge to `) +
             `${vehicle.minimum_charge}% (est. ${prettyTime(timeNeeded / 1e3)})`
         );
-      } else {
-        if (vehicle.charge_plan && vehicle.level < vehicle.minimum_charge + 1) {
-          // still on the fence, keep going if needed
-          log(LogLevel.Trace, `keeping emergency charge plan running`);
-          // keep emergency plans that are running
-          for (const f of vehicle.charge_plan) {
-            if (f.chargeStart === null) {
-              plan.push(ChargePlanToJS(f));
-            }
-          }
-        }
       }
 
       if (vehicle.level <= vehicle.maximum_charge) {
@@ -1050,14 +1050,14 @@ export class Logic {
       }
     }
 
-    if (/*vehicle.connected &&*/ plan.length) {
+    if (plan.length) {
       plan = Logic.cleanupPlan(plan);
       log(LogLevel.Trace, plan);
-      await this.db.pg.one(
-        `UPDATE vehicle SET charge_plan = $1:json WHERE vehicle_uuid = $2 RETURNING *;`,
-        [plan.length > 0 ? plan : null, vehicle.vehicle_uuid]
-      );
     }
+    await this.db.pg.one(
+      `UPDATE vehicle SET charge_plan = $1:json WHERE vehicle_uuid = $2 RETURNING *;`,
+      [plan.length > 0 ? plan : null, vehicle.vehicle_uuid]
+    );
   }
 
   public async refreshChargePlan(vehicleUUID?: string, accountUUID?: string) {
