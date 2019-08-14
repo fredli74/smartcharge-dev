@@ -812,7 +812,7 @@ export class Logic {
             chargeStop: new Date(end),
             level: vehicle.maximum_charge,
             chargeType: ChargeType.fill,
-            comment: `price below automatic threshold`
+            comment: `low price`
           };
         } else {
           continue;
@@ -954,35 +954,23 @@ export class Logic {
             `Smart charging disabled (still learning)`
           );
         } else {
-          let guessed = vehicle.minimum_charge + guess.charge;
-          switch (vehicle.anxiety_level) {
-            case 0:
-              guessed += 5; // add 5% to avoid spiraling down
-              break;
-            case 1:
-              guessed += (vehicle.maximum_charge - guessed) / 2; // half way between guessed charge and full
-              break;
-            case 2:
-              guessed = vehicle.maximum_charge;
-              break;
-          }
-          const minimumCharge = Math.min(
+          const minimumLevel = Math.min(
             vehicle.maximum_charge,
-            Math.round(guessed)
+            Math.round(vehicle.minimum_charge + guess.charge + 5) // add 5% to avoid spiraling down
           );
-          const neededCharge = minimumCharge - vehicle.level;
+          const neededCharge = minimumLevel - vehicle.level;
           const before = guess.before * 1e3; // epoch to ms
 
           this.setSmartStatus(
             vehicle,
-            `Predicting battery level ${minimumCharge}% (${
+            `Predicting battery level ${minimumLevel}% (${
               neededCharge > 0 ? Math.round(neededCharge) + "%" : "no"
             } charge) is needed before ${new Date(before).toISOString()}`
           );
 
           log(
             LogLevel.Debug,
-            `Current level: ${vehicle.level}, predicting ${minimumCharge}% (${
+            `Current level: ${vehicle.level}, predicting ${minimumLevel}% (${
               vehicle.minimum_charge
             }+${guess.charge}) is needed before ${new Date(
               before
@@ -991,12 +979,30 @@ export class Logic {
 
           const p = await this.generateChargePlan(
             vehicle,
-            minimumCharge,
+            minimumLevel,
             before,
             ChargeType.routine,
-            `based on past charging routine`
+            `routine charge`
           );
           plan.push(...p);
+
+          if (vehicle.anxiety_level) {
+            const anxietyLevel =
+              vehicle.anxiety_level > 1
+                ? vehicle.maximum_charge
+                : Math.round(
+                    minimumLevel + (vehicle.maximum_charge - minimumLevel) / 2
+                  );
+
+            const p = await this.generateChargePlan(
+              vehicle,
+              anxietyLevel,
+              before,
+              ChargeType.fill,
+              `charge setting`
+            );
+            plan.push(...p);
+          }
         }
       }
 
