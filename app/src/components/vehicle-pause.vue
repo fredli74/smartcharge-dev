@@ -1,30 +1,34 @@
 <template>
-  <v-card flat>
-    <v-card-text>
-      <v-switch
-        v-model="pause"
-        color="primary"
-        inset
-        label="Pause smart charging"
-      ></v-switch>
-      <template v-if="pause">
-        <v-toolbar flat dense dark color="red darken-2">
-          <v-toolbar-title>Paused until</v-toolbar-title><v-spacer />
-          <v-toolbar-title>{{ pausedUntil }}</v-toolbar-title>
-        </v-toolbar>
-        <VueCtkDateTimePicker
-          v-model="pausedUntil"
-          format="YYYY-MM-DD HH:mm"
-          color="#D32F2F"
-          no-button-now
-          no-header
-          inline
-          :min-date="minDate"
-          minute-interval="5"
-        ></VueCtkDateTimePicker>
-      </template>
-    </v-card-text>
-  </v-card>
+  <v-container grid-list-lg class="px-6">
+    <v-layout wrap>
+      <v-flex xs12 sm8 offset-sm4>
+        <v-switch
+          v-model="pause"
+          color="red"
+          inset
+          label="Pause smart charging"
+        ></v-switch>
+      </v-flex>
+    </v-layout>
+
+    <template v-if="pause">
+      <v-toolbar flat dense dark color="red darken-2">
+        <v-toolbar-title>Until</v-toolbar-title><v-spacer />
+        <v-toolbar-title>{{ pausedUntil }}</v-toolbar-title>
+      </v-toolbar>
+      <VueCtkDateTimePicker
+        v-model="pausedUntil"
+        format="YYYY-MM-DD HH:mm"
+        color="#D32F2F"
+        no-button
+        no-button-now
+        no-header
+        inline
+        :min-date="minDate"
+        minute-interval="10"
+      ></VueCtkDateTimePicker>
+    </template>
+  </v-container>
 </template>
 
 <script lang="ts">
@@ -40,7 +44,7 @@ const FORMAT = "YYYY-MM-DD HH:mm";
 export default class VehiclePause extends Vue {
   @Prop({ type: Object, required: true }) readonly vehicle!: Vehicle;
 
-  formData: any = {};
+  formData!: any;
   pause!: boolean;
   pausedUntil!: string;
 
@@ -73,7 +77,7 @@ export default class VehiclePause extends Vue {
 
     if (this.formData.pausedUntil !== shouldBe) {
       this.formData.pausedUntil = shouldBe;
-      this.$emit("changed", 100, this.formData);
+      this.$emit("changed", 1000, this.formData);
     }
   }
 }</script

@@ -31,7 +31,8 @@ import VueApexCharts from "vue-apexcharts";
 import { gql } from "apollo-boost";
 import deepmerge from "deepmerge";
 import { log, LogLevel } from "@shared/utils";
-import { ChartData } from "@server/gql/location-type";
+import { ChartData, Location } from "@server/gql/location-type";
+import { Vehicle } from "@server/gql/vehicle-type";
 
 interface chartDataResult {
   chartData: ChartData;
@@ -161,8 +162,8 @@ const defaultOptions = {
       `,
       variables() {
         return {
-          vehicleID: this.vehicle,
-          locationID: this.location
+          vehicleID: this.vehicle && this.vehicle.id,
+          locationID: this.location && this.location.id
         };
       },
       deep: true,
@@ -176,8 +177,8 @@ const defaultOptions = {
   }
 })
 export default class ChargeChart extends Vue {
-  @Prop(String) readonly vehicle!: string;
-  @Prop(String) readonly location!: string;
+  @Prop({ type: Object, required: true }) readonly vehicle!: Vehicle;
+  @Prop({ type: Object, required: true }) readonly location!: Location;
   chartData?: ChartData;
   chartReady: boolean = false;
   minPrice!: number;
@@ -217,12 +218,20 @@ export default class ChargeChart extends Vue {
     }
   }
 
+  @Watch("vehicle", { deep: true })
+  onVehicleUpdate() {
+    log(LogLevel.Trace, `onVehicleUpdate triggered`);
+    this.$apollo.queries.chartData.refresh();
+  }
+
   @Watch("chartData")
   onChartDataChange() {
     log(LogLevel.Trace, `onChartDataChange triggered`);
     this.fullUpdate = true;
   }
 
+  priceAnnotations: any[] = [];
+  chargeAnnotations: any[] = [];
   annotate() {
     if (
       !this.chartReady ||
@@ -240,76 +249,13 @@ export default class ChargeChart extends Vue {
       f => new Date(f.startAt).getTime() === thisHour
     );
     if (thisPrice) {
-      pricechart && (pricechart as any).clearAnnotations();
-      chargechart && (chargechart as any).clearAnnotations();
-
-      // Charge fields
-      if (this.chartData.chargePlan) {
-        const chartStart = new Date(this.chartData.prices[0].startAt).getTime();
-        const chartEnd = new Date(
-          this.chartData.prices[this.chartData.prices.length - 1].startAt
-        ).getTime();
-
-        for (const p of this.chartData.chargePlan) {
-          if (!p.chargeStop) {
-            continue;
-          }
-          const to = Math.min(chartEnd, new Date(p.chargeStop).getTime());
-          if (to < Date.now()) {
-            continue;
-          }
-          const from = Math.max(
-            chartStart,
-            p.chargeStart ? new Date(p.chargeStart).getTime() : Date.now()
-          );
-
-          if (to > from) {
-            pricechart &&
-              pricechart.addXaxisAnnotation({
-                x: from,
-                x2: to,
-                strokeDashArray: 0,
-                fillColor: p.chargeType === "fill" ? "#2ec2fa" : "#2e93fa",
-                borderColor: "none",
-                borderWidth: 0,
-                opacity: 0.2,
-                offsetX: 0,
-                offsetY: 0,
-                label: {
-                  borderWidth: 0,
-                  offsetX: 3,
-                  text: p.comment,
-                  style: {
-                    background: "none",
-                    color: "#507faf"
-                  }
-                }
-              });
-            chargechart &&
-              chargechart.addXaxisAnnotation({
-                x: from,
-                x2: to,
-                strokeDashArray: 0,
-                fillColor: p.chargeType === "fill" ? "#2ec2fa" : "#2e93fa",
-                borderColor: "none",
-                borderWidth: 0,
-                opacity: 0.2,
-                offsetX: 0,
-                offsetY: 0,
-                label: {
-                  borderWidth: 0,
-                  text: p.chargeType,
-                  style: {
-                    background: "none",
-                    color: "none"
-                  }
-                }
-              });
-          }
+      if (pricechart) {
+        (pricechart as any).clearAnnotations();
+        for (const a of this.priceAnnotations) {
+          pricechart.addXaxisAnnotation(a);
         }
-      }
 
-      pricechart &&
+        // Annotate current price
         pricechart.addPointAnnotation({
           x: Date.now(),
           y: scalePrice(thisPrice.price),
@@ -345,7 +291,8 @@ export default class ChargeChart extends Vue {
             }
           }
         });
-      pricechart &&
+
+        // Annotate current time
         pricechart.addXaxisAnnotation({
           x: Date.now(),
           strokeDashArray: 0,
@@ -369,31 +316,7 @@ export default class ChargeChart extends Vue {
             }
           }
         });
-      chargechart &&
-        chargechart.addXaxisAnnotation({
-          x: Date.now(),
-          strokeDashArray: 0,
-          borderColor: "#ff0000aa",
-          opacity: 0.1,
-          offsetX: 0,
-          offsetY: 0,
-          label: {
-            borderWidth: 0,
-            text: timeOnly(new Date()),
-            textAnchor: "middle",
-            position: "bottom",
-            orientation: "horizontal",
-            offsetX: 0,
-            offsetY: 14,
-            style: {
-              background: "none",
-              color: "#ff0000aa",
-              fontSize: "12px",
-              cssClass: "apexcharts-xaxis-annotation-label"
-            }
-          }
-        });
-      pricechart &&
+        // Annotate threshold price
         pricechart.addYaxisAnnotation({
           y: scalePrice(this.chartData.thresholdPrice),
           strokeDashArray: [2, 5],
@@ -418,8 +341,40 @@ export default class ChargeChart extends Vue {
             }
           }
         });
-      if (this.minLevel && this.minLevel < this.chartData.minimumLevel) {
-        chargechart &&
+      }
+      if (chargechart) {
+        (chargechart as any).clearAnnotations();
+        for (const a of this.chargeAnnotations) {
+          chargechart.addXaxisAnnotation(a);
+        }
+
+        // Annotate current time
+        chargechart.addXaxisAnnotation({
+          x: Date.now(),
+          strokeDashArray: 0,
+          borderColor: "#ff0000aa",
+          opacity: 0.1,
+          offsetX: 0,
+          offsetY: 0,
+          label: {
+            borderWidth: 0,
+            text: timeOnly(new Date()),
+            textAnchor: "middle",
+            position: "bottom",
+            orientation: "horizontal",
+            offsetX: 0,
+            offsetY: 14,
+            style: {
+              background: "none",
+              color: "#ff0000aa",
+              fontSize: "12px",
+              cssClass: "apexcharts-xaxis-annotation-label"
+            }
+          }
+        });
+
+        // Annotate emergency level zone
+        if (this.minLevel && this.minLevel < this.chartData.minimumLevel) {
           chargechart.addYaxisAnnotation({
             y: this.minLevel,
             y2: this.chartData.minimumLevel,
@@ -439,6 +394,7 @@ export default class ChargeChart extends Vue {
               }
             }
           });
+        }
       }
     }
   }
@@ -479,6 +435,8 @@ export default class ChargeChart extends Vue {
       ).getTime();
       data.push([chartStart, null]);
       data.push([new Date().getTime(), level]);
+      this.priceAnnotations = [];
+      this.chargeAnnotations = [];
       // Simulate charging
       if (this.chartData.chargePlan) {
         for (const c of this.chartData.chargePlan) {
@@ -488,6 +446,7 @@ export default class ChargeChart extends Vue {
             cs = Math.max(cs, new Date(c.chargeStart).getTime());
           }
           let ce = cs + timeNeeded * 1e3;
+
           if (
             c.chargeStop &&
             new Date(c.chargeStop).getTime() - ce <
@@ -506,6 +465,57 @@ export default class ChargeChart extends Vue {
             level + Math.round((ce - cs) / 1e3 / this.chartData.levelChargeTime)
           );
           data.push([ce, level]);
+
+          // Add chart annotations
+          const from = Math.max(
+            chartStart,
+            c.chargeStart ? new Date(c.chargeStart).getTime() : Date.now()
+          );
+          const to = Math.min(
+            chartEnd,
+            c.chargeStop ? new Date(c.chargeStop).getTime() : ce
+          );
+          if (to > from) {
+            this.priceAnnotations.push({
+              x: from,
+              x2: to,
+              strokeDashArray: 0,
+              fillColor: c.chargeType === "fill" ? "#2ec2fa" : "#2e93fa",
+              borderColor: "none",
+              borderWidth: 0,
+              opacity: 0.2,
+              offsetX: 0,
+              offsetY: 0,
+              label: {
+                borderWidth: 0,
+                offsetX: 3,
+                text: c.comment,
+                style: {
+                  background: "none",
+                  color: "#507faf"
+                }
+              }
+            });
+            this.chargeAnnotations.push({
+              x: from,
+              x2: to,
+              strokeDashArray: 0,
+              fillColor: c.chargeType === "fill" ? "#2ec2fa" : "#2e93fa",
+              borderColor: "none",
+              borderWidth: 0,
+              opacity: 0.2,
+              offsetX: 0,
+              offsetY: 0,
+              label: {
+                borderWidth: 0,
+                text: c.chargeType,
+                style: {
+                  background: "none",
+                  color: "none"
+                }
+              }
+            });
+          }
         }
       }
       data.push([chartEnd, level]);
@@ -517,8 +527,14 @@ export default class ChargeChart extends Vue {
         if (p[1] !== null && p[1] < this.minLevel!) this.minLevel = p[1];
         if (p[1] !== null && p[1] > this.maxLevel!) this.maxLevel = p[1];
       }
-      this.minLevel = Math.max(0, Math.floor((this.minLevel - 5) / 10) * 10);
-      this.maxLevel = Math.max(0, Math.ceil((this.maxLevel + 5) / 10) * 10);
+      this.minLevel = Math.min(
+        100,
+        Math.max(0, Math.floor((this.minLevel - 5) / 10) * 10)
+      );
+      this.maxLevel = Math.min(
+        100,
+        Math.max(0, Math.ceil((this.maxLevel + 5) / 10) * 10)
+      );
     } else {
       this.minLevel = 0;
       this.maxLevel = 100;

@@ -29,6 +29,7 @@ import {
   ChargePlanToJS
 } from "./vehicle-type";
 import { ChartData } from "./location-type";
+import { log, LogLevel } from "@shared/utils";
 
 interface VehicleSubscriptionPayload {
   account_uuid: string;
@@ -115,7 +116,7 @@ export class VehicleResolver {
         ? undefined
         : context.accountUUID;
     // verify vehicle ownage
-    console.debug(input);
+    log(LogLevel.Debug, `updateVehicle: ${JSON.stringify(input)}`);
     await context.db.getVehicle(input.id, accountLimiter);
     const result = DBInterface.DBVehicleToVehicle(
       await context.db.updateVehicle(
@@ -130,6 +131,14 @@ export class VehicleResolver {
         input.providerData
       )
     );
+    if (
+      input.minimumLevel !== undefined ||
+      input.maximumLevel !== undefined ||
+      input.anxietyLevel !== undefined ||
+      input.tripSchedule !== undefined
+    ) {
+      await context.logic.refreshChargePlan(input.id);
+    }
     await pubSub.publish(SubscriptionTopic.VehicleUpdate, {
       vehicle_uuid: result.id,
       account_uuid: result.ownerID

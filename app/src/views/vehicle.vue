@@ -79,8 +79,8 @@
           <v-flex sm12>
             <chargeChart
               v-if="vehicle && location"
-              :vehicle="vehicle.id"
-              :location="location.id"
+              :vehicle="vehicle"
+              :location="location"
             ></chargeChart>
           </v-flex>
         </template>
@@ -154,6 +154,13 @@ const vehicleFragment = `id name minimumLevel maximumLevel anxietyLevel tripSche
             data.vehicle.pausedUntil = null;
           }
         }
+        if (data.vehicle && data.vehicle.tripSchedule) {
+          const when = new Date(data.vehicle.tripSchedule.time).getTime();
+          const now = Date.now();
+          if (when + 3600e3 <= now) {
+            data.vehicle.tripSchedule = null;
+          }
+        }
         return data.vehicle;
       },
       watchLoading(isLoading, _countModifier) {
@@ -192,6 +199,13 @@ export default class VehicleVue extends Vue {
         const now = Date.now();
         if (when <= now) {
           this.vehicle.pausedUntil = null;
+        }
+      }
+      if (this.vehicle && this.vehicle.tripSchedule) {
+        const when = new Date(this.vehicle.tripSchedule.time).getTime();
+        const now = Date.now();
+        if (when + 3600e3 <= now) {
+          this.vehicle.tripSchedule = null;
         }
       }
     }, 30e3);
@@ -233,8 +247,6 @@ export default class VehicleVue extends Vue {
 
   @Watch("vehicle", { immediate: true, deep: true })
   onVehicleUpdate(val: Vehicle, oldVal: Vehicle) {
-    console.debug(`val=${val}, oldVal=${oldVal}`);
-
     if (!val) return;
     let prefix = "";
     let suffix = "";

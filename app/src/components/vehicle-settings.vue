@@ -57,15 +57,24 @@
       </v-layout>
 
       <v-layout wrap>
-        <v-flex xs12 sm4> </v-flex
-        ><v-flex xs12 sm8>
+        <v-flex xs12 sm8 offset-sm4>
           <v-switch
             v-model="chargePort"
             color="primary"
             inset
-            label="Auto open charge port"
+            label="Auto charge port"
             persistent-hint
-            hint="Open port after parking if charge is needed"
+            hint="Open after parking if charge is needed"
+          ></v-switch></v-flex
+        ><v-flex xs12 sm8 offset-sm4
+          ><v-switch
+            v-model="climateControl"
+            class="pb-4"
+            color="primary"
+            inset
+            label="Trip Climate Control"
+            persistent-hint
+            hint="Turn on before scheduled trip"
           ></v-switch>
         </v-flex>
       </v-layout>
@@ -168,6 +177,28 @@ export default class VehicleSettings extends Vue {
       this.formData.providerData.auto_port !== value
     ) {
       this.formData.providerData.auto_port = value;
+      this.doChange();
+    }
+  }
+  get climateControl() {
+    if (
+      !this.formData.providerData ||
+      this.formData.providerData.auto_hvac === undefined
+    ) {
+      this.formData.providerData = {
+        auto_hvac: Boolean(
+          this.vehicle.providerData && this.vehicle.providerData.auto_hvac
+        )
+      };
+    }
+    return this.formData.providerData.auto_hvac;
+  }
+  set climateControl(value: boolean) {
+    if (
+      !this.formData.providerData ||
+      this.formData.providerData.auto_hvac !== value
+    ) {
+      this.formData.providerData.auto_hvac = value;
       this.doChange();
     }
   }

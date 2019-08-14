@@ -7,10 +7,10 @@
     <v-dialog
       v-model="dialogShow"
       :fullscreen="$vuetify.breakpoint.xsOnly"
-      :max-width="dialogWidth"
+      max-width="600px"
       ><v-card>
-        <v-toolbar dark color="primary">
-          <v-btn icon dark @click="dialogShow = false">
+        <v-toolbar flat dark color="primary">
+          <v-btn icon @click="dialogShow = false">
             <v-icon>{{
               $vuetify.breakpoint.xsOnly ? "mdi-chevron-left" : "mdi-close"
             }}</v-icon>
@@ -29,9 +29,9 @@
       <template v-slot:activator="{ on }">
         <v-btn
           depressed
+          fab
           :small="smallButton"
           outlined
-          fab
           color=""
           :loading="refreshLoading"
           v-on="on"
@@ -45,9 +45,9 @@
       <template v-slot:activator="{ on }">
         <v-btn
           depressed
+          fab
           :small="smallButton"
           outlined
-          fab
           color=""
           :loading="wakeupLoading"
           v-on="on"
@@ -61,9 +61,9 @@
       <template v-slot:activator="{ on }">
         <v-btn
           depressed
+          fab
           :small="smallButton"
           :outlined="!vehicle.climateControl"
-          fab
           :color="vehicle.climateControl ? 'success' : ''"
           :loading="hvacLoading"
           v-on="on"
@@ -79,10 +79,10 @@
       <template v-slot:activator="{ on }">
         <v-btn
           depressed
-          :small="smallButton"
-          outlined
           fab
-          color=""
+          :small="smallButton"
+          :outlined="!Boolean(vehicle.tripSchedule)"
+          :color="Boolean(vehicle.tripSchedule) ? 'success' : ''"
           v-on="on"
           @click="tripClick()"
           ><v-icon :large="!smallButton">mdi-road-variant</v-icon></v-btn
@@ -94,9 +94,9 @@
       <template v-slot:activator="{ on }">
         <v-btn
           depressed
+          fab
           :small="smallButton"
           :outlined="!Boolean(vehicle.pausedUntil)"
-          fab
           :color="Boolean(vehicle.pausedUntil) ? 'warning' : ''"
           v-on="on"
           @click="pauseClick()"
@@ -109,9 +109,9 @@
       <template v-slot:activator="{ on }">
         <v-btn
           depressed
+          fab
           :small="smallButton"
           outlined
-          fab
           color=""
           v-on="on"
           @click="settingsClick()"
@@ -137,8 +137,13 @@ import eventBus from "@app/plugins/event-bus";
 import deepmerge from "deepmerge";
 import { Action, Vehicle } from "@server/gql/vehicle-type";
 import VehiclePause from "./vehicle-pause.vue";
+import VehicleTrip from "./vehicle-trip.vue";
 
 @Component({
+  components: {
+    VehiclePause,
+    VehicleTrip
+  },
   apollo: {
     $subscribe: {
       actions: {
@@ -167,7 +172,6 @@ import VehiclePause from "./vehicle-pause.vue";
         result({ data }: any) {
           const action = data.actionSubscription as Action;
           assert(action.targetID === this.$route.params.id);
-          console.debug(action);
           if (action.data.error) {
             // Only subscribing for errors to be honest, all other actions
             // are checked in other ways
@@ -199,7 +203,6 @@ export default class VehicleActions extends Vue {
   dialogShow!: boolean;
   dialogContent?: VueConstructor<Vue>;
   dialogTitle?: string;
-  dialogWidth?: string;
 
   data() {
     return {
@@ -211,8 +214,7 @@ export default class VehicleActions extends Vue {
       smallButton: false,
       dialogShow: false,
       dialogContent: undefined,
-      dialogTitle: undefined,
-      dialogWidth: "600px"
+      dialogTitle: undefined
     };
   }
   onResize() {
@@ -271,21 +273,18 @@ export default class VehicleActions extends Vue {
   tripClick() {
     this.dialogShow = true;
     this.dialogTitle = "Trip";
-    this.dialogWidth = "500px";
-    this.dialogContent = VehicleActions;
+    this.dialogContent = VehicleTrip;
     return true;
   }
   pauseClick() {
     this.dialogShow = true;
     this.dialogTitle = "Pause";
-    this.dialogWidth = "500px";
     this.dialogContent = VehiclePause;
     return true;
   }
   settingsClick() {
     this.dialogShow = true;
     this.dialogTitle = "Settings";
-    this.dialogWidth = "600px";
     this.dialogContent = VehicleSettings;
     return true;
   }
@@ -315,4 +314,11 @@ export default class VehicleActions extends Vue {
     this.saving = false;
   }
 }</script
-><style></style>
+><style>
+.time-picker-column-item-text {
+  font-size: 18px !important;
+}
+.datepicker-day-text {
+  font-size: 18px !important;
+}
+</style>

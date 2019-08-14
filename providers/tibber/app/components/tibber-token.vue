@@ -39,7 +39,6 @@ export default class TibberTokenVue extends Vue {
     };
   }
   get properToken(): boolean {
-    console.debug(this.token_input);
     return (
       this.token_input !== undefined &&
       this.token_input.match(/^[0-9a-f]{64}$/) !== null

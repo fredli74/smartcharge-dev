@@ -16,7 +16,6 @@ const components = providers.reduce(
   {} as any
 );
 
-console.debug(components);
 @Component({
   components: components
 })

@@ -513,7 +513,7 @@ export class Logic {
         [location_uuid]
       );
 
-      let threshold = 0.6;
+      let threshold = 0.9;
 
       interface HistoryEntry {
         connected_id: number;
@@ -690,10 +690,17 @@ export class Logic {
     function nstop(n: Date | null) {
       return (n && n.getTime()) || Infinity;
     }
+    const chargePrio = {
+      [ChargeType.minimum]: 0,
+      [ChargeType.trip]: 1,
+      [ChargeType.routine]: 2,
+      [ChargeType.fill]: 3
+    };
     plan.sort(
       (a, b) =>
         nstart(a.chargeStart) - nstart(b.chargeStart) ||
-        nstop(a.chargeStop) - nstop(b.chargeStop)
+        nstop(a.chargeStop) - nstop(b.chargeStop) ||
+        chargePrio[a.chargeType] - chargePrio[b.chargeType]
     );
 
     for (let i = 0; i < plan.length - 1; ++i) {
@@ -707,6 +714,7 @@ export class Logic {
           // Merge them
           if (nstop(b.chargeStop) > nstop(a.chargeStop)) {
             a.chargeStop = b.chargeStop;
+            a.level = Math.max(a.level, b.level);
           }
           plan.splice(i + 1, 1);
           --i;
@@ -785,23 +793,26 @@ export class Logic {
         const fullHour = ts + 60 * 60 * 1e3;
         let entry: ChargePlan;
         let end = fullHour;
-        if (price.price <= thresholdPrice) {
-          // Fill'er up
+        let chargeStart = ts < start ? new Date(ts) : new Date(start);
+        if (price.in_range && timeLeft > 0) {
+          if (price.price > thresholdPrice) {
+            end = Math.min(start + timeLeft, before, fullHour);
+          }
           entry = {
-            chargeStart: ts < start ? new Date(ts) : new Date(start),
-            chargeStop: new Date(end),
-            level: vehicle.maximum_charge,
-            chargeType: ChargeType.fill,
-            comment: `price below automatic threshold`
-          };
-        } else if (price.in_range) {
-          end = Math.min(start + timeLeft, before, fullHour);
-          entry = {
-            chargeStart: ts < start ? new Date(ts) : new Date(start),
+            chargeStart: chargeStart,
             chargeStop: new Date(end),
             level: batteryLevel,
             chargeType: chargeType,
             comment: comment
+          };
+        } else if (price.price <= thresholdPrice) {
+          // Fill'er up
+          entry = {
+            chargeStart: chargeStart,
+            chargeStop: new Date(end),
+            level: vehicle.maximum_charge,
+            chargeType: ChargeType.fill,
+            comment: `price below automatic threshold`
           };
         } else {
           continue;

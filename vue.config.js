@@ -22,6 +22,7 @@ module.exports = {
   devServer: {
     proxy: {
       [globals.API_PATH]: {
+        //"https://smartcharge-dev.herokuapp.com",
         target: `http://localhost:${process.env.SERVER_PORT ||
           globals.DEFAULT_PORT}`,
         ws: true
