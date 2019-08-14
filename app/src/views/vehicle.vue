@@ -246,7 +246,7 @@ export default class VehicleVue extends Vue {
   }
 
   @Watch("vehicle", { immediate: true, deep: true })
-  onVehicleUpdate(val: Vehicle, oldVal: Vehicle) {
+  onVehicleUpdate(val: Vehicle, _oldVal: Vehicle) {
     if (!val) return;
     let prefix = "";
     let suffix = "";

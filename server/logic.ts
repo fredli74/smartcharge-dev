@@ -954,9 +954,21 @@ export class Logic {
             `Smart charging disabled (still learning)`
           );
         } else {
+          let guessed = vehicle.minimum_charge + guess.charge;
+          switch (vehicle.anxiety_level) {
+            case 0:
+              guessed += 5; // add 5% to avoid spiraling down
+              break;
+            case 1:
+              guessed += (vehicle.maximum_charge - guessed) / 2; // half way between guessed charge and full
+              break;
+            case 2:
+              guessed = vehicle.maximum_charge;
+              break;
+          }
           const minimumCharge = Math.min(
             vehicle.maximum_charge,
-            Math.round(vehicle.minimum_charge + guess.charge)
+            Math.round(guessed)
           );
           const neededCharge = minimumCharge - vehicle.level;
           const before = guess.before * 1e3; // epoch to ms
