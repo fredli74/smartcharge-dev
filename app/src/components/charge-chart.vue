@@ -1,27 +1,37 @@
 <template>
-  <div>
-    <apex
-      v-if="chartData && chartData.prices.length > 1"
-      ref="pricechart"
-      class="chart"
-      height="400"
-      :options="priceoptions"
-      :series="priceseries"
-    ></apex>
-    <apex
-      v-if="
-        chartData && chartData.prices.length > 1 && chartData.levelChargeTime
-      "
-      ref="chargechart"
-      class="chart"
-      height="200"
-      :options="chargeoptions"
-      :series="chargeseries"
-    ></apex>
-    <p v-if="chartData && !(chartData.prices.length > 1)">
-      No price data
-    </p>
-  </div>
+  <v-container fluid>
+    <v-layout v-resize="onResize" row justify-space-around>
+      <v-flex xs12 xl6>
+        <apex
+          v-if="chartData && chartData.prices.length > 1"
+          id="pricechart"
+          ref="pricechart"
+          class="chart"
+          height="400px"
+          :options="priceoptions"
+          :series="priceseries"
+        ></apex
+      ></v-flex>
+      <v-flex xs12 xl6>
+        <apex
+          v-if="
+            chartData &&
+              chartData.prices.length > 1 &&
+              chartData.levelChargeTime
+          "
+          id="chargechart"
+          ref="chargechart"
+          class="chart"
+          :height="chargeHeight"
+          :options="chargeoptions"
+          :series="chargeseries"
+        ></apex
+      ></v-flex>
+      <p v-if="chartData && !(chartData.prices.length > 1)">
+        No price data
+      </p>
+    </v-layout>
+  </v-container>
 </template>
 
 <script lang="ts">
@@ -186,6 +196,7 @@ export default class ChargeChart extends Vue {
   minLevel!: number;
   maxLevel!: number;
   fullUpdate!: boolean;
+  chargeHeight!: string;
 
   data() {
     return {
@@ -194,10 +205,14 @@ export default class ChargeChart extends Vue {
       maxPrice: 1,
       minLevel: 0,
       maxLevel: 100,
-      fullUpdate: false
+      fullUpdate: false,
+      chargeHeight: "250px"
     };
   }
   mounted() {}
+  onResize() {
+    this.chargeHeight = window.innerWidth > 1904 ? "400px" : "250px";
+  }
 
   timer?: any;
   created() {

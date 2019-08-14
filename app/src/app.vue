@@ -1,6 +1,6 @@
 <template>
   <v-app>
-    <v-app-bar app color="secondary" dark>
+    <v-app-bar app hide-on-scroll flat color="secondary" dark>
       <v-toolbar-title class="headline text-uppercase">
         <router-link id="homelink" to="/">
           <span>smartcharge.d</span>
@@ -15,7 +15,7 @@
     <v-content>
       <v-container fluid>
         <v-layout row justify-space-around>
-          <v-flex xs12 sm10 md8>
+          <v-flex xs12>
             <v-alert v-model="error.show" dismissible type="error" prominent>{{
               error.message
             }}</v-alert>
@@ -105,7 +105,7 @@ export default class App extends Vue {
 
 <style>
 body {
-  font-size: 20px;
+  font-size: calc(16px + 1vw);
 }
 a#homelink {
   color: white;

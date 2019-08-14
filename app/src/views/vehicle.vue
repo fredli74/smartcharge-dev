@@ -3,12 +3,13 @@
     <div v-if="loading">
       <v-progress-linear indeterminate color="primary"></v-progress-linear>
     </div>
-    <v-container v-if="vehicle !== undefined" grid-list-md text-center>
+    <v-container v-if="vehicle !== undefined" grid-list-md text-center fluid>
       <v-layout row align-center>
         <v-flex sm6 xs12>
           <h2>{{ vehicle.name }}</h2>
-          <h4>{{ prettyStatus }}</h4>
+          <h5>{{ prettyStatus }}</h5>
           <RelativeTime
+            style="font-size:0.7em; font-weight:light"
             :hide-below="15"
             :units="1"
             :time="new Date(vehicle.updated)"
@@ -17,13 +18,17 @@
               ago
             </template>
           </RelativeTime>
-          <div v-if="Boolean(vehicle.pausedUntil)" class="pt-4">
+          <div
+            v-if="Boolean(vehicle.pausedUntil)"
+            class="pt-4"
+            style="font-size:0.9em"
+          >
             Smart charge paused until
             <div class="text-no-wrap">{{ pauseText }}</div>
           </div>
         </v-flex>
-        <v-flex sm6 class="hidden-xs-only">
-          <v-img max-height="200" :src="vehiclePicture" />
+        <v-flex sm6 class="d-none d-sm-flex">
+          <v-img id="vehicle-picture" :src="vehiclePicture" />
         </v-flex>
         <v-flex v-if="vehicle !== undefined" sm6 xs12 class="mb-5">
           <VehicleActions :vehicle="vehicle"></VehicleActions>
@@ -73,7 +78,7 @@
           </v-card-actions>
         </v-flex>
         <template v-else>
-          <v-flex sm12 class="caption">
+          <v-flex sm12 class="body-2">
             {{ replaceISOtime(vehicle.smartStatus) }}
           </v-flex>
           <v-flex sm12>
@@ -371,6 +376,17 @@ export default class VehicleVue extends Vue {
   border-color: #909090;
 }
 #vehicle-actions > button {
-  margin-left: 12px;
+  margin-left: 14px;
+}
+#vehicle-picture {
+  margin: -10% 0;
+}
+#vvehicle-picture {
+  max-height: 200px;
+}
+@media (min-width: 1904px) {
+  #vvehicle-picture {
+    max-height: 300px;
+  }
 }
 </style>
