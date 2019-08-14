@@ -492,6 +492,8 @@ export class TeslaAgent extends AbstractAgent {
             }
           }
         } else if (
+          job.state.data.providerData &&
+          job.state.data.providerData.auto_port &&
           job.state.parked !== undefined &&
           job.state.data.chargePlan &&
           job.state.data.chargePlan.findIndex(
@@ -522,25 +524,37 @@ export class TeslaAgent extends AbstractAgent {
           }
         }
 
+        // Should we turn on hvac?
         if (
-          job.state.data.climateControl === false &&
-          job.state.data.tripSchedule && // only control hvac if we have a trip
-          now >
-            job.state.data.tripSchedule.time.getTime() -
-              config.HVAC_ON_BEFORE_TRIP && // start hvac before trip
-          now <
-            job.state.data.tripSchedule.time.getTime() +
-              config.HVAC_ON_BEFORE_TRIP
+          job.state.data.providerData &&
+          job.state.data.providerData.auto_hvac &&
+          job.state.data.tripSchedule
         ) {
-          // only keep it on for so long
-          log(
-            LogLevel.Info,
-            `Starting climate control on ${job.state.data.name}`
-          );
-          await teslaAPI.climateOn(
-            job.providerData.sid,
-            job.providerData.token
-          );
+          const on =
+            now >
+              job.state.data.tripSchedule.time.getTime() -
+                config.HVAC_ON_BEFORE_TRIP && // start hvac before trip
+            now <
+              job.state.data.tripSchedule.time.getTime() +
+                config.HVAC_ON_BEFORE_TRIP; // only keep it on for so long
+
+          if (on && !job.state.data.climateControl) {
+            log(
+              LogLevel.Info,
+              `Starting climate control on ${job.state.data.name}`
+            );
+            await this[AgentAction.ClimateControl](job, {
+              data: { enable: true }
+            } as any);
+          } else if (!on && job.state.data.climateControl) {
+            log(
+              LogLevel.Info,
+              `Stopping climate control on ${job.state.data.name}`
+            );
+            await this[AgentAction.ClimateControl](job, {
+              data: { enable: false }
+            } as any);
+          }
         }
       }
     } catch (err) {
