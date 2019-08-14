@@ -74,7 +74,7 @@
         </v-flex>
         <template v-else>
           <v-flex sm12 class="caption">
-            {{ vehicle.smartStatus }}
+            {{ replaceISOtime(vehicle.smartStatus) }}
           </v-flex>
           <v-flex sm12>
             <chargeChart
@@ -313,6 +313,13 @@ export default class VehicleVue extends Vue {
       this.vehicle &&
       this.vehicle.pausedUntil &&
       moment(this.vehicle.pausedUntil).format("YYYY-MM-DD HH:mm")
+    );
+  }
+
+  replaceISOtime(s: string): string {
+    return s.replace(
+      /\d{4}-[01]\d-[0-3]\dT[0-2]\d:[0-5]\d:[0-5]\d\.\d+([+-][0-2]\d:[0-5]\d|Z)/g,
+      f => moment(f).format("YYYY-MM-DD HH:mm")
     );
   }
 }
