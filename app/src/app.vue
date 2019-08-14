@@ -7,7 +7,7 @@
           <span class="font-weight-light">ev</span>
         </router-link>
       </v-toolbar-title>
-      <span id="version">{{ version }}</span>
+      <span id="version" @click="appReload()">{{ version }}</span>
       <v-spacer></v-spacer>
       <v-btn v-if="authorized" text @click="logout">logout</v-btn>
       <v-btn v-else color="primary" @click="login">login</v-btn>
@@ -99,6 +99,10 @@ export default class App extends Vue {
     return typeof COMMIT_HASH === "string"
       ? `(#${COMMIT_HASH.substr(0, 6)})`
       : "";
+  }
+
+  appReload() {
+    window.location.reload(true);
   }
 }
 </script>
