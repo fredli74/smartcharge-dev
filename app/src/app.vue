@@ -1,6 +1,6 @@
 <template>
   <v-app>
-    <v-app-bar app hide-on-scroll flat color="secondary" dark>
+    <v-app-bar app flat fixed="false" color="secondary" dark>
       <v-toolbar-title class="headline text-uppercase">
         <router-link id="homelink" to="/">
           <span>smartcharge.d</span>
