@@ -1,6 +1,6 @@
 <template>
   <v-app>
-    <v-app-bar app flat fixed="false" color="secondary" dark>
+    <v-app-bar id="app-bar" app flat color="secondary" dark>
       <v-toolbar-title class="headline text-uppercase">
         <router-link id="homelink" to="/">
           <span>smartcharge.d</span>
@@ -12,7 +12,7 @@
       <v-btn v-if="authorized" text @click="logout">logout</v-btn>
       <v-btn v-else color="primary" @click="login">login</v-btn>
     </v-app-bar>
-    <v-content>
+    <v-content id="app-content">
       <v-container fluid>
         <v-layout row justify-space-around>
           <v-flex xs12>
@@ -134,6 +134,14 @@ a#homelink {
 @media (min-width: 1024px) {
   .xvga-limit {
     max-width: 1024px !important;
+  }
+}
+@media (min-width: 600px) {
+  #app-bar {
+    position: relative !important;
+  }
+  #app-content {
+    padding: 0 0 12px !important;
   }
 }
 </style>
