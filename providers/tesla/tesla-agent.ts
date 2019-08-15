@@ -80,11 +80,11 @@ export class TeslaAgent extends AbstractAgent {
 
       // Add new codes
       const colors: any = {
-        MidnightSilver: "PMNG"
+        MidnightSilver: "PMNG",
+        DeepBlue: "PPSB"
         // TODO: Add more information
         // Solid Black: "PBSB",
         // Red Multi-Coat : "PPMR",
-        // Deep Blue Metallic : "PPSB",
         // Pearl White Multi-Coat : "PPSW",
         // Silver Metallic : "PMSS",
       };
@@ -97,7 +97,8 @@ export class TeslaAgent extends AbstractAgent {
       option_codes.push(roofColors[data.vehicle_config.roof_color] || "RF3G");
 
       const wheels: any = {
-        Pinwheel18: "W38B"
+        Pinwheel18: "W38B",
+        Stiletto19: "W39B"
         // TODO: Add more information
         // 19" Sport Wheels: "W39B", // default
         // 20" Sport Wheels: "W32B"
