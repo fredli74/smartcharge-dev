@@ -25,7 +25,7 @@ import {
   ScheduleToJS
 } from "./gql/vehicle-type";
 
-const TRIP_TOPUP_TIME = 15 * 60e3; // 15 minutes before trip time
+const TRIP_TOPUP_MARGIN = 15 * 60e3; // 15 minutes before trip time
 
 export class Logic {
   constructor(private db: DBInterface) {}
@@ -1023,7 +1023,8 @@ export class Logic {
             tripLevel,
             trip.level
           );
-          const topupStart = trip.time.getTime() - topupTime - TRIP_TOPUP_TIME;
+          const topupStart =
+            trip.time.getTime() - TRIP_TOPUP_MARGIN - topupTime;
 
           const p = await this.generateChargePlan(
             vehicle,

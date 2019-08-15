@@ -139,6 +139,7 @@ a#homelink {
 @media (min-width: 600px) {
   #app-bar {
     position: relative !important;
+    flex: none;
   }
   #app-content {
     padding: 0 0 12px !important;
