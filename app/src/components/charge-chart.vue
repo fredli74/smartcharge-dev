@@ -42,7 +42,7 @@ import { gql } from "apollo-boost";
 import deepmerge from "deepmerge";
 import { log, LogLevel } from "@shared/utils";
 import { ChartData, Location } from "@server/gql/location-type";
-import { Vehicle } from "@server/gql/vehicle-type";
+import { Vehicle, ChargeType } from "@server/gql/vehicle-type";
 
 interface chartDataResult {
   chartData: ChartData;
@@ -464,7 +464,7 @@ export default class ChargeChart extends Vue {
 
           if (
             c.chargeStop &&
-            new Date(c.chargeStop).getTime() - ce <
+            ce - new Date(c.chargeStop).getTime() >
               this.chartData.levelChargeTime * 1e3
           ) {
             ce = new Date(c.chargeStop).getTime();
@@ -495,7 +495,11 @@ export default class ChargeChart extends Vue {
               x: from,
               x2: to,
               strokeDashArray: 0,
-              fillColor: c.chargeType === "fill" ? "#2ec2fa" : "#2e93fa",
+              fillColor:
+                c.chargeType === ChargeType.fill ||
+                c.chargeType === ChargeType.prefered
+                  ? "#2ec2fa"
+                  : "#2e93fa",
               borderColor: "none",
               borderWidth: 0,
               opacity: 0.2,
@@ -515,7 +519,11 @@ export default class ChargeChart extends Vue {
               x: from,
               x2: to,
               strokeDashArray: 0,
-              fillColor: c.chargeType === "fill" ? "#2ec2fa" : "#2e93fa",
+              fillColor:
+                c.chargeType === ChargeType.fill ||
+                c.chargeType === ChargeType.prefered
+                  ? "#2ec2fa"
+                  : "#2e93fa",
               borderColor: "none",
               borderWidth: 0,
               opacity: 0.2,

@@ -460,4 +460,48 @@ export class DBInterface {
       [location_uuid, `${interval} hours`]
     );
   }
+
+  public async setChargeCurve(
+    vehicle_uuid: string,
+    charge_id: number,
+    level: number,
+    duration: number,
+    outside_deci_temperature: number | undefined,
+    energy_used: number | undefined,
+    energy_added: number | undefined
+  ) {
+    const input: any = {
+      vehicle_uuid,
+      charge_id,
+      level,
+      duration
+    };
+    if (outside_deci_temperature !== undefined) {
+      input.outside_deci_temperature = outside_deci_temperature;
+    }
+    if (energy_used !== undefined) {
+      input.energy_used = energy_used;
+    }
+    if (energy_added !== undefined) {
+      input.energy_added = energy_added;
+    }
+
+    return this.pg.one(
+      `INSERT INTO charge_curve($[this:name]) VALUES ($[this:csv])
+          ON CONFLICT(vehicle_uuid,level,charge_id) DO UPDATE SET
+          outside_deci_temperature = EXCLUDED.outside_deci_temperature,
+          duration = EXCLUDED.duration,
+          energy_used = EXCLUDED.energy_used,
+          energy_added = EXCLUDED.energy_added
+        RETURNING *;`,
+      input
+    );
+  }
+  public async chargeCalibration(vehicle_uuid: string, charge_id: number) {
+    return (await this.pg.one(
+      `SELECT MAX(level) as level FROM charge a JOIN charge_curve b ON(a.charge_id = b.charge_id)
+      WHERE a.vehicle_uuid = $1 AND a.location_uuid = (SELECT location_uuid FROM charge c WHERE c.charge_id = $2);`,
+      [vehicle_uuid, charge_id]
+    )).level;
+  }
 }

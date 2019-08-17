@@ -269,17 +269,14 @@ export class Logic {
                     2
                   )}kWh in ${(duration / 60.0).toFixed(2)}m`
                 );
-                await this.db.pg.none(
-                  `INSERT INTO charge_curve($[this:name]) VALUES ($[this:csv]);`,
-                  {
-                    vehicle_uuid: input.id,
-                    level: current.start_level,
-                    charge_id: vehicle.charge_id,
-                    outside_deci_temperature: avgTemp,
-                    duration: duration,
-                    energy_used: energyUsed,
-                    energy_added: energyAdded
-                  }
+                await this.db.setChargeCurve(
+                  input.id,
+                  vehicle.charge_id,
+                  current.start_level,
+                  duration,
+                  avgTemp,
+                  energyUsed,
+                  energyAdded
                 );
               }
               await this.db.pg.none(
@@ -652,7 +649,7 @@ export class Logic {
     }[] = await this.db.pg.manyOrNone(
       `SELECT level, percentile_cont(0.5) WITHIN GROUP(ORDER BY duration) AS seconds
             FROM charge a JOIN charge_curve b ON(a.charge_id = b.charge_id)
-            WHERE a.vehicle_uuid = $1 AND a.location_uuid = $2 GROUP BY level;`,
+            WHERE a.vehicle_uuid = $1 AND a.location_uuid = $2 GROUP BY level ORDER BY level;`,
       [vehicleUUID, locationUUID]
     );
     let current;
@@ -667,7 +664,8 @@ export class Logic {
         (await this.db.pg.one(
           `SELECT AVG(60.0 * estimate / (target_level-end_level)) FROM charge WHERE end_level < target_level AND vehicle_uuid = $1 AND location_uuid = $2;`,
           [vehicleUUID, locationUUID]
-        )).avg;
+        )).avg ||
+        20 * 60; // 20 min default for new charge
     }
     assert(current !== undefined && current !== null);
 
@@ -680,6 +678,7 @@ export class Logic {
         sum += level < to ? current : current * 0.75; // remove 25% of the last % to not overshoot
       }
     }
+
     return sum * 1e3;
   }
 
@@ -691,10 +690,12 @@ export class Logic {
       return (n && n.getTime()) || Infinity;
     }
     const chargePrio = {
-      [ChargeType.minimum]: 0,
-      [ChargeType.trip]: 1,
-      [ChargeType.routine]: 2,
-      [ChargeType.fill]: 3
+      [ChargeType.calibrate]: 0,
+      [ChargeType.minimum]: 1,
+      [ChargeType.trip]: 2,
+      [ChargeType.routine]: 3,
+      [ChargeType.prefered]: 4,
+      [ChargeType.fill]: 5
     };
     plan.sort(
       (a, b) =>
@@ -744,13 +745,6 @@ export class Logic {
     comment: string
   ): Promise<ChargePlan[]> {
     assert(vehicle.location_uuid !== undefined);
-    const stats = await this.currentStats(
-      vehicle.vehicle_uuid,
-      vehicle.location_uuid
-    );
-    const averagePrice =
-      stats.weekly_avg7_price +
-      (stats.weekly_avg7_price - stats.weekly_avg21_price) / 2;
     const now = Date.now();
 
     let plan: ChargePlan[] = [];
@@ -762,19 +756,38 @@ export class Logic {
       batteryLevel
     );
 
-    // Get our future price map
-    const priceMap: {
-      ts: Date;
-      price: number;
-      in_range: boolean;
-    }[] = await this.db.pg.manyOrNone(
-      `SELECT ts, price, case when ts < $2 then true else false end as in_range FROM location_data WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' ORDER BY in_range desc, price`,
-      [vehicle.location_uuid, new Date(before)]
-    );
+    if (timeNeeded > 0) {
+      // Get our future price map
+      const priceMap: {
+        ts: Date;
+        price: number;
+        in_range: boolean;
+      }[] = await this.db.pg.manyOrNone(
+        `SELECT ts, price FROM location_data WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' AND ts < $2 ORDER BY price`,
+        [vehicle.location_uuid, new Date(before)]
+      );
 
-    if (priceMap.length <= 0) {
-      // no prices? then just charge
-      if (timeNeeded > 0) {
+      if (priceMap.length > 0) {
+        let timeLeft = timeNeeded;
+        for (const price of priceMap) {
+          if (timeLeft <= 0) break;
+          const ts = price.ts.getTime();
+          const start = ts < now ? now : ts;
+          const fullHour = ts + 60 * 60 * 1e3;
+          let end = Math.min(start + timeLeft, before, fullHour);
+          let chargeStart = ts < start ? new Date(ts) : new Date(start);
+          plan.push({
+            chargeStart: chargeStart,
+            chargeStop: new Date(end),
+            level: batteryLevel,
+            chargeType: chargeType,
+            comment: comment
+          });
+          timeLeft -= end - start;
+        }
+        log(LogLevel.Trace, priceMap);
+      } else {
+        // no prices? then just charge
         log(LogLevel.Debug, `No price data exists, will just wing it!`);
         plan.push({
           chargeStart: null,
@@ -784,44 +797,46 @@ export class Logic {
           comment: `no price data`
         });
       }
-    } else {
-      let timeLeft = timeNeeded;
-      const thresholdPrice = (averagePrice * stats.threshold) / 100;
+    }
+    return plan;
+  }
+
+  private async lowPriceFill(vehicle: DBVehicle): Promise<ChargePlan[]> {
+    assert(vehicle.location_uuid !== undefined);
+    const stats = await this.currentStats(
+      vehicle.vehicle_uuid,
+      vehicle.location_uuid
+    );
+    const averagePrice =
+      stats.weekly_avg7_price +
+      (stats.weekly_avg7_price - stats.weekly_avg21_price) / 2;
+    const now = Date.now();
+
+    const thresholdPrice = (averagePrice * stats.threshold) / 100;
+
+    let plan: ChargePlan[] = [];
+
+    // Get our future price map
+    const priceMap: {
+      ts: Date;
+      price: number;
+    }[] = await this.db.pg.manyOrNone(
+      `SELECT ts, price FROM location_data WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' AND price <= $2 ORDER BY ts`,
+      [vehicle.location_uuid, thresholdPrice]
+    );
+
+    if (priceMap.length > 0) {
       for (const price of priceMap) {
         const ts = price.ts.getTime();
         const start = ts < now ? now : ts;
-        const fullHour = ts + 60 * 60 * 1e3;
-        let entry: ChargePlan;
-        let end = fullHour;
-        let chargeStart = ts < start ? new Date(ts) : new Date(start);
-        if (price.in_range && timeLeft > 0) {
-          if (price.price > thresholdPrice) {
-            end = Math.min(start + timeLeft, before, fullHour);
-          }
-          entry = {
-            chargeStart: chargeStart,
-            chargeStop: new Date(end),
-            level: batteryLevel,
-            chargeType: chargeType,
-            comment: comment
-          };
-        } else if (price.price <= thresholdPrice) {
-          // Fill'er up
-          entry = {
-            chargeStart: chargeStart,
-            chargeStop: new Date(end),
-            level: vehicle.maximum_charge,
-            chargeType: ChargeType.fill,
-            comment: `low price`
-          };
-        } else {
-          continue;
-        }
-
-        if (end > start) {
-          plan.push(entry);
-          timeLeft -= end - start;
-        }
+        // Fill'er up
+        plan.push({
+          chargeStart: ts < start ? new Date(ts) : new Date(start),
+          chargeStop: new Date(ts + 60 * 60 * 1e3),
+          level: vehicle.maximum_charge,
+          chargeType: ChargeType.fill,
+          comment: `low price`
+        });
       }
       log(LogLevel.Trace, priceMap);
     }
@@ -855,7 +870,24 @@ export class Logic {
           .map(f => ChargePlanToJS(f))
       : [];
 
-    if (!stats || !stats.level_charge_time) {
+    // Check charge calibration
+    const maxLevel = (await this.db.pg.one(
+      `SELECT MAX(level) as max_level FROM charge a JOIN charge_curve b ON(a.charge_id = b.charge_id)
+          WHERE a.vehicle_uuid = $1 AND a.location_uuid = $2;`,
+      [vehicle.vehicle_uuid, vehicle.location_uuid]
+    )).max_level;
+    if (vehicle.level < vehicle.maximum_charge && (maxLevel || 0) < 100) {
+      plan = [
+        {
+          chargeStart: null,
+          chargeStop: null,
+          level: 100,
+          chargeType: ChargeType.calibrate,
+          comment: "Charge calibration"
+        }
+      ];
+      this.setSmartStatus(vehicle, `Charge calibration in progress`);
+    } else if (!stats || !stats.level_charge_time) {
       plan = [
         {
           chargeStart: null,
@@ -998,7 +1030,7 @@ export class Logic {
               vehicle,
               anxietyLevel,
               before,
-              ChargeType.fill,
+              ChargeType.prefered,
               `charge setting`
             );
             plan.push(...p);
@@ -1056,6 +1088,12 @@ export class Logic {
             }
           }
         }
+      }
+
+      // Low price fill charging
+      {
+        const p = await this.lowPriceFill(vehicle);
+        plan.push(...p);
       }
     }
 

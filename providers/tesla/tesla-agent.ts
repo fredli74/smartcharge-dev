@@ -44,6 +44,11 @@ interface TeslaAgentJob extends AgentJob {
     portOpen?: boolean;
     parked?: number;
     triedOpen?: number;
+    calibrating?: {
+      next: number;
+      level: number;
+      duration: number;
+    };
   };
 }
 
@@ -293,6 +298,37 @@ export class TeslaAgent extends AbstractAgent {
         }
         await this.scClient.updateVehicleData(input);
         await this.setOptionCodes(job, data);
+
+        // Charge calibration
+        if (job.state.calibrating && now > job.state.calibrating.next) {
+          const thisLimit = data.charge_state.charge_limit_soc;
+          const lastLimit = job.state.calibrating.level;
+          const levelNow = data.charge_state.usable_battery_level;
+          if (thisLimit <= levelNow) {
+            job.state.calibrating.level = levelNow;
+            job.state.calibrating.duration = 0;
+          } else if (thisLimit > lastLimit) {
+            const thisTime = data.charge_state.time_to_full_charge * 3600;
+            const lastDuration = job.state.calibrating.duration;
+            let duration = thisTime / (thisLimit - levelNow);
+
+            if (lastDuration > 0 && levelNow < lastLimit) {
+              const lastTime =
+                (lastLimit - levelNow) * job.state.calibrating.duration;
+              duration = Math.max(
+                duration,
+                (thisTime - lastTime) / (thisLimit - lastLimit)
+              );
+            }
+            job.state.calibrating.level = thisLimit;
+            job.state.calibrating.duration = duration;
+            await this.scClient.chargeCalibration(
+              job.subjectID,
+              job.state.calibrating.level,
+              Math.round(job.state.calibrating.duration)
+            );
+          }
+        }
       } else {
         // Poll vehicle list to avoid keeping it awake
         const data = (await teslaAPI.listVehicle(
@@ -465,7 +501,37 @@ export class TeslaAgent extends AbstractAgent {
                 job.state.pollstate = "polling";
               }
 
-              const chargeto = Math.max(50, shouldCharge!.level); // Minimum allowed charge for Tesla is 50
+              let setLevel = shouldCharge!.level;
+              if (shouldCharge!.chargeType === ChargeType.calibrate) {
+                if (!job.state.calibrating) {
+                  job.state.calibrating = {
+                    level:
+                      (await this.scClient.chargeCalibration(
+                        job.subjectID,
+                        undefined,
+                        undefined
+                      )) || job.state.data.batteryLevel,
+                    duration: 0,
+                    next: now + 30e3
+                  };
+                }
+                if (job.state.calibrating.level === shouldCharge!.level) {
+                  // done!
+                  setLevel = 0;
+                } else {
+                  setLevel = job.state.calibrating.level + 1;
+                  if (job.state.chargeLimit !== setLevel) {
+                    job.state.calibrating.next = Math.max(
+                      now + 15e3,
+                      job.state.calibrating.next
+                    );
+                  }
+                }
+              } else if (job.state.calibrating) {
+                delete job.state.calibrating;
+              }
+
+              const chargeto = Math.max(50, setLevel); // Minimum allowed charge for Tesla is 50
 
               if (
                 job.state.chargeLimit !== undefined && // Only controll if polled at least once
@@ -498,7 +564,9 @@ export class TeslaAgent extends AbstractAgent {
           job.state.parked !== undefined &&
           job.state.data.chargePlan &&
           job.state.data.chargePlan.findIndex(
-            f => f.chargeType !== ChargeType.fill
+            f =>
+              f.chargeType !== ChargeType.fill &&
+              f.chargeType !== ChargeType.prefered
           ) >= 0
         ) {
           if (

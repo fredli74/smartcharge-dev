@@ -16,7 +16,9 @@ import {
   Subscription,
   PubSub,
   PubSubEngine,
-  Root
+  Root,
+  Int,
+  ID
 } from "type-graphql";
 import { IContext } from "./api";
 import { DBInterface, INTERNAL_SERVICE_UUID } from "@server/db-interface";
@@ -212,5 +214,39 @@ export class VehicleResolver {
       minimumLevel: vehicle.minimum_charge,
       maximumLevel: vehicle.maximum_charge
     };
+  }
+
+  @Mutation(_returns => Int, { nullable: true })
+  async chargeCalibration(
+    @Arg("vehicleID", _type => ID) vehicle_uuid: string,
+    @Arg("level", _type => Int, { nullable: true }) level: number,
+    @Arg("duration", _type => Int, { nullable: true }) duration: number,
+    @Ctx() context: IContext
+  ): Promise<number> {
+    const accountLimiter =
+      context.accountUUID === INTERNAL_SERVICE_UUID
+        ? undefined
+        : context.accountUUID;
+    // verify vehicle ownage
+    const vehicle = await context.db.getVehicle(vehicle_uuid, accountLimiter);
+
+    if (!level || !duration) {
+      return await context.db.chargeCalibration(
+        vehicle.vehicle_uuid,
+        vehicle.charge_id
+      );
+    } else {
+      const result = await context.db.setChargeCurve(
+        vehicle.vehicle_uuid,
+        vehicle.charge_id,
+        level,
+        duration,
+        undefined,
+        undefined,
+        undefined
+      );
+      await context.logic.refreshChargePlan(vehicle.vehicle_uuid);
+      return result.level;
+    }
   }
 }

@@ -458,4 +458,26 @@ export class SCClient extends ApolloClient<any> {
       }
     });
   }
+
+  public async chargeCalibration(
+    vehicleID: string,
+    level: number | undefined,
+    duration: number | undefined
+  ) {
+    const mutation = gql`
+      mutation ChargeCalibration($vehicleID: ID!, $level: Int, $duration: Int) {
+        chargeCalibration(
+          vehicleID: $vehicleID
+          level: $level
+          duration: $duration
+        )
+      }
+    `;
+
+    const result = await this.mutate({
+      mutation,
+      variables: { vehicleID, level, duration }
+    });
+    return result.data.chargeCalibration;
+  }
 }

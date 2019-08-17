@@ -33,10 +33,12 @@ export function ScheduleToJS(input: Schedule): Schedule {
 }
 
 export enum ChargeType {
+  calibrate = "calibrate",
   minimum = "minimum",
+  trip = "trip",
   routine = "routine",
-  fill = "fill",
-  trip = "trip"
+  prefered = "prefered",
+  fill = "fill"
 }
 registerEnumType(ChargeType, { name: "ChargeType" });
 
