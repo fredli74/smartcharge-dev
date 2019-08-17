@@ -10,7 +10,7 @@ Vue.use(Router);
 const NotFoundComponent = Vue.component("page-not-found", {
   created: () => {},
   render: createElement => {
-    return createElement("h1", "404");
+    return createElement("h1", `404 - ${location}`);
   }
 });
 
