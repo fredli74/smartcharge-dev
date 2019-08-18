@@ -195,7 +195,7 @@ export class Logic {
                   SELECT MIN(b.start_ts) as ts, SUM(a.end_ts - a.start_ts) as duration
                   FROM charge a JOIN connected b ON (a.connected_id = b.connected_id) WHERE b.connected_id = $1
               ), prices AS (
-                  SELECT ts, price FROM location_data WHERE location_uuid = $2
+                  SELECT ts, price FROM price_list p JOIN location l ON (l.price_code = p.price_code) WHERE location_uuid = $2
               )
               SELECT 
                   (SELECT price FROM prices WHERE ts < $3 ORDER BY ts DESC LIMIT 1) price_now,
@@ -501,12 +501,12 @@ export class Logic {
 
       // What is the current weekly average power price
       const avg_prices: { avg7: number; avg21: number } = await this.db.pg.one(
-        `WITH my_location_data AS (
-                    SELECT * FROM location_data WHERE location_uuid = $1
+        `WITH my_price_list AS (
+                    SELECT p.* FROM price_list p JOIN location l ON (l.price_code = p.price_code) WHERE location_uuid = $1
                 )
                 SELECT 
-                    (SELECT AVG(price::float) FROM my_location_data WHERE ts >= current_date - interval '7 days') as avg7,
-                    (SELECT AVG(price::float) FROM my_location_data WHERE ts >= current_date - interval '21 days') as avg21;`,
+                    (SELECT AVG(price::float) FROM my_price_list WHERE ts >= current_date - interval '7 days') as avg7,
+                    (SELECT AVG(price::float) FROM my_price_list WHERE ts >= current_date - interval '21 days') as avg21;`,
         [location_uuid]
       );
 
@@ -523,18 +523,18 @@ export class Logic {
       }
 
       const history: HistoryEntry[] = await this.db.pg.manyOrNone(
-        `WITH my_location_data AS (
-          SELECT * FROM location_data WHERE location_uuid = $2
+        `WITH my_price_list AS (
+          SELECT p.* FROM price_list p JOIN location l ON (l.price_code = p.price_code) WHERE location_uuid = $2
         ), my_connected AS (
-          SELECT * FROM connected WHERE vehicle_uuid = $1 AND end_ts >= current_date - interval '2 weeks' AND end_ts < current_date AND start_ts::date >= (SELECT MIN(ts)::date FROM my_location_data)
+          SELECT * FROM connected WHERE vehicle_uuid = $1 AND end_ts >= current_date - interval '2 weeks' AND end_ts < current_date AND start_ts::date >= (SELECT MIN(ts)::date FROM my_price_list)
         ), connections AS (
           SELECT *, (SELECT a.end_level-b.start_level FROM connected b WHERE b.connected_id > a.connected_id ORDER BY connected_id LIMIT 1) as needed
           FROM my_connected a WHERE location_uuid = $2 AND connected_id < (SELECT MAX(connected_id) FROM my_connected)
         ), period AS (
           SELECT generate_series(date_trunc('hour', (SELECT MIN(start_ts) FROM connections)), current_date - interval '1 hour', '1 hour') as hour
         ), week_avg AS (
-          SELECT day, (SELECT AVG(price::float) FROM location_data WHERE ts >= day - interval '7 days' AND ts < day) as avg7,
-          (SELECT AVG(price::float) FROM location_data WHERE ts >= day - interval '21 days' AND ts < day) as avg21 FROM
+          SELECT day, (SELECT AVG(price::float) FROM my_price_list WHERE ts >= day - interval '7 days' AND ts < day) as avg7,
+          (SELECT AVG(price::float) FROM my_price_list WHERE ts >= day - interval '21 days' AND ts < day) as avg21 FROM
           (SELECT date_trunc('day', hour) as day FROM period GROUP BY 1) as a
         ), connection_map AS (
           SELECT connected_id,start_level,end_level,needed,hour,LEAST(1.0,
@@ -543,7 +543,7 @@ export class Logic {
           ) as fraction, price,price/(avg7+(avg7-avg21)/2) as threshold
           FROM period
           JOIN connections ON (hour >= date_trunc('hour',start_ts) AND hour <= date_trunc('hour',end_ts))
-          JOIN my_location_data ON (ts = hour)
+          JOIN my_price_list ON (ts = hour)
           JOIN week_avg ON (day = date_trunc('day', hour))
         )
         SELECT * FROM connection_map ORDER BY connected_id,hour;`,
@@ -665,7 +665,7 @@ export class Logic {
           `SELECT AVG(60.0 * estimate / (target_level-end_level)) FROM charge WHERE end_level < target_level AND vehicle_uuid = $1 AND location_uuid = $2;`,
           [vehicleUUID, locationUUID]
         )).avg ||
-        20 * 60; // 20 min default for new charge
+        20 * 60; // 20 min default for first time charge
     }
     assert(current !== undefined && current !== null);
 
@@ -763,7 +763,7 @@ export class Logic {
         price: number;
         in_range: boolean;
       }[] = await this.db.pg.manyOrNone(
-        `SELECT ts, price FROM location_data WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' AND ts < $2 ORDER BY price`,
+        `SELECT ts, price FROM price_list p JOIN location l ON (l.price_code = p.price_code) WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' AND ts < $2 ORDER BY price`,
         [vehicle.location_uuid, new Date(before)]
       );
 
@@ -801,12 +801,10 @@ export class Logic {
     return plan;
   }
 
-  private async lowPriceFill(vehicle: DBVehicle): Promise<ChargePlan[]> {
-    assert(vehicle.location_uuid !== undefined);
-    const stats = await this.currentStats(
-      vehicle.vehicle_uuid,
-      vehicle.location_uuid
-    );
+  private async lowPriceFill(
+    vehicle: DBVehicle,
+    stats: DBCurrentStats
+  ): Promise<ChargePlan[]> {
     const averagePrice =
       stats.weekly_avg7_price +
       (stats.weekly_avg7_price - stats.weekly_avg21_price) / 2;
@@ -821,7 +819,7 @@ export class Logic {
       ts: Date;
       price: number;
     }[] = await this.db.pg.manyOrNone(
-      `SELECT ts, price FROM location_data WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' AND price <= $2 ORDER BY ts`,
+      `SELECT ts, price FROM price_list p JOIN location l ON (l.price_code = p.price_code) WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' AND price <= $2 ORDER BY ts`,
       [vehicle.location_uuid, thresholdPrice]
     );
 
@@ -844,20 +842,13 @@ export class Logic {
   }
 
   private async refreshVehicleChargePlan(vehicle: DBVehicle) {
+    log(LogLevel.Trace, `vehicle: ${JSON.stringify(vehicle)}`);
     if (vehicle.location_uuid === null) {
       log(LogLevel.Trace, `Vehicle at unknown location`);
-      return this.setSmartStatus(vehicle, `unknown location`);
+      return this.setSmartStatus(vehicle, ``);
     }
-    log(LogLevel.Trace, `vehicle: ${JSON.stringify(vehicle)}`);
 
     const now = Date.now();
-
-    assert(vehicle.location_uuid !== undefined);
-    const stats = await this.currentStats(
-      vehicle.vehicle_uuid,
-      vehicle.location_uuid
-    );
-    log(LogLevel.Trace, `stats: ${JSON.stringify(stats)}`);
 
     let plan: ChargePlan[] = vehicle.charge_plan
       ? (vehicle.charge_plan as ChargePlan[])
@@ -886,19 +877,17 @@ export class Logic {
           comment: "Charge calibration"
         }
       ];
-      this.setSmartStatus(vehicle, `Charge calibration in progress`);
-    } else if (!stats || !stats.level_charge_time) {
-      plan = [
-        {
-          chargeStart: null,
-          chargeStop: null,
-          level: vehicle.maximum_charge,
-          chargeType: ChargeType.fill,
-          comment: `learning`
-        }
-      ]; // run free
-      this.setSmartStatus(vehicle, `Smart charging disabled (still learning)`);
+      this.setSmartStatus(
+        vehicle,
+        `Charge calibration needed at current location`
+      );
     } else {
+      const stats = await this.currentStats(
+        vehicle.vehicle_uuid,
+        vehicle.location_uuid
+      );
+      log(LogLevel.Trace, `stats: ${JSON.stringify(stats)}`);
+
       if (vehicle.level < vehicle.minimum_charge) {
         // Emergency charge up to minimum level
         // new emergency plan needed
@@ -912,9 +901,9 @@ export class Logic {
 
         log(
           LogLevel.Trace,
-          `emergency charge ${vehicle.vehicle_uuid}: timePerLevel:${
-            stats.level_charge_time
-          }, chargeNeeded:${chargeNeeded}%, timeNeeded: ${timeNeeded / 1e3}`
+          `emergency charge ${
+            vehicle.vehicle_uuid
+          }: chargeNeeded:${chargeNeeded}%, timeNeeded: ${timeNeeded / 1e3}`
         );
         plan = [
           {
@@ -936,17 +925,24 @@ export class Logic {
       }
 
       if (vehicle.level <= vehicle.maximum_charge) {
-        // ****** ANALYSE AND THINK ABOUT IT!  ******
+        let learning = false;
 
-        // Take the time when we connected and compare that to connections for the past 4 weeks
-        // how much battery level did we use from those drives until next connection
-        // now compare that to the average use between connections and go with the greatest number
+        if (!stats || !stats.level_charge_time) {
+          // Disable smart charging because without threshold and averages it can not make a good decision
+          log(LogLevel.Debug, `Missing stats for smart charging.`);
+          learning = true;
+        } else {
+          // ****** ANALYSE AND THINK ABOUT IT!  ******
 
-        const guess: {
-          charge: number;
-          before: number;
-        } = await this.db.pg.one(
-          `WITH connections AS (
+          // Take the time when we connected and compare that to connections for the past 4 weeks
+          // how much battery level did we use from those drives until next connection
+          // now compare that to the average use between connections and go with the greatest number
+
+          const guess: {
+            charge: number;
+            before: number;
+          } = await this.db.pg.one(
+            `WITH connections AS (
                 SELECT connected_id, start_ts, end_ts,
                     end_level-(SELECT start_level FROM connected B WHERE B.vehicle_uuid = A.vehicle_uuid AND B.connected_id > A.connected_id ORDER BY connected_id LIMIT 1) as used					 
                 FROM connected A
@@ -964,15 +960,69 @@ export class Logic {
                     (SELECT percentile_cont(0.6) WITHIN GROUP (ORDER BY used) as used FROM past_weeks)
                 ) as charge,
                 (SELECT percentile_cont(0.25) WITHIN GROUP (ORDER BY extract(epoch from before)) FROM past_weeks) as before;`,
-          [vehicle.vehicle_uuid]
-        );
-
-        if (!guess.before || !guess.charge) {
-          // missing data to guess
-          log(
-            LogLevel.Debug,
-            `Missing data for qualified guess, just charge now.`
+            [vehicle.vehicle_uuid]
           );
+
+          if (!guess.before || !guess.charge) {
+            // missing data to guess
+            log(LogLevel.Debug, `Missing data for smart charging.`);
+            learning = true;
+          } else {
+            const minimumLevel = Math.min(
+              vehicle.maximum_charge,
+              Math.round(vehicle.minimum_charge + guess.charge + 5) // add 5% to avoid spiraling down
+            );
+            const neededCharge = minimumLevel - vehicle.level;
+            const before = guess.before * 1e3; // epoch to ms
+
+            this.setSmartStatus(
+              vehicle,
+              `Predicting battery level ${minimumLevel}% (${
+                neededCharge > 0 ? Math.round(neededCharge) + "%" : "no"
+              } charge) is needed before ${new Date(before).toISOString()}`
+            );
+
+            log(
+              LogLevel.Debug,
+              `Current level: ${vehicle.level}, predicting ${minimumLevel}% (${
+                vehicle.minimum_charge
+              }+${guess.charge}) is needed before ${new Date(
+                before
+              ).toISOString()}`
+            );
+
+            // Routine charging
+            const p = await this.generateChargePlan(
+              vehicle,
+              minimumLevel,
+              before,
+              ChargeType.routine,
+              `routine charge`
+            );
+            plan.push(...p);
+
+            // Focus settings charging
+            if (vehicle.anxiety_level) {
+              const anxietyLevel =
+                vehicle.anxiety_level > 1
+                  ? vehicle.maximum_charge
+                  : Math.round(
+                      minimumLevel + (vehicle.maximum_charge - minimumLevel) / 2
+                    );
+
+              const p = await this.generateChargePlan(
+                vehicle,
+                anxietyLevel,
+                before,
+                ChargeType.prefered,
+                `charge setting`
+              );
+              plan.push(...p);
+            }
+          }
+        }
+
+        if (learning) {
           plan.push({
             chargeStart: null,
             chargeStop: null,
@@ -985,56 +1035,6 @@ export class Logic {
             vehicle,
             `Smart charging disabled (still learning)`
           );
-        } else {
-          const minimumLevel = Math.min(
-            vehicle.maximum_charge,
-            Math.round(vehicle.minimum_charge + guess.charge + 5) // add 5% to avoid spiraling down
-          );
-          const neededCharge = minimumLevel - vehicle.level;
-          const before = guess.before * 1e3; // epoch to ms
-
-          this.setSmartStatus(
-            vehicle,
-            `Predicting battery level ${minimumLevel}% (${
-              neededCharge > 0 ? Math.round(neededCharge) + "%" : "no"
-            } charge) is needed before ${new Date(before).toISOString()}`
-          );
-
-          log(
-            LogLevel.Debug,
-            `Current level: ${vehicle.level}, predicting ${minimumLevel}% (${
-              vehicle.minimum_charge
-            }+${guess.charge}) is needed before ${new Date(
-              before
-            ).toISOString()}`
-          );
-
-          const p = await this.generateChargePlan(
-            vehicle,
-            minimumLevel,
-            before,
-            ChargeType.routine,
-            `routine charge`
-          );
-          plan.push(...p);
-
-          if (vehicle.anxiety_level) {
-            const anxietyLevel =
-              vehicle.anxiety_level > 1
-                ? vehicle.maximum_charge
-                : Math.round(
-                    minimumLevel + (vehicle.maximum_charge - minimumLevel) / 2
-                  );
-
-            const p = await this.generateChargePlan(
-              vehicle,
-              anxietyLevel,
-              before,
-              ChargeType.prefered,
-              `charge setting`
-            );
-            plan.push(...p);
-          }
         }
       }
 
@@ -1092,7 +1092,7 @@ export class Logic {
 
       // Low price fill charging
       {
-        const p = await this.lowPriceFill(vehicle);
+        const p = await this.lowPriceFill(vehicle, stats);
         plan.push(...p);
       }
     }
@@ -1113,6 +1113,17 @@ export class Logic {
     }
 
     const dblist = await this.db.getVehicles(accountUUID, vehicleUUID);
+    for (const v of dblist) {
+      await this.refreshVehicleChargePlan(v);
+    }
+  }
+
+  public async priceListRefreshed(price_code: string) {
+    debugger;
+    const dblist = await this.db.pg.manyOrNone(
+      `SELECT v.* FROM vehicle v JOIN location l ON (l.account_uuid = v.account_uuid) WHERE l.price_code = $1;`,
+      [price_code]
+    );
     for (const v of dblist) {
       await this.refreshVehicleChargePlan(v);
     }

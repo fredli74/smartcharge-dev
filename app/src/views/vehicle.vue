@@ -68,8 +68,7 @@
       <v-layout row align-center>
         <v-flex v-if="vehicleConnectedAtUnknownLocation" sm12>
           <p class="mt-5">
-            Vehicle is connected at an unknown location and smart charging is
-            disabled.
+            Vehicle is connected at a location whithout smart charging.
           </p>
           <v-card-actions class="justify-center">
             <router-link :to="addLocationURL">

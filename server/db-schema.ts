@@ -27,6 +27,7 @@ export interface DBLocation {
   location_micro_latitude: number; // 6 decimal precision converted to integer
   location_micro_longitude: number; // 6 decimal precision converted to integer
   radius: number; // radius tollerance (in meters)
+  price_code: string; // price list code
   provider_data: any; // provider custom data
 }
 const DBLocation_TSQL = `CREATE TABLE scserver.location
@@ -37,6 +38,7 @@ const DBLocation_TSQL = `CREATE TABLE scserver.location
         location_micro_latitude integer,
         location_micro_longitude integer,
         radius integer,
+        price_code character varying(32),
         provider_data jsonb,
         CONSTRAINT location_pkey PRIMARY KEY(location_uuid),
         CONSTRAINT location_fkey FOREIGN KEY(account_uuid)
@@ -45,21 +47,17 @@ const DBLocation_TSQL = `CREATE TABLE scserver.location
                 ON DELETE CASCADE
     );`;
 
-export interface DBLocationData {
-  location_uuid: string; // location identifer
+export interface DBPriceList {
+  price_code: string; // location identifer
   ts: Date; // price tariff starts at
   price: number; // cost per kWh
 }
-const DBLocationData_TSQL = `CREATE TABLE scserver.location_data
+const DBPriceList_TSQL = `CREATE TABLE scserver.price_list
     (
-        location_uuid uuid NOT NULL,
+        price_code character varying(32) NOT NULL,
         ts timestamp(0) with time zone NOT NULL,
         price integer,
-        CONSTRAINT location_data_pkey PRIMARY KEY (location_uuid, ts),
-        CONSTRAINT location_data_fkey FOREIGN KEY (location_uuid)
-            REFERENCES location (location_uuid) MATCH SIMPLE
-            ON UPDATE RESTRICT
-            ON DELETE CASCADE
+        CONSTRAINT price_list_pkey PRIMARY KEY (price_code, ts)
     );`;
 
 export interface DBVehicle {
@@ -148,6 +146,7 @@ const DBVehicleDebug_TSQL = `CREATE TABLE scserver.vehicle_debug
             ON DELETE CASCADE
     );`;
 
+/** DBEventMap data is not used, should we stop collecting it?  **/
 export interface DBEventMap {
   vehicle_uuid: string; // vehicle identifier
   hour: Date; // date truncated down to closest hour
@@ -175,6 +174,7 @@ const DBEventMap_TSQL = `CREATE TABLE scserver.event_map
             ON DELETE CASCADE
     );`;
 
+/** DBTrip not used anymore, should we stop collecting it?  **/
 export interface DBTrip {
   trip_id: number; // trip uuid
   vehicle_uuid: string; // vehicle identifier
@@ -404,7 +404,7 @@ export const DB_SETUP_TSQL = [
   DBAccount_TSQL,
 
   DBLocation_TSQL,
-  DBLocationData_TSQL,
+  DBPriceList_TSQL,
 
   DBVehicle_TSQL,
   DBVehicleDebug_TSQL,

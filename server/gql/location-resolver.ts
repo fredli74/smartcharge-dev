@@ -14,6 +14,7 @@ import {
   UpdateLocationInput,
   Location
 } from "./location-type";
+import { AuthenticationError } from "apollo-server-core";
 
 @Resolver()
 export class LocationResolver {
@@ -41,19 +42,14 @@ export class LocationResolver {
     @Arg("input") input: UpdatePriceInput,
     @Ctx() context: IContext
   ): Promise<Boolean> {
-    const accountLimiter =
-      context.accountUUID === INTERNAL_SERVICE_UUID
-        ? undefined
-        : context.accountUUID;
-    const location = await context.db.getLocation(input.id, accountLimiter);
-    for (const point of input.prices) {
-      await context.db.updateLocationPrice(
-        input.id,
-        point.startAt,
-        point.price
-      );
+    if (context.accountUUID !== INTERNAL_SERVICE_UUID) {
+      throw new AuthenticationError("Access denied");
     }
-    await context.logic.refreshChargePlan(undefined, location.account_uuid);
+    debugger;
+    for (const point of input.prices) {
+      await context.db.updatePriceList(input.code, point.startAt, point.price);
+    }
+    await context.logic.priceListRefreshed(input.code);
     return true;
   }
 
@@ -68,6 +64,7 @@ export class LocationResolver {
         input.name,
         input.geoLocation,
         input.geoFenceRadius,
+        input.priceCode,
         input.providerData
       )
     );
@@ -90,6 +87,7 @@ export class LocationResolver {
         input.name,
         input.geoLocation,
         input.geoFenceRadius,
+        input.priceCode,
         input.providerData
       )
     );

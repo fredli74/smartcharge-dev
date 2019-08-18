@@ -15,7 +15,7 @@ import {
   DBVehicleDebug,
   DBAccount,
   DB_VERSION,
-  DBLocationData
+  DBPriceList
 } from "./db-schema";
 import { log, LogLevel, geoDistance, generateToken } from "@shared/utils";
 import config from "@shared/smartcharge-config";
@@ -122,7 +122,8 @@ export class DBInterface {
     name: string | undefined,
     location: GeoLocation,
     radius: number,
-    provider_data?: any
+    price_code: string,
+    provider_data: any
   ): Promise<DBLocation> {
     const fields: any = {
       account_uuid,
@@ -130,6 +131,7 @@ export class DBInterface {
       location_micro_latitude: location.latitude * 1e6,
       location_micro_longitude: location.longitude * 1e6,
       radius,
+      price_code,
       provider_data
     };
     for (const key of Object.keys(fields)) {
@@ -222,6 +224,7 @@ export class DBInterface {
     name: string | undefined,
     location: GeoLocation | undefined,
     radius: number | undefined,
+    price_code: string | undefined,
     provider_data: any | undefined
   ): Promise<DBLocation> {
     const [values, set] = queryHelper([
@@ -236,7 +239,8 @@ export class DBInterface {
         `location_micro_longitude = $4`
       ],
       [radius, `radius = $5`],
-      [provider_data, `provider_data = jsonb_strip_nulls(provider_data || $6)`]
+      [price_code, `price_code = $6`],
+      [provider_data, `provider_data = jsonb_strip_nulls(provider_data || $7)`]
     ]);
     assert(set.length > 0);
 
@@ -247,15 +251,16 @@ export class DBInterface {
       values
     );
   }
-  public async updateLocationPrice(
-    locationUUID: string,
+
+  public async updatePriceList(
+    price_code: string,
     ts: Date,
     price: number
-  ): Promise<DBLocationData> {
+  ): Promise<DBPriceList> {
     const result = await this.pg.one(
-      `INSERT INTO location_data(location_uuid, ts, price) VALUES($1, $2, $3) ` +
-        `ON CONFLICT (location_uuid,ts) DO UPDATE SET price=EXCLUDED.price RETURNING *;`,
-      [locationUUID, ts, price * 1e5]
+      `INSERT INTO price_list(price_code, ts, price) VALUES($1, $2, $3) ` +
+        `ON CONFLICT (price_code,ts) DO UPDATE SET price=EXCLUDED.price RETURNING *;`,
+      [price_code, ts, price * 1e5]
     );
     return result;
   }
@@ -453,9 +458,12 @@ export class DBInterface {
   public async getChartData(
     location_uuid: string,
     interval: number
-  ): Promise<DBLocationData[]> {
+  ): Promise<DBPriceList[]> {
     return this.pg.manyOrNone(
-      `WITH data AS (SELECT * FROM location_data WHERE location_uuid = $1)
+      `WITH data AS (
+        SELECT p.* FROM price_list p JOIN location l ON (l.price_code = p.price_code)
+        WHERE location_uuid = $1
+      )
       SELECT * FROM data WHERE ts > (SELECT max(ts) FROM data) - interval $2 ORDER BY ts;`,
       [location_uuid, `${interval} hours`]
     );

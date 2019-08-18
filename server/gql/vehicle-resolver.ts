@@ -18,7 +18,8 @@ import {
   PubSubEngine,
   Root,
   Int,
-  ID
+  ID,
+  Float
 } from "type-graphql";
 import { IContext } from "./api";
 import { DBInterface, INTERNAL_SERVICE_UUID } from "@server/db-interface";
@@ -220,7 +221,16 @@ export class VehicleResolver {
   async chargeCalibration(
     @Arg("vehicleID", _type => ID) vehicle_uuid: string,
     @Arg("level", _type => Int, { nullable: true }) level: number,
-    @Arg("duration", _type => Int, { nullable: true }) duration: number,
+    @Arg("duration", _type => Int, {
+      nullable: true,
+      description: `duration (seconds)`
+    })
+    duration: number,
+    @Arg("powerUse", _type => Float, {
+      nullable: true,
+      description: `current power use (kW)`
+    })
+    powerUse: number,
     @Ctx() context: IContext
   ): Promise<number> {
     const accountLimiter =
@@ -236,14 +246,15 @@ export class VehicleResolver {
         vehicle.charge_id
       );
     } else {
+      const energy = (duration * powerUse * 1e3) / 60; // kWs => Ws => Wm
       const result = await context.db.setChargeCurve(
         vehicle.vehicle_uuid,
         vehicle.charge_id,
         level,
         duration,
         undefined,
-        undefined,
-        undefined
+        energy,
+        energy
       );
       await context.logic.refreshChargePlan(vehicle.vehicle_uuid);
       return result.level;

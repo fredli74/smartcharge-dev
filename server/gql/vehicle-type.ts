@@ -240,7 +240,7 @@ export abstract class UpdateVehicleDataInput {
   estimatedTimeLeft!: number | null;
   @Field(_type => Float, {
     nullable: true,
-    description: `current power used (kW)`
+    description: `current power use (kW)`
   })
   powerUse!: number | null;
   @Field(_type => Float, { nullable: true, description: `charge added (kWh)` })

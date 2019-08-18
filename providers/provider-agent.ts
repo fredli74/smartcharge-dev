@@ -49,7 +49,7 @@ export abstract class AbstractAgent {
     } else {
       job.interval = target;
     }
-    const nextrun = Date.now() + job.interval * 1000;
+    const nextrun = Date.now() + job.interval * 1e3;
     job.nextrun = Math.min(job.nextrun, nextrun);
   }
   public async worker() {

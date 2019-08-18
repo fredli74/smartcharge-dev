@@ -335,6 +335,9 @@ export class SCClient extends ApolloClient<any> {
   public async getProviderSubjects(
     accept: string[]
   ): Promise<ProviderSubject[]> {
+    if (accept.length <= 0) {
+      return [];
+    }
     const query = gql`
       query ProviderSubjects($accept: [String!]!) {
         providerSubjects(accept: $accept) {
@@ -462,21 +465,28 @@ export class SCClient extends ApolloClient<any> {
   public async chargeCalibration(
     vehicleID: string,
     level: number | undefined,
-    duration: number | undefined
+    duration: number | undefined,
+    powerUse: number | undefined
   ) {
     const mutation = gql`
-      mutation ChargeCalibration($vehicleID: ID!, $level: Int, $duration: Int) {
+      mutation ChargeCalibration(
+        $vehicleID: ID!
+        $level: Int
+        $duration: Int
+        $powerUse: Float
+      ) {
         chargeCalibration(
           vehicleID: $vehicleID
           level: $level
           duration: $duration
+          powerUse: $powerUse
         )
       }
     `;
 
     const result = await this.mutate({
       mutation,
-      variables: { vehicleID, level, duration }
+      variables: { vehicleID, level, duration, powerUse }
     });
     return result.data.chargeCalibration;
   }

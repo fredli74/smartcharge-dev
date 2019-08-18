@@ -300,7 +300,11 @@ export class TeslaAgent extends AbstractAgent {
         await this.setOptionCodes(job, data);
 
         // Charge calibration
-        if (job.state.calibrating && now > job.state.calibrating.next) {
+        if (
+          job.state.calibrating &&
+          powerUse > 0 &&
+          now > job.state.calibrating.next
+        ) {
           const thisLimit = data.charge_state.charge_limit_soc;
           const lastLimit = job.state.calibrating.level;
           const levelNow = data.charge_state.usable_battery_level;
@@ -325,7 +329,8 @@ export class TeslaAgent extends AbstractAgent {
             await this.scClient.chargeCalibration(
               job.subjectID,
               job.state.calibrating.level,
-              Math.round(job.state.calibrating.duration)
+              Math.round(job.state.calibrating.duration),
+              powerUse
             );
           }
         }
@@ -508,6 +513,7 @@ export class TeslaAgent extends AbstractAgent {
                     level:
                       (await this.scClient.chargeCalibration(
                         job.subjectID,
+                        undefined,
                         undefined,
                         undefined
                       )) || job.state.data.batteryLevel,

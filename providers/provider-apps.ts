@@ -1,6 +1,6 @@
 import { IProviderApp } from "./provider-app";
 import Tesla from "./tesla/app/tesla-app";
-import Tibber from "./tibber/app/tibber-app";
+import Nordpool from "./nordpool/app/nordpool-app";
 
-const providers: IProviderApp[] = [Tesla, Tibber];
+const providers: IProviderApp[] = [Tesla, Nordpool];
 export default providers;
