@@ -1,3 +1,10 @@
+/**
+ * @file config loader for smartcharge.dev project
+ * @author Fredrik Lidström
+ * @copyright 2019 Fredrik Lidström
+ * @license MIT (MIT)
+ */
+
 import { DEFAULT_PORT } from "./smartcharge-globals.json";
 
 const config = {

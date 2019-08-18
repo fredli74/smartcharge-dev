@@ -1,5 +1,5 @@
 /**
- * @file Domain Logic for smartcharge.dev project
+ * @file Server Logic for smartcharge.dev project
  * @author Fredrik Lidström
  * @copyright 2019 Fredrik Lidström
  * @license MIT (MIT)
@@ -1119,7 +1119,6 @@ export class Logic {
   }
 
   public async priceListRefreshed(price_code: string) {
-    debugger;
     const dblist = await this.db.pg.manyOrNone(
       `SELECT v.* FROM vehicle v JOIN location l ON (l.account_uuid = v.account_uuid) WHERE l.price_code = $1;`,
       [price_code]

@@ -46,7 +46,6 @@
 <script lang="ts">
 import { Component, Vue, Prop } from "vue-property-decorator";
 import apollo from "@app/plugins/apollo";
-import { LogLevel, log, delay } from "@shared/utils";
 import { ProviderVuePage } from "@providers/provider-app";
 import provider, { NordpoolProviderData } from "..";
 import { Location } from "@server/gql/location-type";
@@ -75,7 +74,6 @@ export default class NordpoolVue extends Vue {
 
   // HOOKS
   data() {
-    debugger;
     // data() hook for undefined values
     return {
       area: {

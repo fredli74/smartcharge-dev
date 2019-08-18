@@ -16,10 +16,7 @@ import {
   Subscription,
   PubSub,
   PubSubEngine,
-  Root,
-  Int,
-  ID,
-  Float
+  Root
 } from "type-graphql";
 import { IContext } from "./api";
 import { DBInterface, INTERNAL_SERVICE_UUID } from "@server/db-interface";
@@ -27,8 +24,6 @@ import {
   Vehicle,
   NewVehicleInput,
   UpdateVehicleInput,
-  UpdateVehicleDataInput,
-  VehicleDebugInput,
   ChargePlanToJS
 } from "./vehicle-type";
 import { ChartData } from "./location-type";
@@ -148,36 +143,6 @@ export class VehicleResolver {
     });
     return result;
   }
-  @Mutation(_returns => Boolean)
-  async updateVehicleData(
-    @Arg("input") input: UpdateVehicleDataInput,
-    @Ctx() context: IContext,
-    @PubSub() pubSub: PubSubEngine
-  ): Promise<Boolean> {
-    const accountLimiter =
-      context.accountUUID === INTERNAL_SERVICE_UUID
-        ? undefined
-        : context.accountUUID;
-    const vehicle = await context.db.getVehicle(input.id, accountLimiter); // verify vehicle ownage
-
-    // TODO: Add the possibility to update only partial information
-    await context.logic.updateVehicleData(input);
-    await pubSub.publish(SubscriptionTopic.VehicleUpdate, {
-      vehicle_uuid: vehicle.vehicle_uuid,
-      account_uuid: vehicle.account_uuid
-    });
-    return true;
-  }
-  @Mutation(_returns => Boolean)
-  async vehicleDebug(
-    @Arg("input") input: VehicleDebugInput,
-    @Ctx() context: IContext
-  ): Promise<Boolean> {
-    await context.db.storeVehicleDebug(
-      DBInterface.VehicleDebugToDBVehicleDebug(input)
-    );
-    return true;
-  }
 
   @Query(_returns => ChartData)
   async chartData(
@@ -215,49 +180,5 @@ export class VehicleResolver {
       minimumLevel: vehicle.minimum_charge,
       maximumLevel: vehicle.maximum_charge
     };
-  }
-
-  @Mutation(_returns => Int, { nullable: true })
-  async chargeCalibration(
-    @Arg("vehicleID", _type => ID) vehicle_uuid: string,
-    @Arg("level", _type => Int, { nullable: true }) level: number,
-    @Arg("duration", _type => Int, {
-      nullable: true,
-      description: `duration (seconds)`
-    })
-    duration: number,
-    @Arg("powerUse", _type => Float, {
-      nullable: true,
-      description: `current power use (kW)`
-    })
-    powerUse: number,
-    @Ctx() context: IContext
-  ): Promise<number> {
-    const accountLimiter =
-      context.accountUUID === INTERNAL_SERVICE_UUID
-        ? undefined
-        : context.accountUUID;
-    // verify vehicle ownage
-    const vehicle = await context.db.getVehicle(vehicle_uuid, accountLimiter);
-
-    if (!level || !duration) {
-      return await context.db.chargeCalibration(
-        vehicle.vehicle_uuid,
-        vehicle.charge_id
-      );
-    } else {
-      const energy = (duration * powerUse * 1e3) / 60; // kWs => Ws => Wm
-      const result = await context.db.setChargeCurve(
-        vehicle.vehicle_uuid,
-        vehicle.charge_id,
-        level,
-        duration,
-        undefined,
-        energy,
-        energy
-      );
-      await context.logic.refreshChargePlan(vehicle.vehicle_uuid);
-      return result.level;
-    }
   }
 }

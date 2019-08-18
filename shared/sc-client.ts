@@ -1,3 +1,10 @@
+/**
+ * @file Smart charge client for smartcharge.dev project
+ * @author Fredrik Lidström
+ * @copyright 2019 Fredrik Lidström
+ * @license MIT (MIT)
+ */
+
 import { gql, InMemoryCache } from "apollo-boost";
 import ApolloClient from "apollo-client";
 import { mergeURL, log, LogLevel } from "@shared/utils";
@@ -27,7 +34,7 @@ import {
   VehicleDebugInput,
   Action
 } from "@server/gql/vehicle-type";
-import { ProviderSubject } from "@server/gql/agent-type";
+import { ProviderSubject } from "@server/gql/service-type";
 
 export class SCClient extends ApolloClient<any> {
   public account?: Account;
@@ -215,14 +222,14 @@ export class SCClient extends ApolloClient<any> {
   public async updatePrice(input: UpdatePriceInput): Promise<boolean> {
     const mutation = gql`
       mutation UpdatePrices($input: UpdatePriceInput!) {
-        updatePrice(input: $input)
+        _updatePrice(input: $input)
       }
     `;
     const result = await this.mutate({
       mutation: mutation,
       variables: { input }
     });
-    return result.data.updatePrice;
+    return result.data._updatePrice;
   }
 
   static vehicleFragment = `
@@ -310,26 +317,26 @@ export class SCClient extends ApolloClient<any> {
     // TODO: should be more flexible, returning just the fields you want into an <any> response instead
     const mutation = gql`
       mutation UpdateVehicleData($input: UpdateVehicleDataInput!) {
-        updateVehicleData(input: $input)
+        _updateVehicleData(input: $input)
       }
     `;
     const result = await this.mutate({
       mutation: mutation,
       variables: { input }
     });
-    return result.data.updateVehicleData;
+    return result.data._updateVehicleData;
   }
   public async vehicleDebug(input: VehicleDebugInput): Promise<boolean> {
     const mutation = gql`
       mutation VehicleDebug($input: VehicleDebugInput!) {
-        vehicleDebug(input: $input)
+        _vehicleDebug(input: $input)
       }
     `;
     const result = await this.mutate({
       mutation: mutation,
       variables: { input }
     });
-    return result.data.vehicleDebug;
+    return result.data._vehicleDebug;
   }
 
   public async getProviderSubjects(
@@ -340,7 +347,7 @@ export class SCClient extends ApolloClient<any> {
     }
     const query = gql`
       query ProviderSubjects($accept: [String!]!) {
-        providerSubjects(accept: $accept) {
+        _providerSubjects(accept: $accept) {
           subjectID
           ownerID
           providerType
@@ -353,7 +360,7 @@ export class SCClient extends ApolloClient<any> {
       query,
       variables: { accept }
     });
-    return result.data.providerSubjects;
+    return result.data._providerSubjects;
   }
 
   public async providerQuery(name: string, input: any): Promise<any> {
@@ -475,7 +482,7 @@ export class SCClient extends ApolloClient<any> {
         $duration: Int
         $powerUse: Float
       ) {
-        chargeCalibration(
+        _chargeCalibration(
           vehicleID: $vehicleID
           level: $level
           duration: $duration
@@ -488,6 +495,6 @@ export class SCClient extends ApolloClient<any> {
       mutation,
       variables: { vehicleID, level, duration, powerUse }
     });
-    return result.data.chargeCalibration;
+    return result.data._chargeCalibration;
   }
 }

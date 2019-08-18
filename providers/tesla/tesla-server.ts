@@ -69,7 +69,6 @@ const server: IProviderServer = {
     }
   },
   mutation: async (data: any, context: IContext) => {
-    debugger;
     switch (data.mutation) {
       case "refreshToken": {
         return await maintainToken(

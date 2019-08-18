@@ -9,12 +9,10 @@ import { Resolver, Query, Ctx, Arg, Mutation } from "type-graphql";
 import { IContext } from "@server/gql/api";
 import { DBInterface, INTERNAL_SERVICE_UUID } from "@server/db-interface";
 import {
-  UpdatePriceInput,
   NewLocationInput,
   UpdateLocationInput,
   Location
 } from "./location-type";
-import { AuthenticationError } from "apollo-server-core";
 
 @Resolver()
 export class LocationResolver {
@@ -35,22 +33,6 @@ export class LocationResolver {
     return DBInterface.DBLocationToLocation(
       await context.db.getLocation(id, accountLimiter)
     );
-  }
-
-  @Mutation(_returns => Boolean)
-  async updatePrice(
-    @Arg("input") input: UpdatePriceInput,
-    @Ctx() context: IContext
-  ): Promise<Boolean> {
-    if (context.accountUUID !== INTERNAL_SERVICE_UUID) {
-      throw new AuthenticationError("Access denied");
-    }
-    debugger;
-    for (const point of input.prices) {
-      await context.db.updatePriceList(input.code, point.startAt, point.price);
-    }
-    await context.logic.priceListRefreshed(input.code);
-    return true;
   }
 
   @Mutation(_returns => Location)

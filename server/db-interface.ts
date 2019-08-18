@@ -22,7 +22,7 @@ import config from "@shared/smartcharge-config";
 import { Location, GeoLocation } from "./gql/location-type";
 import { Vehicle, VehicleToJS, VehicleDebugInput } from "./gql/vehicle-type";
 import { Account } from "./gql/account-type";
-import { ProviderSubject } from "./gql/agent-type";
+import { ProviderSubject } from "./gql/service-type";
 
 export const DB_OPTIONS = {};
 export const INTERNAL_SERVICE_UUID = `b085e774-1582-4334-be3b-f52d5803e718`;

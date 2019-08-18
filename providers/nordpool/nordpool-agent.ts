@@ -23,7 +23,7 @@ interface NordpoolAgentSubject extends AgentJob {
   providerData: NordpoolProviderData;
   state: {};
 }
-debugger;
+
 export class NordpoolAgent extends AbstractAgent {
   public name: string = provider.name;
   private polling: boolean = false;

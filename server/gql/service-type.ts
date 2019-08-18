@@ -1,5 +1,5 @@
 /**
- * @file GraphQL API Agent types for smartcharge.dev project
+ * @file GraphQL API Service types for smartcharge.dev project
  * @author Fredrik Lidström
  * @copyright 2019 Fredrik Lidström
  * @license MIT (MIT)

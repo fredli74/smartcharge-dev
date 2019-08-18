@@ -1,5 +1,5 @@
 /**
- * @file Agent definitions for smartcharge.dev project
+ * @file Provider agent definitions for smartcharge.dev project
  * @author Fredrik Lidström
  * @copyright 2019 Fredrik Lidström
  * @license MIT (MIT)
@@ -8,7 +8,7 @@ import { IProvider } from ".";
 import { SCClient } from "@shared/sc-client";
 import { log, LogLevel, delay } from "@shared/utils";
 import { Action } from "@server/gql/vehicle-type";
-import { ProviderSubject } from "@server/gql/agent-type";
+import { ProviderSubject } from "@server/gql/service-type";
 
 export interface IProviderAgentInstantiator {
   (scClient: SCClient): AbstractAgent;

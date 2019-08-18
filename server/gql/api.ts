@@ -12,10 +12,11 @@ import { DBInterface } from "@server/db-interface";
 import { DBAccount } from "@server/db-schema";
 import { Logic } from "@server/logic";
 import "reflect-metadata";
+import { AccountResolver } from "./account-resolver";
+import { ProviderResolver } from "./provider-resolver";
 import { VehicleResolver } from "./vehicle-resolver";
 import { LocationResolver } from "./location-resolver";
-import { AgentResolver } from "./agent-resolver";
-import { AccountResolver } from "./account-resolver";
+import { ServiceResolver } from "./service-resolver";
 
 export interface IContext {
   db: DBInterface;
@@ -25,10 +26,11 @@ export interface IContext {
 }
 const schema = buildSchema({
   resolvers: [
-    LocationResolver,
-    VehicleResolver,
     AccountResolver,
-    AgentResolver
+    ProviderResolver,
+    VehicleResolver,
+    LocationResolver,
+    ServiceResolver
   ],
   emitSchemaFile: true,
   validate: false

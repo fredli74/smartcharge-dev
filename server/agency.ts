@@ -15,7 +15,7 @@ import { SCClient } from "@shared/sc-client";
 import providers from "@providers/provider-agents";
 import { AbstractAgent } from "@providers/provider-agent";
 import WebSocket from "ws";
-import { ProviderSubject } from "./gql/agent-type";
+import { ProviderSubject } from "./gql/service-type";
 
 const APP_NAME = `smartcharge-agency`;
 const APP_VERSION = `1.0`;

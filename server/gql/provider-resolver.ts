@@ -1,5 +1,5 @@
 /**
- * @file GraphQL API Agent resolver for smartcharge.dev project
+ * @file GraphQL API Provider resolver for smartcharge.dev project
  * @author Fredrik Lidström
  * @copyright 2019 Fredrik Lidström
  * @license MIT (MIT)
@@ -25,7 +25,6 @@ import { withFilter } from "graphql-subscriptions";
 import providers from "@providers/provider-servers";
 import { IProviderServer } from "@providers/provider-server";
 import { Action } from "./vehicle-type";
-import { ProviderSubject } from "./agent-type";
 
 const actionMemDatabase: { [id: string]: Action } = {};
 let actionMemDatabaseSN = 0;
@@ -39,19 +38,7 @@ const providerMap = providers.reduce(
 );
 
 @Resolver()
-export class AgentResolver {
-  @Query(_returns => [ProviderSubject])
-  async providerSubjects(
-    @Arg("accept", _type => [String]) accept: string[],
-    @Ctx() context: IContext
-  ): Promise<ProviderSubject[]> {
-    const accountLimiter =
-      context.accountUUID === INTERNAL_SERVICE_UUID
-        ? undefined
-        : context.accountUUID;
-    return context.db.getProviderSubjects(accountLimiter, accept);
-  }
-
+export class ProviderResolver {
   // TODO: replace provider query and mutate with provider actions?
   @Query(_returns => GraphQLJSONObject)
   async providerQuery(
@@ -72,7 +59,6 @@ export class AgentResolver {
       result: await provider.query(input, context)
     };
   }
-
   @Mutation(_returns => GraphQLJSONObject)
   async providerMutate(
     @Arg("name", { description: `Provider name` }) name: string,
@@ -103,11 +89,7 @@ export class AgentResolver {
     data: any | null,
     @Ctx() context: IContext
   ): Promise<Action> {
-    const accountLimiter =
-      context.accountUUID === INTERNAL_SERVICE_UUID
-        ? undefined
-        : context.accountUUID;
-    const subjects = await context.db.getProviderSubjects(accountLimiter, [
+    const subjects = await context.db.getProviderSubjects(context.accountUUID, [
       providerName
     ]);
     // verify access

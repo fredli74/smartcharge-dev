@@ -633,7 +633,6 @@ export class TeslaAgent extends AbstractAgent {
         }
       }
     } catch (err) {
-      debugger;
       await this.handleError(job, err);
       throw new Error(err);
     }
