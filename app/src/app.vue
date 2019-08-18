@@ -15,7 +15,7 @@
     <v-content id="app-content">
       <v-container fluid>
         <v-layout row justify-space-around>
-          <v-flex xs12>
+          <v-flex xs12 class="px-4">
             <v-alert v-model="error.show" dismissible type="error" prominent>{{
               error.message
             }}</v-alert>
@@ -43,9 +43,9 @@ import eventBus from "./plugins/event-bus";
 
 declare var COMMIT_HASH: string;
 
-class AlertMessage {
-  show: boolean = false;
-  message: string = "";
+interface AlertMessage {
+  show: boolean;
+  message: string | undefined;
 }
 @Component({
   components: {}
@@ -57,8 +57,8 @@ export default class App extends Vue {
   data() {
     return {
       authorized: apollo.authorized,
-      warning: new AlertMessage(),
-      error: new AlertMessage()
+      warning: { show: false, message: undefined },
+      error: { show: false, message: undefined }
       //
     };
   }
@@ -81,7 +81,11 @@ export default class App extends Vue {
     });
   }
   errorCaptured(err: Error, _vm: Vue, _info: string) {
-    this.error.message = err.message || (err as any).toString();
+    if (err.message && err.name) {
+      this.error.message = `${err.name}: ${err.message}`;
+    } else {
+      this.error.message = (err as any).toString();
+    }
     this.error.show = true;
     return false;
   }

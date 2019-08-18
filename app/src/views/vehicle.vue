@@ -378,14 +378,7 @@ export default class VehicleVue extends Vue {
   margin-left: 14px;
 }
 #vehicle-picture {
+  pointer-events: none;
   margin: -10% 0;
-}
-#vvehicle-picture {
-  max-height: 200px;
-}
-@media (min-width: 1904px) {
-  #vvehicle-picture {
-    max-height: 300px;
-  }
 }
 </style>
