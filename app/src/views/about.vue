@@ -6,15 +6,14 @@
       open-source system for charging your EV smarter. By connecting to the
       vehicle API and energy provider API, the system maps your usage and charge
       habits. It then figures out when to best charge your vehicle at off-peak
-      hours, which is better for the energy grid and your wallet if your
+      hours, which is better for the energy grid and also your wallet if your
       provider has Time-of-Use pricing. Tibber already has this functionality
       for a lot of vehicle brands, but I wanted to create an open-source app
       that I could expand with more features and providers.
     </p>
     <p>
-      I have only implemented providers for Tesla and Tibber because it is what
-      I use myself. If you live in Sweden, I highly recommend switching to
-      Tibber if you have not done so already.
+      I have only implemented providers for Tesla and Nordpool since that is
+      what I have (Tibber and many other providers use Nordpool spot pricing).
     </p>
     <ul>
       <li>AI that learns your usage and charging habits</li>
