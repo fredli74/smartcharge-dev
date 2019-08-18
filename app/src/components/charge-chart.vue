@@ -1,7 +1,7 @@
 <template>
   <v-container fluid>
-    <v-layout v-resize="onResize" row justify-space-around>
-      <v-flex xs12 xl6>
+    <v-layout row justify-space-around>
+      <v-flex xs12>
         <apex
           v-if="chartData && chartData.prices.length > 1"
           id="pricechart"
@@ -12,7 +12,7 @@
           :series="priceseries"
         ></apex
       ></v-flex>
-      <v-flex xs12 xl6>
+      <v-flex xs12>
         <apex
           v-if="
             chartData &&
@@ -22,7 +22,7 @@
           id="chargechart"
           ref="chargechart"
           class="chart"
-          :height="chargeHeight"
+          height="250px"
           :options="chargeoptions"
           :series="chargeseries"
         ></apex
@@ -196,7 +196,6 @@ export default class ChargeChart extends Vue {
   minLevel!: number;
   maxLevel!: number;
   fullUpdate!: boolean;
-  chargeHeight!: string;
 
   data() {
     return {
@@ -205,14 +204,10 @@ export default class ChargeChart extends Vue {
       maxPrice: 1,
       minLevel: 0,
       maxLevel: 100,
-      fullUpdate: false,
-      chargeHeight: "250px"
+      fullUpdate: false
     };
   }
   mounted() {}
-  onResize() {
-    this.chargeHeight = window.innerWidth > 1904 ? "400px" : "250px";
-  }
 
   timer?: any;
   created() {
@@ -332,21 +327,23 @@ export default class ChargeChart extends Vue {
           }
         });
         // Annotate threshold price
-        pricechart.addYaxisAnnotation({
-          y: scalePrice(this.chartData.thresholdPrice),
-          strokeDashArray: [2, 5],
-          fillColor: "none",
-          borderColor: "#2E93fA",
+        const t = scalePrice(this.chartData.thresholdPrice);
+        if (t >= this.minPrice && t <= this.maxPrice) {
+          pricechart.addYaxisAnnotation({
+            y: t,
+            strokeDashArray: [2, 5],
+            fillColor: "none",
+            borderColor: "#2E93fA",
           borderWidth: 2,
           opacity: 0.2,
           offsetX: 0,
-          offsetY: 0,
-          label: {
-            borderWidth: 0,
-            text: scalePrice(this.chartData.thresholdPrice).toString(),
-            textAnchor: "end",
-            position: "left",
-            offsetX: -2,
+            offsetY: 0,
+            label: {
+              borderWidth: 0,
+              text: t.toString(),
+              textAnchor: "end",
+              position: "left",
+              offsetX: -2,
             offsetY: 7,
             style: {
               background: "none",
@@ -354,8 +351,9 @@ export default class ChargeChart extends Vue {
               fontSize: "12px",
               cssClass: "apexcharts-xaxis-annotation-label"
             }
-          }
-        });
+            }
+          });
+        }
       }
       if (chargechart) {
         (chargechart as any).clearAnnotations();
