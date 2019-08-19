@@ -18,6 +18,7 @@ const router = new Router({
   mode: "history",
   base: process.env.BASE_URL,
   routes: [
+    { path: "/index.html", component: Home, alias: "/" },
     {
       path: "/",
       name: "home",
