@@ -153,7 +153,7 @@ export class DBInterface {
     longitude: number
   ): Promise<Location | null> {
     const locations: DBLocation[] = await this.pg.manyOrNone(
-      `SELECT * FROM location WHERE account_uuid = $1;`,
+      `SELECT * FROM location WHERE account_uuid = $1 ORDER BY name;`,
       [accountUUID]
     );
     let bestLocation = null;
@@ -203,7 +203,7 @@ export class DBInterface {
       [account_uuid, `account_uuid = $2`]
     ]);
     return this.pg.manyOrNone(
-      `SELECT * FROM location WHERE ${where.join(" AND ")};`,
+      `SELECT * FROM location WHERE ${where.join(" AND ")} ORDER BY name;`,
       values
     );
   }
@@ -333,7 +333,7 @@ export class DBInterface {
       [account_uuid, `account_uuid = $2`]
     ]);
     return this.pg.manyOrNone(
-      `SELECT * FROM vehicle WHERE ${where.join(" AND ")};`,
+      `SELECT * FROM vehicle WHERE ${where.join(" AND ")} ORDER BY name;`,
       values
     );
   }
@@ -440,7 +440,7 @@ export class DBInterface {
         UNION
         SELECT account_uuid, location_uuid as subject_uuid, provider_data, 'location' as provider_type, provider_data->>'provider' as provider_name FROM location
       )
-      SELECT * FROM subjects WHERE ${where.join(" AND ")};`,
+      SELECT * FROM subjects WHERE ${where.join(" AND ")} ORDER BY 1,2;`,
       values
     );
     return dblist.map(
