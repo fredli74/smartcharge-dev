@@ -18,9 +18,13 @@
             </v-flex>
             <v-flex xs7 sm6>
               <v-list-item-content>
-                <v-list-item-title>{{ vehicle.name }}</v-list-item-title>
+                <v-list-item-title class="pb-1">{{
+                  vehicle.name
+                }}</v-list-item-title>
                 <v-list-item-subtitle class="text-lowercase">
-                  {{ vehicle.status || "not polled yet" }}</v-list-item-subtitle
+                  {{
+                    (vehicle.odometer && vehicle.status) || "not polled yet"
+                  }}</v-list-item-subtitle
                 >
                 <v-list-item-subtitle
                   v-if="vehicle.status === ''"
@@ -75,6 +79,7 @@ import { Vehicle } from "@server/gql/vehicle-type";
           vehicles {
             id
             name
+            odometer
             batteryLevel
             status
             providerData

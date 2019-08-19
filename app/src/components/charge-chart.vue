@@ -334,9 +334,9 @@ export default class ChargeChart extends Vue {
             strokeDashArray: [2, 5],
             fillColor: "none",
             borderColor: "#2E93fA",
-          borderWidth: 2,
-          opacity: 0.2,
-          offsetX: 0,
+            borderWidth: 2,
+            opacity: 0.2,
+            offsetX: 0,
             offsetY: 0,
             label: {
               borderWidth: 0,
@@ -344,13 +344,13 @@ export default class ChargeChart extends Vue {
               textAnchor: "end",
               position: "left",
               offsetX: -2,
-            offsetY: 7,
-            style: {
-              background: "none",
-              color: "#558ec7",
-              fontSize: "12px",
-              cssClass: "apexcharts-xaxis-annotation-label"
-            }
+              offsetY: 7,
+              style: {
+                background: "none",
+                color: "#558ec7",
+                fontSize: "12px",
+                cssClass: "apexcharts-xaxis-annotation-label"
+              }
             }
           });
         }
