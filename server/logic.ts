@@ -454,7 +454,8 @@ export class Logic {
           minimum_level: data.level,
           maximum_level: data.level,
           driven_seconds: data.driving ? deltaTime : 0,
-          driven_meters: data.odometer - vehicle.odometer,
+          driven_meters:
+            vehicle.odometer > 0 ? data.odometer - vehicle.odometer : 0,
           charged_seconds: data.charging_to ? deltaTime : 0,
           charge_energy: data.charging_to
             ? Math.round(Math.max(0, data.power * deltaTime) / 60)
