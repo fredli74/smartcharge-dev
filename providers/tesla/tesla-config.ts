@@ -11,7 +11,7 @@ const config = {
   DEFAULT_MINIMUM_LEVEL: 30,
   DEFAULT_MAXIMUM_LEVEL: 90,
 
-  AGENT_SAVE_TO_TRACEFILE: true,
+  AGENT_SAVE_TO_TRACEFILE: false,
   AGENT_TRACE_FILENAME: "logs/tesla_trace.log"
 };
 
