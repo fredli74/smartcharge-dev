@@ -9,7 +9,8 @@ import { PubSub } from "graphql-subscriptions";
 
 export enum SubscriptionTopic {
   ActionUpdate = "ACTION_UPDATE",
-  VehicleUpdate = "VEHICLE_UPDATE"
+  VehicleUpdate = "VEHICLE_UPDATE",
+  Ping = "PING"
 }
 
 export const apolloPubSub = new PubSub();

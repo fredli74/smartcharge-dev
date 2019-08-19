@@ -40,6 +40,7 @@
 import { Component, Vue } from "vue-property-decorator";
 import apollo from "./plugins/apollo";
 import eventBus from "./plugins/event-bus";
+import { gql } from "apollo-server-core";
 
 declare var COMMIT_HASH: string;
 
@@ -48,7 +49,18 @@ interface AlertMessage {
   message: string | undefined;
 }
 @Component({
-  components: {}
+  components: {},
+  apollo: {
+    $subscribe: {
+      ping: {
+        query: gql`
+          subscription {
+            pingSubscription
+          }
+        `
+      }
+    }
+  }
 })
 export default class App extends Vue {
   authorized!: boolean;

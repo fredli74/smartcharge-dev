@@ -7,7 +7,7 @@
 
 // import { strict as assert } from 'assert';
 
-import { buildSchema } from "type-graphql";
+import { buildSchema, Resolver, Subscription, Root, Int } from "type-graphql";
 import { DBInterface } from "@server/db-interface";
 import { DBAccount } from "@server/db-schema";
 import { Logic } from "@server/logic";
@@ -17,6 +17,7 @@ import { ProviderResolver } from "./provider-resolver";
 import { VehicleResolver } from "./vehicle-resolver";
 import { LocationResolver } from "./location-resolver";
 import { ServiceResolver } from "./service-resolver";
+import { apolloPubSub, SubscriptionTopic } from "./subscription";
 
 export interface IContext {
   db: DBInterface;
@@ -24,8 +25,26 @@ export interface IContext {
   accountUUID: string;
   account?: DBAccount;
 }
+
+@Resolver()
+export class PingResolver {
+  @Subscription(_returns => Int, {
+    subscribe: () => {
+      return apolloPubSub.asyncIterator(SubscriptionTopic.Ping);
+    }
+  })
+  async pingSubscription(@Root() payload: number): Promise<number> {
+    return payload;
+  }
+}
+
+setInterval(() => {
+  apolloPubSub.publish(SubscriptionTopic.Ping, Math.trunc(Date.now() / 1e3));
+}, 15000);
+
 const schema = buildSchema({
   resolvers: [
+    PingResolver,
     AccountResolver,
     ProviderResolver,
     VehicleResolver,
