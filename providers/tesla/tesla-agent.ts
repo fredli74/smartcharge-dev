@@ -44,6 +44,8 @@ interface TeslaAgentJob extends AgentJob {
     portOpen?: boolean;
     parked?: number;
     triedOpen?: number;
+    hvacOn?: number;
+    hvacOff?: number;
     calibrating?: {
       next: number;
       level: number;
@@ -238,6 +240,7 @@ export class TeslaAgent extends AbstractAgent {
           energyAdded: data.charge_state.charge_energy_added // added kWh
         };
 
+        // Set status
         if (input.chargingTo) {
           await this.setStatus(job, "Charging"); // We are charging
           job.state.pollstate = "polling"; // Keep active polling when charging
@@ -255,7 +258,7 @@ export class TeslaAgent extends AbstractAgent {
           if (data.vehicle_state.is_user_present) {
             await this.setStatus(job, "Idle (user present)");
             insomnia = true;
-          } else if (data.climate_keeper_mode === "dog") {
+          } else if (data.climate_state.climate_keeper_mode === "dog") {
             await this.setStatus(job, "Idle (dog mode on)");
             insomnia = true;
           } else if (data.climate_state.is_climate_on) {
@@ -333,6 +336,24 @@ export class TeslaAgent extends AbstractAgent {
               powerUse
             );
           }
+        }
+
+        if (
+          job.state.hvacOn &&
+          (data.climate_state.climate_keeper_mode !== "off" ||
+            data.climate_state.smart_preconditioning ||
+            data.drive_state.shift_state !== "P" ||
+            data.vehicle_state.is_user_present ||
+            data.vehicle_state.df > 0 ||
+            data.vehicle_state.dr > 0 ||
+            data.vehicle_state.pf > 0 ||
+            data.vehicle_state.pr > 0 ||
+            data.vehicle_state.ft > 0 ||
+            data.vehicle_state.rt > 0)
+        ) {
+          // User has interacted with the car so leave the hvac alone
+          delete job.state.hvacOn;
+          delete job.state.hvacOff;
         }
       } else {
         // Poll vehicle list to avoid keeping it awake
@@ -608,28 +629,40 @@ export class TeslaAgent extends AbstractAgent {
           const on =
             now >
               job.state.data.tripSchedule.time.getTime() -
-                config.HVAC_ON_BEFORE_TRIP && // start hvac before trip
+                config.TRIP_HVAC_ON_WINDOW &&
             now <
               job.state.data.tripSchedule.time.getTime() +
-                config.HVAC_ON_BEFORE_TRIP; // only keep it on for so long
+                config.TRIP_HVAC_ON_DURATION;
 
-          if (on && !job.state.data.climateControl) {
-            log(
-              LogLevel.Info,
-              `Starting climate control on ${job.state.data.name}`
-            );
-            await this[AgentAction.ClimateControl](job, {
-              data: { enable: true }
-            } as any);
-          } else if (!on && job.state.data.climateControl) {
-            log(
-              LogLevel.Info,
-              `Stopping climate control on ${job.state.data.name}`
-            );
-            await this[AgentAction.ClimateControl](job, {
-              data: { enable: false }
-            } as any);
+          if (on) {
+            if (job.state.data.climateControl) {
+              job.state.hvacOn = job.state.hvacOn || now;
+            } else if (!job.state.hvacOn) {
+              log(
+                LogLevel.Info,
+                `Starting climate control on ${job.state.data.name}`
+              );
+              await this[AgentAction.ClimateControl](job, {
+                data: { enable: true }
+              } as any);
+            }
+          } else if (job.state.hvacOn) {
+            if (!job.state.data.climateControl) {
+              delete job.state.hvacOn;
+              delete job.state.hvacOff;
+            } else if (!job.state.hvacOff) {
+              log(
+                LogLevel.Info,
+                `Stopping climate control on ${job.state.data.name}`
+              );
+              await this[AgentAction.ClimateControl](job, {
+                data: { enable: false }
+              } as any);
+            }
           }
+        } else {
+          delete job.state.hvacOn;
+          delete job.state.hvacOff;
         }
       }
     } catch (err) {
