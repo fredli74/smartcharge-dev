@@ -89,7 +89,11 @@ export class ProviderResolver {
     data: any | null,
     @Ctx() context: IContext
   ): Promise<Action> {
-    const subjects = await context.db.getProviderSubjects(context.accountUUID, [
+    const accountLimiter =
+      context.accountUUID === INTERNAL_SERVICE_UUID
+        ? undefined
+        : context.accountUUID;
+    const subjects = await context.db.getProviderSubjects(accountLimiter, [
       providerName
     ]);
     // verify access
