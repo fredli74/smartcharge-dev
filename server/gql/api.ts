@@ -40,7 +40,7 @@ export class PingResolver {
 
 setInterval(() => {
   apolloPubSub.publish(SubscriptionTopic.Ping, Math.trunc(Date.now() / 1e3));
-}, 15000);
+}, 30000);
 
 const schema = buildSchema({
   resolvers: [

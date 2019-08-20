@@ -7,6 +7,7 @@
           <span class="font-weight-light">ev</span>
         </router-link>
       </v-toolbar-title>
+      <v-spacer></v-spacer>
       <span id="version" @click="appReload()">{{ version }}</span>
       <v-spacer></v-spacer>
       <v-btn v-if="authorized" text @click="logout">logout</v-btn>
@@ -132,7 +133,7 @@ a#homelink {
   text-decoration: none;
 }
 #version {
-  font-size: 0.6em;
+  font-size: 0.5em;
   font-family: monospace;
   color: #eee;
   margin-left: 1em;
