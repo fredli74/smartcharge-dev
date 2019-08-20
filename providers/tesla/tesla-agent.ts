@@ -110,7 +110,7 @@ export class TeslaAgent extends AbstractAgent {
         // 19" Sport Wheels: "W39B", // default
         // 20" Sport Wheels: "W32B"
       };
-      option_codes.push(wheels[data.vehicle_config.wheel_type] || "W39B");
+      option_codes.push(wheels[data.vehicle_config.wheel_type] || "W38B");
 
       if (data.vehicle_config.spoiler_type !== "None") {
         option_codes.push("SLR1");

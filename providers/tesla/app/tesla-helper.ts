@@ -40,7 +40,7 @@ export async function refreshToken(
 }
 
 export function vehicleImage(vehicle: Vehicle): string {
-  let options = ["W32P", "PPMR", "SLR1"];
+  let options = ["W38B", "PPSW"];
   if (vehicle.providerData.option_codes) {
     options = vehicle.providerData.option_codes;
   }
