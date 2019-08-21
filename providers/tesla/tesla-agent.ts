@@ -501,7 +501,7 @@ export class TeslaAgent extends AbstractAgent {
             startCharging = true;
           }
           if (stopCharging || startCharging) {
-            if (!this.userInteraction(job)) {
+            if (!(await this.userInteraction(job))) {
               log(
                 LogLevel.Trace,
                 `Waiting for vehicle ${job.subjectID} to be ready`
@@ -715,7 +715,7 @@ export class TeslaAgent extends AbstractAgent {
   ): Promise<any> {
     if (!action || job.providerData.invalid_token) return false; // provider requires a valid token
 
-    if (!this.userInteraction(job)) return false; // Not ready for interaction
+    if (!(await this.userInteraction(job))) return false; // Not ready for interaction
     if (action.data.enable === job.state.data!.climateControl) return true; // Already correct
 
     await this.maintainToken(job);
