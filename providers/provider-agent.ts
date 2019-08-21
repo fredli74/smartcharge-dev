@@ -18,8 +18,7 @@ export interface IProviderAgent extends IProvider {
 }
 
 export enum AgentAction {
-  Update = "update",
-  WakeUp = "wakeup",
+  Refresh = "refresh",
   ClimateControl = "climate"
 }
 
@@ -42,6 +41,7 @@ export abstract class AbstractAgent {
   protected stopped: boolean = false;
   protected workerPromise: Promise<any> | undefined;
   protected abstract newState(): any;
+  public abstract update(job: AgentJob): Promise<void>;
   constructor(protected scClient: SCClient) {}
   public adjustInterval(job: AgentJob, target: number) {
     if (target > job.interval) {
@@ -119,16 +119,13 @@ export abstract class AbstractAgent {
                 } else {
                   action.data.nextrun = now + 5e3; // retry in 5s
                 }
-              } else if (
-                (this as any)[AgentAction.Update] &&
-                now >= job.nextrun
-              ) {
+              } else if (now >= job.nextrun) {
                 log(
                   LogLevel.Trace,
                   `Agent ${this.name} calling update for ${job.subjectID}`
                 );
                 try {
-                  await (this as any)[AgentAction.Update](job);
+                  await this.update(job);
                 } catch (error) {
                   log(LogLevel.Error, error);
                 }

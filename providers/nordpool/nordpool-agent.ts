@@ -11,8 +11,7 @@ import { log, LogLevel } from "@shared/utils";
 import {
   AgentJob,
   AbstractAgent,
-  IProviderAgent,
-  AgentAction
+  IProviderAgent
 } from "@providers/provider-agent";
 import provider, { NordpoolProviderData } from ".";
 import config from "./nordpool-config";
@@ -37,9 +36,7 @@ export class NordpoolAgent extends AbstractAgent {
     return {};
   }
 
-  public async [AgentAction.Update](
-    job: NordpoolAgentSubject
-  ): Promise<boolean> {
+  public async update(job: NordpoolAgentSubject): Promise<void> {
     const now = Date.now();
     if (!this.polling && now > this.nextUpdate) {
       this.polling = true;
@@ -95,7 +92,6 @@ export class NordpoolAgent extends AbstractAgent {
     }
 
     job.interval = Math.max(60, (this.nextUpdate - now) / 1e3);
-    return true;
   }
 }
 

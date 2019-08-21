@@ -49,9 +49,9 @@
           :small="smallButton"
           outlined
           color=""
-          :loading="wakeupLoading"
+          :loading="refreshLoading"
           v-on="on"
-          @click="wakeupClick()"
+          @click="refreshClick()"
           ><v-icon :large="!smallButton">mdi-sleep-off</v-icon></v-btn
         >
       </template>
@@ -176,11 +176,8 @@ import VehicleTrip from "./vehicle-trip.vue";
             // Only subscribing for errors to be honest, all other actions
             // are checked in other ways
             eventBus.$emit("ALERT_WARNING", action.data.error);
-            if (action.action === AgentAction.Update) {
+            if (action.action === AgentAction.Refresh) {
               this.$data.refreshLoading = false;
-            }
-            if (action.action === AgentAction.WakeUp) {
-              this.$data.wakeupLoading = false;
             }
             if (action.action === AgentAction.ClimateControl) {
               this.$data.hvacLoading = false;
@@ -196,7 +193,6 @@ export default class VehicleActions extends Vue {
 
   changed!: boolean;
   saving!: boolean;
-  wakeupLoading!: boolean;
   refreshLoading!: boolean;
   hvacLoading!: boolean;
   smallButton!: boolean;
@@ -208,7 +204,6 @@ export default class VehicleActions extends Vue {
     return {
       saving: false,
       changed: false,
-      wakeupLoading: false,
       refreshLoading: false,
       hvacLoading: false,
       smallButton: false,
@@ -233,7 +228,7 @@ export default class VehicleActions extends Vue {
     apollo.action(
       this.vehicle!.id,
       this.vehicle!.providerData.provider,
-      AgentAction.Update
+      AgentAction.Refresh
     );
     const was = this.vehicle!.updated;
     while (this.vehicle!.updated === was) {
@@ -241,21 +236,9 @@ export default class VehicleActions extends Vue {
     }
     this.refreshLoading = false;
   }
-  async wakeupClick() {
-    this.wakeupLoading = true;
-    apollo.action(
-      this.vehicle!.id,
-      this.vehicle!.providerData.provider,
-      AgentAction.WakeUp
-    );
-    while (this.isSleeping) {
-      await delay(1000);
-    }
-    this.wakeupLoading = false;
-  }
   async hvacClick() {
     this.hvacLoading = true;
-    this.wakeupLoading = true;
+    if (this.isSleeping) this.refreshLoading = true;
     const want = !this.vehicle!.climateControl;
     apollo.action(
       this.vehicle!.id,
@@ -266,7 +249,7 @@ export default class VehicleActions extends Vue {
     while (this.vehicle!.climateControl !== want) {
       await delay(1000);
     }
-    this.wakeupLoading = false;
+    this.refreshLoading = false;
     this.hvacLoading = false;
   }
 
