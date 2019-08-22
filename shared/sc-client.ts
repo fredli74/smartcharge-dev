@@ -97,18 +97,6 @@ export class SCClient extends ApolloClient<any> {
         webSocketImpl
       );
 
-      /*
-      this.link.split(
-        ({ query }) => {
-          const definition = getMainDefinition(query);
-          return (
-            definition.kind === "OperationDefinition" &&
-            definition.operation === "subscription"
-          );
-        },
-        wsLink,
-        httpLink
-      );*/
       super({
         connectToDevTools: true,
         link: errorLink.concat(new WebSocketLink(wsClient)),

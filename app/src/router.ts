@@ -3,7 +3,7 @@ import Router from "vue-router";
 import Home from "./views/home.vue";
 import About from "./views/about.vue";
 import apollo from "./plugins/apollo";
-import eventBus from "./plugins/event-bus";
+import eventBus, { BusEvent } from "./plugins/event-bus";
 
 Vue.use(Router);
 
@@ -69,6 +69,6 @@ router.beforeEach((to, _from, next) => {
   }
 });
 router.afterEach((_to, _from) => {
-  eventBus.$emit("ALERT_CLEAR");
+  eventBus.$emit(BusEvent.AlertClear);
 });
 export default router;

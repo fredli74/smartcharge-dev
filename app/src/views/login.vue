@@ -23,7 +23,7 @@
 <script lang="ts">
 import { Component, Vue } from "vue-property-decorator";
 import apollo from "@app/plugins/apollo";
-import eventBus from "@app/plugins/event-bus";
+import eventBus, { BusEvent } from "@app/plugins/event-bus";
 import { strict as assert } from "assert";
 
 @Component({
@@ -34,22 +34,22 @@ export default class Login extends Vue {
   async verify() {}
   async login() {
     // loading...
-    eventBus.$emit("ALERT_CLEAR");
+    eventBus.$emit(BusEvent.AlertClear);
     try {
       await apollo.loginWithPassword(this.password);
-      eventBus.$emit("AUTHENTICATION_CHANGED");
+      eventBus.$emit(BusEvent.AuthenticationChange);
       assert(apollo.account);
       this.$router.push("/");
     } catch (err) {
       if (err.graphQLErrors) {
         for (const e of err.graphQLErrors) {
           if (e.extensions && e.extensions.code === "UNAUTHENTICATED") {
-            eventBus.$emit("ALERT_WARNING", `invalid password`);
+            eventBus.$emit(BusEvent.AlertWarning, `invalid password`);
             return;
           }
         }
       }
-      eventBus.$emit("ALERT_ERROR", err.message || err);
+      eventBus.$emit(BusEvent.AlertError, err.message || err);
     }
   }
   mounted() {}

@@ -133,7 +133,7 @@ import apollo from "@app/plugins/apollo";
 import { delay } from "@shared/utils";
 import { VueConstructor } from "vue";
 import VehicleSettings from "./vehicle-settings.vue";
-import eventBus from "@app/plugins/event-bus";
+import eventBus, { BusEvent } from "@app/plugins/event-bus";
 import deepmerge from "deepmerge";
 import { Action, Vehicle } from "@server/gql/vehicle-type";
 import VehiclePause from "./vehicle-pause.vue";
@@ -175,7 +175,7 @@ import VehicleTrip from "./vehicle-trip.vue";
           if (action.data.error) {
             // Only subscribing for errors to be honest, all other actions
             // are checked in other ways
-            eventBus.$emit("ALERT_WARNING", action.data.error);
+            eventBus.$emit(BusEvent.AlertWarning, action.data.error);
             if (action.action === AgentAction.Refresh) {
               this.$data.refreshLoading = false;
             }

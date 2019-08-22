@@ -26,7 +26,7 @@
 <script lang="ts">
 import { Component, Vue } from "vue-property-decorator";
 import apollo from "@app/plugins/apollo";
-import eventBus from "@app/plugins/event-bus";
+import eventBus, { BusEvent } from "@app/plugins/event-bus";
 
 @Component({ components: {} })
 export default class TeslaTokenVue extends Vue {
@@ -47,7 +47,7 @@ export default class TeslaTokenVue extends Vue {
     );
   }
   async newToken() {
-    eventBus.$emit("ALERT_CLEAR");
+    eventBus.$emit(BusEvent.AlertClear);
     this.loading = true;
     try {
       const token = await apollo.providerMutate("tesla", {
@@ -57,7 +57,7 @@ export default class TeslaTokenVue extends Vue {
       this.$emit("token", token);
     } catch {
       eventBus.$emit(
-        "ALERT_WARNING",
+        BusEvent.AlertWarning,
         "Unable to verify new Tesla API refresh token"
       );
     }

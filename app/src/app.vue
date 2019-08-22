@@ -40,7 +40,7 @@
 <script lang="ts">
 import { Component, Vue } from "vue-property-decorator";
 import apollo from "./plugins/apollo";
-import eventBus from "./plugins/event-bus";
+import eventBus, { BusEvent } from "./plugins/event-bus";
 import { gql } from "apollo-server-core";
 
 declare var COMMIT_HASH: string;
@@ -77,19 +77,19 @@ export default class App extends Vue {
   }
 
   async mounted() {
-    eventBus.$on("ALERT_ERROR", (message: string) => {
+    eventBus.$on(BusEvent.AlertError, (message: string) => {
       this.error.message = message;
       this.error.show = true;
     });
-    eventBus.$on("ALERT_WARNING", (message: string) => {
+    eventBus.$on(BusEvent.AlertWarning, (message: string) => {
       this.warning.message = message;
       this.warning.show = true;
     });
-    eventBus.$on("ALERT_CLEAR", () => {
+    eventBus.$on(BusEvent.AlertClear, () => {
       this.warning.show = false;
       this.error.show = false;
     });
-    eventBus.$on("AUTHENTICATION_CHANGED", () => {
+    eventBus.$on(BusEvent.AuthenticationChange, () => {
       this.authorized = apollo.authorized;
     });
   }
@@ -108,7 +108,7 @@ export default class App extends Vue {
   }
   async logout() {
     await apollo.logout();
-    eventBus.$emit("AUTHENTICATION_CHANGED");
+    eventBus.$emit(BusEvent.AuthenticationChange);
     this.$router.push("/about");
   }
 

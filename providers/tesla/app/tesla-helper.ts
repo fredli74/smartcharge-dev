@@ -1,6 +1,6 @@
 import { IRestToken } from "@shared/restclient";
 import { SCClient } from "@shared/sc-client";
-import eventBus from "@app/plugins/event-bus";
+import eventBus, { BusEvent } from "@app/plugins/event-bus";
 import { Vehicle } from "@server/gql/vehicle-type";
 
 // List entry when adding a new Tesla vehicle
@@ -34,7 +34,7 @@ export async function refreshToken(
     });
   } catch {
     // TODO: this should not be here, it should be wrappen in the tesla-app
-    eventBus.$emit("ALERT_WARNING", "Unable to verify Tesla API token");
+    eventBus.$emit(BusEvent.AlertWarning, "Unable to verify Tesla API token");
   }
   return token;
 }
