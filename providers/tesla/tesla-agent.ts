@@ -20,8 +20,7 @@ import {
   IProviderAgent,
   AgentAction
 } from "@providers/provider-agent";
-import { TeslaProviderData } from "./app/tesla-helper";
-import provider from ".";
+import provider, { TeslaServiceData, TeslaProviderMutates } from ".";
 import {
   Vehicle,
   UpdateVehicleDataInput,
@@ -33,27 +32,34 @@ import {
 
 type PollState = "polling" | "tired" | "offline" | "asleep";
 
-interface TeslaAgentJob extends AgentJob {
-  providerData: TeslaProviderData;
-  state: {
-    data?: Vehicle;
-    online: boolean;
-    pollstate: PollState;
-    statestart: number;
-    status: string;
-    debugSleep?: any;
-    chargeLimit?: number;
-    portOpen?: boolean;
-    parked?: number;
-    triedOpen?: number;
-    hvacOn?: number;
-    hvacOff?: number;
-    calibrating?: {
-      next: number;
-      level: number;
-      duration: number;
-    };
+interface TeslaSubject {
+  teslaID: string;
+  vehicleUUID: string;
+  data?: Vehicle;
+  online: boolean;
+  pollstate: PollState;
+  statestart: number;
+  status: string;
+  debugSleep?: any;
+  chargeLimit?: number;
+  portOpen?: boolean;
+  parked?: number;
+  triedOpen?: number;
+  hvacOn?: number;
+  hvacOff?: number;
+  calibrating?: {
+    next: number;
+    level: number;
+    duration: number;
   };
+}
+
+interface TeslaAgentState {
+  [teslaID: string]: TeslaSubject;
+}
+interface TeslaAgentJob extends AgentJob {
+  serviceData: TeslaServiceData;
+  state: TeslaAgentState;
 }
 
 export class TeslaAgent extends AbstractAgent {
@@ -62,29 +68,26 @@ export class TeslaAgent extends AbstractAgent {
     super(scClient);
   }
 
-  public newState() {
-    return {
-      online: false,
-      pollstate: "offline",
-      statestart: Date.now(),
-      status: ""
-    };
+  public newState(): TeslaAgentState {
+    return {};
   }
-  private changePollstate(job: TeslaAgentJob, state: PollState) {
-    if (job.state.pollstate === state) return;
-    job.state.pollstate = state;
-    job.state.statestart = Date.now();
-    job.state.online = state !== "offline" && state !== "asleep";
+  private changePollstate(subject: TeslaSubject, state: PollState) {
+    if (subject.pollstate === state) return;
+    subject.pollstate = state;
+    subject.statestart = Date.now();
+    subject.online = state !== "offline" && state !== "asleep";
   }
 
-  public async setStatus(job: TeslaAgentJob, status: string) {
-    if (job.state && job.state.status !== status) {
-      this.scClient.updateVehicle({ id: job.subjectID, status: status });
-      job.state.status = status;
+  public async setStatus(subject: TeslaSubject, status: string) {
+    if (subject.status !== status) {
+      this.scClient.updateVehicle({ id: subject.vehicleUUID, status: status });
+      subject.status = status;
     }
   }
 
-  public async setOptionCodes(job: TeslaAgentJob, data: any) {
+  public async setOptionCodes(subject: TeslaSubject, data: any) {
+    if (!subject.data) return;
+
     let option_codes = (data.option_codes as string).split(",");
     if (option_codes.indexOf("MDL3") >= 0) {
       /***** MODEL 3 option codes are not correct *****/
@@ -126,11 +129,11 @@ export class TeslaAgent extends AbstractAgent {
     }
 
     if (
-      JSON.stringify(job.providerData.option_codes) !==
+      JSON.stringify(subject.data.providerData.option_codes) !==
       JSON.stringify(option_codes)
     ) {
       await this.scClient.updateVehicle({
-        id: job.subjectID,
+        id: subject.vehicleUUID,
         providerData: { option_codes: option_codes }
       });
     }
@@ -138,42 +141,40 @@ export class TeslaAgent extends AbstractAgent {
 
   public async maintainToken(job: TeslaAgentJob) {
     // API Token check and update
-    let token = job.providerData.token as IRestToken;
+    let token = job.serviceData.token as IRestToken;
 
     if (RestClient.tokenExpired(token)) {
       // Token has expired, run it through server
       const newToken = await this.scClient.providerMutate("tesla", {
-        mutation: "refreshToken",
+        mutation: TeslaProviderMutates.RefreshToken,
         token
       });
-      for (const j of Object.values(this.subjects)) {
+      for (const j of Object.values(this.services)) {
         if (
-          (j as TeslaAgentJob).providerData.token.refresh_token ===
+          (j as TeslaAgentJob).serviceData.token.refresh_token ===
           token.refresh_token
         ) {
-          (j as TeslaAgentJob).providerData.token = newToken;
+          (j as TeslaAgentJob).serviceData.token = newToken;
         }
       }
-      assert(job.providerData.token.access_token === newToken.access_token);
+      assert(job.serviceData.token.access_token === newToken.access_token);
     }
   }
 
-  public async update(job: TeslaAgentJob): Promise<void> {
-    if (job.providerData.invalid_token) return; // provider requires a valid token
-
-    const now = Date.now();
+  private async poll(job: TeslaAgentJob, subject: TeslaSubject): Promise<void> {
     try {
+      const now = Date.now();
       await this.maintainToken(job);
 
       // API Poll
       if (
-        job.state.pollstate === "polling" || // Poll vehicle data if we are in polling state
-        (job.state.pollstate === "tired" &&
-          now >= job.state.statestart + config.TIME_BEING_TIRED) // or if we've been trying to sleep for TIME_BEING_TIRED seconds
+        subject.pollstate === "polling" || // Poll vehicle data if we are in polling state
+        (subject.pollstate === "tired" &&
+          now >= subject.statestart + config.TIME_BEING_TIRED) // or if we've been trying to sleep for TIME_BEING_TIRED seconds
       ) {
         const data = (await teslaAPI.getVehicleData(
-          job.providerData.sid,
-          job.providerData.token
+          subject.teslaID,
+          job.serviceData.token
         )).response;
         if (config.AGENT_SAVE_TO_TRACEFILE) {
           const s = logFormat(LogLevel.Trace, data);
@@ -182,9 +183,9 @@ export class TeslaAgent extends AbstractAgent {
           });
         }
 
-        job.state.chargeLimit = data.charge_state.charge_limit_soc;
-        job.state.portOpen = data.charge_state.charge_port_door_open;
-        job.state.online = true;
+        subject.chargeLimit = data.charge_state.charge_limit_soc;
+        subject.portOpen = data.charge_state.charge_port_door_open;
+        subject.online = true;
 
         const chargingTo =
           data.charge_state.charging_state === "Charging"
@@ -216,7 +217,7 @@ export class TeslaAgent extends AbstractAgent {
 
         // Update info
         const input: UpdateVehicleDataInput = {
-          id: job.subjectID,
+          id: subject.vehicleUUID,
           geoLocation: {
             latitude: data.drive_state.latitude,
             longitude: data.drive_state.longitude
@@ -245,100 +246,100 @@ export class TeslaAgent extends AbstractAgent {
 
         // Set status
         if (input.chargingTo) {
-          await this.setStatus(job, "Charging"); // We are charging
-          this.changePollstate(job, "polling"); // Keep active polling when charging
+          await this.setStatus(subject, "Charging"); // We are charging
+          this.changePollstate(subject, "polling"); // Keep active polling when charging
           this.adjustInterval(job, 10); // Poll more often when charging
         } else if (input.isDriving) {
-          await this.setStatus(job, "Driving"); // We are driving
-          this.changePollstate(job, "polling"); // Keep active polling when driving
+          await this.setStatus(subject, "Driving"); // We are driving
+          this.changePollstate(subject, "polling"); // Keep active polling when driving
           this.adjustInterval(job, 10); // Poll more often when driving
         } else {
           this.adjustInterval(job, 60);
           let insomnia = false; // Are we in a state where sleep is not possible
 
           if (data.vehicle_state.is_user_present) {
-            await this.setStatus(job, "Idle (user present)");
+            await this.setStatus(subject, "Idle (user present)");
             insomnia = true;
           } else if (data.climate_state.climate_keeper_mode === "dog") {
-            await this.setStatus(job, "Idle (dog mode on)");
+            await this.setStatus(subject, "Idle (dog mode on)");
             insomnia = true;
           } else if (data.climate_state.is_climate_on) {
-            await this.setStatus(job, "Idle (climate on)");
+            await this.setStatus(subject, "Idle (climate on)");
             insomnia = true;
           } else if (data.vehicle_state.sentry_mode) {
-            await this.setStatus(job, "Idle (sentry on)");
+            await this.setStatus(subject, "Idle (sentry on)");
             insomnia = true;
-          } else if (job.state.pollstate === "tired") {
-            if (job.state.debugSleep !== undefined) {
-              job.state.debugSleep.now = now;
-              job.state.debugSleep.success = false;
+          } else if (subject.pollstate === "tired") {
+            if (subject.debugSleep !== undefined) {
+              subject.debugSleep.now = now;
+              subject.debugSleep.success = false;
               await this.scClient.vehicleDebug({
-                id: job.subjectID,
+                id: subject.vehicleUUID,
                 category: "sleep",
                 timestamp: new Date(),
-                data: job.state.debugSleep
+                data: subject.debugSleep
               });
-              job.state.debugSleep.info = data;
+              subject.debugSleep.info = data;
             }
-            job.state.statestart = now; // Reset state start to only poll once every TIME_BEING_TIRED
-          } else if (now >= job.state.statestart + config.TIME_BEFORE_TIRED) {
-            await this.setStatus(job, "Waiting to sleep"); // We were idle for TIME_BEFORE_TIRED
-            this.changePollstate(job, "tired");
-            job.state.debugSleep = {
+            subject.statestart = now; // Reset state start to only poll once every TIME_BEING_TIRED
+          } else if (now >= subject.statestart + config.TIME_BEFORE_TIRED) {
+            await this.setStatus(subject, "Waiting to sleep"); // We were idle for TIME_BEFORE_TIRED
+            this.changePollstate(subject, "tired");
+            subject.debugSleep = {
               now: now,
               start: now,
               success: false,
               info: data
             }; // Save current state to debug sleep tries
           } else {
-            await this.setStatus(job, "Idle");
+            await this.setStatus(subject, "Idle");
           }
 
           if (insomnia) {
-            this.changePollstate(job, "polling");
+            this.changePollstate(subject, "polling");
           }
         }
         await this.scClient.updateVehicleData(input);
-        await this.setOptionCodes(job, data);
+        await this.setOptionCodes(subject, data);
 
         // Charge calibration
         if (
-          job.state.calibrating &&
+          subject.calibrating &&
           powerUse > 0 &&
-          now > job.state.calibrating.next
+          now > subject.calibrating.next
         ) {
           const thisLimit = data.charge_state.charge_limit_soc;
-          const lastLimit = job.state.calibrating.level;
+          const lastLimit = subject.calibrating.level;
           const levelNow = data.charge_state.usable_battery_level;
           if (thisLimit <= levelNow) {
-            job.state.calibrating.level = levelNow;
-            job.state.calibrating.duration = 0;
+            subject.calibrating.level = levelNow;
+            subject.calibrating.duration = 0;
           } else if (thisLimit > lastLimit) {
             const thisTime = data.charge_state.time_to_full_charge * 3600;
-            const lastDuration = job.state.calibrating.duration;
+            const lastDuration = subject.calibrating.duration;
             let duration = thisTime / (thisLimit - levelNow);
 
             if (lastDuration > 0 && levelNow < lastLimit) {
               const lastTime =
-                (lastLimit - levelNow) * job.state.calibrating.duration;
+                (lastLimit - levelNow) * subject.calibrating.duration;
               duration = Math.max(
                 duration,
                 (thisTime - lastTime) / (thisLimit - lastLimit)
               );
             }
-            job.state.calibrating.level = thisLimit;
-            job.state.calibrating.duration = duration;
+            subject.calibrating.level = thisLimit;
+            subject.calibrating.duration = duration;
             await this.scClient.chargeCalibration(
-              job.subjectID,
-              job.state.calibrating.level,
-              Math.round(job.state.calibrating.duration),
+              subject.vehicleUUID,
+              subject.calibrating.level,
+              Math.round(subject.calibrating.duration),
               powerUse
             );
           }
         }
 
         if (
-          job.state.hvacOn &&
+          subject.hvacOn &&
           (data.climate_state.climate_keeper_mode !== "off" ||
             data.climate_state.smart_preconditioning ||
             data.drive_state.shift_state !== "P" ||
@@ -351,14 +352,14 @@ export class TeslaAgent extends AbstractAgent {
             data.vehicle_state.rt > 0)
         ) {
           // User has interacted with the car so leave the hvac alone
-          delete job.state.hvacOn;
-          delete job.state.hvacOff;
+          delete subject.hvacOn;
+          delete subject.hvacOff;
         }
       } else {
         // Poll vehicle list to avoid keeping it awake
         const data = (await teslaAPI.listVehicle(
-          job.providerData.sid,
-          job.providerData.token
+          subject.teslaID,
+          job.serviceData.token
         )).response;
         if (config.AGENT_SAVE_TO_TRACEFILE) {
           const s = logFormat(LogLevel.Trace, data);
@@ -371,53 +372,53 @@ export class TeslaAgent extends AbstractAgent {
         switch (data.state) {
           case "online":
             if (
-              job.state.pollstate === "asleep" ||
-              job.state.pollstate === "offline"
+              subject.pollstate === "asleep" ||
+              subject.pollstate === "offline"
             ) {
               // We were offline or sleeping
               log(
                 LogLevel.Info,
                 `${data.display_name} is ${data.state} (${
-                  job.state.pollstate
+                  subject.pollstate
                 } -> polling)`
               );
-              this.changePollstate(job, "polling"); // Start polling again
+              this.changePollstate(subject, "polling"); // Start polling again
               this.adjustInterval(job, 0); // Woke up, poll right away
             }
             break;
           case "offline":
-            if (job.state.pollstate !== "offline") {
+            if (subject.pollstate !== "offline") {
               log(
                 LogLevel.Info,
                 `${data.display_name} is ${data.state} (${
-                  job.state.pollstate
+                  subject.pollstate
                 } -> offline)`
               );
 
-              this.changePollstate(job, "offline");
-              await this.setStatus(job, "Offline");
+              this.changePollstate(subject, "offline");
+              await this.setStatus(subject, "Offline");
             }
             break;
           case "asleep":
-            if (job.state.pollstate !== "asleep") {
+            if (subject.pollstate !== "asleep") {
               log(
                 LogLevel.Info,
                 `${data.display_name} is ${data.state} (${
-                  job.state.pollstate
+                  subject.pollstate
                 } -> asleep)`
               );
 
-              this.changePollstate(job, "asleep");
-              await this.setStatus(job, "Sleeping");
+              this.changePollstate(subject, "asleep");
+              await this.setStatus(subject, "Sleeping");
 
-              if (job.state.debugSleep !== undefined) {
-                job.state.debugSleep.now = now;
-                job.state.debugSleep.success = true;
+              if (subject.debugSleep !== undefined) {
+                subject.debugSleep.now = now;
+                subject.debugSleep.success = true;
                 await this.scClient.vehicleDebug({
-                  id: job.subjectID,
+                  id: subject.vehicleUUID,
                   category: "sleep",
                   timestamp: new Date(),
-                  data: job.state.debugSleep
+                  data: subject.debugSleep
                 });
               }
             }
@@ -433,45 +434,44 @@ export class TeslaAgent extends AbstractAgent {
             console.error(s);
           }
         }
-        await this.setOptionCodes(job, data);
+        await this.setOptionCodes(subject, data);
       }
 
-      const wasDriving = Boolean(job.state.data && job.state.data.isDriving);
-      job.state.data = await this.scClient.getVehicle(job.subjectID);
-      job.providerData = job.state.data.providerData; // update local copy of providerData
+      const wasDriving = Boolean(subject.data && subject.data.isDriving);
+      subject.data = await this.scClient.getVehicle(subject.vehicleUUID);
 
-      if (job.state.data.isDriving) {
-        job.state.triedOpen = undefined;
-        job.state.parked = undefined;
+      if (subject.data.isDriving) {
+        subject.triedOpen = undefined;
+        subject.parked = undefined;
       } else if (wasDriving) {
-        assert(job.state.parked === undefined);
-        job.state.parked = now;
+        assert(subject.parked === undefined);
+        subject.parked = now;
       }
       console.log(
         JSON.stringify({
           wasDriving: wasDriving,
-          parked: job.state.parked,
-          triedOpen: job.state.triedOpen,
+          parked: subject.parked,
+          triedOpen: subject.triedOpen,
           now: now,
-          plan: job.state.data.chargePlan !== null
+          plan: subject.data.chargePlan !== null
         })
       );
-      console.log(JSON.stringify(job.state));
+      console.log(JSON.stringify(subject));
 
       // Command logic
-      assert(job.state.data !== undefined);
+      assert(subject.data !== undefined);
       if (
-        (!job.state.data.pausedUntil ||
-          now >= job.state.data.pausedUntil.getTime()) && // Only controll if not paused
-        job.state.data.location !== null
+        (!subject.data.pausedUntil ||
+          now >= subject.data.pausedUntil.getTime()) && // Only controll if not paused
+        subject.data.location !== null
       ) {
         // Only controll if at a known charging location
 
-        if (job.state.data.isConnected) {
+        if (subject.data.isConnected) {
           // controll if car is connected
           let shouldCharge: ChargePlan | null = null;
-          if (job.state.data.chargePlan) {
-            for (const p of job.state.data.chargePlan) {
+          if (subject.data.chargePlan) {
+            for (const p of subject.data.chargePlan) {
               if (
                 (p.chargeStart === null || now >= p.chargeStart.getTime()) &&
                 (p.chargeStop === null || now < p.chargeStop.getTime())
@@ -481,248 +481,290 @@ export class TeslaAgent extends AbstractAgent {
             }
           }
           console.debug(
-            job.state.data.batteryLevel +
+            subject.data.batteryLevel +
               " " +
-              JSON.stringify(job.state.data.chargePlan)
+              JSON.stringify(subject.data.chargePlan)
           );
 
           let stopCharging = false;
           let startCharging = false;
           if (
             shouldCharge === null &&
-            job.state.data.chargingTo !== null &&
-            job.state.data.batteryLevel < job.state.data.chargingTo
+            subject.data.chargingTo !== null &&
+            subject.data.batteryLevel < subject.data.chargingTo
           ) {
             stopCharging = true;
           } else if (
             shouldCharge !== null &&
-            job.state.data.batteryLevel < shouldCharge.level
+            subject.data.batteryLevel < shouldCharge.level
           ) {
             startCharging = true;
           }
           if (stopCharging || startCharging) {
-            if (!(await this.userInteraction(job))) {
+            if (!(await this.userInteraction(job, subject))) {
               log(
                 LogLevel.Trace,
-                `Waiting for vehicle ${job.subjectID} to be ready`
+                `Waiting for vehicle ${subject.vehicleUUID} to be ready`
               );
             } else if (stopCharging) {
-              log(LogLevel.Info, `Stop charging ${job.state.data.name}`);
-              teslaAPI.chargeStop(job.providerData.sid, job.providerData.token);
+              log(LogLevel.Info, `Stop charging ${subject.data.name}`);
+              teslaAPI.chargeStop(subject.teslaID, job.serviceData.token);
             } else if (startCharging) {
               let setLevel = shouldCharge!.level;
               if (shouldCharge!.chargeType === ChargeType.calibrate) {
-                if (!job.state.calibrating) {
-                  job.state.calibrating = {
+                if (!subject.calibrating) {
+                  subject.calibrating = {
                     level:
                       (await this.scClient.chargeCalibration(
-                        job.subjectID,
+                        subject.vehicleUUID,
                         undefined,
                         undefined,
                         undefined
-                      )) || job.state.data.batteryLevel,
+                      )) || subject.data.batteryLevel,
                     duration: 0,
                     next: now + 30e3
                   };
                 }
-                if (job.state.calibrating.level === shouldCharge!.level) {
+                if (subject.calibrating.level === shouldCharge!.level) {
                   // done!
                   setLevel = 0;
                 } else {
-                  setLevel = job.state.calibrating.level + 1;
-                  if (job.state.chargeLimit !== setLevel) {
-                    job.state.calibrating.next = Math.max(
+                  setLevel = subject.calibrating.level + 1;
+                  if (subject.chargeLimit !== setLevel) {
+                    subject.calibrating.next = Math.max(
                       now + 15e3,
-                      job.state.calibrating.next
+                      subject.calibrating.next
                     );
                   }
                 }
-              } else if (job.state.calibrating) {
-                delete job.state.calibrating;
+              } else if (subject.calibrating) {
+                delete subject.calibrating;
               }
 
               const chargeto = Math.max(50, setLevel); // Minimum allowed charge for Tesla is 50
 
               if (
-                job.state.chargeLimit !== undefined && // Only controll if polled at least once
-                job.state.chargeLimit !== chargeto
+                subject.chargeLimit !== undefined && // Only controll if polled at least once
+                subject.chargeLimit !== chargeto
               ) {
                 log(
                   LogLevel.Info,
                   `Setting charge limit for ${
-                    job.state.data.name
+                    subject.data.name
                   } to ${chargeto}%`
                 );
                 await teslaAPI.setChargeLimit(
-                  job.providerData.sid,
+                  subject.teslaID,
                   chargeto,
-                  job.providerData.token
+                  job.serviceData.token
                 );
               }
-              if (job.state.data.chargingTo === null) {
-                log(LogLevel.Info, `Start charging ${job.state.data.name}`);
+              if (subject.data.chargingTo === null) {
+                log(LogLevel.Info, `Start charging ${subject.data.name}`);
                 await teslaAPI.chargeStart(
-                  job.providerData.sid,
-                  job.providerData.token
+                  subject.teslaID,
+                  job.serviceData.token
                 );
               }
             }
           }
         } else if (
-          job.state.data.providerData &&
-          job.state.data.providerData.auto_port &&
-          job.state.parked !== undefined &&
-          job.state.data.chargePlan &&
-          job.state.data.chargePlan.findIndex(
+          subject.data.providerData &&
+          subject.data.providerData.auto_port &&
+          subject.parked !== undefined &&
+          subject.data.chargePlan &&
+          subject.data.chargePlan.findIndex(
             f =>
               f.chargeType !== ChargeType.fill &&
               f.chargeType !== ChargeType.prefered
           ) >= 0
         ) {
           if (
-            now < job.state.parked + 1 * 60e3 && // only open during the first minute
-            !job.state.portOpen &&
-            job.state.triedOpen === undefined
+            now < subject.parked + 1 * 60e3 && // only open during the first minute
+            !subject.portOpen &&
+            subject.triedOpen === undefined
           ) {
             // if port is closed and we did not try to open it yet
             await teslaAPI.openChargePort(
-              job.providerData.sid,
-              job.providerData.token
+              subject.teslaID,
+              job.serviceData.token
             );
-            job.state.triedOpen = now;
+            subject.triedOpen = now;
           } else if (
-            now > job.state.parked + 3 * 60e3 && // keep port open for 3 minutes
-            job.state.portOpen &&
-            job.state.triedOpen !== undefined
+            now > subject.parked + 3 * 60e3 && // keep port open for 3 minutes
+            subject.portOpen &&
+            subject.triedOpen !== undefined
           ) {
             await teslaAPI.closeChargePort(
-              job.providerData.sid,
-              job.providerData.token
+              subject.teslaID,
+              job.serviceData.token
             );
-            job.state.triedOpen = undefined;
+            subject.triedOpen = undefined;
           }
         }
 
         // Should we turn on hvac?
         if (
-          job.state.data.providerData &&
-          job.state.data.providerData.auto_hvac &&
-          job.state.data.tripSchedule
+          subject.data.providerData &&
+          subject.data.providerData.auto_hvac &&
+          subject.data.tripSchedule
         ) {
           const on =
             now >
-              job.state.data.tripSchedule.time.getTime() -
+              subject.data.tripSchedule.time.getTime() -
                 config.TRIP_HVAC_ON_WINDOW &&
             now <
-              job.state.data.tripSchedule.time.getTime() +
+              subject.data.tripSchedule.time.getTime() +
                 config.TRIP_HVAC_ON_DURATION;
 
           if (on) {
-            if (job.state.data.climateControl) {
-              job.state.hvacOn = job.state.hvacOn || now;
-            } else if (!job.state.hvacOn) {
+            if (subject.data.climateControl) {
+              subject.hvacOn = subject.hvacOn || now;
+            } else if (!subject.hvacOn) {
               log(
                 LogLevel.Info,
-                `Starting climate control on ${job.state.data.name}`
+                `Starting climate control on ${subject.data.name}`
               );
               await this[AgentAction.ClimateControl](job, {
-                data: { enable: true }
+                data: { id: subject.vehicleUUID, enable: true }
               } as any);
             }
-          } else if (job.state.hvacOn) {
-            if (!job.state.data.climateControl) {
-              delete job.state.hvacOn;
-              delete job.state.hvacOff;
-            } else if (!job.state.hvacOff) {
+          } else if (subject.hvacOn) {
+            if (!subject.data.climateControl) {
+              delete subject.hvacOn;
+              delete subject.hvacOff;
+            } else if (!subject.hvacOff) {
               log(
                 LogLevel.Info,
-                `Stopping climate control on ${job.state.data.name}`
+                `Stopping climate control on ${subject.data.name}`
               );
               await this[AgentAction.ClimateControl](job, {
-                data: { enable: false }
+                data: { id: subject.vehicleUUID, enable: false }
               } as any);
             }
           }
         } else {
-          delete job.state.hvacOn;
-          delete job.state.hvacOff;
+          delete subject.hvacOn;
+          delete subject.hvacOff;
         }
       }
     } catch (err) {
-      await this.handleError(job, err);
+      if (config.AGENT_SAVE_TO_TRACEFILE) {
+        const s = logFormat(LogLevel.Error, err);
+        fs.writeFileSync(config.AGENT_TRACE_FILENAME, `${s}\n`, { flag: "as" });
+      }
+      this.changePollstate(subject, "offline");
+      this.adjustInterval(job, 10); // Try again
+
+      // TODO: handle different errors?
+      if (err.code === 401) {
+        await this.scClient.updateVehicle({
+          id: subject.vehicleUUID,
+          providerData: { invalid_token: true }
+        });
+      }
+
+      if (err.response && err.response.data) {
+        log(LogLevel.Error, err.response.data);
+        if (err.response.data.error) {
+          await this.setStatus(subject, err.response.data.error);
+        }
+      } else {
+        log(LogLevel.Error, err);
+      }
       throw new Error(err);
     }
   }
-  async handleError(job: TeslaAgentJob, err: any) {
-    if (config.AGENT_SAVE_TO_TRACEFILE) {
-      const s = logFormat(LogLevel.Error, err);
-      fs.writeFileSync(config.AGENT_TRACE_FILENAME, `${s}\n`, { flag: "as" });
-    }
-    this.changePollstate(job, "offline");
-    this.adjustInterval(job, 10); // Try again
 
-    // TODO: handle different errors?
-    if (err.code === 401) {
-      await this.scClient.updateVehicle({
-        id: job.subjectID,
-        providerData: { invalid_token: true }
-      });
-    }
+  public async serviceWork(job: TeslaAgentJob) {
+    if (job.serviceData.invalid_token) return; // provider requires a valid token
 
-    if (err.response && err.response.data) {
-      log(LogLevel.Error, err.response.data);
-      if (err.response.data.error) {
-        await this.setStatus(job, err.response.data.error);
+    for (const s of Object.values(job.state)) {
+      if (
+        !job.serviceData.map[s.teslaID] ||
+        job.serviceData.map[s.teslaID] !== s.vehicleUUID
+      ) {
+        delete job.state[s.teslaID];
       }
-    } else {
-      log(LogLevel.Error, err);
+    }
+
+    for (const [sid, vid] of Object.entries(job.serviceData.map)) {
+      if (!job.state[sid]) {
+        job.state[sid] = {
+          teslaID: sid,
+          vehicleUUID: vid,
+          online: false,
+          pollstate: "offline",
+          statestart: Date.now(),
+          status: ""
+        };
+      }
+    }
+
+    for (const s of Object.values(job.state)) {
+      await this.poll(job, s);
     }
   }
 
-  private async wakeUp(job: TeslaAgentJob): Promise<boolean> {
-    if (job.providerData.invalid_token) return false; // provider requires a valid token
+  private async wakeUp(
+    job: TeslaAgentJob,
+    subject: TeslaSubject
+  ): Promise<boolean> {
+    if (job.serviceData.invalid_token) return false; // provider requires a valid token
     await this.maintainToken(job);
     log(
       LogLevel.Info,
-      `Waking up ${(job.state.data && job.state.data.name) || job.subjectID}`
+      `Waking up ${(subject.data && subject.data.name) || subject.vehicleUUID}`
     );
-    const data = await teslaAPI.wakeUp(
-      job.providerData.sid,
-      job.providerData.token
-    );
+    const data = await teslaAPI.wakeUp(subject.teslaID, job.serviceData.token);
     if (data && data.response && data.response.state === "online") {
-      job.state.online = true;
+      subject.online = true;
     }
-    return job.state.online;
+    return subject.online;
   }
-  private async userInteraction(job: TeslaAgentJob): Promise<boolean> {
+  private async userInteraction(
+    job: TeslaAgentJob,
+    subject: TeslaSubject
+  ): Promise<boolean> {
     this.adjustInterval(job, 0); // poll more often after an interaction
 
-    if (!job.state.online && !(await this.wakeUp(job))) {
+    if (!job.state.online && !(await this.wakeUp(job, subject))) {
       return false; // try again later
     }
 
-    this.changePollstate(job, "polling"); // break tired cycle
+    this.changePollstate(subject, "polling"); // break tired cycle
     return true;
   }
 
-  public async [AgentAction.Refresh](job: TeslaAgentJob): Promise<any> {
-    return this.userInteraction(job);
+  public async [AgentAction.Refresh](
+    job: TeslaAgentJob,
+    action: Action
+  ): Promise<any> {
+    for (const subject of Object.values(job.state)) {
+      if (subject.vehicleUUID === action.data.id) {
+        return this.userInteraction(job, subject);
+      }
+    }
   }
   public async [AgentAction.ClimateControl](
     job: TeslaAgentJob,
-    action?: Action
+    action: Action
   ): Promise<any> {
-    if (!action || job.providerData.invalid_token) return false; // provider requires a valid token
+    if (!action || job.serviceData.invalid_token) return false; // provider requires a valid token
 
-    if (!(await this.userInteraction(job))) return false; // Not ready for interaction
-    if (action.data.enable === job.state.data!.climateControl) return true; // Already correct
+    for (const subject of Object.values(job.state)) {
+      if (subject.vehicleUUID === action.data.id) {
+        if (!(await this.userInteraction(job, subject))) return false; // Not ready for interaction
+        if (subject.data && subject.data.climateControl === action.data.enable)
+          return true; // Already correct
 
-    await this.maintainToken(job);
-    if (action.data.enable) {
-      await teslaAPI.climateOn(job.providerData.sid, job.providerData.token);
-    } else {
-      await teslaAPI.climateOff(job.providerData.sid, job.providerData.token);
+        await this.maintainToken(job);
+        if (action.data.enable) {
+          await teslaAPI.climateOn(subject.teslaID, job.serviceData.token);
+        } else {
+          await teslaAPI.climateOff(subject.teslaID, job.serviceData.token);
+        }
+      }
     }
     return false;
   }

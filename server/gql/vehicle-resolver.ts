@@ -20,12 +20,7 @@ import {
 } from "type-graphql";
 import { IContext } from "./api";
 import { DBInterface, INTERNAL_SERVICE_UUID } from "@server/db-interface";
-import {
-  Vehicle,
-  NewVehicleInput,
-  UpdateVehicleInput,
-  ChargePlanToJS
-} from "./vehicle-type";
+import { Vehicle, UpdateVehicleInput, ChargePlanToJS } from "./vehicle-type";
 import { ChartData } from "./location-type";
 import { log, LogLevel } from "@shared/utils";
 
@@ -89,21 +84,6 @@ export class VehicleResolver {
   }
 
   @Mutation(_returns => Vehicle)
-  async newVehicle(
-    @Arg("input") input: NewVehicleInput,
-    @Ctx() context: IContext
-  ): Promise<Vehicle> {
-    return DBInterface.DBVehicleToVehicle(
-      await context.db.newVehicle(
-        context.accountUUID,
-        input.name,
-        input.minimumLevel,
-        input.maximumLevel,
-        input.providerData
-      )
-    );
-  }
-  @Mutation(_returns => Vehicle)
   async updateVehicle(
     @Arg("input") input: UpdateVehicleInput,
     @Ctx() context: IContext,
@@ -126,6 +106,8 @@ export class VehicleResolver {
         input.tripSchedule,
         input.pausedUntil,
         input.status,
+        input.serviceID,
+
         input.providerData
       )
     );

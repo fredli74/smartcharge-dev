@@ -33,11 +33,9 @@
 import { Component, Vue, Prop } from "vue-property-decorator";
 import apollo from "@app/plugins/apollo";
 import { IRestToken } from "@shared/restclient";
-import { TeslaNewListEntry, TeslaProviderData } from "./tesla-helper";
-import config from "../tesla-config";
+import { TeslaNewListEntry } from "./tesla-helper";
 import TeslaTokenVue from "./components/tesla-token.vue";
 import TeslaNewVehicleList from "./components/tesla-new-list.vue";
-import { LogLevel, log } from "@shared/utils";
 import { ProviderVuePage } from "@providers/provider-app";
 import provider from "..";
 
@@ -81,73 +79,30 @@ export default class TeslaVue extends Vue {
   // ACTIONS
   async loadTeslaVehicles(newProvider?: IRestToken) {
     this.loading = true;
-
-    const vehicles = (await apollo.getVehicles()).filter(
-      f => f.providerData && f.providerData.provider === provider.name
-    );
-    const providers: { [token: string]: IRestToken } = newProvider
-      ? {
-          [newProvider.access_token]: newProvider
-        }
-      : {};
-
-    // Pickup provider list from all connected vehicles
-    for (const v of vehicles) {
-      if (!v.providerData.invalid_token && v.providerData.token) {
-        providers[v.providerData.token.access_token] = v.providerData.token;
-      }
-    }
-
     this.allProviderVehicles = [];
-    for (const token of Object.values(providers)) {
-      // TODO: break this out into a helper function ?
-      try {
-        for (const v of await apollo.providerQuery(provider.name, {
-          query: "vehicles",
-          token
-        })) {
-          let entry = this.allProviderVehicles.find(f => f.id === v.id_s);
-          if (!entry) {
-            entry = {
-              id: v.id_s,
-              vin: v.vin,
-              name: v.display_name,
-              tesla_token: token,
-              controlled: false
-            };
-            this.allProviderVehicles.push(entry);
-          }
-          for (const f of vehicles) {
-            if (f.providerData.sid === v.id_s) {
-              entry.controlled = true;
-              if (
-                !f.providerData.token ||
-                f.providerData.invalid_token ||
-                f.providerData.token.access_token !== token.access_token
-              ) {
-                log(
-                  LogLevel.Info,
-                  `Vehicle ${
-                    f.id
-                  } did not have the correct token defined in providerData`
-                );
-                await apollo.updateVehicle({
-                  id: f.id,
-                  providerData: {
-                    provider: provider.name,
-                    token,
-                    invalid_token: null
-                  }
-                });
-              }
-            }
-          }
+    // TODO: break this out into a helper function ?
+    try {
+      for (const v of await apollo.providerQuery(provider.name, {
+        query: "vehicles",
+        token: newProvider
+      })) {
+        let entry = this.allProviderVehicles.find(f => f.id === v.id_s);
+        if (!entry) {
+          entry = {
+            id: v.id_s,
+            vin: v.vin,
+            name: v.display_name,
+            controlled: v.controlled,
+            service_uuid: v.service_uuid
+          } as TeslaNewListEntry;
+          this.allProviderVehicles.push(entry);
         }
-      } catch (err) {
-        console.debug(err);
-        // No need to catch 401 errors here, the server will already handle it
       }
+    } catch (err) {
+      console.debug(err);
+      // No need to catch 401 errors here, the server will already handle it
     }
+
     this.loading = false;
     if (this.allProviderVehicles.length === 0) {
       this.showTokenForm = true;
@@ -161,15 +116,9 @@ export default class TeslaVue extends Vue {
 
   async selectVehicle(vehicle: TeslaNewListEntry) {
     this.loading = true;
-    await apollo.newVehicle({
-      name: vehicle.name,
-      minimumLevel: config.DEFAULT_MINIMUM_LEVEL,
-      maximumLevel: config.DEFAULT_MAXIMUM_LEVEL,
-      providerData: {
-        provider: provider.name,
-        sid: vehicle.id,
-        token: vehicle.tesla_token
-      } as TeslaProviderData
+    await apollo.providerMutate("tesla", {
+      mutation: "newVehicle",
+      input: vehicle
     });
     this.loading = false;
     this.$router.push("/");

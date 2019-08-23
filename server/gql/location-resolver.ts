@@ -8,11 +8,7 @@
 import { Resolver, Query, Ctx, Arg, Mutation } from "type-graphql";
 import { IContext } from "@server/gql/api";
 import { DBInterface, INTERNAL_SERVICE_UUID } from "@server/db-interface";
-import {
-  NewLocationInput,
-  UpdateLocationInput,
-  Location
-} from "./location-type";
+import { UpdateLocationInput, Location } from "./location-type";
 
 @Resolver()
 export class LocationResolver {
@@ -36,23 +32,6 @@ export class LocationResolver {
   }
 
   @Mutation(_returns => Location)
-  async newLocation(
-    @Arg("input") input: NewLocationInput,
-    @Ctx() context: IContext
-  ): Promise<Location> {
-    return DBInterface.DBLocationToLocation(
-      await context.db.newLocation(
-        context.accountUUID,
-        input.name,
-        input.geoLocation,
-        input.geoFenceRadius,
-        input.priceCode,
-        input.providerData
-      )
-    );
-  }
-
-  @Mutation(_returns => Location)
   async updateLocation(
     @Arg("input") input: UpdateLocationInput,
     @Ctx() context: IContext
@@ -70,6 +49,7 @@ export class LocationResolver {
         input.geoLocation,
         input.geoFenceRadius,
         input.priceCode,
+        input.serviceID,
         input.providerData
       )
     );

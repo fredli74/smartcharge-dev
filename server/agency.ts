@@ -15,7 +15,7 @@ import { SCClient } from "@shared/sc-client";
 import providers from "@providers/provider-agents";
 import { AbstractAgent } from "@providers/provider-agent";
 import WebSocket from "ws";
-import { ProviderSubject } from "./gql/service-type";
+import { ServiceProvider } from "./gql/service-type";
 
 const APP_NAME = `smartcharge-agency`;
 const APP_VERSION = `1.0`;
@@ -23,7 +23,7 @@ const APP_VERSION = `1.0`;
 export class Agency {
   public ID: string | undefined;
   public agents: { [agent: string]: AbstractAgent } = {}; // map of agent names to agent classes
-  public agentJobs: { [subject_uuid: string]: ProviderSubject } = {}; // map of job uuid to agent jobs
+  public agentJobs: { [service_uuid: string]: ServiceProvider } = {}; // map of job uuid to agent jobs
   private promiseList: Promise<any>[] = [];
   private stopped: boolean = false;
   constructor(private client: SCClient) {}
@@ -33,19 +33,19 @@ export class Agency {
     this.ID = "internal";
   }
   public async list(accept: string[]) {
-    const subjectList = await this.client.getProviderSubjects(accept);
-    const subjectMap: { [subject_uuid: string]: ProviderSubject } = {};
+    const serviceList = await this.client.getServiceProviders(accept);
+    const serviceMap: { [service_uuid: string]: ServiceProvider } = {};
 
     // Add new entries
-    for (const j of subjectList) {
-      subjectMap[j.subjectID] = j;
-      if (this.agentJobs[j.subjectID] === undefined) {
+    for (const j of serviceList) {
+      serviceMap[j.serviceID] = j;
+      if (this.agentJobs[j.serviceID] === undefined) {
         log(
           LogLevel.Info,
-          `Detected new agent job ${j.subjectID} adding to ${j.providerName}`
+          `Detected new agent job ${j.serviceID} adding to ${j.providerName}`
         );
         this.agents[j.providerName].add(j);
-        this.agentJobs[j.subjectID] = j;
+        this.agentJobs[j.serviceID] = j;
       } else {
         // Update data from server
         this.agents[j.providerName].updateData(j);
@@ -54,10 +54,10 @@ export class Agency {
 
     // Remove orphan entries
     for (const [i, j] of Object.entries(this.agentJobs)) {
-      if (subjectMap[i] === undefined) {
+      if (serviceMap[i] === undefined) {
         log(
           LogLevel.Info,
-          `Removing agent job ${j.subjectID} from ${j.providerName}`
+          `Removing agent job ${j.serviceID} from ${j.providerName}`
         );
         this.agents[j.providerName].remove(j);
         delete this.agentJobs[i];

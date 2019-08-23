@@ -22,15 +22,13 @@
                   vehicle.name
                 }}</v-list-item-title>
                 <v-list-item-subtitle class="text-lowercase">
-                  {{
-                    (vehicle.odometer && vehicle.status) || "not polled yet"
-                  }}</v-list-item-subtitle
-                >
+                  {{ vehicle.status }}
+                </v-list-item-subtitle>
                 <v-list-item-subtitle
-                  v-if="vehicle.status === ''"
+                  v-if="!vehicle.odometer || !vehicle.status"
                   class="text-lowercase caption"
                 >
-                  make sure the vehicle is awake and accessible
+                  not polled yet, make sure it is online
                 </v-list-item-subtitle>
               </v-list-item-content>
             </v-flex>
@@ -108,9 +106,7 @@ export default class Home extends Vue {
   }
 
   vehicleReady(vehicle: Vehicle) {
-    return (
-      vehicle.batteryLevel > 0 || vehicle.odometer > 0 || vehicle.status !== ""
-    );
+    return vehicle.odometer > 0 && vehicle.status !== "";
   }
   vehiclePicture(vehicle: Vehicle) {
     const provider = providers.find(

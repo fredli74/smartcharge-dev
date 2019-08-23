@@ -10,15 +10,13 @@ import { GraphQLJSONObject } from "graphql-type-json";
 import "reflect-metadata";
 
 @ObjectType()
-export abstract class ProviderSubject {
-  @Field(_type => ID)
-  subjectID!: string;
+export abstract class ServiceProvider {
   @Field(_type => ID)
   ownerID!: string;
   @Field()
-  providerType!: string;
-  @Field()
   providerName!: string;
+  @Field(_type => ID)
+  serviceID!: string;
   @Field(_type => GraphQLJSONObject)
-  providerData!: any;
+  serviceData!: any;
 }

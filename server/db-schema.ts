@@ -28,6 +28,7 @@ export interface DBLocation {
   location_micro_longitude: number; // 6 decimal precision converted to integer
   radius: number; // radius tollerance (in meters)
   price_code: string; // price list code
+  service_uuid: any; // provider uuid
   provider_data: any; // provider custom data
 }
 const DBLocation_TSQL = `CREATE TABLE scserver.location
@@ -39,6 +40,7 @@ const DBLocation_TSQL = `CREATE TABLE scserver.location
         location_micro_longitude integer,
         radius integer,
         price_code character varying(32),
+        service_uuid uuid,
         provider_data jsonb,
         CONSTRAINT location_pkey PRIMARY KEY(location_uuid),
         CONSTRAINT location_fkey FOREIGN KEY(account_uuid)
@@ -88,6 +90,7 @@ export interface DBVehicle {
   status: string; // informative status string
   smart_status: string; // smart charging information
   updated: Date; // timestamp of last record update
+  service_uuid: any; // provider uuid
   provider_data: any; // provider custom data
 }
 const DBVehicle_TSQL = `CREATE TABLE scserver.vehicle
@@ -119,6 +122,7 @@ const DBVehicle_TSQL = `CREATE TABLE scserver.vehicle
         status text DEFAULT '',
         smart_status text DEFAULT '',
         updated timestamp(0) with time zone NOT NULL DEFAULT NOW(),
+        service_uuid uuid,
         provider_data jsonb,
         CONSTRAINT vehicle_pkey PRIMARY KEY (vehicle_uuid),
         CONSTRAINT vehicle_fkey FOREIGN KEY (account_uuid)
@@ -145,6 +149,31 @@ const DBVehicleDebug_TSQL = `CREATE TABLE scserver.vehicle_debug
             ON UPDATE RESTRICT
             ON DELETE CASCADE
     );`;
+
+export interface DBServiceProvider {
+  account_uuid: string; // account uuid
+  provider_name: string; // provider name
+  service_uuid: string; // provider uuid
+  service_data: any; // service data
+}
+const DBServiceProvider_TSQL = `CREATE TABLE scserver.service_provider
+    (
+        account_uuid uuid NOT NULL,
+        provider_name character varying(64),
+        service_uuid uuid DEFAULT sequential_uuid(),
+        service_data jsonb,
+        CONSTRAINT provider_pkey PRIMARY KEY (service_uuid),
+        CONSTRAINT provider_fkey FOREIGN KEY (account_uuid)
+            REFERENCES account (account_uuid) MATCH SIMPLE
+            ON UPDATE RESTRICT
+            ON DELETE CASCADE
+    );`;
+
+const DBSubjectView_TSQL = `CREATE OR REPLACE VIEW scserver.subject_view AS
+    SELECT account_uuid, vehicle_uuid as subject_uuid, provider_data, 'vehicle' as provider_type, provider_data->>'provider' as provider_name FROM vehicle
+    UNION
+    SELECT account_uuid, location_uuid as subject_uuid, provider_data, 'location' as provider_type, provider_data->>'provider' as provider_name FROM location
+    ;`;
 
 /** DBEventMap data is not used, should we stop collecting it?  **/
 export interface DBEventMap {
@@ -408,6 +437,9 @@ export const DB_SETUP_TSQL = [
 
   DBVehicle_TSQL,
   DBVehicleDebug_TSQL,
+
+  DBServiceProvider_TSQL,
+  DBSubjectView_TSQL,
 
   DBEventMap_TSQL,
 

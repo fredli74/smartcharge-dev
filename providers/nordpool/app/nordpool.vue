@@ -1,5 +1,5 @@
 <template>
-  <div class="vga-limit">
+  <div class="vga-limit" style="margin:0 auto">
     <template v-if="page === 'new'">
       <v-form ref="form">
         <v-card-text>
@@ -146,17 +146,13 @@ export default class NordpoolVue extends Vue {
       return false;
     } else {
       this.button.loading = true;
-      await apollo.newLocation({
+      await apollo.providerMutate("nordpool", {
+        mutation: "newLocation",
         name: this.name.value,
-        geoLocation: {
-          latitude: Number(this.$route.query.lat),
-          longitude: Number(this.$route.query.long)
-        },
-        geoFenceRadius: 250,
-        priceCode: this.area.value,
-        providerData: {
-          provider: provider.name
-        } as NordpoolProviderData
+        latitude: Number(this.$route.query.lat),
+        longitude: Number(this.$route.query.long),
+        price_code: this.area.value,
+        provider_data: { currency: "SEK" } as NordpoolProviderData
       });
       this.button.loading = false;
       this.$router.push("/");

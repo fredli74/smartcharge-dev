@@ -11,23 +11,21 @@ import { log, LogLevel } from "@shared/utils";
 import {
   AgentJob,
   AbstractAgent,
-  IProviderAgent
+  IProviderAgent,
+  AgentWork
 } from "@providers/provider-agent";
-import provider, { NordpoolProviderData } from ".";
+import provider, { NordpoolServiceData } from ".";
 import config from "./nordpool-config";
 import nordpoolAPI from "./nordpool-api";
 import { UpdatePriceInput, LocationPrice } from "@server/gql/location-type";
 
-interface NordpoolAgentSubject extends AgentJob {
-  providerData: NordpoolProviderData;
+interface NordpoolAgentJob extends AgentJob {
+  serviceData: NordpoolServiceData;
   state: {};
 }
 
 export class NordpoolAgent extends AbstractAgent {
   public name: string = provider.name;
-  private polling: boolean = false;
-  private nextUpdate: number = 0;
-  private currency: string = "";
   constructor(scClient: SCClient) {
     super(scClient);
   }
@@ -36,62 +34,40 @@ export class NordpoolAgent extends AbstractAgent {
     return {};
   }
 
-  public async update(job: NordpoolAgentSubject): Promise<void> {
+  public async globalWork(job: AgentWork) {
     const now = Date.now();
-    if (!this.polling && now > this.nextUpdate) {
-      this.polling = true;
-      try {
-        const res = await nordpoolAPI.getPrices(config.PAGE, config.CURRENCY);
-        this.currency = res.currency;
+    const res = await nordpoolAPI.getPrices(config.PAGE, config.CURRENCY);
 
-        const areas: { [area: string]: LocationPrice[] } = {};
-        // remap table
-        for (const row of res.data.Rows) {
-          if (row.IsExtraRow) continue;
-          const startAt = new Date(row.StartTime + "+0200");
-          for (const col of row.Columns) {
-            if (!areas[col.Name]) {
-              areas[col.Name] = [];
-            }
-            areas[col.Name].push({
-              startAt,
-              price: parseFloat(col.Value.replace(/,/g, ".")) / 1e3
-            });
-          }
+    const areas: { [area: string]: LocationPrice[] } = {};
+    // remap table
+    for (const row of res.data.Rows) {
+      if (row.IsExtraRow) continue;
+      const startAt = new Date(row.StartTime + "+0200");
+      for (const col of row.Columns) {
+        if (!areas[col.Name]) {
+          areas[col.Name] = [];
         }
-
-        for (const [area, prices] of Object.entries(areas)) {
-          const update: UpdatePriceInput = {
-            code: `${this.name}.${area}`.toLowerCase(),
-            prices
-          };
-          log(
-            LogLevel.Trace,
-            `Sending updatePrice for ${update.code} => ${JSON.stringify(
-              update
-            )}`
-          );
-          await this.scClient.updatePrice(update);
-        }
-
-        this.nextUpdate = (Math.floor(now / 3600e3) + 1) * 3600e3 + 120e3;
-      } finally {
-        this.polling = false;
+        areas[col.Name].push({
+          startAt,
+          price: parseFloat(col.Value.replace(/,/g, ".")) / 1e3
+        });
       }
     }
 
-    if (
-      this.currency && // means we ran once
-      job.providerData.currency !== this.currency
-    ) {
-      job.providerData.currency = this.currency;
-      await this.scClient.updateLocation({
-        id: job.subjectID,
-        providerData: { currency: job.providerData.currency }
-      });
+    for (const [area, prices] of Object.entries(areas)) {
+      const update: UpdatePriceInput = {
+        code: `${this.name}.${area}`.toLowerCase(),
+        prices
+      };
+      log(
+        LogLevel.Trace,
+        `Sending updatePrice for ${update.code} => ${JSON.stringify(update)}`
+      );
+      await this.scClient.updatePrice(update);
     }
 
-    job.interval = Math.max(60, (this.nextUpdate - now) / 1e3);
+    const nextUpdate = (Math.floor(now / 3600e3) + 1) * 3600e3 + 120e3;
+    job.interval = Math.max(60, (nextUpdate - now) / 1e3);
   }
 }
 

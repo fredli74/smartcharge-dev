@@ -27,6 +27,7 @@
 import { Component, Vue } from "vue-property-decorator";
 import apollo from "@app/plugins/apollo";
 import eventBus, { BusEvent } from "@app/plugins/event-bus";
+import { TeslaProviderMutates } from "../..";
 
 @Component({ components: {} })
 export default class TeslaTokenVue extends Vue {
@@ -51,7 +52,7 @@ export default class TeslaTokenVue extends Vue {
     this.loading = true;
     try {
       const token = await apollo.providerMutate("tesla", {
-        mutation: "refreshToken",
+        mutation: TeslaProviderMutates.RefreshToken,
         refresh_token: this.refresh_token_input
       });
       this.$emit("token", token);

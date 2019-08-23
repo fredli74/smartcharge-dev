@@ -25,6 +25,7 @@ import { withFilter } from "graphql-subscriptions";
 import providers from "@providers/provider-servers";
 import { IProviderServer } from "@providers/provider-server";
 import { Action } from "./vehicle-type";
+import { DBServiceProvider } from "@server/db-schema";
 
 const actionMemDatabase: { [id: string]: Action } = {};
 let actionMemDatabaseSN = 0;
@@ -82,32 +83,33 @@ export class ProviderResolver {
   @Mutation(_returns => GraphQLJSONObject)
   async performAction(
     @Arg("actionID", _type => Int, { nullable: true }) actionID: number,
-    @Arg("targetID", _type => ID) targetID: string,
-    @Arg("providerName") providerName: string,
+    @Arg("serviceID", _type => ID) serviceID: string,
     @Arg("action") action: string,
     @Arg("data", _type => GraphQLJSONObject, { nullable: true })
     data: any | null,
     @Ctx() context: IContext
   ): Promise<Action> {
-    const accountLimiter =
-      context.accountUUID === INTERNAL_SERVICE_UUID
-        ? undefined
-        : context.accountUUID;
-    const subjects = await context.db.getProviderSubjects(accountLimiter, [
-      providerName
-    ]);
-    // verify access
-    if (subjects.find(f => f.subjectID === targetID) === undefined) {
-      throw new ApolloError("Invalid target");
+    const service = (await context.db.pg.oneOrNone(
+      `SELECT * FROM service_provider WHERE service_uuid = $1;`,
+      [serviceID]
+    )) as DBServiceProvider;
+
+    if (
+      !service ||
+      (context.accountUUID !== INTERNAL_SERVICE_UUID &&
+        service.account_uuid !== context.accountUUID)
+    ) {
+      throw new ApolloError("Invalid service id specified");
     }
+
     const id =
       actionMemDatabase[actionID] !== undefined
         ? actionID
         : actionMemDatabaseSN++;
     const actionObj: Action = {
       actionID: id,
-      targetID: targetID,
-      providerName: providerName,
+      serviceID: service.service_uuid,
+      providerName: service.provider_name,
       action: action,
       data: data || {}
     };
@@ -128,11 +130,11 @@ export class ProviderResolver {
         if (!args || !context) {
           throw new ApolloError("Internal error");
         }
-        if (args.providerName === undefined && args.targetID === undefined) {
+        if (args.providerName === undefined && args.serviceID === undefined) {
           throw new ApolloError("Argument error");
         }
         if (
-          args.targetID === undefined &&
+          args.serviceID === undefined &&
           context.accountUUID !== INTERNAL_SERVICE_UUID
         ) {
           throw new ApolloError("Permission denied");
@@ -145,7 +147,8 @@ export class ProviderResolver {
             payload &&
             (args.providerName === undefined ||
               args.providerName === payload.providerName) &&
-            (args.targetID === undefined || args.targetID === payload.targetID)
+            (args.serviceID === undefined ||
+              args.serviceID === payload.serviceID)
         );
       }
     )
@@ -154,7 +157,8 @@ export class ProviderResolver {
     @Root() payload: Action,
     @Arg("providerName", _type => String, { nullable: true })
     _providerName: string | null,
-    @Arg("targetID", _type => ID, { nullable: true }) _targetID: string | null,
+    @Arg("serviceID", _type => ID, { nullable: true })
+    _serviceID: string | null,
     @Ctx() _context: IContext
   ): Promise<Action> {
     return payload;

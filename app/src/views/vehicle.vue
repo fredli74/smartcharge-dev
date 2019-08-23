@@ -110,7 +110,7 @@ import { Location } from "@server/gql/location-type";
 import { Vehicle } from "@server/gql/vehicle-type";
 import moment from "moment";
 
-const vehicleFragment = `id name minimumLevel maximumLevel anxietyLevel tripSchedule { level time } pausedUntil geoLocation { latitude longitude } location batteryLevel outsideTemperature insideTemperature climateControl isDriving isConnected chargePlan { chargeStart chargeStop level chargeType comment } chargingTo estimatedTimeLeft status smartStatus updated providerData`;
+const vehicleFragment = `id name minimumLevel maximumLevel anxietyLevel tripSchedule { level time } pausedUntil geoLocation { latitude longitude } location batteryLevel outsideTemperature insideTemperature climateControl isDriving isConnected chargePlan { chargeStart chargeStop level chargeType comment } chargingTo estimatedTimeLeft status smartStatus updated serviceID providerData`;
 
 @Component({
   components: { VehicleActions, RelativeTime, ChargeChart },

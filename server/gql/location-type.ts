@@ -34,6 +34,8 @@ export abstract class Location {
   geoFenceRadius!: number;
   @Field(_type => String, { nullable: true })
   priceCode?: string;
+  @Field(_type => ID)
+  serviceID!: string;
   @Field(_type => GraphQLJSONObject, { nullable: true })
   providerData!: any;
 }
@@ -59,20 +61,6 @@ export abstract class UpdatePriceInput {
 }
 
 @InputType()
-export abstract class NewLocationInput {
-  @Field()
-  name!: string;
-  @Field(_type => GeoLocation)
-  geoLocation!: GeoLocation;
-  @Field(_type => Int, { description: `Radius in meters` })
-  geoFenceRadius!: number;
-  @Field(_type => String)
-  priceCode!: string;
-  @Field(_type => GraphQLJSONObject)
-  providerData!: any;
-}
-
-@InputType()
 export abstract class UpdateLocationInput {
   @Field(_type => ID)
   id!: string;
@@ -84,6 +72,8 @@ export abstract class UpdateLocationInput {
   geoFenceRadius?: number;
   @Field(_type => String, { nullable: true })
   priceCode?: string;
+  @Field(_type => ID, { nullable: true })
+  serviceID?: string;
   @Field(_type => GraphQLJSONObject, { nullable: true })
   providerData?: any;
 }

@@ -1,6 +1,7 @@
-import provider from "./index";
+import provider, { NordpoolProviderData } from "./index";
 import { IContext } from "@server/gql/api";
 import { IProviderServer } from "@providers/provider-server";
+import { GeoLocation } from "@server/gql/location-type";
 
 const server: IProviderServer = {
   ...provider,
@@ -13,13 +14,28 @@ const server: IProviderServer = {
         );
       }
       default:
-        throw new Error(`Invalid query ${data.query} sent to tesla-server`);
+        throw new Error(`Invalid query ${data.query} sent to nordpool-server`);
     }
   },
-  mutation: async (data: any, _context: IContext) => {
+  mutation: async (data: any, context: IContext) => {
     switch (data.mutation) {
+      case "newLocation": {
+        return context.db.newLocation(
+          context.accountUUID,
+          data.name,
+          { latitude: data.latitude, longitude: data.longitude } as GeoLocation,
+          250,
+          data.price_code,
+          {
+            provider: "nordpool",
+            ...data.provider_data
+          } as NordpoolProviderData
+        );
+      }
       default:
-        throw new Error(`Invalid query ${data.mutation} sent to tesla-server`);
+        throw new Error(
+          `Invalid mutation ${data.mutation} sent to nordpool-server`
+        );
     }
   }
 };

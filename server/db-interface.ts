@@ -15,14 +15,15 @@ import {
   DBVehicleDebug,
   DBAccount,
   DB_VERSION,
-  DBPriceList
+  DBPriceList,
+  DBServiceProvider
 } from "./db-schema";
 import { log, LogLevel, geoDistance, generateToken } from "@shared/utils";
 import config from "@shared/smartcharge-config";
 import { Location, GeoLocation } from "./gql/location-type";
 import { Vehicle, VehicleToJS, VehicleDebugInput } from "./gql/vehicle-type";
 import { Account } from "./gql/account-type";
-import { ProviderSubject } from "./gql/service-type";
+import { ServiceProvider } from "./gql/service-type";
 
 export const DB_OPTIONS = {};
 export const INTERNAL_SERVICE_UUID = `b085e774-1582-4334-be3b-f52d5803e718`;
@@ -114,6 +115,7 @@ export class DBInterface {
         longitude: l.location_micro_longitude / 1e6
       },
       geoFenceRadius: l.radius,
+      serviceID: l.service_uuid,
       providerData: l.provider_data
     };
   }
@@ -153,7 +155,7 @@ export class DBInterface {
     longitude: number
   ): Promise<Location | null> {
     const locations: DBLocation[] = await this.pg.manyOrNone(
-      `SELECT * FROM location WHERE account_uuid = $1 ORDER BY name;`,
+      `SELECT * FROM location WHERE account_uuid = $1 ORDER BY name, location_uuid;`,
       [accountUUID]
     );
     let bestLocation = null;
@@ -203,7 +205,9 @@ export class DBInterface {
       [account_uuid, `account_uuid = $2`]
     ]);
     return this.pg.manyOrNone(
-      `SELECT * FROM location WHERE ${where.join(" AND ")} ORDER BY name;`,
+      `SELECT * FROM location WHERE ${where.join(
+        " AND "
+      )} ORDER BY name, location_uuid;`,
       values
     );
   }
@@ -225,6 +229,7 @@ export class DBInterface {
     location: GeoLocation | undefined,
     radius: number | undefined,
     price_code: string | undefined,
+    service_uuid: string | undefined,
     provider_data: any | undefined
   ): Promise<DBLocation> {
     const [values, set] = queryHelper([
@@ -240,7 +245,8 @@ export class DBInterface {
       ],
       [radius, `radius = $5`],
       [price_code, `price_code = $6`],
-      [provider_data, `provider_data = jsonb_strip_nulls(provider_data || $7)`]
+      [service_uuid, `service_uuid = $7`],
+      [provider_data, `provider_data = jsonb_strip_nulls(provider_data || $8)`]
     ]);
     assert(set.length > 0);
 
@@ -295,6 +301,7 @@ export class DBInterface {
       status: v.status,
       smartStatus: v.smart_status,
       updated: v.updated,
+      serviceID: v.service_uuid,
       providerData: v.provider_data
     });
   }
@@ -303,6 +310,7 @@ export class DBInterface {
     name: string,
     minimum_charge: number,
     maximum_charge: number,
+    service_uuid: string,
     provider_data: any
   ): Promise<DBVehicle> {
     const fields: any = {
@@ -311,6 +319,7 @@ export class DBInterface {
       minimum_charge,
       maximum_charge,
       anxiety_level: 1,
+      service_uuid,
       provider_data
     };
     for (const key of Object.keys(fields)) {
@@ -333,7 +342,9 @@ export class DBInterface {
       [account_uuid, `account_uuid = $2`]
     ]);
     return this.pg.manyOrNone(
-      `SELECT * FROM vehicle WHERE ${where.join(" AND ")} ORDER BY name;`,
+      `SELECT * FROM vehicle WHERE ${where.join(
+        " AND "
+      )} ORDER BY name, vehicle_uuid;`,
       values
     );
   }
@@ -376,6 +387,7 @@ export class DBInterface {
     scheduled_trip: any | null | undefined,
     smart_pause: Date | null | undefined,
     status: string | undefined,
+    service_uuid: string | undefined,
     provider_data: any | undefined
   ): Promise<DBVehicle> {
     const [values, set] = queryHelper([
@@ -387,7 +399,8 @@ export class DBInterface {
       [scheduled_trip, `scheduled_trip = $6`],
       [smart_pause, `smart_pause = $7`],
       [status, `status = $8`],
-      [provider_data, `provider_data = jsonb_strip_nulls(provider_data || $9)`]
+      [service_uuid, `service_uuid = $9`],
+      [provider_data, `provider_data = jsonb_strip_nulls(provider_data || $10)`]
     ]);
     assert(set.length > 0);
 
@@ -423,34 +436,30 @@ export class DBInterface {
     ]);
   }
 
-  public async getProviderSubjects(
+  public async getServiceProviders(
     accountUUID: string | undefined,
     accept: string[] | undefined
-  ): Promise<ProviderSubject[]> {
+  ): Promise<ServiceProvider[]> {
     const [values, where] = queryHelper([
       [accountUUID, `account_uuid = $1`],
       [accept, `provider_name IN ($2:csv)`]
     ]);
-
     assert(where.length > 0);
 
-    const dblist = await this.pg.manyOrNone(
-      `WITH subjects AS (
-        SELECT account_uuid, vehicle_uuid as subject_uuid, provider_data, 'vehicle' as provider_type, provider_data->>'provider' as provider_name FROM vehicle
-        UNION
-        SELECT account_uuid, location_uuid as subject_uuid, provider_data, 'location' as provider_type, provider_data->>'provider' as provider_name FROM location
-      )
-      SELECT * FROM subjects WHERE ${where.join(" AND ")} ORDER BY 1,2;`,
+    const dblist = (await this.pg.manyOrNone(
+      `SELECT * FROM service_provider WHERE ${where.join(
+        " AND "
+      )} ORDER BY 1,2;`,
       values
-    );
+    )) as DBServiceProvider[];
+
     return dblist.map(
       f =>
-        <ProviderSubject>{
+        <ServiceProvider>{
           ownerID: f.account_uuid,
-          subjectID: f.subject_uuid,
-          providerType: f.provider_type,
           providerName: f.provider_name,
-          providerData: f.provider_data
+          serviceData: f.service_data,
+          serviceID: f.service_uuid
         }
     );
   }

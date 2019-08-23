@@ -20,13 +20,11 @@ import { HttpLink } from "apollo-link-http";
 import { SubscriptionClient } from "subscriptions-transport-ws";
 import { Account } from "@server/gql/account-type";
 import {
-  NewLocationInput,
   UpdateLocationInput,
   UpdatePriceInput,
   Location
 } from "@server/gql/location-type";
 import {
-  NewVehicleInput,
   Vehicle,
   VehicleToJS,
   UpdateVehicleInput,
@@ -34,7 +32,7 @@ import {
   VehicleDebugInput,
   Action
 } from "@server/gql/vehicle-type";
-import { ProviderSubject } from "@server/gql/service-type";
+import { ServiceProvider } from "@server/gql/service-type";
 
 export class SCClient extends ApolloClient<any> {
   public account?: Account;
@@ -165,18 +163,6 @@ export class SCClient extends ApolloClient<any> {
   geoFenceRadius
   providerData`;
 
-  public async newLocation(input: NewLocationInput): Promise<Location> {
-    const mutation = gql`
-      mutation NewLocation($input: NewLocationInput!) {
-        newLocation(input: $input) { ${SCClient.locationFragment} }
-      }
-    `;
-    const result = await this.mutate({
-      mutation: mutation,
-      variables: { input }
-    });
-    return result.data.newLocation;
-  }
   public async getLocation(locationUUID: string): Promise<Location> {
     // TODO: should be more flexible, returning just the fields you want into an <any> response instead
     const query = gql`query GetLocation($id: String!) { location(id: $id) { ${
@@ -255,20 +241,9 @@ export class SCClient extends ApolloClient<any> {
   status
   smartStatus
   updated
+  serviceID
   providerData`;
 
-  public async newVehicle(input: NewVehicleInput): Promise<Vehicle> {
-    const mutation = gql`
-      mutation NewVehicle($input: NewVehicleInput!) {
-        newVehicle(input: $input) { ${SCClient.vehicleFragment} }
-      }
-    `;
-    const result = await this.mutate({
-      mutation: mutation,
-      variables: { input }
-    });
-    return result.data.newVehicle;
-  }
   public async getVehicle(vehicleUUID: string): Promise<Vehicle> {
     // TODO: should be more flexible, returning just the fields you want into an <any> response instead
     const query = gql`query GetVehicle($id: String!) { vehicle(id: $id) { ${
@@ -327,20 +302,19 @@ export class SCClient extends ApolloClient<any> {
     return result.data._vehicleDebug;
   }
 
-  public async getProviderSubjects(
+  public async getServiceProviders(
     accept: string[]
-  ): Promise<ProviderSubject[]> {
+  ): Promise<ServiceProvider[]> {
     if (accept.length <= 0) {
       return [];
     }
     const query = gql`
-      query ProviderSubjects($accept: [String!]!) {
-        _providerSubjects(accept: $accept) {
-          subjectID
+      query ServiceProviders($accept: [String!]!) {
+        _serviceProviders(accept: $accept) {
           ownerID
-          providerType
           providerName
-          providerData
+          serviceID
+          serviceData
         }
       }
     `;
@@ -348,7 +322,7 @@ export class SCClient extends ApolloClient<any> {
       query,
       variables: { accept }
     });
-    return result.data._providerSubjects;
+    return result.data._serviceProviders;
   }
 
   public async providerQuery(name: string, input: any): Promise<any> {
@@ -377,23 +351,20 @@ export class SCClient extends ApolloClient<any> {
   }
   private async actionMutation(
     actionID: number | undefined,
-    targetID: string,
-    providerName: string,
+    serviceID: string,
     action: string,
     data?: any
   ) {
     const mutation = gql`
       mutation PerformAction(
         $actionID: Int
-        $targetID: ID!
-        $providerName: String!
+        $serviceID: ID!
         $action: String!
         $data: JSONObject
       ) {
         performAction(
           actionID: $actionID
-          targetID: $targetID
-          providerName: $providerName
+          serviceID: $serviceID
           action: $action
           data: $data
         )
@@ -402,24 +373,22 @@ export class SCClient extends ApolloClient<any> {
 
     const result = await this.mutate({
       mutation,
-      variables: { actionID, targetID, providerName, action, data }
+      variables: { actionID, serviceID, action, data }
     });
     return result.data.performAction;
   }
 
   public async action(
-    targetID: string,
-    providerName: string,
+    serviceID: string,
     action: string,
     data?: any
   ): Promise<Action> {
-    return this.actionMutation(undefined, targetID, providerName, action, data);
+    return this.actionMutation(undefined, serviceID, action, data);
   }
   public async updateAction(action: Action) {
     return this.actionMutation(
       action.actionID,
-      action.targetID,
-      action.providerName,
+      action.serviceID,
       action.action,
       action.data
     );
@@ -427,14 +396,14 @@ export class SCClient extends ApolloClient<any> {
 
   public subscribeActions(
     providerName: string | undefined,
-    targetID: string | undefined,
+    serviceID: string | undefined,
     callback: (action: Action) => any
   ) {
     const query = gql`
-      subscription ActionSubscription($providerName: String, $targetID: ID) {
-        actionSubscription(providerName: $providerName, targetID: $targetID) {
+      subscription ActionSubscription($providerName: String, $serviceID: ID) {
+        actionSubscription(providerName: $providerName, serviceID: $serviceID) {
           actionID
-          targetID
+          serviceID
           providerName
           action
           data
@@ -443,7 +412,7 @@ export class SCClient extends ApolloClient<any> {
     `;
     const result = this.subscribe({
       query,
-      variables: { providerName, targetID }
+      variables: { providerName, serviceID }
     });
     result.subscribe({
       next(value: any) {

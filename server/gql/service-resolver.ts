@@ -23,8 +23,8 @@ import { INTERNAL_SERVICE_UUID, DBInterface } from "@server/db-interface";
 import { AuthenticationError } from "apollo-server-core";
 
 import { VehicleDebugInput, UpdateVehicleDataInput } from "./vehicle-type";
-import { ProviderSubject } from "./service-type";
 import { UpdatePriceInput } from "./location-type";
+import { ServiceProvider } from "./service-type";
 
 function authorizeService(context: IContext) {
   if (context.accountUUID !== INTERNAL_SERVICE_UUID) {
@@ -34,13 +34,13 @@ function authorizeService(context: IContext) {
 
 @Resolver()
 export class ServiceResolver {
-  @Query(_returns => [ProviderSubject])
-  async _providerSubjects(
+  @Query(_returns => [ServiceProvider])
+  async _serviceProviders(
     @Arg("accept", _type => [String]) accept: string[],
     @Ctx() context: IContext
-  ): Promise<ProviderSubject[]> {
+  ): Promise<ServiceProvider[]> {
     authorizeService(context);
-    return context.db.getProviderSubjects(undefined, accept);
+    return context.db.getServiceProviders(undefined, accept);
   }
 
   @Mutation(_returns => Boolean)

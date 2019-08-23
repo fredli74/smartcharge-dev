@@ -8,7 +8,7 @@ import { IProvider } from ".";
 import { SCClient } from "@shared/sc-client";
 import { log, LogLevel, delay } from "@shared/utils";
 import { Action } from "@server/gql/vehicle-type";
-import { ProviderSubject } from "@server/gql/service-type";
+import { ServiceProvider } from "@server/gql/service-type";
 
 export interface IProviderAgentInstantiator {
   (scClient: SCClient): AbstractAgent;
@@ -22,28 +22,32 @@ export enum AgentAction {
   ClimateControl = "climate"
 }
 
-export interface AgentJob {
-  subjectID: string; // Unique agent job identifier
-  providerData: any; // agent job data
-  state: any; // current in memory agent job state
+export interface AgentWork {
   running: boolean; // is the agent currently running a job
   interval: number; // number of seconds between polls
   nextrun: number; // when to run next itteration
+}
+export interface AgentJob extends AgentWork {
+  serviceID: string; // unique service identifier
+  serviceData: any; // agent service data
+  state: any; // current in memory agent job state
   actionQueue: Action[];
 }
 export interface AgentActionFunction {
   (job: AgentJob, action?: Action): Promise<boolean>;
 }
-
 export abstract class AbstractAgent {
   public abstract name: string;
-  protected subjects: { [subjectID: string]: AgentJob } = {};
   protected stopped: boolean = false;
   protected workerPromise: Promise<any> | undefined;
   protected abstract newState(): any;
-  public abstract update(job: AgentJob): Promise<void>;
+  protected services: { [serviceID: string]: AgentJob } = {};
+  public serviceWork?(job: AgentJob): Promise<void>;
+  protected globalWorker?: AgentWork;
+  public globalWork?(work: AgentWork): Promise<void>;
+
   constructor(protected scClient: SCClient) {}
-  public adjustInterval(job: AgentJob, target: number) {
+  public adjustInterval(job: AgentWork, target: number) {
     if (target > job.interval) {
       job.interval += Math.ceil(job.interval / 2) + 1;
     } else {
@@ -52,88 +56,128 @@ export abstract class AbstractAgent {
     const nextrun = Date.now() + job.interval * 1e3;
     job.nextrun = Math.min(job.nextrun, nextrun);
   }
+
+  private async handleActions(job: AgentJob) {
+    if (
+      !job.running &&
+      typeof this.serviceWork === "function" &&
+      job.actionQueue !== undefined
+    ) {
+      const now = Date.now();
+      job.actionQueue = job.actionQueue.sort(
+        (a, b) => (a.data.nextrun || 0) - (b.data.nextrun || 0)
+      );
+      const action = job.actionQueue[0];
+      if (action && now >= (action.data.nextrun || 0)) {
+        job.running = true;
+        try {
+          log(
+            LogLevel.Trace,
+            `Agent ${this.name} calling ${action.action} for ${job.serviceID}`
+          );
+          try {
+            if (typeof (this as any)[action.action] === "function") {
+              const result = await (this as any)[action.action](job, action);
+              if (result !== false) {
+                action.data.result = result;
+              }
+            } else {
+              throw new Error(
+                `Agent ${this.name} has not implemented action ${action.action}`
+              );
+            }
+          } catch (error) {
+            action.data.error = error;
+            action.data.result = false;
+            log(LogLevel.Error, error);
+          }
+          if (action.data.result !== undefined) {
+            this.scClient.updateAction(action);
+          } else {
+            action.data.nextrun = now + 5e3; // retry in 5s
+          }
+        } finally {
+          job.running = false;
+        }
+      }
+    }
+  }
+  private async handleWork(work: AgentWork) {
+    const now = Date.now();
+    if (!work.running && now >= work.nextrun) {
+      work.running = true;
+      try {
+        if ((work as AgentJob).serviceID === undefined) {
+          log(LogLevel.Trace, `Agent ${this.name} calling work`);
+          await this.globalWork!(work);
+        } else {
+          log(
+            LogLevel.Trace,
+            `Agent ${this.name} calling update for ${
+              (work as AgentJob).serviceID
+            }`
+          );
+          await this.serviceWork!(work as AgentJob);
+        }
+      } catch (error) {
+        log(LogLevel.Error, error);
+      }
+      work.nextrun = now + work.interval * 1000;
+      work.running = false;
+    }
+  }
+
   public async worker() {
     this.workerPromise = (async () => {
       log(LogLevel.Info, `Agent ${this.name} worker started`);
       this.stopped = false;
 
-      // Handle actions
-      this.scClient.subscribeActions(this.name, undefined, (action: Action) => {
-        const subject = this.subjects[action.targetID];
-        if (subject) {
-          const hasAction = subject.actionQueue.findIndex(
-            f => f.actionID === action.actionID
-          );
-          if (hasAction >= 0) {
-            if (action.data.result !== undefined) {
-              subject.actionQueue.splice(hasAction, 1); // remove it
-            } else {
-              subject.actionQueue[hasAction] = action; // update it
+      // Handle action subscriptions
+      if (typeof this.serviceWork === "function") {
+        this.scClient.subscribeActions(
+          this.name,
+          undefined,
+          (action: Action) => {
+            const subject = this.services[action.serviceID];
+            if (subject) {
+              const hasAction = subject.actionQueue.findIndex(
+                f => f.actionID === action.actionID
+              );
+              if (hasAction >= 0) {
+                if (action.data.result !== undefined) {
+                  subject.actionQueue.splice(hasAction, 1); // remove it
+                } else {
+                  subject.actionQueue[hasAction] = action; // update it
+                }
+              } else if (action.data.result === undefined) {
+                subject.actionQueue.push(action); // add it
+              }
             }
-          } else if (action.data.result === undefined) {
-            subject.actionQueue.push(action); // add it
           }
-        }
-      });
+        );
+      }
+
+      if (typeof this.globalWork === "function") {
+        this.globalWorker = this.globalWorker || {
+          interval: 5,
+          nextrun: 0,
+          running: false
+        };
+      }
 
       while (!this.stopped) {
-        const now = Date.now();
         (async () => {
-          for (const [id, job] of Object.entries(this.subjects)) {
-            if (!job.running) {
-              job.running = true;
-              job.actionQueue = job.actionQueue.sort(
-                (a, b) => (a.data.nextrun || 0) - (b.data.nextrun || 0)
-              );
-              const action = job.actionQueue[0];
-              if (action && now >= (action.data.nextrun || 0)) {
-                log(
-                  LogLevel.Trace,
-                  `Agent ${this.name} calling ${action.action} for ${
-                    job.subjectID
-                  }`
-                );
-                try {
-                  if (typeof (this as any)[action.action] === "function") {
-                    const result = await (this as any)[action.action](
-                      job,
-                      action
-                    );
-                    if (result !== false) {
-                      action.data.result = result;
-                    }
-                  } else {
-                    throw new Error(
-                      `Agent ${this.name} has not implemented action ${
-                        action.action
-                      }`
-                    );
-                  }
-                } catch (error) {
-                  action.data.error = error;
-                  action.data.result = false;
-                  log(LogLevel.Error, error);
-                }
-                if (action.data.result !== undefined) {
-                  this.scClient.updateAction(action);
-                } else {
-                  action.data.nextrun = now + 5e3; // retry in 5s
-                }
-              } else if (now >= job.nextrun) {
-                log(
-                  LogLevel.Trace,
-                  `Agent ${this.name} calling update for ${job.subjectID}`
-                );
-                try {
-                  await this.update(job);
-                } catch (error) {
-                  log(LogLevel.Error, error);
-                }
-                job.nextrun = now + job.interval * 1000;
-              }
-              job.running = false;
-              this.subjects[id] = job;
+          if (typeof this.serviceWork === "function") {
+            for (const [id, job] of Object.entries(this.services)) {
+              await Promise.all([
+                this.handleActions(job),
+                this.handleWork(job)
+              ]);
+              this.services[id] = job;
             }
+          }
+          if (this.globalWorker && !this.globalWorker.running) {
+            await this.handleWork(this.globalWorker);
           }
         })();
         await delay(1000);
@@ -142,10 +186,10 @@ export abstract class AbstractAgent {
     })();
     return this.workerPromise;
   }
-  public add(subject: ProviderSubject) {
-    this.subjects[subject.subjectID] = {
-      subjectID: subject.subjectID,
-      providerData: subject.providerData,
+  public add(subject: ServiceProvider) {
+    this.services[subject.serviceID] = {
+      serviceID: subject.serviceID,
+      serviceData: subject.serviceData,
       state: this.newState(),
       running: false,
       interval: 5,
@@ -153,11 +197,11 @@ export abstract class AbstractAgent {
       actionQueue: []
     };
   }
-  public remove(subject: ProviderSubject) {
-    delete this.subjects[subject.subjectID];
+  public remove(subject: ServiceProvider) {
+    delete this.services[subject.serviceID];
   }
-  public updateData(subject: ProviderSubject) {
-    this.subjects[subject.subjectID].providerData = subject.providerData;
+  public updateData(subject: ServiceProvider) {
+    this.services[subject.serviceID].serviceData = subject.serviceData;
   }
   public async stop() {
     this.stopped = true;

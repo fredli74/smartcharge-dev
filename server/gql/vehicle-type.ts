@@ -131,6 +131,8 @@ export abstract class Vehicle {
   smartStatus!: string;
   @Field()
   updated!: Date;
+  @Field(_type => ID)
+  serviceID!: string;
   @Field(_type => GraphQLJSONObject, { nullable: true })
   providerData!: any;
 }
@@ -161,6 +163,7 @@ export function VehicleToJS(input: Vehicle): Vehicle {
     status: input.status,
     smartStatus: input.smartStatus,
     updated: new Date(input.updated),
+    serviceID: input.serviceID,
     providerData: input.providerData
   };
 }
@@ -183,22 +186,9 @@ export abstract class UpdateVehicleInput {
   pausedUntil?: Date | null;
   @Field({ nullable: true })
   status?: string;
+  @Field(_type => ID, { nullable: true })
+  serviceID?: string;
   @Field(_type => GraphQLJSONObject, { nullable: true })
-  providerData?: any;
-}
-
-@InputType()
-export abstract class NewVehicleInput {
-  @Field()
-  name!: string;
-  @Field(_type => Int)
-  minimumLevel!: number;
-  @Field(_type => Int)
-  maximumLevel!: number;
-  @Field(_type => GraphQLJSONObject, {
-    nullable: true,
-    description: "Vehicle provider data"
-  })
   providerData?: any;
 }
 
@@ -264,7 +254,7 @@ export abstract class Action {
   @Field(_type => Int)
   actionID!: number;
   @Field(_type => ID)
-  targetID!: string;
+  serviceID!: string;
   @Field()
   providerName!: string;
   @Field()

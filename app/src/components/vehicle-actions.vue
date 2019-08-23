@@ -124,8 +124,6 @@
 </template>
 
 <script lang="ts">
-import { strict as assert } from "assert";
-
 import { Component, Vue, Prop } from "vue-property-decorator";
 import { gql } from "apollo-boost";
 import { AgentAction } from "@providers/provider-agent";
@@ -150,14 +148,14 @@ import VehicleTrip from "./vehicle-trip.vue";
         query: gql`
           subscription ActionSubscription(
             $providerName: String
-            $targetID: ID
+            $serviceID: ID
           ) {
             actionSubscription(
               providerName: $providerName
-              targetID: $targetID
+              serviceID: $serviceID
             ) {
               actionID
-              targetID
+              serviceID
               providerName
               action
               data
@@ -166,13 +164,12 @@ import VehicleTrip from "./vehicle-trip.vue";
         `,
         variables() {
           return {
-            targetID: this.$route.params.id
+            serviceID: this.$props.vehicle.serviceID
           };
         },
         result({ data }: any) {
           const action = data.actionSubscription as Action;
-          assert(action.targetID === this.$route.params.id);
-          if (action.data.error) {
+          if (action.data.id === this.$route.params.id && action.data.error) {
             // Only subscribing for errors to be honest, all other actions
             // are checked in other ways
             eventBus.$emit(BusEvent.AlertWarning, action.data.error);
@@ -225,11 +222,9 @@ export default class VehicleActions extends Vue {
 
   async refreshClick() {
     this.refreshLoading = true;
-    apollo.action(
-      this.vehicle!.id,
-      this.vehicle!.providerData.provider,
-      AgentAction.Refresh
-    );
+    apollo.action(this.vehicle!.serviceID, AgentAction.Refresh, {
+      id: this.vehicle!.id
+    });
     const was = this.vehicle!.updated;
     while (this.vehicle!.updated === was) {
       await delay(1000);
@@ -240,12 +235,10 @@ export default class VehicleActions extends Vue {
     this.hvacLoading = true;
     if (this.isSleeping) this.refreshLoading = true;
     const want = !this.vehicle!.climateControl;
-    apollo.action(
-      this.vehicle!.id,
-      this.vehicle!.providerData.provider,
-      AgentAction.ClimateControl,
-      { enable: want }
-    );
+    apollo.action(this.vehicle!.serviceID, AgentAction.ClimateControl, {
+      id: this.vehicle!.id,
+      enable: want
+    });
     while (this.vehicle!.climateControl !== want) {
       await delay(1000);
     }
