@@ -71,38 +71,54 @@ const server: IProviderServer = {
           serviceID: string;
           serviceData: TeslaServiceData;
         }[];
+
+        const controlled = serviceList.reduce(
+          (m, c) => {
+            if (c.serviceData.map) {
+              m = { ...m, ...c.serviceData.map };
+            }
+            return m;
+          },
+          {} as any
+        );
+        const mapped: any = {};
+
         for (const s of serviceList) {
           if (!s.serviceData.invalid_token && s.serviceData.token) {
             try {
-              const list = (await teslaAPI.listVehicle(
+              const list: any[] = (await teslaAPI.listVehicle(
                 undefined,
                 s.serviceData.token
               )).response;
-              for (const l of list) {
-                for (const t of serviceList) {
-                  if (
-                    t.serviceID !== s.serviceID &&
-                    t.serviceData.map[l.id_s]
-                  ) {
-                    const vid = t.serviceData.map[l.id_s];
-                    delete t.serviceData.map[l.id_s];
 
-                    s.serviceData.map[l.id_s] = vid;
-
-                    await context.db.pg.none(
-                      `UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $1)
-                        WHERE service_uuid=$2;
-                        UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $3)
-                        WHERE service_uuid=$4;`,
-                      [
-                        { map: { [l.id_s]: null } },
-                        t.serviceID,
-                        { map: { [l.id_s]: vid } },
-                        s.serviceID
-                      ]
-                    );
-                  }
+              // Kill all maps that does not exist or is already mapped
+              for (const teslaID of Object.keys(s.serviceData.map)) {
+                const found = list.findIndex(f => f.id_s === teslaID) >= 0;
+                if (mapped[teslaID] || !found) {
+                  delete s.serviceData.map[teslaID];
+                  await context.db.pg.none(
+                    `UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $1)
+                    WHERE service_uuid=$2;`,
+                    [{ map: { [teslaID]: null } }, s.serviceID]
+                  );
                 }
+              }
+
+              // Add everything that should be controlled
+              for (const l of list) {
+                const teslaID = l.id_s;
+                if (!mapped[teslaID] && controlled[teslaID]) {
+                  const vehicleID = controlled[teslaID];
+                  mapped[teslaID] = vehicleID;
+                  s.serviceData.map[teslaID] = vehicleID;
+                  await context.db.pg.none(
+                    `UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $1)
+                      WHERE service_uuid=$2;
+                      UPDATE vehicle SET service_uuid=$2 WHERE vehicle_uuid=$3;`,
+                    [{ map: { [teslaID]: vehicleID } }, s.serviceID, vehicleID]
+                  );
+                }
+
                 l.service_uuid = s.serviceID;
                 l.controlled = s.serviceData.map[l.id_s] !== undefined;
               }
