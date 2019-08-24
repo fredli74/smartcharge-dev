@@ -8,6 +8,16 @@
         <v-flex sm6 xs12>
           <h2>{{ vehicle.name }}</h2>
           <h5>{{ prettyStatus }}</h5>
+          <div v-if="vehicleOnline" id="temperatures">
+            <div>
+              <v-icon>mdi-weather-partly-cloudy</v-icon
+              >{{ Number(vehicle.outsideTemperature).toFixed(1) }}&#176;
+            </div>
+            <div>
+              <v-icon style="top:1px;">mdi-car</v-icon
+              >{{ Number(vehicle.insideTemperature).toFixed(1) }}&#176;
+            </div>
+          </div>
           <RelativeTime
             style="font-size:0.7em; font-weight:light"
             :hide-below="15"
@@ -326,6 +336,12 @@ export default class VehicleVue extends Vue {
       f => moment(f).format("YYYY-MM-DD HH:mm")
     );
   }
+
+  get vehicleOnline() {
+    return (
+      this.vehicle && (this.vehicle.isDriving || this.vehicle.status === "idle")
+    );
+  }
 }
 </script>
 
@@ -380,5 +396,20 @@ export default class VehicleVue extends Vue {
 #vehicle-picture {
   pointer-events: none;
   margin: -10% 0;
+}
+
+#temperatures {
+  font-size: 0.6em;
+  color: #666666;
+}
+#temperatures > div {
+  display: inline-block;
+  padding-right: 1em;
+}
+#temperatures .v-icon {
+  font-size: 90%;
+  padding-right: 0.2em;
+  vertical-align: baseline;
+  position: relative;
 }
 </style>
