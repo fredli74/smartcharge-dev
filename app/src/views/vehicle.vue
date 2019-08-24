@@ -33,11 +33,7 @@
               <v-img id="vehicle-picture" :src="vehiclePicture" />
             </v-flex>
             <v-flex sm12 grow class="">
-              <div
-                v-if="true || freshInfo"
-                id="temperatures"
-                style="margin:0 auto"
-              >
+              <div v-if="freshInfo" id="temperatures" style="margin:0 auto">
                 <div>
                   <v-icon>mdi-weather-partly-cloudy</v-icon
                   >{{ Number(vehicle.outsideTemperature).toFixed(1) }}&#176;
@@ -219,8 +215,8 @@ export default class VehicleVue extends Vue {
   updateFreshness() {
     this.freshInfo = Boolean(
       this.vehicle &&
-        Date.now() - new Date(this.vehicle.updated).getTime() < 180e3
-    ); // two and a half minutes
+        Date.now() - new Date(this.vehicle.updated).getTime() < 300e3
+    ); // five minutes
   }
 
   timer?: any;
