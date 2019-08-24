@@ -310,6 +310,7 @@ export default class VehicleVue extends Vue {
               l.geoLocation.longitude
             ) / 1e3;
           if (dist < closest) {
+            closest = dist;
             if (dist < 1) {
               suffix = "near";
             } else {
