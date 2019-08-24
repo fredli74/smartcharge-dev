@@ -728,7 +728,7 @@ export class TeslaAgent extends AbstractAgent {
   ): Promise<boolean> {
     this.adjustInterval(job, 0); // poll more often after an interaction
 
-    if (!job.state.online && !(await this.wakeUp(job, subject))) {
+    if (!subject.online && !(await this.wakeUp(job, subject))) {
       return false; // try again later
     }
 
