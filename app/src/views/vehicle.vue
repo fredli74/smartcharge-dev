@@ -7,17 +7,7 @@
       <v-layout row align-center>
         <v-flex sm6 xs12>
           <h2>{{ vehicle.name }}</h2>
-          <h5>{{ prettyStatus }}</h5>
-          <div v-if="vehicleOnline" id="temperatures">
-            <div>
-              <v-icon>mdi-weather-partly-cloudy</v-icon
-              >{{ Number(vehicle.outsideTemperature).toFixed(1) }}&#176;
-            </div>
-            <div>
-              <v-icon style="top:1px;">mdi-car</v-icon
-              >{{ Number(vehicle.insideTemperature).toFixed(1) }}&#176;
-            </div>
-          </div>
+          <h6>{{ prettyStatus }}</h6>
           <RelativeTime
             style="font-size:0.7em; font-weight:light"
             :hide-below="15"
@@ -37,8 +27,28 @@
             <div class="text-no-wrap">{{ pauseText }}</div>
           </div>
         </v-flex>
-        <v-flex sm6 class="d-none d-sm-flex">
-          <v-img id="vehicle-picture" :src="vehiclePicture" />
+        <v-flex sm6 grow class="">
+          <v-layout row align-center>
+            <v-flex sm12 grow class="d-none d-sm-flex">
+              <v-img id="vehicle-picture" :src="vehiclePicture" />
+            </v-flex>
+            <v-flex sm12 grow class="">
+              <div
+                v-if="true || freshInfo"
+                id="temperatures"
+                style="margin:0 auto"
+              >
+                <div>
+                  <v-icon>mdi-weather-partly-cloudy</v-icon
+                  >{{ Number(vehicle.outsideTemperature).toFixed(1) }}&#176;
+                </div>
+                <div>
+                  <v-icon style="top:1px;">mdi-car</v-icon
+                  >{{ Number(vehicle.insideTemperature).toFixed(1) }}&#176;
+                </div>
+              </div>
+            </v-flex>
+          </v-layout>
         </v-flex>
         <v-flex v-if="vehicle !== undefined" sm6 xs12 class="mb-5">
           <VehicleActions :vehicle="vehicle"></VehicleActions>
@@ -175,6 +185,7 @@ const vehicleFragment = `id name minimumLevel maximumLevel anxietyLevel tripSche
             data.vehicle.tripSchedule = null;
           }
         }
+        this.updateFreshness();
         return data.vehicle;
       },
       watchLoading(isLoading, _countModifier) {
@@ -192,6 +203,7 @@ export default class VehicleVue extends Vue {
   location?: Location;
   locations!: Location[];
   prettyStatus!: string;
+  freshInfo!: boolean;
 
   data() {
     return {
@@ -199,14 +211,23 @@ export default class VehicleVue extends Vue {
       vehicle: undefined,
       location: undefined,
       locations: undefined,
-      prettyStatus: ""
+      prettyStatus: "",
+      freshInfo: false
     };
+  }
+
+  updateFreshness() {
+    this.freshInfo = Boolean(
+      this.vehicle &&
+        Date.now() - new Date(this.vehicle.updated).getTime() < 180e3
+    ); // two and a half minutes
   }
 
   timer?: any;
   async created() {
     this.locations = await apollo.getLocations();
     this.$apollo.queries.vehicle.skip = false;
+
     this.timer = setInterval(() => {
       if (this.vehicle && this.vehicle.pausedUntil) {
         const when = new Date(this.vehicle.pausedUntil).getTime();
@@ -222,6 +243,7 @@ export default class VehicleVue extends Vue {
           this.vehicle.tripSchedule = null;
         }
       }
+      this.updateFreshness();
     }, 30e3);
   }
   beforeDestroy() {
@@ -336,12 +358,6 @@ export default class VehicleVue extends Vue {
       f => moment(f).format("YYYY-MM-DD HH:mm")
     );
   }
-
-  get vehicleOnline() {
-    return (
-      this.vehicle && (this.vehicle.isDriving || this.vehicle.status === "idle")
-    );
-  }
 }
 </script>
 
@@ -399,16 +415,18 @@ export default class VehicleVue extends Vue {
 }
 
 #temperatures {
-  font-size: 0.6em;
+  font-size: 0.8em;
   color: #666666;
 }
 #temperatures > div {
   display: inline-block;
-  padding-right: 1em;
+}
+#temperatures > div + div {
+  margin-left: 1em;
 }
 #temperatures .v-icon {
   font-size: 90%;
-  padding-right: 0.2em;
+  margin-right: 0.2em;
   vertical-align: baseline;
   position: relative;
 }
