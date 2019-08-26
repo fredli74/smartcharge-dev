@@ -37,7 +37,7 @@ interface TeslaSubject {
   vehicleUUID: string;
   data?: Vehicle;
   online: boolean;
-  pollstate: PollState;
+  pollstate: PollState | undefined;
   statestart: number;
   status: string;
   debugSleep?: any;
@@ -372,6 +372,7 @@ export class TeslaAgent extends AbstractAgent {
         switch (data.state) {
           case "online":
             if (
+              subject.pollstate === undefined ||
               subject.pollstate === "asleep" ||
               subject.pollstate === "offline"
             ) {
@@ -694,7 +695,7 @@ export class TeslaAgent extends AbstractAgent {
           teslaID: sid,
           vehicleUUID: vid,
           online: false,
-          pollstate: "offline",
+          pollstate: undefined,
           statestart: Date.now(),
           status: ""
         };
