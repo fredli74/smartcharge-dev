@@ -342,7 +342,8 @@ export class TeslaAgent extends AbstractAgent {
           subject.hvacOn &&
           (data.climate_state.climate_keeper_mode !== "off" ||
             data.climate_state.smart_preconditioning ||
-            data.drive_state.shift_state !== "P" ||
+            data.drive_state.shift_state === "D" ||
+            data.drive_state.shift_state === "R" ||
             data.vehicle_state.is_user_present ||
             data.vehicle_state.df > 0 ||
             data.vehicle_state.dr > 0 ||
