@@ -701,7 +701,7 @@ export class Logic {
     plan.sort(
       (a, b) =>
         nstart(a.chargeStart) - nstart(b.chargeStart) ||
-        nstop(a.chargeStop) - nstop(b.chargeStop) ||
+        nstop(b.chargeStop) - nstop(a.chargeStop) ||
         chargePrio[a.chargeType] - chargePrio[b.chargeType]
     );
 
@@ -716,8 +716,8 @@ export class Logic {
           // Merge them
           if (nstop(b.chargeStop) > nstop(a.chargeStop)) {
             a.chargeStop = b.chargeStop;
-            a.level = Math.max(a.level, b.level);
           }
+          a.level = Math.max(a.level, b.level);
           plan.splice(i + 1, 1);
           --i;
         } else {
