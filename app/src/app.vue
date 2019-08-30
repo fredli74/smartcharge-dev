@@ -127,7 +127,16 @@ export default class App extends Vue {
 <style>
 body {
   font-size: calc(16px + 1vw);
+  -webkit-user-select: none;
+  -moz-user-select: -moz-none;
+  -ms-user-select: none;
+  user-select: none;
 }
+input,
+textarea {
+  -moz-user-select: text;
+}
+
 a#homelink {
   color: white;
   text-decoration: none;
