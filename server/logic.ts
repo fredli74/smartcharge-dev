@@ -741,9 +741,10 @@ export class Logic {
   private async generateChargePlan(
     vehicle: DBVehicle,
     batteryLevel: number,
-    before: number,
     chargeType: ChargeType,
-    comment: string
+    comment: string,
+    before?: number,
+    maxPrice?: number
   ): Promise<ChargePlan[]> {
     assert(vehicle.location_uuid !== undefined);
     const now = Date.now();
@@ -757,12 +758,13 @@ export class Logic {
       batteryLevel
     );
 
+    before = before || 10e13; // >200 years into the future
+
     if (timeNeeded > 0) {
       // Get our future price map
       const priceMap: {
         ts: Date;
         price: number;
-        in_range: boolean;
       }[] = await this.db.pg.manyOrNone(
         `SELECT ts, price FROM price_list p JOIN location l ON (l.price_code = p.price_code) WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' AND ts < $2 ORDER BY price`,
         [vehicle.location_uuid, new Date(before)]
@@ -772,11 +774,13 @@ export class Logic {
         let timeLeft = timeNeeded;
         for (const price of priceMap) {
           if (timeLeft <= 0) break;
+          if (maxPrice && price.price > maxPrice) break;
+
           const ts = price.ts.getTime();
           const start = ts < now ? now : ts;
           const fullHour = ts + 60 * 60 * 1e3;
-          let end = Math.min(start + timeLeft, before, fullHour);
-          let chargeStart = ts < start ? new Date(ts) : new Date(start);
+          const end = Math.min(start + timeLeft, before, fullHour);
+          const chargeStart = ts < start ? new Date(ts) : new Date(start);
           plan.push({
             chargeStart: chargeStart,
             chargeStop: new Date(end),
@@ -798,46 +802,6 @@ export class Logic {
           comment: `no price data`
         });
       }
-    }
-    return plan;
-  }
-
-  private async lowPriceFill(
-    vehicle: DBVehicle,
-    stats: DBCurrentStats
-  ): Promise<ChargePlan[]> {
-    const averagePrice =
-      stats.weekly_avg7_price +
-      (stats.weekly_avg7_price - stats.weekly_avg21_price) / 2;
-    const now = Date.now();
-
-    const thresholdPrice = (averagePrice * stats.threshold) / 100;
-
-    let plan: ChargePlan[] = [];
-
-    // Get our future price map
-    const priceMap: {
-      ts: Date;
-      price: number;
-    }[] = await this.db.pg.manyOrNone(
-      `SELECT ts, price FROM price_list p JOIN location l ON (l.price_code = p.price_code) WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' AND price <= $2 ORDER BY ts`,
-      [vehicle.location_uuid, thresholdPrice]
-    );
-
-    if (priceMap.length > 0) {
-      for (const price of priceMap) {
-        const ts = price.ts.getTime();
-        const start = ts < now ? now : ts;
-        // Fill'er up
-        plan.push({
-          chargeStart: ts < start ? new Date(ts) : new Date(start),
-          chargeStop: new Date(ts + 60 * 60 * 1e3),
-          level: vehicle.maximum_charge,
-          chargeType: ChargeType.fill,
-          comment: `low price`
-        });
-      }
-      log(LogLevel.Trace, priceMap);
     }
     return plan;
   }
@@ -888,6 +852,8 @@ export class Logic {
         vehicle.location_uuid
       );
       log(LogLevel.Trace, `stats: ${JSON.stringify(stats)}`);
+
+      let disconnectTime: number = 0;
 
       if (vehicle.level < vehicle.minimum_charge) {
         // Emergency charge up to minimum level
@@ -975,6 +941,7 @@ export class Logic {
             );
             const neededCharge = minimumLevel - vehicle.level;
             const before = guess.before * 1e3; // epoch to ms
+            disconnectTime = before;
 
             this.setSmartStatus(
               vehicle,
@@ -996,9 +963,9 @@ export class Logic {
             const p = await this.generateChargePlan(
               vehicle,
               minimumLevel,
-              before,
               ChargeType.routine,
-              `routine charge`
+              "routine charge",
+              before
             );
             plan.push(...p);
 
@@ -1014,9 +981,9 @@ export class Logic {
               const p = await this.generateChargePlan(
                 vehicle,
                 anxietyLevel,
-                before,
                 ChargeType.prefered,
-                `charge setting`
+                `charge setting`,
+                before
               );
               plan.push(...p);
             }
@@ -1058,13 +1025,14 @@ export class Logic {
           );
           const topupStart =
             trip.time.getTime() - TRIP_TOPUP_MARGIN - topupTime;
+          disconnectTime = Math.max(disconnectTime, topupStart);
 
           const p = await this.generateChargePlan(
             vehicle,
             tripLevel,
-            topupStart,
             ChargeType.trip,
-            `upcoming trip`
+            `upcoming trip`,
+            topupStart
           );
           plan.push(...p);
 
@@ -1092,8 +1060,20 @@ export class Logic {
       }
 
       // Low price fill charging
-      {
-        const p = await this.lowPriceFill(vehicle, stats);
+      if (stats) {
+        const averagePrice =
+          stats.weekly_avg7_price +
+          (stats.weekly_avg7_price - stats.weekly_avg21_price) / 2;
+        const thresholdPrice = (averagePrice * stats.threshold) / 100;
+
+        const p = await this.generateChargePlan(
+          vehicle,
+          vehicle.maximum_charge,
+          ChargeType.fill,
+          "low price",
+          disconnectTime,
+          thresholdPrice
+        );
         plan.push(...p);
       }
     }

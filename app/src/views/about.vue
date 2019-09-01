@@ -47,6 +47,6 @@ export default class About extends Vue {}
 
 <style>
 #about {
-  font-size: calc(12px + 1.1vw);
+  font-size: calc(12px + 0.8vw);
 }
 </style>
