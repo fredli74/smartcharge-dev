@@ -489,7 +489,7 @@ export default class ChargeChart extends Vue {
 
           if (ce < cs) continue;
           if (data.length < 1 || cs > data[data.length - 1][0])
-            data.push([cs, level]);
+            data.push([cs, Math.floor(level)]);
           level = Math.min(
             c.level,
             this.chargeAmount(
@@ -498,7 +498,7 @@ export default class ChargeChart extends Vue {
               (ce - cs) / 1e3
             )
           );
-          data.push([ce, level]);
+          data.push([ce, Math.floor(level)]);
 
           // Add chart annotations
           const from = Math.max(
@@ -560,7 +560,7 @@ export default class ChargeChart extends Vue {
           }
         }
       }
-      data.push([chartEnd, level]);
+      data.push([chartEnd, Math.floor(level)]);
     }
     if (data.length) {
       this.minLevel = Number.POSITIVE_INFINITY;
