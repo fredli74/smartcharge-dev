@@ -436,7 +436,7 @@ export default class ChargeChart extends Vue {
   private chargeDuration(curve: any, from: number, to: number) {
     let sum = 0;
     for (let level = from; level <= to; ++level) {
-      sum += curve[level] * (level < to ? 1.0 : 0.75); // remove 25% of the last % to not overshoot
+      sum += curve[Math.min(100, Math.ceil(level))] * (level < to ? 1.0 : 0.75); // remove 25% of the last % to not overshoot
     }
     return sum * 1e3;
   }
@@ -444,7 +444,7 @@ export default class ChargeChart extends Vue {
     let timeLeft = time;
     let level = from;
     while (timeLeft > 0) {
-      const needed = curve[Math.ceil(level)];
+      const needed = curve[Math.min(100, Math.ceil(level))];
       level += Math.min(1, timeLeft / needed);
       timeLeft -= needed;
     }

@@ -647,7 +647,9 @@ export class Logic {
     const chargeCurve = await this.db.getChargeCurve(vehicleUUID, locationUUID);
     let sum = 0;
     for (let level = from; level <= to; ++level) {
-      sum += chargeCurve[level] * (level < to ? 1.0 : 0.75); // remove 25% of the last % to not overshoot
+      sum +=
+        chargeCurve[Math.min(100, Math.ceil(level))] *
+        (level < to ? 1.0 : 0.75); // remove 25% of the last % to not overshoot
     }
     return sum * 1e3;
   }
