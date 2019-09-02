@@ -14,11 +14,7 @@
       ></v-flex>
       <v-flex xs12>
         <apex
-          v-if="
-            chartData &&
-              chartData.prices.length > 1 &&
-              chartData.levelChargeTime
-          "
+          v-if="chartData && chartData.prices.length > 1"
           id="chargechart"
           ref="chargechart"
           class="chart"
@@ -154,8 +150,8 @@ const defaultOptions = {
             vehicleID
             batteryLevel
             minimumLevel
-            levelChargeTime
             thresholdPrice
+            chargeCurve
             prices {
               startAt
               price
@@ -437,6 +433,24 @@ export default class ChargeChart extends Vue {
     return [{ name: "price", data }];
   }
 
+  private chargeDuration(curve: any, from: number, to: number) {
+    let sum = 0;
+    for (let level = from; level <= to; ++level) {
+      sum += curve[level] * (level < to ? 1.0 : 0.75); // remove 25% of the last % to not overshoot
+    }
+    return sum * 1e3;
+  }
+  private chargeAmount(curve: any, from: number, time: number): number {
+    let timeLeft = time;
+    let level = from;
+    while (timeLeft > 0) {
+      const needed = curve[Math.ceil(level)];
+      level += Math.min(1, timeLeft / needed);
+      timeLeft -= needed;
+    }
+    return level;
+  }
+
   get chargeseries() {
     log(LogLevel.Trace, `chargeseries()`);
     let data: any = [];
@@ -453,29 +467,36 @@ export default class ChargeChart extends Vue {
       // Simulate charging
       if (this.chartData.chargePlan) {
         for (const c of this.chartData.chargePlan) {
-          let timeNeeded = (c.level - level) * this.chartData.levelChargeTime;
+          let timeNeeded = this.chargeDuration(
+            this.chartData.chargeCurve,
+            level,
+            c.level
+          );
           let cs = Date.now();
           if (c.chargeStart) {
             cs = Math.max(cs, new Date(c.chargeStart).getTime());
           }
-          let ce = cs + timeNeeded * 1e3;
+          let ce = cs + timeNeeded;
 
           if (
             c.chargeStop &&
             ce - new Date(c.chargeStop).getTime() >
-              this.chartData.levelChargeTime * 1e3
+              this.chartData.chargeCurve[c.level] * 1e3
           ) {
             ce = new Date(c.chargeStop).getTime();
           }
           ce = Math.min(ce, chartEnd);
 
           if (ce < cs) continue;
-
           if (data.length < 1 || cs > data[data.length - 1][0])
             data.push([cs, level]);
           level = Math.min(
             c.level,
-            level + Math.round((ce - cs) / 1e3 / this.chartData.levelChargeTime)
+            this.chargeAmount(
+              this.chartData.chargeCurve,
+              level,
+              (ce - cs) / 1e3
+            )
           );
           data.push([ce, level]);
 

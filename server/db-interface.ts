@@ -43,6 +43,10 @@ function queryHelper(fields: any[]): [any[], string[]] {
   return [values, where];
 }
 
+export interface ChargeCurve {
+  [level: number]: number;
+}
+
 export class DBInterface {
   public pg: pgp.IDatabase<unknown>;
   constructor() {
@@ -476,6 +480,43 @@ export class DBInterface {
       SELECT * FROM data WHERE ts > (SELECT max(ts) FROM data) - interval $2 ORDER BY ts;`,
       [location_uuid, `${interval} hours`]
     );
+  }
+
+  public async getChargeCurve(
+    vehicle_uuid: string,
+    location_uuid: string
+  ): Promise<ChargeCurve> {
+    const dbCurve = await this.pg.manyOrNone(
+      `SELECT level, percentile_cont(0.5) WITHIN GROUP(ORDER BY duration) AS seconds
+            FROM charge a JOIN charge_curve b ON(a.charge_id = b.charge_id)
+            WHERE a.vehicle_uuid = $1 AND a.location_uuid = $2 GROUP BY level ORDER BY level;`,
+      [vehicle_uuid, location_uuid]
+    );
+    let current;
+    if (dbCurve.length > 0) {
+      current = dbCurve.shift()!.seconds;
+    } else {
+      current =
+        (await this.pg.one(
+          `SELECT AVG(duration) FROM charge a JOIN charge_curve b ON (a.charge_id = b.charge_id) WHERE a.vehicle_uuid = $1 AND location_uuid = $2;`,
+          [vehicle_uuid, location_uuid]
+        )).avg ||
+        (await this.pg.one(
+          `SELECT AVG(60.0 * estimate / (target_level-end_level)) FROM charge WHERE end_level < target_level AND vehicle_uuid = $1 AND location_uuid = $2;`,
+          [vehicle_uuid, location_uuid]
+        )).avg ||
+        20 * 60; // 20 min default for first time charge
+    }
+    assert(current !== undefined && current !== null);
+
+    let curve: ChargeCurve = {};
+    for (let level = 0; level <= 100; ++level) {
+      while (dbCurve.length > 0 && level >= dbCurve[0].level) {
+        current = dbCurve.shift()!.seconds;
+      }
+      curve[level] = current;
+    }
+    return curve;
   }
 
   public async setChargeCurve(

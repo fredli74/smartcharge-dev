@@ -142,6 +142,11 @@ export class VehicleResolver {
       context.accountUUID
     );
 
+    const chargecurve = await context.db.getChargeCurve(
+      vehicle && vehicle.vehicle_uuid,
+      location && location.location_uuid
+    );
+
     const stats = await context.logic.currentStats(vehicle_uuid, location_uuid);
     const averagePrice =
       stats.weekly_avg7_price +
@@ -155,6 +160,7 @@ export class VehicleResolver {
       batteryLevel: vehicle.level,
       thresholdPrice: Math.trunc((averagePrice * stats.threshold) / 100),
       levelChargeTime: stats.level_charge_time,
+      chargeCurve: chargecurve,
       prices: chartData.map(f => ({ startAt: f.ts, price: f.price })),
       chargePlan:
         (vehicle.charge_plan && vehicle.charge_plan.map(ChargePlanToJS)) ||

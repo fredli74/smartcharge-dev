@@ -644,42 +644,11 @@ export class Logic {
     to: number
   ) {
     // TODO: do we need to consider temperature?
-    const chargeCurve: {
-      level: number;
-      seconds: number;
-    }[] = await this.db.pg.manyOrNone(
-      `SELECT level, percentile_cont(0.5) WITHIN GROUP(ORDER BY duration) AS seconds
-            FROM charge a JOIN charge_curve b ON(a.charge_id = b.charge_id)
-            WHERE a.vehicle_uuid = $1 AND a.location_uuid = $2 GROUP BY level ORDER BY level;`,
-      [vehicleUUID, locationUUID]
-    );
-    let current;
-    if (chargeCurve.length > 0) {
-      current = chargeCurve.shift()!.seconds;
-    } else {
-      current =
-        (await this.db.pg.one(
-          `SELECT AVG(duration) FROM charge a JOIN charge_curve b ON (a.charge_id = b.charge_id) WHERE a.vehicle_uuid = $1 AND location_uuid = $2;`,
-          [vehicleUUID, locationUUID]
-        )).avg ||
-        (await this.db.pg.one(
-          `SELECT AVG(60.0 * estimate / (target_level-end_level)) FROM charge WHERE end_level < target_level AND vehicle_uuid = $1 AND location_uuid = $2;`,
-          [vehicleUUID, locationUUID]
-        )).avg ||
-        20 * 60; // 20 min default for first time charge
-    }
-    assert(current !== undefined && current !== null);
-
+    const chargeCurve = await this.db.getChargeCurve(vehicleUUID, locationUUID);
     let sum = 0;
-    if (to > from) {
-      for (let level = from; level <= to; ++level) {
-        while (chargeCurve.length > 0 && level >= chargeCurve[0].level) {
-          current = chargeCurve.shift()!.seconds;
-        }
-        sum += level < to ? current : current * 0.75; // remove 25% of the last % to not overshoot
-      }
+    for (let level = from; level <= to; ++level) {
+      sum += chargeCurve[level] * (level < to ? 1.0 : 0.75); // remove 25% of the last % to not overshoot
     }
-
     return sum * 1e3;
   }
 

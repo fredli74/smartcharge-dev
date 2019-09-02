@@ -92,6 +92,8 @@ export abstract class ChartData {
   levelChargeTime!: number;
   @Field(_type => Int)
   thresholdPrice!: number;
+  @Field(_type => GraphQLJSONObject)
+  chargeCurve!: any;
   @Field(_type => LocationPrice)
   prices!: LocationPrice[];
   @Field(_type => [ChargePlan], { nullable: true })
