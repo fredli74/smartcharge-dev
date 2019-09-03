@@ -35,6 +35,12 @@ export function makeAccountUUID(subject: string, domain: string): string {
 export const SINGLE_USER_UUID = makeAccountUUID("SINGLE_USER", "*");
 export const INTERNAL_SERVICE_UUID = makeAccountUUID("INTERNAL_SERVICE", "*");
 
+function queryWhere(where: string[]): string {
+  if (where.length > 0) {
+    return ` WHERE ${where.join(" AND ")} `;
+  }
+  return "";
+}
 function queryHelper(fields: any[]): [any[], string[]] {
   let values: any[] = [];
   let where: string[] = [];
@@ -253,8 +259,8 @@ export class DBInterface {
       [account_uuid, `account_uuid = $2`]
     ]);
     return this.pg.manyOrNone(
-      `SELECT * FROM location WHERE ${where.join(
-        " AND "
+      `SELECT * FROM location ${queryWhere(
+        where
       )} ORDER BY name, location_uuid;`,
       values
     );
@@ -390,9 +396,7 @@ export class DBInterface {
       [account_uuid, `account_uuid = $2`]
     ]);
     return this.pg.manyOrNone(
-      `SELECT * FROM vehicle WHERE ${where.join(
-        " AND "
-      )} ORDER BY name, vehicle_uuid;`,
+      `SELECT * FROM vehicle ${queryWhere(where)} ORDER BY name, vehicle_uuid;`,
       values
     );
   }
