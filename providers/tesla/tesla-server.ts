@@ -71,7 +71,7 @@ async function invalidToken(db: DBInterface, token: IRestToken) {
     log(LogLevel.Info, `Invalidating token for service ${s.service_uuid}`);
     await db.pg.none(
       `UPDATE vehicle SET provider_data = jsonb_strip_nulls(provider_data || $2) WHERE service_uuid = $1;`,
-      [{ invalid_token: true }, s.service_uuid]
+      [s.service_uuid, { invalid_token: true }]
     );
   }
 }
