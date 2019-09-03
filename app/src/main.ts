@@ -6,6 +6,19 @@ import router from "./router";
 import "./register-service-worker";
 import App from "./app.vue";
 
+import GAuth from "vue-google-oauth2";
+import config from "@shared/smartcharge-config";
+
+if (config.SINGLE_USER === "false") {
+  const gauthOption = {
+    clientId: config.GOOGLE_CLIENT_ID,
+    scope: "profile openid",
+    prompt: "select_account",
+    fetch_basic_profile: false
+  };
+  Vue.use(GAuth, gauthOption);
+}
+
 Vue.config.productionTip = false;
 Vue.config.devtools = true;
 

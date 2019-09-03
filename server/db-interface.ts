@@ -24,10 +24,16 @@ import { Location, GeoLocation } from "./gql/location-type";
 import { Vehicle, VehicleToJS, VehicleDebugInput } from "./gql/vehicle-type";
 import { Account } from "./gql/account-type";
 import { ServiceProvider } from "./gql/service-type";
+import uuidv5 from "uuid/v5";
 
 export const DB_OPTIONS = {};
-export const INTERNAL_SERVICE_UUID = `b085e774-1582-4334-be3b-f52d5803e718`;
-export const SINGLE_USER_UUID = `c60053d3-a99c-44f2-9104-a10db8eba916`;
+
+const SMARTCHARGE_NAMESPACE = uuidv5("account.smartcharge.dev", uuidv5.DNS);
+export function makeAccountUUID(subject: string, domain: string): string {
+  return uuidv5(`${subject}.${domain}`, SMARTCHARGE_NAMESPACE);
+}
+export const SINGLE_USER_UUID = makeAccountUUID("SINGLE_USER", "*");
+export const INTERNAL_SERVICE_UUID = makeAccountUUID("INTERNAL_SERVICE", "*");
 
 function queryHelper(fields: any[]): [any[], string[]] {
   let values: any[] = [];
@@ -438,6 +444,16 @@ export class DBInterface {
     return this.pg.one(`SELECT * FROM account WHERE api_token = $1;`, [
       api_token
     ]);
+  }
+  public async makeAccount(
+    account_uuid: string,
+    name: string
+  ): Promise<DBAccount> {
+    // Creating the single user
+    return this.pg.one(
+      `INSERT INTO account($[this:name]) VALUES($[this:csv]) RETURNING *;`,
+      { account_uuid, name, api_token: generateToken(48) }
+    );
   }
 
   public async getServiceProviders(

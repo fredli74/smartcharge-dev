@@ -139,6 +139,21 @@ export class SCClient extends ApolloClient<any> {
       query: gql`{ account { ${SCClient.accountFragment} } }`
     })).data.account;
   }
+  public async loginWithGoogle(idToken: string) {
+    this.account = (await this.mutate({
+      mutation: gql`
+      mutation LoginWithGoogle($idToken: String!) {
+          loginWithGoogle(idToken: $idToken) { ${SCClient.accountFragment} }
+          }`,
+      variables: { idToken }
+    })).data.loginWithGoogle;
+    this.token = this.account!.token;
+    localStorage.setItem("token", this.account!.token);
+    if (this.wsClient) {
+      this.wsClient.close(false, true);
+    }
+  }
+
   public get authorized() {
     return Boolean(this.account);
   }

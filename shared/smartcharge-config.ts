@@ -14,12 +14,18 @@ const config = {
   SERVER_IP: "0.0.0.0",
   SERVER_PORT: `${DEFAULT_PORT}`,
   SINGLE_USER: "true",
-  SINGLE_USER_PASSWORD: "password"
+  SINGLE_USER_PASSWORD: "password",
+  GOOGLE_CLIENT_ID:
+    "745327173701-2qd5fessuo90ntb416epvfgeam91obdo.apps.googleusercontent.com"
 };
 
-for (const key of Object.keys(config)) {
-  if (process && process.env && process.env[key]) {
-    (config as any)[key] = process.env[key];
+if (process && process.env) {
+  for (const key of Object.keys(config)) {
+    if (process.env[key] !== undefined) {
+      (config as any)[key] = process.env[key];
+    } else if (process.env[`VUE_APP_${key}`] !== undefined) {
+      (config as any)[key] = process.env[`VUE_APP_${key}`];
+    }
   }
 }
 

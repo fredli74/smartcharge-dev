@@ -10,8 +10,11 @@
       <v-spacer></v-spacer>
       <span id="version" @click="appReload()">{{ version }}</span>
       <v-spacer></v-spacer>
-      <v-btn v-if="authorized" text @click="logout">logout</v-btn>
-      <v-btn v-else color="primary" @click="login">login</v-btn>
+      <v-btn v-if="authorized" text @click="logout">sign out</v-btn>
+      <v-btn v-else color="primary" @click="login">
+        <v-icon left>{{ singleUserMode ? "mdi-login" : "mdi-google" }}</v-icon>
+        sign in</v-btn
+      >
     </v-app-bar>
     <v-content id="app-content">
       <v-container fluid>
@@ -42,6 +45,8 @@ import { Component, Vue } from "vue-property-decorator";
 import apollo from "./plugins/apollo";
 import eventBus, { BusEvent } from "./plugins/event-bus";
 import { gql } from "apollo-server-core";
+import config from "@shared/smartcharge-config";
+import { strict as assert } from "assert";
 
 declare var COMMIT_HASH: string;
 
@@ -103,15 +108,6 @@ export default class App extends Vue {
     return false;
   }
 
-  login() {
-    this.$router.push("/login");
-  }
-  async logout() {
-    await apollo.logout();
-    eventBus.$emit(BusEvent.AuthenticationChange);
-    this.$router.push("/about");
-  }
-
   get version() {
     return typeof COMMIT_HASH === "string"
       ? `(#${COMMIT_HASH.substr(0, 6)})`
@@ -120,6 +116,39 @@ export default class App extends Vue {
 
   appReload() {
     window.location.reload(true);
+  }
+
+  get singleUserMode() {
+    return config.SINGLE_USER !== "false";
+  }
+
+  async login() {
+    if (this.singleUserMode) {
+      this.$router.push("/login");
+    } else {
+      try {
+        const GoogleUser = await (this as any).$gAuth.signIn();
+        await apollo.loginWithGoogle(GoogleUser.getAuthResponse().id_token);
+        eventBus.$emit(BusEvent.AuthenticationChange);
+        assert(apollo.account);
+        this.$router.push("/");
+      } catch (err) {
+        if (err.graphQLErrors) {
+          for (const e of err.graphQLErrors) {
+            if (e.extensions && e.extensions.code === "UNAUTHENTICATED") {
+              eventBus.$emit(BusEvent.AlertWarning, `invalid password`);
+              return;
+            }
+          }
+        }
+        eventBus.$emit(BusEvent.AlertError, err.message || err);
+      }
+    }
+  }
+  async logout() {
+    await apollo.logout();
+    eventBus.$emit(BusEvent.AuthenticationChange);
+    this.$router.push("/about");
   }
 }
 </script>
