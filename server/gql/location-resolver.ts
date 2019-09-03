@@ -14,7 +14,11 @@ import { UpdateLocationInput, Location } from "./location-type";
 export class LocationResolver {
   @Query(_returns => [Location])
   async locations(@Ctx() context: IContext): Promise<Location[]> {
-    const dblist = await context.db.getLocations(context.accountUUID);
+    const accountLimiter =
+      context.accountUUID === INTERNAL_SERVICE_UUID
+        ? undefined
+        : context.accountUUID;
+    const dblist = await context.db.getLocations(accountLimiter);
     return dblist.map(DBInterface.DBLocationToLocation);
   }
   @Query(_returns => Location)

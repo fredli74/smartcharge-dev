@@ -8,3 +8,4 @@ npm-debug.log*
 
 local-test-data\.sql
 schema\.gql
+logs/
