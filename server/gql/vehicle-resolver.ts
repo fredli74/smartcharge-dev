@@ -33,7 +33,11 @@ interface VehicleSubscriptionPayload {
 export class VehicleResolver {
   @Query(_returns => [Vehicle])
   async vehicles(@Ctx() context: IContext): Promise<Vehicle[]> {
-    const dblist = await context.db.getVehicles(context.accountUUID);
+    const accountLimiter =
+      context.accountUUID === INTERNAL_SERVICE_UUID
+        ? undefined
+        : context.accountUUID;
+    const dblist = await context.db.getVehicles(accountLimiter);
     return dblist.map(DBInterface.DBVehicleToVehicle);
   }
   @Query(_returns => Vehicle)
