@@ -7,7 +7,7 @@
       <v-list-item
         v-for="vehicle in vehicles"
         :key="vehicle.id"
-        :disabled="!vehicleReady(vehicle)"
+        :disabled="vehicleDisabled(vehicle)"
         two-line
         @click="selectVehicle(vehicle)"
       >
@@ -25,11 +25,10 @@
                   {{ vehicle.status }}
                 </v-list-item-subtitle>
                 <v-list-item-subtitle
-                  v-if="!vehicle.odometer || !vehicle.status"
+                  v-if="vehicleDisabled(vehicle)"
                   class="text-lowercase caption"
+                  >{{ vehicleDisabled(vehicle) }}</v-list-item-subtitle
                 >
-                  not polled yet, make sure it is online
-                </v-list-item-subtitle>
               </v-list-item-content>
             </v-flex>
             <v-flex xs1>
@@ -105,9 +104,16 @@ export default class Home extends Vue {
     // this.loading = false;
   }
 
-  vehicleReady(vehicle: Vehicle) {
-    return vehicle.odometer > 0 && vehicle.status !== "";
+  vehicleDisabled(vehicle: Vehicle): string | undefined {
+    if (vehicle.providerData.invalid_token) {
+      return "invalid provider token, please add again";
+    }
+    if (vehicle.odometer === 0 || vehicle.status === "") {
+      return "not polled yet, make sure it is online";
+    }
+    return undefined;
   }
+
   vehiclePicture(vehicle: Vehicle) {
     const provider = providers.find(
       p => p.name === vehicle.providerData.provider

@@ -4,6 +4,8 @@ import { IRestToken } from "@shared/restclient";
 // client side info
 export interface TeslaProviderData {
   provider: "tesla";
+  tesla_id: string;
+  invalid_token?: boolean;
   auto_hvac?: boolean;
   auto_port?: boolean;
   option_codes?: string;

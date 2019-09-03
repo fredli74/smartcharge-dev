@@ -34,7 +34,7 @@ export class TeslaAPI extends RestClient {
       throw error;
     }
   }
-  public async maintainToken(token: IRestToken): Promise<IRestToken | false> {
+  public async refreshToken(token: IRestToken): Promise<IRestToken | false> {
     if (typeof token !== "object") {
       throw new Error("invalid token");
     }

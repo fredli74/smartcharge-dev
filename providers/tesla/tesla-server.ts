@@ -13,33 +13,66 @@ import { log, LogLevel } from "@shared/utils";
 import { IProviderServer } from "@providers/provider-server";
 import { TeslaNewListEntry } from "./app/tesla-helper";
 import config from "./tesla-config";
+import { DBVehicle, DBServiceProvider } from "@server/db-schema";
 
+// Check token and refresh through direct database update
 export async function maintainToken(
   db: DBInterface,
-  accountUUID: string,
   oldToken: IRestToken
 ): Promise<IRestToken> {
   try {
-    const newToken = await teslaAPI.maintainToken(oldToken);
+    const newToken = await teslaAPI.refreshToken(oldToken);
     if (!newToken) {
       return oldToken;
     }
-    const dblist = await db.pg.manyOrNone(
-      `UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $2) WHERE service_data @> $1 RETURNING *;`,
-      [
-        { token: { refresh_token: oldToken.refresh_token } },
-        { token: newToken, invalid_token: null }
-      ]
-    );
-    for (const v of dblist) {
-      log(
-        LogLevel.Info,
-        `Updating Tesla API token on vehicle ${v.vehicle_uuid}`
-      );
-    }
+    validToken(db, oldToken, newToken);
     return newToken;
   } catch (err) {
+    log(LogLevel.Error, err);
+    invalidToken(db, oldToken);
     throw new ApolloError("Invalid token", "INVALID_TOKEN");
+  }
+}
+
+async function validToken(
+  db: DBInterface,
+  oldToken: IRestToken,
+  newToken: IRestToken
+) {
+  const dblist: DBServiceProvider[] = await db.pg.manyOrNone(
+    `UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $2) WHERE service_data @> $1 RETURNING *;`,
+    [
+      { token: { refresh_token: oldToken.refresh_token } },
+      { token: newToken, invalid_token: null }
+    ]
+  );
+  for (const s of dblist) {
+    log(
+      LogLevel.Info,
+      `Updating Tesla API token for service ${s.service_uuid}`
+    );
+    await db.pg.none(
+      `UPDATE vehicle SET provider_data = jsonb_strip_nulls(provider_data || $2) WHERE service_uuid = $1;`,
+      [{ invalid_token: null }, s.service_uuid]
+    );
+  }
+}
+async function invalidToken(db: DBInterface, token: IRestToken) {
+  const dblist = await db.pg.manyOrNone(
+    `UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $2) WHERE service_data @> $1 RETURNING *;`,
+    [
+      {
+        token: { access_token: token.access_token }
+      },
+      { invalid_token: true }
+    ]
+  );
+  for (const s of dblist) {
+    log(LogLevel.Info, `Invalidating token for service ${s.service_uuid}`);
+    await db.pg.none(
+      `UPDATE vehicle SET provider_data = jsonb_strip_nulls(provider_data || $2) WHERE service_uuid = $1;`,
+      [{ invalid_token: true }, s.service_uuid]
+    );
   }
 }
 
@@ -85,11 +118,10 @@ const server: IProviderServer = {
 
         for (const s of serviceList) {
           if (!s.serviceData.invalid_token && s.serviceData.token) {
+            const token = await maintainToken(context.db, s.serviceData.token);
             try {
-              const list: any[] = (await teslaAPI.listVehicle(
-                undefined,
-                s.serviceData.token
-              )).response;
+              const list: any[] = (await teslaAPI.listVehicle(undefined, token))
+                .response;
 
               // Kill all maps that does not exist or is already mapped
               for (const teslaID of Object.keys(s.serviceData.map)) {
@@ -125,21 +157,7 @@ const server: IProviderServer = {
               vehicles.push(...list);
             } catch (err) {
               if (err.code === 401) {
-                const dblist = await context.db.pg.manyOrNone(
-                  `UPDATE service_provider SET data = jsonb_strip_nulls(data || $2) WHERE data @> $1 RETURNING *;`,
-                  [
-                    {
-                      token: { access_token: s.serviceData.token.access_token }
-                    },
-                    { invalid_token: true }
-                  ]
-                );
-                for (const v of dblist) {
-                  log(
-                    LogLevel.Info,
-                    `Invalidating token for vehicle ${v.vehicle_uuid}`
-                  );
-                }
+                await invalidToken(context.db, token);
               }
             }
           }
@@ -155,20 +173,31 @@ const server: IProviderServer = {
       case TeslaProviderMutates.RefreshToken: {
         return await maintainToken(
           context.db,
-          context.accountUUID,
           data.token ? data.token : { refresh_token: data.refresh_token }
         );
       }
       case TeslaProviderMutates.NewVehicle: {
         const input = data.input as TeslaNewListEntry;
-        const vehicle = await context.db.newVehicle(
-          context.accountUUID,
-          input.name,
-          config.DEFAULT_MINIMUM_LEVEL,
-          config.DEFAULT_MAXIMUM_LEVEL,
-          input.service_uuid,
-          { provider: "tesla" } as TeslaProviderData
+        let vehicle: DBVehicle | null = await context.db.pg.oneOrNone(
+          `SELECT * FROM vehicle WHERE provider_data->>'provider' = 'tesla' AND provider_data->>'tesla_id' = $1;`,
+          [input.id]
         );
+        if (vehicle) {
+          // Move ownership
+          await context.db.pg.none(
+            `UPDATE vehicle SET account_uuid=$2, service_uuid=$3 WHERE vehicle_uuid = $1;`,
+            [vehicle.vehicle_uuid, context.accountUUID, input.service_uuid]
+          );
+        } else {
+          vehicle = await context.db.newVehicle(
+            context.accountUUID,
+            input.name,
+            config.DEFAULT_MINIMUM_LEVEL,
+            config.DEFAULT_MAXIMUM_LEVEL,
+            input.service_uuid,
+            { provider: "tesla", tesla_id: input.id } as TeslaProviderData
+          );
+        }
         await context.db.pg.none(
           `UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $1)
             WHERE service_uuid=$2;`,

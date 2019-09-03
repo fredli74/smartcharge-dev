@@ -139,12 +139,13 @@ export class TeslaAgent extends AbstractAgent {
     }
   }
 
+  // Check token and refresh through server provider API
   public async maintainToken(job: TeslaAgentJob) {
     // API Token check and update
     let token = job.serviceData.token as IRestToken;
-
     if (RestClient.tokenExpired(token)) {
       // Token has expired, run it through server
+      let token = job.serviceData.token as IRestToken;
       const newToken = await this.scClient.providerMutate("tesla", {
         mutation: TeslaProviderMutates.RefreshToken,
         token
@@ -660,10 +661,22 @@ export class TeslaAgent extends AbstractAgent {
 
       // TODO: handle different errors?
       if (err.code === 401) {
-        await this.scClient.updateVehicle({
-          id: subject.vehicleUUID,
-          providerData: { invalid_token: true }
-        });
+        try {
+          const newToken = await this.scClient.providerMutate("tesla", {
+            mutation: TeslaProviderMutates.RefreshToken,
+            refresh_token: job.serviceData.token.refresh_token
+          });
+          delete job.serviceData.invalid_token; // client side update to match server
+          job.serviceData.token = newToken; // client side update to match server
+        } catch (err) {
+          log(
+            LogLevel.Error,
+            `Unable to refresh teslaAPI token for ${
+              subject.teslaID
+            }: ${JSON.stringify(err)}`
+          );
+          job.serviceData.invalid_token = true; // client side update to match server
+        }
       }
 
       if (err.response && err.response.data) {
