@@ -51,6 +51,7 @@ program
     }
     const db = new DBInterface();
     await db.init();
+
     const logic = new Logic(db);
     await logic.init();
 

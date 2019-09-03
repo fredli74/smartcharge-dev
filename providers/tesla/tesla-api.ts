@@ -143,6 +143,6 @@ export class TeslaAPI extends RestClient {
 const teslaAPI = new TeslaAPI({
   baseURL: config.TESLA_API_BASE_URL,
   agent: `${PROJECT_AGENT} ${provider.name}/${provider.version}`,
-  timeout: 120000
+  timeout: 120e3
 });
 export default teslaAPI;

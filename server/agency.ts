@@ -149,7 +149,7 @@ program
           throw err;
         }
       }
-      await delay(10000);
+      await delay(10e3);
     }
   })
   .parse(process.argv);

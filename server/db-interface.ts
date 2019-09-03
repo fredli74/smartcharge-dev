@@ -81,6 +81,44 @@ export class DBInterface {
       }
     }
     log(LogLevel.Debug, `Database version ${version} detected`);
+
+    // Start maintainance task
+    this.maintainanceWorker();
+  }
+
+  public maintainanceWorker() {
+    let nextCleanup = 0;
+    let orphanServices: { [service_uuid: string]: boolean } = {};
+
+    setInterval(async () => {
+      const now = Date.now();
+      if (now > nextCleanup) {
+        {
+          for (const o of await this.pg.manyOrNone(
+            `SELECT * FROM service_provider WHERE 
+            NOT EXISTS (SELECT * FROM vehicle WHERE vehicle.service_uuid = service_provider.service_uuid) AND 
+            NOT EXISTS (SELECT * FROM location WHERE location.service_uuid = service_provider.service_uuid);`
+          )) {
+            if (orphanServices[o.service_uuid]) {
+              log(
+                LogLevel.Info,
+                `Deleting orphan ${o.provider_name} service_provider ${
+                  o.service_uuid
+                }`
+              );
+              await this.pg.none(
+                `DELETE FROM service_provider WHERE service_uuid = $1;`,
+                [o.service_uuid]
+              );
+            } else {
+              orphanServices[o.service_uuid] = true;
+            }
+          }
+        }
+
+        nextCleanup = now + 3600e3; // 1 hour
+      }
+    }, 60e3);
   }
   public async getDatabaseVersion(): Promise<string> {
     return (await this.pg.one(

@@ -52,8 +52,8 @@ export class Logic {
       connected: input.connectedCharger, // ac|dc|null
       charging_to: input.chargingTo, // in %
       estimate: input.estimatedTimeLeft || 0, // estimated time in minutes to complete charge
-      power: (input.powerUse || 0) * 1000, // current power drain kW to W
-      added: (input.energyAdded || 0) * 1000 * 60 // added kWh to Wm (1000 * 60)
+      power: (input.powerUse || 0) * 1e3, // current power drain kW to W
+      added: (input.energyAdded || 0) * 60e3 // added kWh to Wm (1000 * 60)
     };
 
     // Did we move?
@@ -256,7 +256,7 @@ export class Logic {
               if (current && data.level === current.start_level + 1) {
                 // only 1% changes, or we've been offline and it's unreliable
                 const duration =
-                  (now.getTime() - current.start_ts.getTime()) / 1000; // ms / 1000 = s
+                  (now.getTime() - current.start_ts.getTime()) / 1e3; // ms / 1000 = s
                 const avgPower = arrayMean(current.powers); // Watt
                 const energyUsed = (avgPower * duration) / 60; // power (W) * time (s) = Ws / 60 = Wm
                 const energyAdded = data.added - current.start_added; // Wm

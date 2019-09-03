@@ -122,7 +122,7 @@ export abstract class AbstractAgent {
       } catch (error) {
         log(LogLevel.Error, error);
       }
-      work.nextrun = now + work.interval * 1000;
+      work.nextrun = now + work.interval * 1e3;
       work.running = false;
     }
   }

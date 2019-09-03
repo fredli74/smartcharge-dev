@@ -169,12 +169,6 @@ const DBServiceProvider_TSQL = `CREATE TABLE scserver.service_provider
             ON DELETE CASCADE
     );`;
 
-const DBSubjectView_TSQL = `CREATE OR REPLACE VIEW scserver.subject_view AS
-    SELECT account_uuid, vehicle_uuid as subject_uuid, provider_data, 'vehicle' as provider_type, provider_data->>'provider' as provider_name FROM vehicle
-    UNION
-    SELECT account_uuid, location_uuid as subject_uuid, provider_data, 'location' as provider_type, provider_data->>'provider' as provider_name FROM location
-    ;`;
-
 /** DBEventMap data is not used, should we stop collecting it?  **/
 export interface DBEventMap {
   vehicle_uuid: string; // vehicle identifier
@@ -439,7 +433,6 @@ export const DB_SETUP_TSQL = [
   DBVehicleDebug_TSQL,
 
   DBServiceProvider_TSQL,
-  DBSubjectView_TSQL,
 
   DBEventMap_TSQL,
 

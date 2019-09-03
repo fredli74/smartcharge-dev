@@ -21,7 +21,7 @@ export type IRestToken = {
 export type RestToken = string | IRestToken;
 
 function time(): number {
-  return Math.floor(new Date().valueOf() / 1000);
+  return Math.floor(new Date().valueOf() / 1e3);
 }
 
 export interface Options {
