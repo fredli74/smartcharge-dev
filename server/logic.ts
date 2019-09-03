@@ -513,45 +513,96 @@ export class Logic {
 
       let threshold = 0.9;
 
-      interface HistoryEntry {
-        connected_id: number;
-        start_level: number;
-        end_level: number;
-        needed: number;
+      interface HistoryHour {
+        hour: Date;
         fraction: number;
         price: number;
         threshold: number;
       }
 
-      const history: HistoryEntry[] = await this.db.pg.manyOrNone(
-        `WITH my_price_list AS (
-          SELECT p.* FROM price_list p JOIN location l ON (l.price_code = p.price_code) WHERE location_uuid = $2
-        ), my_connected AS (
-          SELECT * FROM connected WHERE vehicle_uuid = $1 AND end_ts >= current_date - interval '2 weeks' AND end_ts < current_date AND start_ts::date >= (SELECT MIN(ts)::date FROM my_price_list)
-        ), connections AS (
-          SELECT *, (SELECT a.end_level-b.start_level FROM connected b WHERE b.connected_id > a.connected_id ORDER BY connected_id LIMIT 1) as needed
-          FROM my_connected a WHERE location_uuid = $2 AND connected_id < (SELECT MAX(connected_id) FROM my_connected)
-        ), period AS (
-          SELECT generate_series(date_trunc('hour', (SELECT MIN(start_ts) FROM connections)), current_date - interval '1 hour', '1 hour') as hour
-        ), week_avg AS (
-          SELECT day, (SELECT AVG(price::float) FROM my_price_list WHERE ts >= day - interval '7 days' AND ts < day) as avg7,
-          (SELECT AVG(price::float) FROM my_price_list WHERE ts >= day - interval '21 days' AND ts < day) as avg21 FROM
-          (SELECT date_trunc('day', hour) as day FROM period GROUP BY 1) as a
-        ), connection_map AS (
-          SELECT connected_id,start_level,end_level,needed,hour,LEAST(1.0,
-            EXTRACT(epoch FROM hour+interval '1 hour'-start_ts)/3600,
-            EXTRACT(epoch FROM end_ts-hour)/3600
-          ) as fraction, price,price/(avg7+(avg7-avg21)/2) as threshold
-          FROM period
-          JOIN connections ON (hour >= date_trunc('hour',start_ts) AND hour <= date_trunc('hour',end_ts))
-          JOIN my_price_list ON (ts = hour)
-          JOIN week_avg ON (day = date_trunc('day', hour))
-        )
-        SELECT * FROM connection_map ORDER BY connected_id,hour;`,
-        [vehicle_uuid, location_uuid]
-      );
+      interface HistoryMap {
+        connected_id: number;
+        start_level: number;
+        end_level: number;
+        hours: HistoryHour[];
+        used?: number;
+        needed: number;
+      }
+      const historyMap: HistoryMap[] = [];
 
-      if (history.length > 0) {
+      {
+        const history: {
+          connected_id: number;
+          location_uuid: string;
+          start_level: number;
+          end_level: number;
+          needed: number;
+          hour: Date;
+          fraction: number;
+          price: number;
+          threshold: number;
+        }[] = await this.db.pg.manyOrNone(
+          `WITH my_price_list AS (
+            SELECT p.* FROM price_list p JOIN location l ON (l.price_code = p.price_code) WHERE location_uuid = $2
+          ), my_connected AS (
+            SELECT * FROM connected WHERE vehicle_uuid = $1 AND end_ts >= current_date - interval '2 weeks' AND end_ts < current_date AND start_ts::date >= (SELECT MIN(ts)::date FROM my_price_list)
+          ), connections AS (
+            SELECT *, (SELECT a.end_level-b.start_level FROM my_connected b WHERE b.connected_id > a.connected_id ORDER BY connected_id LIMIT 1) as needed
+            FROM my_connected a
+          ), period AS (
+            SELECT generate_series(date_trunc('hour', (SELECT MIN(start_ts) FROM connections)), current_date - interval '1 hour', '1 hour') as hour
+          ), week_avg AS (
+            SELECT day, (SELECT AVG(price::float) FROM my_price_list WHERE ts >= day - interval '7 days' AND ts < day) as avg7,
+            (SELECT AVG(price::float) FROM my_price_list WHERE ts >= day - interval '21 days' AND ts < day) as avg21 FROM
+            (SELECT date_trunc('day', hour) as day FROM period GROUP BY 1) as a
+          ), connection_map AS (
+            SELECT connected_id,location_uuid,start_level,end_level,needed,hour,LEAST(1.0,
+              EXTRACT(epoch FROM hour+interval '1 hour'-start_ts)/3600,
+              EXTRACT(epoch FROM end_ts-hour)/3600
+            ) as fraction, price,price/(avg7+(avg7-avg21)/2) as threshold
+            FROM period
+            JOIN connections ON (hour >= date_trunc('hour',start_ts) AND hour <= date_trunc('hour',end_ts))
+            JOIN my_price_list ON (ts = hour)
+            JOIN week_avg ON (day = date_trunc('day', hour))
+          )
+          SELECT * FROM connection_map ORDER BY connected_id,hour;`,
+          [vehicle_uuid, location_uuid]
+        );
+        const needs = [];
+        let last_level;
+        for (const h of history) {
+          if (
+            historyMap.length < 1 ||
+            historyMap[historyMap.length - 1].connected_id !== h.connected_id
+          ) {
+            historyMap.push({
+              connected_id: h.connected_id,
+              start_level: h.start_level,
+              end_level: h.end_level,
+              needed: h.needed ? h.needed : arrayMean(needs),
+              hours: [],
+              used:
+                last_level !== undefined
+                  ? last_level - h.start_level
+                  : undefined
+            });
+            if (h.location_uuid === location_uuid && h.needed) {
+              needs.push(h.needed);
+            }
+            last_level = h.end_level;
+          }
+          if (h.location_uuid === location_uuid) {
+            historyMap[historyMap.length - 1].hours.push({
+              hour: h.hour,
+              fraction: h.fraction,
+              price: h.price,
+              threshold: h.threshold
+            });
+          }
+        }
+      }
+
+      if (historyMap.length > 0) {
         // Charge simulation
         const charge_levels: {
           minimum_charge: number;
@@ -561,58 +612,70 @@ export class Logic {
           [vehicle_uuid]
         );
 
-        const thresholdList = history.map(h => h.threshold).sort();
+        const thresholdList = historyMap
+          .reduce(
+            (p, c) => [...c.hours.map(h => h.threshold), ...p],
+            [] as number[]
+          )
+          .filter((v, i, a) => a.indexOf(v) === i)
+          .sort((a, b) => Number(a) - Number(b));
+
         let bestCost = Number.POSITIVE_INFINITY;
         for (const t of thresholdList) {
-          let current: HistoryEntry | undefined;
           let totalCharged = 0;
           let totalCost = 0;
           let lvl = 0;
           let neededLevel = 0;
-          for (const h of history) {
-            if (!current || current.connected_id !== h.connected_id) {
-              if (current && current.connected_id + 1 === h.connected_id) {
-                lvl -= Math.max(0, current.end_level - h.start_level); // charge used between connections
-                if (
-                  lvl < h.start_level &&
-                  lvl < charge_levels.minimum_charge / 2
-                ) {
-                  // half of minimum charge is where I draw the line
-                  lvl = -1;
-                  break;
-                }
-              } else {
-                // We charged somewhere else on the way, so reset simulated battery lvl
-                lvl = h.start_level;
+          for (let c of historyMap) {
+            if (c.used !== undefined) {
+              lvl -= c.used; // charge used between connections
+              if (
+                lvl < c.start_level &&
+                lvl < charge_levels.minimum_charge / 2
+              ) {
+                // half of minimum charge is where I draw the line
+                lvl = -1;
+                break;
               }
-              current = h;
-              neededLevel = Math.min(
-                charge_levels.maximum_charge,
-                Math.max(
-                  charge_levels.minimum_charge,
-                  charge_levels.minimum_charge + current.needed * 1.1
-                )
-              );
+            } else {
+              // We charged somewhere else on the way, so reset simulated battery lvl
+              lvl = c.start_level;
             }
+            let hours = [...c.hours];
+            neededLevel = Math.min(
+              charge_levels.maximum_charge,
+              Math.max(
+                charge_levels.minimum_charge,
+                charge_levels.minimum_charge + c.needed * 1.1
+              )
+            );
+            let smartCharging = false;
 
-            let charge =
-              h.threshold <= t
-                ? charge_levels.maximum_charge - lvl
-                : lvl < neededLevel
-                ? neededLevel - lvl
-                : 0;
-            if (charge > 0) {
-              const chargeTime = Math.min(
-                3600 * h.fraction,
-                charge * level_charge_time
-              );
-              const newLevel = Math.min(
-                charge_levels.maximum_charge,
-                lvl + chargeTime / level_charge_time
-              );
-              totalCharged += newLevel - lvl;
-              totalCost += (chargeTime / 3600) * h.price;
-              lvl = newLevel;
+            while (hours.length > 0) {
+              if (lvl >= charge_levels.minimum_charge && !smartCharging) {
+                hours = hours.sort((a, b) => a.threshold - b.threshold);
+                smartCharging = true;
+              }
+              const h = hours.shift()!;
+              const charge =
+                h.threshold <= t
+                  ? charge_levels.maximum_charge - lvl
+                  : lvl < neededLevel
+                  ? neededLevel - lvl
+                  : 0;
+              if (charge > 0) {
+                const chargeTime = Math.min(
+                  3600 * h.fraction,
+                  charge * level_charge_time
+                );
+                const newLevel = Math.min(
+                  charge_levels.maximum_charge,
+                  lvl + chargeTime / level_charge_time
+                );
+                totalCharged += newLevel - lvl;
+                totalCost += (chargeTime / 3600) * h.price;
+                lvl = newLevel;
+              }
             }
           }
           const f = totalCost / (totalCharged * totalCharged);
