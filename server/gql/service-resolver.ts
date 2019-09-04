@@ -51,7 +51,7 @@ export class ServiceResolver {
   ): Promise<Boolean> {
     authorizeService(context);
 
-    const vehicle = await context.db.getVehicle(input.id);
+    const vehicle = await context.db.getVehicle(undefined, input.id);
 
     // TODO: Add the possibility to update only partial information
     await context.logic.updateVehicleData(input);
@@ -92,7 +92,7 @@ export class ServiceResolver {
   ): Promise<number> {
     authorizeService(context);
 
-    const vehicle = await context.db.getVehicle(vehicle_uuid);
+    const vehicle = await context.db.getVehicle(undefined, vehicle_uuid);
 
     if (!level || !duration) {
       return await context.db.chargeCalibration(

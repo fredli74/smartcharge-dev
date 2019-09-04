@@ -266,8 +266,8 @@ export class DBInterface {
     );
   }
   public async getLocation(
-    location_uuid: string,
-    account_uuid?: string // Used as access limiter
+    account_uuid: string | undefined,
+    location_uuid: string
   ): Promise<DBLocation> {
     const dblist = await this.getLocations(account_uuid, location_uuid);
     if (dblist.length === 0) {
@@ -402,8 +402,8 @@ export class DBInterface {
   }
 
   public async getVehicle(
-    vehicle_uuid: string,
-    account_uuid?: string // Used as access limiter
+    account_uuid: string | undefined,
+    vehicle_uuid: string
   ): Promise<DBVehicle> {
     const dblist = await this.getVehicles(account_uuid, vehicle_uuid);
     if (dblist.length === 0) {
@@ -499,11 +499,11 @@ export class DBInterface {
   }
 
   public async getServiceProviders(
-    accountUUID: string | undefined,
+    account_uuid: string | undefined,
     accept: string[] | undefined
   ): Promise<ServiceProvider[]> {
     const [values, where] = queryHelper([
-      [accountUUID, `account_uuid = $1`],
+      [account_uuid, `account_uuid = $1`],
       [accept, `provider_name IN ($2:csv)`]
     ]);
     assert(where.length > 0);

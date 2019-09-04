@@ -1,4 +1,4 @@
-import { IContext } from "@server/gql/api";
+import { IContext, accountFilter } from "@server/gql/api";
 import provider, {
   TeslaServiceData,
   TeslaProviderMutates,
@@ -96,7 +96,7 @@ const server: IProviderServer = {
 
         const vehicles = [];
         const serviceList = (await context.db.getServiceProviders(
-          context.accountUUID,
+          accountFilter(context.accountUUID),
           [provider.name]
         )) as {
           ownerID: string;

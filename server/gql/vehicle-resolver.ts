@@ -18,7 +18,7 @@ import {
   PubSubEngine,
   Root
 } from "type-graphql";
-import { IContext } from "./api";
+import { IContext, accountFilter } from "./api";
 import { DBInterface, INTERNAL_SERVICE_UUID } from "@server/db-interface";
 import { Vehicle, UpdateVehicleInput, ChargePlanToJS } from "./vehicle-type";
 import { ChartData } from "./location-type";
@@ -33,11 +33,9 @@ interface VehicleSubscriptionPayload {
 export class VehicleResolver {
   @Query(_returns => [Vehicle])
   async vehicles(@Ctx() context: IContext): Promise<Vehicle[]> {
-    const accountLimiter =
-      context.accountUUID === INTERNAL_SERVICE_UUID
-        ? undefined
-        : context.accountUUID;
-    const dblist = await context.db.getVehicles(accountLimiter);
+    const dblist = await context.db.getVehicles(
+      accountFilter(context.accountUUID)
+    );
     return dblist.map(DBInterface.DBVehicleToVehicle);
   }
   @Query(_returns => Vehicle)
@@ -45,12 +43,8 @@ export class VehicleResolver {
     @Arg("id") id: string,
     @Ctx() context: IContext
   ): Promise<Vehicle> {
-    const accountLimiter =
-      context.accountUUID === INTERNAL_SERVICE_UUID
-        ? undefined
-        : context.accountUUID;
     return DBInterface.DBVehicleToVehicle(
-      await context.db.getVehicle(id, accountLimiter)
+      await context.db.getVehicle(accountFilter(context.accountUUID), id)
     );
   }
 
@@ -77,12 +71,15 @@ export class VehicleResolver {
           context.accountUUID === payload.account_uuid
       );
       return DBInterface.DBVehicleToVehicle(
-        await context.db.getVehicle(payload.vehicle_uuid, payload.account_uuid)
+        await context.db.getVehicle(
+          accountFilter(payload.account_uuid),
+          payload.vehicle_uuid
+        )
       );
     } else {
       // This happens when called without websockets
       return DBInterface.DBVehicleToVehicle(
-        await context.db.getVehicle(id, context.accountUUID)
+        await context.db.getVehicle(accountFilter(context.accountUUID), id)
       );
     }
   }
@@ -93,13 +90,9 @@ export class VehicleResolver {
     @Ctx() context: IContext,
     @PubSub() pubSub: PubSubEngine
   ): Promise<Vehicle> {
-    const accountLimiter =
-      context.accountUUID === INTERNAL_SERVICE_UUID
-        ? undefined
-        : context.accountUUID;
     // verify vehicle ownage
     log(LogLevel.Debug, `updateVehicle: ${JSON.stringify(input)}`);
-    await context.db.getVehicle(input.id, accountLimiter);
+    await context.db.getVehicle(accountFilter(context.accountUUID), input.id);
     const result = DBInterface.DBVehicleToVehicle(
       await context.db.updateVehicle(
         input.id,
@@ -137,13 +130,13 @@ export class VehicleResolver {
     @Ctx() context: IContext
   ): Promise<ChartData> {
     const vehicle = await context.db.getVehicle(
-      vehicle_uuid,
-      context.accountUUID
+      accountFilter(context.accountUUID),
+      vehicle_uuid
     );
 
     const location = await context.db.getLocation(
-      location_uuid,
-      context.accountUUID
+      accountFilter(context.accountUUID),
+      location_uuid
     );
 
     const chargecurve = await context.db.getChargeCurve(

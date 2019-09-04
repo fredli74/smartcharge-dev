@@ -6,19 +6,17 @@
  */
 
 import { Resolver, Query, Ctx, Arg, Mutation } from "type-graphql";
-import { IContext } from "@server/gql/api";
-import { DBInterface, INTERNAL_SERVICE_UUID } from "@server/db-interface";
+import { IContext, accountFilter } from "@server/gql/api";
+import { DBInterface } from "@server/db-interface";
 import { UpdateLocationInput, Location } from "./location-type";
 
 @Resolver()
 export class LocationResolver {
   @Query(_returns => [Location])
   async locations(@Ctx() context: IContext): Promise<Location[]> {
-    const accountLimiter =
-      context.accountUUID === INTERNAL_SERVICE_UUID
-        ? undefined
-        : context.accountUUID;
-    const dblist = await context.db.getLocations(accountLimiter);
+    const dblist = await context.db.getLocations(
+      accountFilter(context.accountUUID)
+    );
     return dblist.map(DBInterface.DBLocationToLocation);
   }
   @Query(_returns => Location)
@@ -26,12 +24,8 @@ export class LocationResolver {
     @Arg("id") id: string,
     @Ctx() context: IContext
   ): Promise<Location> {
-    const accountLimiter =
-      context.accountUUID === INTERNAL_SERVICE_UUID
-        ? undefined
-        : context.accountUUID;
     return DBInterface.DBLocationToLocation(
-      await context.db.getLocation(id, accountLimiter)
+      await context.db.getLocation(accountFilter(context.accountUUID), id)
     );
   }
 
@@ -40,12 +34,8 @@ export class LocationResolver {
     @Arg("input") input: UpdateLocationInput,
     @Ctx() context: IContext
   ): Promise<Location> {
-    const accountLimiter =
-      context.accountUUID === INTERNAL_SERVICE_UUID
-        ? undefined
-        : context.accountUUID;
     // verify Location ownage
-    await context.db.getLocation(input.id, accountLimiter);
+    await context.db.getLocation(accountFilter(context.accountUUID), input.id);
     return DBInterface.DBLocationToLocation(
       await context.db.updateLocation(
         input.id,

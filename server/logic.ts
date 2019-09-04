@@ -36,7 +36,7 @@ export class Logic {
     now: Date = new Date()
   ) {
     // First lookup old record
-    const vehicle: DBVehicle = await this.db.getVehicle(input.id);
+    const vehicle: DBVehicle = await this.db.getVehicle(undefined, input.id);
     log(LogLevel.Trace, `vehicle: ${JSON.stringify(vehicle)}`);
 
     // Convert API values to database values

@@ -8,7 +8,7 @@
 // import { strict as assert } from 'assert';
 
 import { buildSchema, Resolver, Subscription, Root, Int } from "type-graphql";
-import { DBInterface } from "@server/db-interface";
+import { DBInterface, INTERNAL_SERVICE_UUID } from "@server/db-interface";
 import { DBAccount } from "@server/db-schema";
 import { Logic } from "@server/logic";
 import "reflect-metadata";
@@ -24,6 +24,10 @@ export interface IContext {
   logic: Logic;
   accountUUID: string;
   account?: DBAccount;
+}
+
+export function accountFilter(account_uuid?: string): string | undefined {
+  return account_uuid === INTERNAL_SERVICE_UUID ? undefined : account_uuid;
 }
 
 @Resolver()
