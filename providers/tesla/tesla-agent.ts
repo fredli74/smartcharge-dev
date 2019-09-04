@@ -504,7 +504,7 @@ export class TeslaAgent extends AbstractAgent {
             startCharging = true;
           }
           if (stopCharging || startCharging) {
-            if (!(await this.userInteraction(job, subject))) {
+            if (!subject.online && !(await this.wakeUp(job, subject))) {
               log(
                 LogLevel.Trace,
                 `Waiting for vehicle ${subject.vehicleUUID} to be ready`
