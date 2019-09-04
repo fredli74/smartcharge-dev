@@ -1,6 +1,9 @@
 <template>
   <v-flex xs11 sm10 class="vga-limit login text-center">
-    <template v-if="singleUserMode">
+    <template v-if="loading">
+      <v-progress-circular indeterminate color="primary"></v-progress-circular>
+    </template>
+    <template v-else-if="singleUserMode">
       <h2>LOGIN</h2>
       <v-form id="login-form" @submit.prevent="login">
         <input
@@ -20,7 +23,7 @@
       </v-form>
     </template>
     <template v-else>
-      <h4>Single user login is disabled</h4>
+      <h5>click sign in button to continue</h5>
     </template>
   </v-flex>
 </template>
@@ -31,19 +34,25 @@ import apollo from "@app/plugins/apollo";
 import eventBus, { BusEvent } from "@app/plugins/event-bus";
 import { strict as assert } from "assert";
 import config from "@shared/smartcharge-config";
+import auth from "../plugins/auth0";
 
 @Component({
   components: {}
 })
 export default class Login extends Vue {
+  loading?: boolean;
+  data() {
+    return { loading: false };
+  }
+
   password: string = "";
   get singleUserMode() {
     return config.SINGLE_USER !== "false";
   }
 
   async login() {
-    // loading...
     eventBus.$emit(BusEvent.AlertClear);
+    this.loading = true;
     try {
       await apollo.loginWithPassword(this.password);
       eventBus.$emit(BusEvent.AuthenticationChange);
@@ -59,9 +68,36 @@ export default class Login extends Vue {
         }
       }
       eventBus.$emit(BusEvent.AlertError, err.message || err);
+    } finally {
+      this.loading = false;
     }
   }
-  mounted() {}
+  async mounted() {
+    if (!this.singleUserMode) {
+      this.loading = true;
+      try {
+        const id = await auth.handleAuthentication();
+        if (id) {
+          await apollo.loginWithIDToken(id);
+          eventBus.$emit(BusEvent.AuthenticationChange);
+          assert(apollo.account);
+          this.$router.push("/");
+        }
+      } catch (err) {
+        if (err && err.graphQLErrors) {
+          for (const e of err.graphQLErrors) {
+            if (e.extensions && e.extensions.code === "UNAUTHENTICATED") {
+              eventBus.$emit(BusEvent.AlertWarning, `invalid password`);
+              return;
+            }
+          }
+        }
+        eventBus.$emit(BusEvent.AlertError, (err && err.messsage) || err);
+      } finally {
+        this.loading = false;
+      }
+    }
+  }
 }
 </script>
 

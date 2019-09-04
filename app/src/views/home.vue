@@ -7,7 +7,7 @@
       <v-list-item
         v-for="vehicle in vehicles"
         :key="vehicle.id"
-        :disabled="vehicleDisabled(vehicle)"
+        :disabled="vehicleDisabled(vehicle) !== undefined"
         two-line
         @click="selectVehicle(vehicle)"
       >
@@ -25,7 +25,7 @@
                   {{ vehicle.status }}
                 </v-list-item-subtitle>
                 <v-list-item-subtitle
-                  v-if="vehicleDisabled(vehicle)"
+                  v-if="vehicleDisabled(vehicle) !== undefined"
                   class="text-lowercase caption"
                   >{{ vehicleDisabled(vehicle) }}</v-list-item-subtitle
                 >

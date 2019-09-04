@@ -139,7 +139,7 @@ program
       try {
         await agency.stop();
         const token = process.env[access_token] || access_token;
-        await client.loginWithToken(token);
+        await client.loginWithAPIToken(token);
         await agency.init();
         log(LogLevel.Info, `Agency ID ${agency.ID} started`);
         await agency.worker();

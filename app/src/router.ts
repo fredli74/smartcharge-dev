@@ -7,62 +7,77 @@ import eventBus, { BusEvent } from "./plugins/event-bus";
 
 Vue.use(Router);
 
-const NotFoundComponent = Vue.component("page-not-found", {
-  created: () => {},
-  render: createElement => {
-    return createElement("h1", `404 - ${location}`);
-  }
-});
-
 const router = new Router({
   mode: "history",
   base: process.env.BASE_URL,
   routes: [
-    { path: "/index.html", component: Home, alias: "/" },
+    {
+      path: "/index.html",
+      alias: "/",
+      component: Home,
+      meta: { login: true }
+    },
     {
       path: "/",
       name: "home",
-      component: Home
+      component: Home,
+      meta: { login: true }
     },
     {
       path: "/about",
       name: "about",
-      component: About,
-      meta: { public: true }
+      component: About
     },
     {
       path: "/login",
       name: "login",
       component: () =>
-        import(/* webpackChunkName: "login" */ "./views/login.vue"),
-      meta: { public: true }
+        import(/* webpackChunkName: "login" */ "./views/login.vue")
     },
 
     {
       path: "/add/:type",
       name: "add",
       component: () => import(/* webpackChunkName: "add" */ "./views/add.vue"),
-      meta: {}
+      meta: { login: true }
     },
     {
       path: "/provider/:provider/:page",
       name: "provider",
       component: () =>
         import(/* webpackChunkName: "providerwrapper" */ "./views/provider-wrapper.vue"),
-      meta: {}
+      meta: { login: true }
     },
     {
       path: "/vehicle/:id",
       name: "vehicle",
       component: () =>
         import(/* webpackChunkName: "vehicle" */ "./views/vehicle.vue"),
-      meta: {}
+      meta: { login: true }
     },
-    { path: "*", component: NotFoundComponent }
+    {
+      path: "*",
+      component: Vue.component("page-not-found", {
+        created: () => {},
+        render: createElement => {
+          return createElement(
+            "h4",
+            {
+              style: {
+                width: "100%",
+                textAlign: "center",
+                wordBreak: "break-all"
+              }
+            },
+            `404 - ${location}`
+          );
+        }
+      })
+    }
   ]
 });
 router.beforeEach((to, _from, next) => {
-  if (!to.meta.public && !apollo.authorized) {
+  if (!apollo.authorized && to.meta.login) {
     next({ name: "about" });
   } else {
     next();

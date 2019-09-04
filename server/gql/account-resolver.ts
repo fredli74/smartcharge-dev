@@ -16,8 +16,42 @@ import {
 import config from "@shared/smartcharge-config";
 import { AuthenticationError } from "apollo-server-core";
 
-import { OAuth2Client } from "google-auth-library";
-const googleAuthClient = new OAuth2Client(config.GOOGLE_CLIENT_ID);
+const AUTH0_DOMAIN_URL = `https://${config.AUTH0_DOMAIN}/`;
+
+import {
+  verify,
+  JwtHeader,
+  SigningKeyCallback,
+  VerifyErrors
+} from "jsonwebtoken";
+import JwksClient from "jwks-rsa";
+const jwksClient = JwksClient({
+  jwksUri: `${AUTH0_DOMAIN_URL}.well-known/jwks.json`
+});
+async function jwkVerify(idToken: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    verify(
+      idToken,
+      (header: JwtHeader, callback: SigningKeyCallback) => {
+        if (!header.kid) {
+          reject("Internal error, invalid header in jwkVerify");
+        }
+        jwksClient.getSigningKey(header.kid!, (err, key: any) => {
+          var signingKey = key.publicKey || key.rsaPublicKey;
+          callback(null, signingKey);
+        });
+      },
+      { audience: config.AUTH0_CLIENT_ID, issuer: AUTH0_DOMAIN_URL },
+      (err: VerifyErrors, decoded: object | string) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(decoded);
+        }
+      }
+    );
+  });
+}
 
 @Resolver()
 export class AccountResolver {
@@ -49,26 +83,23 @@ export class AccountResolver {
   }
 
   @Mutation(_returns => Account)
-  async loginWithGoogle(
+  async loginWithIDToken(
     @Arg("idToken") idToken: string,
     @Ctx() context: IContext
   ): Promise<Account> {
     if (config.SINGLE_USER === "true") {
       throw new AuthenticationError(
-        `loginWithGoogle not allowed in SINGLE_USER mode`
+        `loginWithIDToken not allowed in SINGLE_USER mode`
       );
     }
-    const token = await googleAuthClient.verifyIdToken({
-      audience: config.GOOGLE_CLIENT_ID,
-      idToken: idToken
-    });
-    const payload = token.getPayload();
+    const payload = await jwkVerify(idToken);
     if (!payload || !payload.iss || !payload.sub || !payload.name) {
       throw new AuthenticationError(
         `Invalid token, required payload is iss, sub and name`
       );
     }
-    const uuid = makeAccountUUID(payload.sub, payload.iss);
+    const [domain, subject] = payload.sub.split("|");
+    const uuid = makeAccountUUID(subject, domain);
     try {
       return DBInterface.DBAccountToAccount(await context.db.getAccount(uuid));
     } catch {

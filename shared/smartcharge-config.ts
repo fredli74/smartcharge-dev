@@ -15,8 +15,8 @@ const config = {
   SERVER_PORT: `${DEFAULT_PORT}`,
   SINGLE_USER: "true",
   SINGLE_USER_PASSWORD: "password",
-  GOOGLE_CLIENT_ID:
-    "745327173701-2qd5fessuo90ntb416epvfgeam91obdo.apps.googleusercontent.com"
+  AUTH0_DOMAIN: "smartcharge.eu.auth0.com",
+  AUTH0_CLIENT_ID: "WGPO7jrY6Sd0HcfkVvTetyrEnpsE8RQM"
 };
 
 if (process && process.env) {
