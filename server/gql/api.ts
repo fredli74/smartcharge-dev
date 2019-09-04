@@ -26,8 +26,14 @@ export interface IContext {
   account?: DBAccount;
 }
 
-export function accountFilter(account_uuid?: string): string | undefined {
-  return account_uuid === INTERNAL_SERVICE_UUID ? undefined : account_uuid;
+export function accountFilter(
+  account_uuid?: string
+): string | null | undefined {
+  return account_uuid === undefined
+    ? null // no access
+    : account_uuid === INTERNAL_SERVICE_UUID
+    ? undefined // all access
+    : account_uuid; // normal access
 }
 
 @Resolver()

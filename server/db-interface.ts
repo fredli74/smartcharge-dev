@@ -251,7 +251,7 @@ export class DBInterface {
   }
 
   public async getLocations(
-    account_uuid: string | undefined,
+    account_uuid: string | null | undefined,
     location_uuid?: string
   ): Promise<DBLocation[]> {
     const [values, where] = queryHelper([
@@ -266,7 +266,7 @@ export class DBInterface {
     );
   }
   public async getLocation(
-    account_uuid: string | undefined,
+    account_uuid: string | null | undefined,
     location_uuid: string
   ): Promise<DBLocation> {
     const dblist = await this.getLocations(account_uuid, location_uuid);
@@ -388,7 +388,7 @@ export class DBInterface {
   }
 
   public async getVehicles(
-    account_uuid: string | undefined,
+    account_uuid: string | null | undefined,
     vehicle_uuid?: string
   ): Promise<DBVehicle[]> {
     const [values, where] = queryHelper([
@@ -402,7 +402,7 @@ export class DBInterface {
   }
 
   public async getVehicle(
-    account_uuid: string | undefined,
+    account_uuid: string | null | undefined,
     vehicle_uuid: string
   ): Promise<DBVehicle> {
     const dblist = await this.getVehicles(account_uuid, vehicle_uuid);
@@ -499,7 +499,7 @@ export class DBInterface {
   }
 
   public async getServiceProviders(
-    account_uuid: string | undefined,
+    account_uuid: string | null | undefined,
     accept: string[] | undefined
   ): Promise<ServiceProvider[]> {
     const [values, where] = queryHelper([
