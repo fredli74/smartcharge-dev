@@ -739,25 +739,53 @@ export class Logic {
         chargePrio[a.chargeType] - chargePrio[b.chargeType]
     );
 
-    for (let i = 0; i < plan.length - 1; ++i) {
-      const a = plan[i];
-      const b = plan[i + 1];
-      if (nstart(b.chargeStart) <= nstop(a.chargeStop)) {
-        if (
-          a.chargeType === b.chargeType ||
-          nstop(b.chargeStop) <= nstop(a.chargeStop)
-        ) {
-          // Merge them
-          if (nstop(b.chargeStop) > nstop(a.chargeStop)) {
-            a.chargeStop = b.chargeStop;
+    function consolidate() {
+      for (let i = 0; i < plan.length - 1; ++i) {
+        const a = plan[i];
+        const b = plan[i + 1];
+        if (nstart(b.chargeStart) <= nstop(a.chargeStop)) {
+          if (
+            a.chargeType === b.chargeType ||
+            nstop(b.chargeStop) <= nstop(a.chargeStop)
+          ) {
+            // Merge them
+            if (nstop(b.chargeStop) > nstop(a.chargeStop)) {
+              a.chargeStop = b.chargeStop;
+            }
+            a.level = Math.max(a.level, b.level);
+            plan.splice(i + 1, 1);
+            --i;
+          } else {
+            // Adjust them
+            b.chargeStart = a.chargeStop;
           }
-          a.level = Math.max(a.level, b.level);
-          plan.splice(i + 1, 1);
-          --i;
-        } else {
-          // Adjust them
-          b.chargeStart = a.chargeStop;
         }
+      }
+    }
+
+    // First pass to remove any overlaps
+    consolidate();
+
+    // Second pass to shift start times for continous charging
+    {
+      let shifted = false;
+      for (let i = 0; i < plan.length - 1; ++i) {
+        const a = plan[i];
+        const b = plan[i + 1];
+        const shift =
+          nstart(a.chargeStart) + // charge start
+          3600e3 - // + one hour
+          nstop(a.chargeStop); // - charge stop
+
+        if (shift > 0 && nstop(a.chargeStop) + shift >= nstart(b.chargeStart)) {
+          a.chargeStop = b.chargeStart;
+          a.chargeStart = new Date(nstart(a.chargeStart) + shift);
+          shifted = true;
+        }
+      }
+
+      if (shifted) {
+        consolidate();
       }
     }
     return plan;
