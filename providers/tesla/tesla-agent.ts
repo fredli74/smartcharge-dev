@@ -42,6 +42,7 @@ interface TeslaSubject {
   status: string;
   debugSleep?: any;
   chargeLimit?: number;
+  chargeEnabled?: boolean;
   portOpen?: boolean;
   parked?: number;
   triedOpen?: number;
@@ -203,6 +204,7 @@ export class TeslaAgent extends AbstractAgent {
         }
 
         subject.chargeLimit = data.charge_state.charge_limit_soc;
+        subject.chargeEnabled = data.charge_state.user_charge_enable_request;
         subject.portOpen = data.charge_state.charge_port_door_open;
         subject.online = true;
 
@@ -539,8 +541,10 @@ export class TeslaAgent extends AbstractAgent {
                 `Waiting for vehicle ${subject.vehicleUUID} to be ready`
               );
             } else if (stopCharging) {
-              log(LogLevel.Info, `Stop charging ${subject.data.name}`);
-              teslaAPI.chargeStop(subject.teslaID, job.serviceData.token);
+              if (subject.chargeEnabled) {
+                log(LogLevel.Info, `Stop charging ${subject.data.name}`);
+                teslaAPI.chargeStop(subject.teslaID, job.serviceData.token);
+              }
             } else if (startCharging) {
               let setLevel = shouldCharge!.level;
               if (shouldCharge!.chargeType === ChargeType.calibrate) {
@@ -591,7 +595,7 @@ export class TeslaAgent extends AbstractAgent {
                   job.serviceData.token
                 );
               }
-              if (subject.data.chargingTo === null) {
+              if (!subject.chargeEnabled) {
                 log(LogLevel.Info, `Start charging ${subject.data.name}`);
                 await teslaAPI.chargeStart(
                   subject.teslaID,
