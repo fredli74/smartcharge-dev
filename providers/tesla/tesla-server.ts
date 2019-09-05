@@ -14,35 +14,42 @@ import { IProviderServer } from "@providers/provider-server";
 import { TeslaNewListEntry } from "./app/tesla-helper";
 import config from "./tesla-config";
 import { DBVehicle, DBServiceProvider } from "@server/db-schema";
+import { strict as assert } from "assert";
 
 // Check token and refresh through direct database update
 export async function maintainToken(
   db: DBInterface,
   oldToken: IRestToken
 ): Promise<IRestToken> {
+  log(LogLevel.Trace, `maintainToken ${JSON.stringify(oldToken)}`);
   try {
     const newToken = await teslaAPI.refreshToken(oldToken);
     if (!newToken) {
       return oldToken;
     }
-    validToken(db, oldToken, newToken);
+    assert(oldToken.refresh_token !== undefined);
+    if (oldToken.refresh_token) {
+      validToken(db, oldToken.refresh_token, newToken);
+    }
     return newToken;
   } catch (err) {
     log(LogLevel.Error, err);
-    invalidToken(db, oldToken);
+    if (oldToken.access_token) {
+      invalidToken(db, oldToken.access_token);
+    }
     throw new ApolloError("Invalid token", "INVALID_TOKEN");
   }
 }
 
 async function validToken(
   db: DBInterface,
-  oldToken: IRestToken,
+  oldRefreshToken: string,
   newToken: IRestToken
 ) {
   const dblist: DBServiceProvider[] = await db.pg.manyOrNone(
     `UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $2) WHERE service_data @> $1 RETURNING *;`,
     [
-      { token: { refresh_token: oldToken.refresh_token } },
+      { token: { refresh_token: oldRefreshToken } },
       { token: newToken, invalid_token: null }
     ]
   );
@@ -57,13 +64,16 @@ async function validToken(
     );
   }
 }
-async function invalidToken(db: DBInterface, token: IRestToken) {
-  log(LogLevel.Trace, `Token ${token.access_token} was invalid`);
+async function invalidToken(db: DBInterface, access_token: string) {
+  log(LogLevel.Trace, `Token ${JSON.stringify(access_token)} was invalid`);
+
+  assert(access_token !== undefined);
+
   const dblist = await db.pg.manyOrNone(
     `UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $2) WHERE service_data @> $1 RETURNING *;`,
     [
       {
-        token: { access_token: token.access_token }
+        token: { access_token: access_token }
       },
       { invalid_token: true }
     ]
