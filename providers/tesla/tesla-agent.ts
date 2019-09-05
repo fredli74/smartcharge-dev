@@ -458,6 +458,17 @@ export class TeslaAgent extends AbstractAgent {
         await this.setOptionCodes(subject, data);
       }
 
+      if (
+        subject.data &&
+        subject.data.providerData &&
+        subject.data.providerData.invalid_token
+      ) {
+        await this.scClient.updateVehicle({
+          id: subject.vehicleUUID,
+          providerData: { invalid_token: null }
+        });
+      }
+
       const wasDriving = Boolean(subject.data && subject.data.isDriving);
       subject.data = await this.scClient.getVehicle(subject.vehicleUUID);
 
