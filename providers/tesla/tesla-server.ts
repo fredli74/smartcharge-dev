@@ -148,8 +148,13 @@ const server: IProviderServer = {
                   await context.db.pg.none(
                     `UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $1)
                       WHERE service_uuid=$2;
-                      UPDATE vehicle SET service_uuid=$2 WHERE vehicle_uuid=$3;`,
-                    [{ map: { [teslaID]: vehicleID } }, s.serviceID, vehicleID]
+                      UPDATE vehicle SET service_uuid=$2, provider_data = provider_data - 'invalid_token' WHERE vehicle_uuid=$3;`,
+                    [
+                      { map: { [teslaID]: vehicleID } },
+                      s.serviceID,
+                      vehicleID,
+                      {}
+                    ]
                   );
                 }
 

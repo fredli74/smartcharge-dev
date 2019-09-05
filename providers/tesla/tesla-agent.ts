@@ -679,6 +679,10 @@ export class TeslaAgent extends AbstractAgent {
 
       // TODO: handle different errors?
       if (err.code === 401) {
+        log(
+          LogLevel.Trace,
+          `tesla-agent polling error 401 for ${JSON.stringify(job.serviceData)}`
+        );
         try {
           const newToken = await this.scClient.providerMutate("tesla", {
             mutation: TeslaProviderMutates.RefreshToken,
