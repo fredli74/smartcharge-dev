@@ -117,7 +117,7 @@ export class TeslaAgent extends AbstractAgent {
         // TODO: Add more information
       };
       option_codes.push(roofColors[data.vehicle_config.roof_color] || "RF3G");
-      if (!roofColors[data.vehicle_config.exterior_color]) {
+      if (!roofColors[data.vehicle_config.roof_color]) {
         log(
           LogLevel.Trace,
           `Unknown roof_color ${data.vehicle_config.roof_color}`

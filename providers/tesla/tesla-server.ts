@@ -34,9 +34,7 @@ export async function maintainToken(
     return newToken;
   } catch (err) {
     log(LogLevel.Error, err);
-    if (oldToken.access_token) {
-      invalidToken(db, oldToken.access_token);
-    }
+    invalidToken(db, oldToken);
     throw new ApolloError("Invalid token", "INVALID_TOKEN");
   }
 }
@@ -64,16 +62,18 @@ async function validToken(
     );
   }
 }
-async function invalidToken(db: DBInterface, access_token: string) {
-  log(LogLevel.Trace, `Token ${JSON.stringify(access_token)} was invalid`);
-
-  assert(access_token !== undefined);
+async function invalidToken(db: DBInterface, token: IRestToken) {
+  log(LogLevel.Trace, `Token ${JSON.stringify(token)} was invalid`);
+  assert(token.refresh_token || token.access_token);
 
   const dblist = await db.pg.manyOrNone(
     `UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $2) WHERE service_data @> $1 RETURNING *;`,
     [
       {
-        token: { access_token: access_token }
+        token: {
+          refresh_token: token.refresh_token,
+          access_token: token.access_token
+        }
       },
       { invalid_token: true }
     ]
