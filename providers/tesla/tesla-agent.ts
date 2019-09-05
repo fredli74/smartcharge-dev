@@ -97,9 +97,9 @@ export class TeslaAgent extends AbstractAgent {
       // Add new codes
       const colors: any = {
         MidnightSilver: "PMNG",
-        DeepBlue: "PPSB"
+        DeepBlue: "PPSB",
+        SolidBlack: "PBSB"
         // TODO: Add more information
-        // Solid Black: "PBSB",
         // Red Multi-Coat : "PPMR",
         // Pearl White Multi-Coat : "PPSW",
         // Silver Metallic : "PMSS",
