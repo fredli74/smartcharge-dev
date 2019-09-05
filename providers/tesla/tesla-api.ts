@@ -35,6 +35,8 @@ export class TeslaAPI extends RestClient {
     }
   }
   public async refreshToken(token: IRestToken): Promise<IRestToken | false> {
+    log(LogLevel.Trace, `refreshToken(${JSON.stringify(token)})`);
+
     if (typeof token !== "object") {
       throw new Error("invalid token");
     }
@@ -42,8 +44,8 @@ export class TeslaAPI extends RestClient {
     assert(token.refresh_token!.length === 64);
 
     if (!token.access_token || RestClient.tokenExpired(token)) {
-      log(LogLevel.Debug, `token renewal`);
-      return (await this.getToken("/oauth/token?grant_type=refresh_token", {
+      log(LogLevel.Debug, `token renewal (${JSON.stringify(token)})`);
+      return (await this.getToken("/oauth/token", {
         grant_type: "refresh_token",
         client_id: config.TESLA_CLIENT_ID,
         client_secret: config.TESLA_CLIENT_SECRET,

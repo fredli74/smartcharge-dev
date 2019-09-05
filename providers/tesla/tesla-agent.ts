@@ -104,6 +104,12 @@ export class TeslaAgent extends AbstractAgent {
         // Pearl White Multi-Coat : "PPSW",
         // Silver Metallic : "PMSS",
       };
+      if (!colors[data.vehicle_config.exterior_color]) {
+        log(
+          LogLevel.Trace,
+          `Unknown exterior_color ${data.vehicle_config.exterior_color}`
+        );
+      }
       option_codes.push(colors[data.vehicle_config.exterior_color] || "PPSW");
 
       const roofColors: any = {
@@ -111,6 +117,12 @@ export class TeslaAgent extends AbstractAgent {
         // TODO: Add more information
       };
       option_codes.push(roofColors[data.vehicle_config.roof_color] || "RF3G");
+      if (!roofColors[data.vehicle_config.exterior_color]) {
+        log(
+          LogLevel.Trace,
+          `Unknown roof_color ${data.vehicle_config.roof_color}`
+        );
+      }
 
       const wheels: any = {
         Pinwheel18: "W38B",
@@ -120,6 +132,12 @@ export class TeslaAgent extends AbstractAgent {
         // 20" Sport Wheels: "W32B"
       };
       option_codes.push(wheels[data.vehicle_config.wheel_type] || "W38B");
+      if (!wheels[data.vehicle_config.wheel_type]) {
+        log(
+          LogLevel.Trace,
+          `Unknown wheel_type ${data.vehicle_config.wheel_type}`
+        );
+      }
 
       if (data.vehicle_config.spoiler_type !== "None") {
         option_codes.push("SLR1");

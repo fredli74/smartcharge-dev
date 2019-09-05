@@ -58,6 +58,7 @@ async function validToken(
   }
 }
 async function invalidToken(db: DBInterface, token: IRestToken) {
+  log(LogLevel.Trace, `Token ${token.access_token} was invalid`);
   const dblist = await db.pg.manyOrNone(
     `UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $2) WHERE service_data @> $1 RETURNING *;`,
     [
@@ -67,6 +68,7 @@ async function invalidToken(db: DBInterface, token: IRestToken) {
       { invalid_token: true }
     ]
   );
+  log(LogLevel.Trace, dblist);
   for (const s of dblist) {
     log(LogLevel.Info, `Invalidating token for service ${s.service_uuid}`);
     await db.pg.none(
@@ -157,6 +159,10 @@ const server: IProviderServer = {
               vehicles.push(...list);
             } catch (err) {
               if (err.code === 401) {
+                log(
+                  LogLevel.Trace,
+                  `${token.access_token} returned error 401 Unauthorized`
+                );
                 await invalidToken(context.db, token);
               }
             }
