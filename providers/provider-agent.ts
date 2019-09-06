@@ -53,6 +53,7 @@ export abstract class AbstractAgent {
     } else {
       job.interval = target;
     }
+    // If called from an action we need to adjust nextrun
     const nextrun = Date.now() + job.interval * 1e3;
     job.nextrun = Math.min(job.nextrun, nextrun);
   }

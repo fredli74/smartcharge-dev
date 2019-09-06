@@ -482,6 +482,7 @@ export class TeslaAgent extends AbstractAgent {
               this.changePollstate(subject, "polling");
               this.adjustInterval(job, 0); // Woke up, poll right away
               subject.keepAwake = now + config.TIME_BEFORE_TIRED; // Something woke it up, so keep it awake for a while
+              return;
             }
             break;
           case "offline":
@@ -754,8 +755,8 @@ export class TeslaAgent extends AbstractAgent {
         const s = logFormat(LogLevel.Error, err);
         fs.writeFileSync(config.AGENT_TRACE_FILENAME, `${s}\n`, { flag: "as" });
       }
-      this.changePollstate(subject, "offline");
-      this.adjustInterval(job, 10); // Try again
+      // this.changePollstate(subject, "offline");
+      // this.adjustInterval(job, 10); // Try again
 
       // TODO: handle different errors?
       if (err.code === 401) {
