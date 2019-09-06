@@ -181,7 +181,7 @@ const vehicleFragment = `id name minimumLevel maximumLevel anxietyLevel tripSche
             data.vehicle.tripSchedule = null;
           }
         }
-        this.updateFreshness();
+        this.updateFreshness(data.vehicle);
         return data.vehicle;
       },
       watchLoading(isLoading, _countModifier) {
@@ -212,10 +212,9 @@ export default class VehicleVue extends Vue {
     };
   }
 
-  updateFreshness() {
+  updateFreshness(vehicle: Vehicle | undefined) {
     this.freshInfo = Boolean(
-      this.vehicle &&
-        Date.now() - new Date(this.vehicle.updated).getTime() < 300e3
+      vehicle && Date.now() - new Date(vehicle.updated).getTime() < 300e3
     ); // five minutes
   }
 
@@ -239,7 +238,7 @@ export default class VehicleVue extends Vue {
           this.vehicle.tripSchedule = null;
         }
       }
-      this.updateFreshness();
+      this.updateFreshness(this.vehicle);
     }, 30e3);
   }
   beforeDestroy() {
