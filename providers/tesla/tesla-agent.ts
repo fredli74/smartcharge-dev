@@ -87,73 +87,116 @@ export class TeslaAgent extends AbstractAgent {
   }
 
   public async setOptionCodes(subject: TeslaSubject, data: any) {
-    if (!subject.data) return;
+    if (subject.data === undefined || subject.data.providerData === undefined)
+      return;
+    if (data === undefined || data.vehicle_config === undefined) return;
 
-    let option_codes = (data.option_codes as string).split(",");
-    if (option_codes.indexOf("MDL3") >= 0) {
-      /***** MODEL 3 option codes are not correct *****/
-      option_codes = [];
-      if (data.vehicle_config === undefined) return;
+    /***** No option codes are correct from the API, so I make my own *****/
 
-      // Add new codes
-      const colors: any = {
-        MidnightSilver: "PMNG",
-        DeepBlue: "PPSB",
-        SolidBlack: "PBSB"
-        // TODO: Add more information
-        // Red Multi-Coat : "PPMR",
-        // Pearl White Multi-Coat : "PPSW",
-        // Silver Metallic : "PMSS",
-      };
-      if (!colors[data.vehicle_config.exterior_color]) {
-        log(
-          LogLevel.Trace,
-          `Unknown exterior_color ${data.vehicle_config.exterior_color}`
-        );
-      }
-      option_codes.push(colors[data.vehicle_config.exterior_color] || "PPSW");
+    const config = data.vehicle_config;
+    let option_codes = [];
+    let defaults: any;
 
-      const roofColors: any = {
-        Glass: "RF3G"
-        // TODO: Add more information
-      };
-      option_codes.push(roofColors[data.vehicle_config.roof_color] || "RF3G");
-      if (!roofColors[data.vehicle_config.roof_color]) {
-        log(
-          LogLevel.Trace,
-          `Unknown roof_color ${data.vehicle_config.roof_color}`
-        );
-      }
-
-      const wheels: any = {
-        Pinwheel18: "W38B",
-        Stiletto19: "W39B"
-        // TODO: Add more information
-        // 19" Sport Wheels: "W39B", // default
-        // 20" Sport Wheels: "W32B"
-      };
-      option_codes.push(wheels[data.vehicle_config.wheel_type] || "W38B");
-      if (!wheels[data.vehicle_config.wheel_type]) {
-        log(
-          LogLevel.Trace,
-          `Unknown wheel_type ${data.vehicle_config.wheel_type}`
-        );
-      }
-
-      if (data.vehicle_config.spoiler_type !== "None") {
-        option_codes.push("SLR1");
-      }
-
-      option_codes.push(data.vehicle_config.rhd ? "DRRH" : "DRLH");
+    switch (config.car_type) {
+      case "models2":
+        option_codes.push("MDLS");
+        defaults = {
+          exterior_color: "PPSW",
+          roof_color: "RFFG",
+          wheel_type: "WTDS"
+        };
+        break;
+      case "modelx":
+        option_codes.push("MDLX");
+        defaults = {
+          exterior_color: "PPSW",
+          roof_color: "RFPX",
+          wheel_type: "WT20"
+        };
+        break;
+      default:
+        option_codes.push("MDL3");
+        defaults = {
+          exterior_color: "PPSW",
+          roof_color: "RF3G",
+          wheel_type: "W38B"
+        };
+        break;
     }
 
+    function optionTranslate(
+      field: string,
+      a: { [name: string]: string | null }
+    ) {
+      const d = String(config[field]);
+      if (d === "undefined") {
+        log(
+          LogLevel.Warning,
+          `vehicle_config for ${subject.teslaID} contains no ${field}`
+        );
+        return undefined;
+      }
+      if (a[d] === undefined) {
+        log(LogLevel.Warning, `Unknown ${field} = ${d}`);
+        return defaults[field];
+      }
+      return a[d];
+    }
+
+    option_codes.push(
+      optionTranslate("exterior_color", {
+        MidnightSilver: "PMNG",
+        DeepBlue: "PPSB",
+        SolidBlack: "PBSB",
+        SteelGrey: "PMNG"
+        // TODO: Add more information
+        // Red Multi-Coat : "PPMR",
+        // Pearl White Multi-Coat : "PPSW" (default),
+        // Silver Metallic : "PMSS",
+      })
+    );
+
+    option_codes.push(
+      optionTranslate("roof_color", {
+        Glass: defaults.roof_color
+        // TODO: Add more information
+        // Glass: "RF3G" (default)
+      })
+    );
+
+    option_codes.push(
+      optionTranslate("wheel_type", {
+        Pinwheel18: "W38B",
+        Stiletto19: "W39B",
+        Slipstream19Carbon: "WTAS"
+        // TODO: Add more information
+        // 20" Sport Wheels: "W32B"
+      })
+    );
+
+    option_codes.push(
+      optionTranslate("spoiler_type", {
+        None: null
+      }) || "SLR1"
+    );
+
+    option_codes.push(
+      optionTranslate("rhd", {
+        true: "DRRH",
+        false: "DRLH"
+      })
+    );
+
+    option_codes = option_codes.filter(f => f !== undefined);
+
     if (
+      subject.data.providerData.car_type !== config.car_type ||
       JSON.stringify(subject.data.providerData.option_codes) !==
-      JSON.stringify(option_codes)
+        JSON.stringify(option_codes)
     ) {
       await this.scClient.updateVehicle({
         id: subject.vehicleUUID,
-        providerData: { option_codes: option_codes }
+        providerData: { car_type: config.car_type, option_codes: option_codes }
       });
     }
   }
@@ -462,7 +505,6 @@ export class TeslaAgent extends AbstractAgent {
             console.error(s);
           }
         }
-        await this.setOptionCodes(subject, data);
       }
 
       if (
