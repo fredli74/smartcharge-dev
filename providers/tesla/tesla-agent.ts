@@ -133,12 +133,15 @@ export class TeslaAgent extends AbstractAgent {
       if (d === "undefined") {
         log(
           LogLevel.Warning,
-          `vehicle_config for ${subject.teslaID} contains no ${field}`
+          `${subject.teslaID} vehicle_config contains no ${field}`
         );
         return undefined;
       }
       if (a[d] === undefined) {
-        log(LogLevel.Warning, `Unknown ${field} = ${d}`);
+        log(
+          LogLevel.Warning,
+          `${subject.teslaID} unknown vehicle_config.${field} = ${d}`
+        );
         return defaults[field];
       }
       return a[d];
@@ -259,7 +262,7 @@ export class TeslaAgent extends AbstractAgent {
         )).response;
         log(
           LogLevel.Trace,
-          `Full poll ${subject.teslaID} : ${JSON.stringify(data)}`
+          `${subject.teslaID} full poll : ${JSON.stringify(data)}`
         );
         if (config.AGENT_SAVE_TO_TRACEFILE) {
           const s = logFormat(LogLevel.Trace, data);
@@ -461,7 +464,7 @@ export class TeslaAgent extends AbstractAgent {
         }
         log(
           LogLevel.Trace,
-          `List poll ${subject.teslaID} : ${JSON.stringify(data)}`
+          `${subject.teslaID} list poll : ${JSON.stringify(data)}`
         );
 
         this.adjustInterval(job, 60);
@@ -475,7 +478,7 @@ export class TeslaAgent extends AbstractAgent {
               // We were offline or sleeping
               log(
                 LogLevel.Info,
-                `${data.display_name} is ${data.state} (${
+                `${subject.teslaID} ${data.display_name} is ${data.state} (${
                   subject.pollstate
                 } -> polling)`
               );
@@ -489,7 +492,7 @@ export class TeslaAgent extends AbstractAgent {
             if (subject.pollstate !== "offline") {
               log(
                 LogLevel.Info,
-                `${data.display_name} is ${data.state} (${
+                `${subject.teslaID} ${data.display_name} is ${data.state} (${
                   subject.pollstate
                 } -> offline)`
               );
@@ -503,7 +506,7 @@ export class TeslaAgent extends AbstractAgent {
             if (subject.pollstate !== "asleep") {
               log(
                 LogLevel.Info,
-                `${data.display_name} is ${data.state} (${
+                `${subject.teslaID} ${data.display_name} is ${data.state} (${
                   subject.pollstate
                 } -> asleep)`
               );
@@ -516,7 +519,7 @@ export class TeslaAgent extends AbstractAgent {
           default: {
             const s = logFormat(
               LogLevel.Error,
-              `unknown state: ${JSON.stringify(data)}`
+              `${subject.teslaID} unknown state: ${JSON.stringify(data)}`
             );
             fs.writeFileSync(config.AGENT_TRACE_FILENAME, `${s}\n`, {
               flag: "as"
@@ -547,7 +550,7 @@ export class TeslaAgent extends AbstractAgent {
         assert(subject.parked === undefined);
         subject.parked = now;
       }
-      console.log(
+      /*console.log(
         JSON.stringify({
           wasDriving: wasDriving,
           parked: subject.parked,
@@ -556,7 +559,7 @@ export class TeslaAgent extends AbstractAgent {
           plan: subject.data.chargePlan !== null
         })
       );
-      console.log(JSON.stringify(subject));
+      console.log(JSON.stringify(subject));*/
 
       // Command logic
       assert(subject.data !== undefined);
@@ -580,11 +583,11 @@ export class TeslaAgent extends AbstractAgent {
               }
             }
           }
-          console.debug(
+          /*console.debug(
             subject.data.batteryLevel +
               " " +
               JSON.stringify(subject.data.chargePlan)
-          );
+          );*/
 
           let stopCharging = false;
           let startCharging = false;
@@ -604,11 +607,16 @@ export class TeslaAgent extends AbstractAgent {
             if (!subject.online && !(await this.wakeUp(job, subject))) {
               log(
                 LogLevel.Trace,
-                `Waiting for vehicle ${subject.vehicleUUID} to be ready`
+                `${subject.teslaID} waiting for vehicle ${
+                  subject.vehicleUUID
+                } to be ready`
               );
             } else if (stopCharging) {
               if (subject.chargeEnabled) {
-                log(LogLevel.Info, `Stop charging ${subject.data.name}`);
+                log(
+                  LogLevel.Info,
+                  `${subject.teslaID} stop charging ${subject.data.name}`
+                );
                 teslaAPI.chargeStop(subject.teslaID, job.serviceData.token);
               }
             } else if (startCharging) {
@@ -651,7 +659,7 @@ export class TeslaAgent extends AbstractAgent {
               ) {
                 log(
                   LogLevel.Info,
-                  `Setting charge limit for ${
+                  `${subject.teslaID} setting charge limit for ${
                     subject.data.name
                   } to ${chargeto}%`
                 );
@@ -662,7 +670,10 @@ export class TeslaAgent extends AbstractAgent {
                 );
               }
               if (!subject.chargeEnabled) {
-                log(LogLevel.Info, `Start charging ${subject.data.name}`);
+                log(
+                  LogLevel.Info,
+                  `${subject.teslaID} start charging ${subject.data.name}`
+                );
                 await teslaAPI.chargeStart(
                   subject.teslaID,
                   job.serviceData.token
@@ -725,7 +736,9 @@ export class TeslaAgent extends AbstractAgent {
             } else if (!subject.hvacOn) {
               log(
                 LogLevel.Info,
-                `Starting climate control on ${subject.data.name}`
+                `${subject.teslaID} starting climate control on ${
+                  subject.data.name
+                }`
               );
               await this[AgentAction.ClimateControl](job, {
                 data: { id: subject.vehicleUUID, enable: true }
@@ -738,7 +751,9 @@ export class TeslaAgent extends AbstractAgent {
             } else if (!subject.hvacOff) {
               log(
                 LogLevel.Info,
-                `Stopping climate control on ${subject.data.name}`
+                `${subject.teslaID} stopping climate control on ${
+                  subject.data.name
+                }`
               );
               await this[AgentAction.ClimateControl](job, {
                 data: { id: subject.vehicleUUID, enable: false }
@@ -762,7 +777,11 @@ export class TeslaAgent extends AbstractAgent {
       if (err.code === 401) {
         log(
           LogLevel.Trace,
-          `tesla-agent polling error 401 for ${JSON.stringify(job.serviceData)}`
+          `${
+            subject.teslaID
+          } tesla-agent polling error 401 for ${JSON.stringify(
+            job.serviceData
+          )}`
         );
         try {
           const newToken = await this.scClient.providerMutate("tesla", {
@@ -774,7 +793,7 @@ export class TeslaAgent extends AbstractAgent {
         } catch (err) {
           log(
             LogLevel.Error,
-            `Unable to refresh teslaAPI token for ${
+            `${subject.teslaID} unable to refresh teslaAPI token for ${
               subject.teslaID
             }: ${JSON.stringify(err)}`
           );
@@ -783,12 +802,15 @@ export class TeslaAgent extends AbstractAgent {
       }
 
       if (err.response && err.response.data) {
-        log(LogLevel.Error, err.response.data);
+        log(
+          LogLevel.Error,
+          `${subject.teslaID} ${JSON.stringify(err.response.data)}`
+        );
         if (err.response.data.error) {
           await this.setStatus(subject, err.response.data.error);
         }
       } else {
-        log(LogLevel.Error, err);
+        log(LogLevel.Error, `${subject.teslaID} ${JSON.stringify(err)}`);
       }
       throw new Error(err);
     }
@@ -832,7 +854,8 @@ export class TeslaAgent extends AbstractAgent {
     await this.maintainToken(job);
     log(
       LogLevel.Info,
-      `Waking up ${(subject.data && subject.data.name) || subject.vehicleUUID}`
+      `${subject.teslaID} waking up ${(subject.data && subject.data.name) ||
+        subject.vehicleUUID}`
     );
     const data = await teslaAPI.wakeUp(subject.teslaID, job.serviceData.token);
     if (data && data.response && data.response.state === "online") {
