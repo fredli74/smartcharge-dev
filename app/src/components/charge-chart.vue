@@ -467,6 +467,8 @@ export default class ChargeChart extends Vue {
       // Simulate charging
       if (this.chartData.chargePlan) {
         for (const c of this.chartData.chargePlan) {
+          if (c.chargeType === ChargeType.calibrate) continue;
+
           let timeNeeded = this.chargeDuration(
             this.chartData.chargeCurve,
             level,
