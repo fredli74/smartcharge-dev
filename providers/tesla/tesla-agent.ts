@@ -40,6 +40,7 @@ interface TeslaSubject {
   pollstate: PollState | undefined;
   statestart: number;
   status: string;
+  keepAwake?: number; // last event where we wanted to stay awake
   debugSleep?: any;
   chargeLimit?: number;
   chargeEnabled?: boolean;
@@ -224,21 +225,42 @@ export class TeslaAgent extends AbstractAgent {
     }
   }
 
+  private async wentOffline(subject: TeslaSubject) {
+    if (subject.debugSleep !== undefined) {
+      subject.debugSleep.now = Date.now();
+      subject.debugSleep.success = true;
+      await this.scClient.vehicleDebug({
+        id: subject.vehicleUUID,
+        category: "sleep",
+        timestamp: new Date(),
+        data: subject.debugSleep
+      });
+    }
+  }
+
   private async poll(job: TeslaAgentJob, subject: TeslaSubject): Promise<void> {
     try {
       const now = Date.now();
       await this.maintainToken(job);
 
+      const timeTryingToSleep =
+        (subject.data && subject.data.providerData.time_tired) ||
+        config.TIME_BEING_TIRED;
+
       // API Poll
       if (
         subject.pollstate === "polling" || // Poll vehicle data if we are in polling state
         (subject.pollstate === "tired" &&
-          now >= subject.statestart + config.TIME_BEING_TIRED) // or if we've been trying to sleep for TIME_BEING_TIRED seconds
+          now >= subject.statestart + timeTryingToSleep) // or if we've been trying to sleep for TIME_BEING_TIRED seconds
       ) {
         const data = (await teslaAPI.getVehicleData(
           subject.teslaID,
           job.serviceData.token
         )).response;
+        log(
+          LogLevel.Trace,
+          `Full poll ${subject.teslaID} : ${JSON.stringify(data)}`
+        );
         if (config.AGENT_SAVE_TO_TRACEFILE) {
           const s = logFormat(LogLevel.Trace, data);
           fs.writeFileSync(config.AGENT_TRACE_FILENAME, `${s}\n`, {
@@ -311,21 +333,21 @@ export class TeslaAgent extends AbstractAgent {
         const isGettingTired =
           (data.climate_state.outside_temp === null &&
             data.climate_state.inside_temp === null) || // Model S does this
-          now >= subject.statestart + config.TIME_BEFORE_TIRED;
+          (subject.keepAwake || 0) < now;
+
+        let insomnia = false; // Are we in a state where sleep is not possible
 
         // Set status
         if (input.chargingTo) {
           await this.setStatus(subject, "Charging"); // We are charging
-          this.changePollstate(subject, "polling"); // Keep active polling when charging
+          insomnia = true; // Can not sleep while charging
           this.adjustInterval(job, 10); // Poll more often when charging
         } else if (input.isDriving) {
           await this.setStatus(subject, "Driving"); // We are driving
-          this.changePollstate(subject, "polling"); // Keep active polling when driving
+          insomnia = true; // Can not sleep while driving
           this.adjustInterval(job, 10); // Poll more often when driving
         } else {
           this.adjustInterval(job, 60);
-          let insomnia = false; // Are we in a state where sleep is not possible
-
           if (data.vehicle_state.is_user_present) {
             await this.setStatus(subject, "Idle (user present)");
             insomnia = true;
@@ -363,10 +385,10 @@ export class TeslaAgent extends AbstractAgent {
           } else {
             await this.setStatus(subject, "Idle");
           }
-
-          if (insomnia) {
-            this.changePollstate(subject, "polling");
-          }
+        }
+        if (insomnia) {
+          this.changePollstate(subject, "polling"); // Keep active polling
+          subject.keepAwake = now + config.TIME_BEFORE_TIRED;
         }
         await this.scClient.updateVehicleData(input);
         await this.setOptionCodes(subject, data);
@@ -437,6 +459,10 @@ export class TeslaAgent extends AbstractAgent {
             flag: "as"
           });
         }
+        log(
+          LogLevel.Trace,
+          `List poll ${subject.teslaID} : ${JSON.stringify(data)}`
+        );
 
         this.adjustInterval(job, 60);
         switch (data.state) {
@@ -453,8 +479,9 @@ export class TeslaAgent extends AbstractAgent {
                   subject.pollstate
                 } -> polling)`
               );
-              this.changePollstate(subject, "polling"); // Start polling again
+              this.changePollstate(subject, "polling");
               this.adjustInterval(job, 0); // Woke up, poll right away
+              subject.keepAwake = now + config.TIME_BEFORE_TIRED; // Something woke it up, so keep it awake for a while
             }
             break;
           case "offline":
@@ -468,6 +495,7 @@ export class TeslaAgent extends AbstractAgent {
 
               this.changePollstate(subject, "offline");
               await this.setStatus(subject, "Offline");
+              await this.wentOffline(subject);
             }
             break;
           case "asleep":
@@ -481,17 +509,7 @@ export class TeslaAgent extends AbstractAgent {
 
               this.changePollstate(subject, "asleep");
               await this.setStatus(subject, "Sleeping");
-
-              if (subject.debugSleep !== undefined) {
-                subject.debugSleep.now = now;
-                subject.debugSleep.success = true;
-                await this.scClient.vehicleDebug({
-                  id: subject.vehicleUUID,
-                  category: "sleep",
-                  timestamp: new Date(),
-                  data: subject.debugSleep
-                });
-              }
+              await this.wentOffline(subject);
             }
             break;
           default: {
