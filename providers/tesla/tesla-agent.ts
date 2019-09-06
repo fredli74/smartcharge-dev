@@ -247,7 +247,7 @@ export class TeslaAgent extends AbstractAgent {
         }
 
         subject.chargeLimit = data.charge_state.charge_limit_soc;
-        subject.chargeEnabled = data.charge_state.user_charge_enable_request;
+        subject.chargeEnabled = data.charge_state.charge_enable_request;
         subject.portOpen = data.charge_state.charge_port_door_open;
         subject.online = true;
 
