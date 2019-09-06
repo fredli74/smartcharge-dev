@@ -265,6 +265,11 @@ export class TeslaAgent extends AbstractAgent {
           energyAdded: data.charge_state.charge_energy_added // added kWh
         };
 
+        const isGettingTired =
+          (data.climate_state.outside_temp === null &&
+            data.climate_state.inside_temp === null) || // Model S does this
+          now >= subject.statestart + config.TIME_BEFORE_TIRED;
+
         // Set status
         if (input.chargingTo) {
           await this.setStatus(subject, "Charging"); // We are charging
@@ -303,7 +308,7 @@ export class TeslaAgent extends AbstractAgent {
               subject.debugSleep.info = data;
             }
             subject.statestart = now; // Reset state start to only poll once every TIME_BEING_TIRED
-          } else if (now >= subject.statestart + config.TIME_BEFORE_TIRED) {
+          } else if (isGettingTired) {
             await this.setStatus(subject, "Waiting to sleep"); // We were idle for TIME_BEFORE_TIRED
             this.changePollstate(subject, "tired");
             subject.debugSleep = {

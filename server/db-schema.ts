@@ -74,7 +74,7 @@ export interface DBVehicle {
   charge_plan: any; // current charge plan (or null)
   location_micro_latitude: number; // 6 decimal precision converted to integer
   location_micro_longitude: number; // 6 decimal precision converted to integer
-  location_uuid: string; // known location id
+  location_uuid: string | null; // known location id
   level: number; // current battery charge level %
   odometer: number; // odometer (in meter)
   outside_deci_temperature: number; // temperature (deci-celsius)

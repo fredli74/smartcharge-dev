@@ -208,10 +208,16 @@ export abstract class UpdateVehicleDataInput {
   batteryLevel!: number;
   @Field(_type => Int, { description: `odometer (meters)` })
   odometer!: number;
-  @Field(_type => Float, { description: `outside temperature (celcius)` })
-  outsideTemperature!: number;
-  @Field(_type => Float, { description: `inside temperature (celcius)` })
-  insideTemperature!: number;
+  @Field(_type => Float, {
+    nullable: true,
+    description: `outside temperature (celcius)`
+  })
+  outsideTemperature!: number | null;
+  @Field(_type => Float, {
+    nullable: true,
+    description: `inside temperature (celcius)`
+  })
+  insideTemperature!: number | null;
   @Field({ description: `is climate control on` })
   climateControl!: boolean;
   @Field()

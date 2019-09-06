@@ -45,8 +45,12 @@ export class Logic {
       longitude: input.geoLocation.longitude * 1e6, // 6 decimals precision to integer
       level: input.batteryLevel, // in %
       odometer: input.odometer, // in meter
-      outside_temp: input.outsideTemperature * 10, // celsius to deci-celsius (20.5 = 205)
-      inside_temp: input.insideTemperature * 10, // celsius to deci-celsius (20.5 = 205)
+      outside_temp: input.outsideTemperature
+        ? input.outsideTemperature * 10 // celsius to deci-celsius (20.5 = 205)
+        : vehicle.outside_deci_temperature,
+      inside_temp: input.insideTemperature
+        ? input.insideTemperature * 10 // celsius to deci-celsius (20.5 = 205)
+        : vehicle.inside_deci_temperature,
       climate_control: input.climateControl, // boolean
       driving: input.isDriving, // boolean
       connected: input.connectedCharger, // ac|dc|null
@@ -809,13 +813,15 @@ export class Logic {
     maxPrice?: number
   ): Promise<ChargePlan[]> {
     assert(vehicle.location_uuid !== undefined);
+    assert(vehicle.location_uuid !== null);
+
     const now = Date.now();
 
     let plan: ChargePlan[] = [];
 
     const timeNeeded = await this.chargeDuration(
       vehicle.vehicle_uuid,
-      vehicle.location_uuid,
+      vehicle.location_uuid!,
       vehicle.level,
       batteryLevel
     );
