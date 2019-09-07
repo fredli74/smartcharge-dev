@@ -516,7 +516,7 @@ export class Logic {
         [location_uuid]
       );
 
-      let threshold = 0.9;
+      let threshold = 1;
 
       interface HistoryHour {
         hour: Date;
