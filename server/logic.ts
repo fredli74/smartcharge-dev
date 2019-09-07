@@ -323,6 +323,7 @@ export class Logic {
         `UPDATE connected SET ($1:name) = ($1:csv) WHERE connected_id=$2 RETURNING *;`,
         [
           {
+            location_uuid: vehicle.location_uuid, // if a new location was added
             end_ts: now,
             end_level: data.level,
             energy_used: connection.energy_used,
