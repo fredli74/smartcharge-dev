@@ -583,43 +583,42 @@ export class TeslaAgent extends AbstractAgent {
               }
             }
           }
-          /*console.debug(
-            subject.data.batteryLevel +
-              " " +
-              JSON.stringify(subject.data.chargePlan)
-          );*/
 
-          let stopCharging = false;
-          let startCharging = false;
           if (
             shouldCharge === null &&
+            subject.online &&
+            subject.chargeEnabled === true &&
             subject.data.chargingTo !== null &&
-            subject.data.batteryLevel < subject.data.chargingTo
+            subject.data.batteryLevel < subject.data.chargingTo // keep it running if we're above or on target
           ) {
-            stopCharging = true;
+            log(
+              LogLevel.Info,
+              `${subject.teslaID} stop charging ${subject.data.name}`
+            );
+            teslaAPI.chargeStop(subject.teslaID, job.serviceData.token);
           } else if (
             shouldCharge !== null &&
             subject.data.batteryLevel < shouldCharge.level
           ) {
-            startCharging = true;
-          }
-          if (stopCharging || startCharging) {
-            if (!subject.online && !(await this.wakeUp(job, subject))) {
-              log(
-                LogLevel.Trace,
-                `${subject.teslaID} waiting for vehicle ${
-                  subject.vehicleUUID
-                } to be ready`
-              );
-            } else if (stopCharging) {
-              if (subject.chargeEnabled) {
+            if (subject.chargeEnabled === false) {
+              if (!subject.online && !(await this.wakeUp(job, subject))) {
+                log(
+                  LogLevel.Trace,
+                  `${subject.teslaID} waiting for vehicle ${
+                    subject.vehicleUUID
+                  } to be ready`
+                );
+              } else {
                 log(
                   LogLevel.Info,
-                  `${subject.teslaID} stop charging ${subject.data.name}`
+                  `${subject.teslaID} start charging ${subject.data.name}`
                 );
-                teslaAPI.chargeStop(subject.teslaID, job.serviceData.token);
+                await teslaAPI.chargeStart(
+                  subject.teslaID,
+                  job.serviceData.token
+                );
               }
-            } else if (startCharging) {
+            } else {
               let setLevel = shouldCharge!.level;
               if (shouldCharge!.chargeType === ChargeType.calibrate) {
                 if (!subject.calibrating) {
@@ -666,16 +665,6 @@ export class TeslaAgent extends AbstractAgent {
                 await teslaAPI.setChargeLimit(
                   subject.teslaID,
                   chargeto,
-                  job.serviceData.token
-                );
-              }
-              if (!subject.chargeEnabled) {
-                log(
-                  LogLevel.Info,
-                  `${subject.teslaID} start charging ${subject.data.name}`
-                );
-                await teslaAPI.chargeStart(
-                  subject.teslaID,
                   job.serviceData.token
                 );
               }
