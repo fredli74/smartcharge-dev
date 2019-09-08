@@ -468,14 +468,14 @@ export class Logic {
         };
         await this.db.pg.one(
           `INSERT INTO event_map($[this:name]) VALUES ($[this:csv])
-                    ON CONFLICT(vehicle_uuid, hour) DO UPDATE SET
-                        minimum_level=LEAST(event_map.minimum_level, EXCLUDED.minimum_level),
-                        maximum_level=GREATEST(event_map.maximum_level, EXCLUDED.maximum_level),
-                        driven_seconds=event_map.driven_seconds + EXCLUDED.driven_seconds,
-                        driven_meters=event_map.driven_meters + EXCLUDED.driven_meters,
-                        charged_seconds=event_map.charged_seconds + EXCLUDED.charged_seconds,
-                        charge_energy=event_map.charge_energy + EXCLUDED.charge_energy
-                    RETURNING *;`,
+            ON CONFLICT(vehicle_uuid, hour) DO UPDATE SET
+                minimum_level=LEAST(event_map.minimum_level, EXCLUDED.minimum_level),
+                maximum_level=GREATEST(event_map.maximum_level, EXCLUDED.maximum_level),
+                driven_seconds=event_map.driven_seconds + EXCLUDED.driven_seconds,
+                driven_meters=event_map.driven_meters + EXCLUDED.driven_meters,
+                charged_seconds=event_map.charged_seconds + EXCLUDED.charged_seconds,
+                charge_energy=event_map.charge_energy + EXCLUDED.charge_energy
+            RETURNING *;`,
           deltaEvent
         );
       }

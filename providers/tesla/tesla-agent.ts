@@ -560,6 +560,7 @@ export class TeslaAgent extends AbstractAgent {
         })
       );
       console.log(JSON.stringify(subject));*/
+      log(LogLevel.Trace, `${subject.teslaID} ${JSON.stringify(subject)}`);
 
       // Command logic
       assert(subject.data !== undefined);

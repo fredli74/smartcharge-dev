@@ -142,16 +142,17 @@ export default class App extends Vue {
 </script>
 
 <style>
-* {
+body {
+  font-size: calc(16px + 1vw);
+}
+body * {
   -webkit-touch-callout: none; /* iOS Safari */
   -webkit-user-select: none; /* Safari */
   -khtml-user-select: none; /* Konqueror HTML */
   -moz-user-select: none; /* Firefox */
   -ms-user-select: none; /* Internet Explorer/Edge */
   user-select: none; /* Non-prefixed version, currently supported by Chrome and Opera */
-}
-body {
-  font-size: calc(16px + 1vw);
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
 }
 input,
 textarea {
