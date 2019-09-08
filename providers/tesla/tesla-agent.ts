@@ -624,18 +624,15 @@ export class TeslaAgent extends AbstractAgent {
               if (shouldCharge!.chargeType === ChargeType.calibrate) {
                 if (!subject.calibrating) {
                   subject.calibrating = {
-                    level:
-                      (await this.scClient.chargeCalibration(
-                        subject.vehicleUUID,
-                        undefined,
-                        undefined,
-                        undefined
-                      )) || subject.data.batteryLevel,
+                    level: Math.max(
+                      config.LOWEST_POSSIBLE_CHARGETO,
+                      subject.data.batteryLevel
+                    ),
                     duration: 0,
                     next: now + 30e3
                   };
                 }
-                if (subject.calibrating.level === shouldCharge!.level) {
+                if (subject.calibrating.level >= shouldCharge!.level) {
                   // done!
                   setLevel = 0;
                 } else {
@@ -651,7 +648,10 @@ export class TeslaAgent extends AbstractAgent {
                 delete subject.calibrating;
               }
 
-              const chargeto = Math.max(50, setLevel); // Minimum allowed charge for Tesla is 50
+              const chargeto = Math.max(
+                config.LOWEST_POSSIBLE_CHARGETO,
+                setLevel
+              ); // Minimum allowed charge for Tesla is 50
 
               if (
                 subject.chargeLimit !== undefined && // Only controll if polled at least once
