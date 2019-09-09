@@ -1084,7 +1084,8 @@ export class Logic {
             `UPDATE vehicle SET scheduled_trip = null WHERE vehicle_uuid = $1;`,
             [vehicle.vehicle_uuid]
           );
-        } else {
+        } else if (now > trip.time.getTime() - 36 * 3600e3) {
+          // ignore trips that are more than 36 hours away
           const tripLevel = Math.min(trip.level, vehicle.maximum_charge);
           const topupTime = await this.chargeDuration(
             vehicle.vehicle_uuid,
