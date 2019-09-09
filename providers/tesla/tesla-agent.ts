@@ -152,7 +152,8 @@ export class TeslaAgent extends AbstractAgent {
         MidnightSilver: "PMNG",
         DeepBlue: "PPSB",
         SolidBlack: "PBSB",
-        SteelGrey: "PMNG"
+        SteelGrey: "PMNG",
+        RedMulticoat: "PPMR"
         // TODO: Add more information
         // Red Multi-Coat : "PPMR",
         // Pearl White Multi-Coat : "PPSW" (default),
