@@ -424,6 +424,24 @@ export const DB_SETUP_TSQL = [
         END $$;
     `,
 
+  /*
+        Deep merge jsonb function
+        Thanks to (http://blog.bguiz.com/2017/json-merge-postgresql/)
+    */
+  `CREATE OR REPLACE FUNCTION scserver.jsonb_merge(orig jsonb, delta jsonb) RETURNS jsonb LANGUAGE sql AS $$
+       SELECT
+           jsonb_strip_nulls(jsonb_object_agg(
+               COALESCE(keyOrig, keyDelta),
+               CASE
+                   WHEN keyDelta isnull THEN valOrig
+                   WHEN (jsonb_typeof(valOrig) <> 'object' or jsonb_typeof(valDelta) <> 'object') THEN valDelta
+                   ELSE jsonb_merge(valOrig, valDelta)
+               END
+           ))
+       FROM jsonb_each(orig) e1(keyOrig, valOrig)
+       FULL JOIN jsonb_each(delta) e2(keyDelta, valDelta) ON keyOrig = keyDelta
+   $$;`,
+
   DBAccount_TSQL,
 
   DBLocation_TSQL,

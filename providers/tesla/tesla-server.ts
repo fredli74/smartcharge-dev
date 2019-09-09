@@ -117,12 +117,18 @@ const server: IProviderServer = {
           serviceData: TeslaServiceData;
         }[];
 
-        const controlled = serviceList.reduce(
-          (m, c) => {
-            if (c.serviceData.map) {
-              m = { ...m, ...c.serviceData.map };
+        const controlled = (await context.db.getVehicles(
+          accountFilter(context.accountUUID)
+        )).reduce(
+          (a, v) => {
+            if (
+              v.provider_data &&
+              v.provider_data.provider === "tesla" &&
+              v.provider_data.tesla_id
+            ) {
+              a[v.provider_data.tesla_id] = v.vehicle_uuid;
             }
-            return m;
+            return a;
           },
           {} as any
         );
@@ -141,7 +147,7 @@ const server: IProviderServer = {
                 if (mapped[teslaID] || !found) {
                   delete s.serviceData.map[teslaID];
                   await context.db.pg.none(
-                    `UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $1)
+                    `UPDATE service_provider SET service_data = jsonb_merge(service_data, $1)
                     WHERE service_uuid=$2;`,
                     [{ map: { [teslaID]: null } }, s.serviceID]
                   );
@@ -156,7 +162,7 @@ const server: IProviderServer = {
                   mapped[teslaID] = vehicleID;
                   s.serviceData.map[teslaID] = vehicleID;
                   await context.db.pg.none(
-                    `UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $1)
+                    `UPDATE service_provider SET service_data = jsonb_merge(service_data, $1)
                       WHERE service_uuid=$2;
                       UPDATE vehicle SET service_uuid=$2, provider_data = provider_data - 'invalid_token' WHERE vehicle_uuid=$3;`,
                     [
@@ -220,7 +226,7 @@ const server: IProviderServer = {
           );
         }
         await context.db.pg.none(
-          `UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $1)
+          `UPDATE service_provider SET service_data = jsonb_merge(service_data, $1)
             WHERE service_uuid=$2;`,
           [{ map: { [input.id]: vehicle.vehicle_uuid } }, input.service_uuid]
         );

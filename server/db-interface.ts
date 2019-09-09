@@ -300,7 +300,7 @@ export class DBInterface {
       [radius, `radius = $5`],
       [price_code, `price_code = $6`],
       [service_uuid, `service_uuid = $7`],
-      [provider_data, `provider_data = jsonb_strip_nulls(provider_data || $8)`]
+      [provider_data, `provider_data = jsonb_merge(provider_data, $8)`]
     ]);
     assert(set.length > 0);
 
@@ -452,7 +452,7 @@ export class DBInterface {
       [smart_pause, `smart_pause = $7`],
       [status, `status = $8`],
       [service_uuid, `service_uuid = $9`],
-      [provider_data, `provider_data = jsonb_strip_nulls(provider_data || $10)`]
+      [provider_data, `provider_data = jsonb_merge(provider_data, $10)`]
     ]);
     assert(set.length > 0);
 
