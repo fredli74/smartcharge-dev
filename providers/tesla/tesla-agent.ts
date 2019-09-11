@@ -448,8 +448,7 @@ export class TeslaAgent extends AbstractAgent {
             data.vehicle_state.rt > 0)
         ) {
           // User has interacted with the car so leave the hvac alone
-          delete subject.hvacOn;
-          delete subject.hvacOff;
+          subject.hvacOff = now;
         }
       } else {
         // Poll vehicle list to avoid keeping it awake
@@ -602,7 +601,7 @@ export class TeslaAgent extends AbstractAgent {
             shouldCharge !== null &&
             subject.data.batteryLevel < shouldCharge.level
           ) {
-            if (subject.chargeEnabled === false) {
+            if (subject.chargeEnabled !== true) {
               if (!subject.online && !(await this.wakeUp(job, subject))) {
                 log(
                   LogLevel.Trace,
@@ -735,11 +734,10 @@ export class TeslaAgent extends AbstractAgent {
                 data: { id: subject.vehicleUUID, enable: true }
               } as any);
             }
-          } else if (subject.hvacOn) {
-            if (!subject.data.climateControl) {
-              delete subject.hvacOn;
-              delete subject.hvacOff;
-            } else if (!subject.hvacOff) {
+          } else if (!subject.data.climateControl) {
+            delete subject.hvacOn;
+            delete subject.hvacOff;
+          } else if (!subject.hvacOff) {
               log(
                 LogLevel.Info,
                 `${subject.teslaID} stopping climate control on ${
@@ -747,9 +745,8 @@ export class TeslaAgent extends AbstractAgent {
                 }`
               );
               await this[AgentAction.ClimateControl](job, {
-                data: { id: subject.vehicleUUID, enable: false }
-              } as any);
-            }
+              data: { id: subject.vehicleUUID, enable: false }
+            } as any);
           }
         } else {
           delete subject.hvacOn;
