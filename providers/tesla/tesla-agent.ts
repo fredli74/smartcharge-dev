@@ -153,17 +153,17 @@ export class TeslaAgent extends AbstractAgent {
         DeepBlue: "PPSB",
         SolidBlack: "PBSB",
         SteelGrey: "PMNG",
-        RedMulticoat: "PPMR"
+        RedMulticoat: "PPMR",
+        Pearl: "PPSW"
         // TODO: Add more information
-        // Red Multi-Coat : "PPMR",
-        // Pearl White Multi-Coat : "PPSW" (default),
         // Silver Metallic : "PMSS",
       })
     );
 
     option_codes.push(
       optionTranslate("roof_color", {
-        Glass: defaults.roof_color
+        Glass: defaults.roof_color,
+        None: defaults.roof_color
         // TODO: Add more information
         // Glass: "RF3G" (default)
       })
