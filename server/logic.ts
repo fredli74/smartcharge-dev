@@ -528,10 +528,9 @@ export class Logic {
       interface HistoryMap {
         connected_id: number;
         start_level: number;
-        end_level: number;
-        hours: HistoryHour[];
-        used?: number;
         needed: number;
+        offsite: boolean;
+        hours: HistoryHour[];
       }
       const historyMap: HistoryMap[] = [];
 
@@ -573,8 +572,6 @@ export class Logic {
           SELECT * FROM connection_map ORDER BY connected_id,hour;`,
           [vehicle_uuid, location_uuid]
         );
-        const needs = [];
-        let last_level;
         for (const h of history) {
           if (
             historyMap.length < 1 ||
@@ -583,18 +580,10 @@ export class Logic {
             historyMap.push({
               connected_id: h.connected_id,
               start_level: h.start_level,
-              end_level: h.end_level,
-              needed: h.needed ? h.needed : arrayMean(needs),
-              hours: [],
-              used:
-                last_level !== undefined
-                  ? last_level - h.start_level
-                  : undefined
+              needed: h.needed,
+              offsite: h.location_uuid !== location_uuid,
+              hours: []
             });
-            if (h.location_uuid === location_uuid && h.needed) {
-              needs.push(h.needed);
-            }
-            last_level = h.end_level;
           }
           if (h.location_uuid === location_uuid) {
             historyMap[historyMap.length - 1].hours.push({
@@ -631,27 +620,27 @@ export class Logic {
           let totalCost = 0;
           let lvl = 0;
           let neededLevel = 0;
-          for (let c of historyMap) {
-            if (c.used !== undefined) {
-              lvl -= c.used; // charge used between connections
+          for (let i = 0; i < historyMap.length; ++i) {
+            if (i < 1 || historyMap[i - 1].offsite) {
+              // We charged somewhere else on the way, so reset simulated battery lvl
+              lvl = historyMap[i].start_level;
+            } else {
+              lvl -= historyMap[i - 1].needed;
               if (
-                lvl < c.start_level &&
+                lvl < historyMap[i].start_level &&
                 lvl < charge_levels.minimum_charge / 2
               ) {
                 // half of minimum charge is where I draw the line
                 lvl = -1;
                 break;
               }
-            } else {
-              // We charged somewhere else on the way, so reset simulated battery lvl
-              lvl = c.start_level;
             }
-            let hours = [...c.hours];
+            let hours = [...historyMap[i].hours];
             neededLevel = Math.min(
               charge_levels.maximum_charge,
               Math.max(
                 charge_levels.minimum_charge,
-                charge_levels.minimum_charge + c.needed * 1.1
+                charge_levels.minimum_charge + historyMap[i].needed * 1.1
               )
             );
             let smartCharging = false;
@@ -683,10 +672,14 @@ export class Logic {
               }
             }
           }
-          const f = totalCost / (totalCharged * totalCharged);
+          const f = totalCost / totalCharged;
           if (lvl > charge_levels.minimum_charge && f < bestCost) {
             bestCost = f;
             threshold = t;
+            log(
+              LogLevel.Trace,
+              `Cost simulation ${vehicle_uuid} t=${t} => ${f}`
+            );
           }
         }
       }
