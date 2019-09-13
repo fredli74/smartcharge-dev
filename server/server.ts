@@ -59,6 +59,18 @@ program
       // Setup express server
       const app = express();
 
+      // Force https on official site
+      if (config.SINGLE_USER !== "false") {
+        app.use((req, res, next) => {
+          if (req.headers["x-forwarded-proto"] !== "https") {
+            return res.redirect(
+              ["https://", req.get("Host"), req.url].join("")
+            );
+          }
+          return next();
+        });
+      }
+
       // TODO: add express-slow-down
 
       // Setup middlewares
