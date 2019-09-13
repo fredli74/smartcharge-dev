@@ -244,6 +244,7 @@ export interface DBConnected {
   energy_used: number; // approximated energy used in Wm (Watt-minutes)
   cost: number; // approximated energy cost (in integer currency unit)
   saved: number; // approximated energy cost saved (in integer currency unit)
+  connected: boolean; // is it still connected
 }
 const DBChargeSession_TSQL = `CREATE TABLE scserver.connected
     (
@@ -259,6 +260,7 @@ const DBChargeSession_TSQL = `CREATE TABLE scserver.connected
         energy_used integer,
         cost integer,
         saved integer,
+        connected boolean,
         CONSTRAINT connected_pkey PRIMARY KEY (connected_id),
         CONSTRAINT connected_fkey FOREIGN KEY (vehicle_uuid)
             REFERENCES vehicle (vehicle_uuid) MATCH SIMPLE
@@ -356,7 +358,8 @@ const DBChargeCurve_TSQL = `CREATE TABLE scserver.charge_curve
 export interface DBCurrentStats {
   vehicle_uuid: string; // vehicle uuid
   location_uuid: string; // location identifer
-  date: Date; // date when stats where updated
+  updated: Date; // date when stats where updated
+  price_list_ts: Date; // timestamp of last pricelist entry
   level_charge_time: number; // time to charge 1% (in seconds)
   weekly_avg7_price: number; // weekly running average price (per kWh)
   weekly_avg21_price: number; // total charging time (in seconds)
@@ -366,12 +369,13 @@ const DBCurrentStats_TSQL = `CREATE TABLE scserver.current_stats
     (
         vehicle_uuid uuid NOT NULL,
         location_uuid uuid NOT NULL,
-        date date NOT NULL DEFAULT current_date,
+        updated timestamp(0) with time zone NOT NULL DEFAULT NOW(),
+        price_list_ts timestamp(0) with time zone,
         level_charge_time integer,
         weekly_avg7_price integer,
         weekly_avg21_price integer,
         threshold integer,
-        CONSTRAINT current_stats_pkey PRIMARY KEY (vehicle_uuid,location_uuid,date),
+        CONSTRAINT current_stats_pkey PRIMARY KEY (vehicle_uuid,location_uuid,updated),
         CONSTRAINT current_stats_fkeyA FOREIGN KEY (vehicle_uuid)
             REFERENCES vehicle (vehicle_uuid) MATCH SIMPLE
             ON UPDATE RESTRICT

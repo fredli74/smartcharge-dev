@@ -328,7 +328,8 @@ export class Logic {
             end_level: data.level,
             energy_used: connection.energy_used,
             cost: connection.cost,
-            saved: connection.saved
+            saved: connection.saved,
+            connected: Boolean(data.connected)
           },
           vehicle.connected_id
         ]
@@ -343,6 +344,10 @@ export class Logic {
         await this.db.pg.none(
           `UPDATE vehicle SET connected_id = null, charge_plan = null WHERE vehicle_uuid = $1;`,
           [vehicle.vehicle_uuid]
+        );
+        await this.createNewStats(
+          connection.vehicle_uuid,
+          connection.location_uuid
         );
       }
     }
@@ -487,214 +492,224 @@ export class Logic {
     }
   }
 
-  public async currentStats(
+  public async createNewStats(
     vehicle_uuid: string,
     location_uuid: string
   ): Promise<DBCurrentStats> {
-    const stats: DBCurrentStats | null = await this.db.pg.oneOrNone(
-      `SELECT * FROM current_stats WHERE vehicle_uuid=$1 AND location_uuid=$2 AND date=current_date`,
+    const level_charge_time = (await this.db.pg.oneOrNone(
+      `SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY duration) as seconds
+            FROM charge a JOIN charge_curve b ON (a.charge_id = b.charge_id)
+            WHERE a.vehicle_uuid = $1 AND location_uuid = $2`,
       [vehicle_uuid, location_uuid]
+    )).seconds;
+
+    // What is the current weekly average power price
+    const avg_prices: {
+      price_list_ts: Date;
+      avg7: number;
+      avg21: number;
+    } = await this.db.pg.one(
+      `WITH my_price_list AS (
+                SELECT p.* FROM price_list p JOIN location l ON (l.price_code = p.price_code) WHERE location_uuid = $1
+            )
+            SELECT
+                (SELECT MAX(ts) FROM my_price_list) as price_list_ts,
+                (SELECT AVG(price::float) FROM my_price_list WHERE ts >= current_date - interval '7 days') as avg7,
+                (SELECT AVG(price::float) FROM my_price_list WHERE ts >= current_date - interval '21 days') as avg21;`,
+      [location_uuid]
     );
-    if (stats !== null) {
-      return stats;
-    } else {
-      const level_charge_time = (await this.db.pg.oneOrNone(
-        `SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY duration) as seconds
-                FROM charge a JOIN charge_curve b ON (a.charge_id = b.charge_id)
-                WHERE a.vehicle_uuid = $1 AND location_uuid = $2`,
-        [vehicle_uuid, location_uuid]
-      )).seconds;
 
-      // What is the current weekly average power price
-      const avg_prices: { avg7: number; avg21: number } = await this.db.pg.one(
-        `WITH my_price_list AS (
-                    SELECT p.* FROM price_list p JOIN location l ON (l.price_code = p.price_code) WHERE location_uuid = $1
-                )
-                SELECT 
-                    (SELECT AVG(price::float) FROM my_price_list WHERE ts >= current_date - interval '7 days') as avg7,
-                    (SELECT AVG(price::float) FROM my_price_list WHERE ts >= current_date - interval '21 days') as avg21;`,
-        [location_uuid]
-      );
+    let threshold = 1;
 
-      let threshold = 1;
+    interface HistoryHour {
+      hour: Date;
+      fraction: number;
+      price: number;
+      threshold: number;
+    }
 
-      interface HistoryHour {
+    interface HistoryMap {
+      connected_id: number;
+      start_level: number;
+      needed: number;
+      offsite: boolean;
+      hours: HistoryHour[];
+    }
+    const historyMap: HistoryMap[] = [];
+
+    {
+      const history: {
+        connected_id: number;
+        location_uuid: string;
+        start_level: number;
+        end_level: number;
+        needed: number;
         hour: Date;
         fraction: number;
         price: number;
         threshold: number;
-      }
-
-      interface HistoryMap {
-        connected_id: number;
-        start_level: number;
-        needed: number;
-        offsite: boolean;
-        hours: HistoryHour[];
-      }
-      const historyMap: HistoryMap[] = [];
-
-      {
-        const history: {
-          connected_id: number;
-          location_uuid: string;
-          start_level: number;
-          end_level: number;
-          needed: number;
-          hour: Date;
-          fraction: number;
-          price: number;
-          threshold: number;
-        }[] = await this.db.pg.manyOrNone(
-          `WITH my_price_list AS (
-            SELECT p.* FROM price_list p JOIN location l ON (l.price_code = p.price_code) WHERE location_uuid = $2
-          ), my_connected AS (
-            SELECT * FROM connected WHERE vehicle_uuid = $1 AND end_ts >= current_date - interval '2 weeks' AND end_ts < current_date AND start_ts::date >= (SELECT MIN(ts)::date FROM my_price_list)
-          ), connections AS (
-            SELECT *, (SELECT a.end_level-b.start_level FROM my_connected b WHERE b.connected_id > a.connected_id ORDER BY connected_id LIMIT 1) as needed
-            FROM my_connected a
-          ), period AS (
-            SELECT generate_series(date_trunc('hour', (SELECT MIN(start_ts) FROM connections)), current_date - interval '1 hour', '1 hour') as hour
-          ), week_avg AS (
-            SELECT day, (SELECT AVG(price::float) FROM my_price_list WHERE ts >= day - interval '7 days' AND ts < day) as avg7,
-            (SELECT AVG(price::float) FROM my_price_list WHERE ts >= day - interval '21 days' AND ts < day) as avg21 FROM
-            (SELECT date_trunc('day', hour) as day FROM period GROUP BY 1) as a
-          ), connection_map AS (
-            SELECT connected_id,location_uuid,start_level,end_level,needed,hour,LEAST(1.0,
-              EXTRACT(epoch FROM hour+interval '1 hour'-start_ts)/3600,
-              EXTRACT(epoch FROM end_ts-hour)/3600
-            ) as fraction, price,price/(avg7+(avg7-avg21)/2) as threshold
-            FROM period
-            JOIN connections ON (hour >= date_trunc('hour',start_ts) AND hour <= date_trunc('hour',end_ts))
-            JOIN my_price_list ON (ts = hour)
-            JOIN week_avg ON (day = date_trunc('day', hour))
-          )
-          SELECT * FROM connection_map ORDER BY connected_id,hour;`,
-          [vehicle_uuid, location_uuid]
-        );
-        for (const h of history) {
-          if (
-            historyMap.length < 1 ||
-            historyMap[historyMap.length - 1].connected_id !== h.connected_id
-          ) {
-            historyMap.push({
-              connected_id: h.connected_id,
-              start_level: h.start_level,
-              needed: h.needed,
-              offsite: h.location_uuid !== location_uuid,
-              hours: []
-            });
-          }
-          if (h.location_uuid === location_uuid) {
-            historyMap[historyMap.length - 1].hours.push({
-              hour: h.hour,
-              fraction: h.fraction,
-              price: h.price,
-              threshold: h.threshold
-            });
-          }
-        }
-      }
-
-      if (historyMap.length > 0) {
-        // Charge simulation
-        const charge_levels: {
-          minimum_charge: number;
-          maximum_charge: number;
-        } = await this.db.pg.one(
-          `SELECT minimum_charge, maximum_charge FROM vehicle WHERE vehicle_uuid = $1`,
-          [vehicle_uuid]
-        );
-
-        const thresholdList = historyMap
-          .reduce(
-            (p, c) => [...c.hours.map(h => h.threshold), ...p],
-            [] as number[]
-          )
-          .filter((v, i, a) => a.indexOf(v) === i)
-          .sort((a, b) => Number(a) - Number(b));
-
-        let bestCost = Number.POSITIVE_INFINITY;
-        for (const t of thresholdList) {
-          let totalCharged = 0;
-          let totalCost = 0;
-          let lvl = 0;
-          let neededLevel = 0;
-          for (let i = 0; i < historyMap.length; ++i) {
-            if (i < 1 || historyMap[i - 1].offsite) {
-              // We charged somewhere else on the way, so reset simulated battery lvl
-              lvl = historyMap[i].start_level;
-            } else {
-              lvl -= historyMap[i - 1].needed;
-              if (
-                lvl < historyMap[i].start_level &&
-                lvl < charge_levels.minimum_charge / 2
-              ) {
-                // half of minimum charge is where I draw the line
-                lvl = -1;
-                break;
-              }
-            }
-            let hours = [...historyMap[i].hours];
-            neededLevel = Math.min(
-              charge_levels.maximum_charge,
-              Math.max(
-                charge_levels.minimum_charge,
-                charge_levels.minimum_charge + historyMap[i].needed * 1.1
-              )
-            );
-            let smartCharging = false;
-
-            while (hours.length > 0) {
-              if (lvl >= charge_levels.minimum_charge && !smartCharging) {
-                hours = hours.sort((a, b) => a.threshold - b.threshold);
-                smartCharging = true;
-              }
-              const h = hours.shift()!;
-              const charge =
-                h.threshold <= t
-                  ? charge_levels.maximum_charge - lvl
-                  : lvl < neededLevel
-                  ? neededLevel - lvl
-                  : 0;
-              if (charge > 0) {
-                const chargeTime = Math.min(
-                  3600 * h.fraction,
-                  charge * level_charge_time
-                );
-                const newLevel = Math.min(
-                  charge_levels.maximum_charge,
-                  lvl + chargeTime / level_charge_time
-                );
-                totalCharged += newLevel - lvl;
-                totalCost += (chargeTime / 3600) * h.price;
-                lvl = newLevel;
-              }
-            }
-          }
-          const f = totalCost / totalCharged;
-          if (lvl > charge_levels.minimum_charge && f < bestCost) {
-            bestCost = f;
-            threshold = t;
-            log(
-              LogLevel.Trace,
-              `Cost simulation ${vehicle_uuid} t=${t} => ${f}`
-            );
-          }
-        }
-      }
-
-      return await this.db.pg.one(
-        `INSERT INTO current_stats($[this:name]) VALUES ($[this:csv]) RETURNING *;`,
-        {
-          vehicle_uuid: vehicle_uuid,
-          location_uuid: location_uuid,
-          level_charge_time: Math.round(level_charge_time),
-          weekly_avg7_price: Math.round(avg_prices.avg7),
-          weekly_avg21_price: Math.round(avg_prices.avg21),
-          threshold: Math.round(threshold * 100)
-        }
+      }[] = await this.db.pg.manyOrNone(
+        `WITH my_price_list AS (
+        SELECT p.* FROM price_list p JOIN location l ON (l.price_code = p.price_code) WHERE location_uuid = $2
+      ), my_connected AS (
+        SELECT * FROM connected WHERE vehicle_uuid = $1 AND end_ts >= current_date - interval '3 weeks' AND connected = false AND start_ts::date >= (SELECT MIN(ts)::date FROM my_price_list)
+      ), connections AS (
+        SELECT *, (SELECT a.end_level-b.start_level FROM my_connected b WHERE b.connected_id > a.connected_id ORDER BY connected_id LIMIT 1) as needed
+        FROM my_connected a
+      ), period AS (
+        SELECT generate_series(date_trunc('hour', (SELECT MIN(start_ts) FROM connections)), current_date - interval '1 hour', '1 hour') as hour
+      ), week_avg AS (
+        SELECT day, (SELECT AVG(price::float) FROM my_price_list WHERE ts >= day - interval '7 days' AND ts < day) as avg7,
+        (SELECT AVG(price::float) FROM my_price_list WHERE ts >= day - interval '21 days' AND ts < day) as avg21 FROM
+        (SELECT date_trunc('day', hour) as day FROM period GROUP BY 1) as a
+      ), connection_map AS (
+        SELECT connected_id,location_uuid,start_level,end_level,needed,hour,LEAST(1.0,
+          EXTRACT(epoch FROM hour+interval '1 hour'-start_ts)/3600,
+          EXTRACT(epoch FROM end_ts-hour)/3600
+        ) as fraction, price,price/(avg7+(avg7-avg21)/2) as threshold
+        FROM period
+        JOIN connections ON (hour >= date_trunc('hour',start_ts) AND hour <= date_trunc('hour',end_ts))
+        JOIN my_price_list ON (ts = hour)
+        JOIN week_avg ON (day = date_trunc('day', hour))
+      )
+      SELECT * FROM connection_map ORDER BY connected_id,hour;`,
+        [vehicle_uuid, location_uuid]
       );
+      for (const h of history) {
+        if (
+          historyMap.length < 1 ||
+          historyMap[historyMap.length - 1].connected_id !== h.connected_id
+        ) {
+          historyMap.push({
+            connected_id: h.connected_id,
+            start_level: h.start_level,
+            needed: h.needed,
+            offsite: h.location_uuid !== location_uuid,
+            hours: []
+          });
+        }
+        if (h.location_uuid === location_uuid) {
+          historyMap[historyMap.length - 1].hours.push({
+            hour: h.hour,
+            fraction: h.fraction,
+            price: h.price,
+            threshold: h.threshold
+          });
+        }
+      }
+    }
+
+    if (historyMap.length > 0) {
+      // Charge simulation
+      const charge_levels: {
+        minimum_charge: number;
+        maximum_charge: number;
+      } = await this.db.pg.one(
+        `SELECT minimum_charge, maximum_charge FROM vehicle WHERE vehicle_uuid = $1`,
+        [vehicle_uuid]
+      );
+
+      const thresholdList = historyMap
+        .reduce(
+          (p, c) => [...c.hours.map(h => h.threshold), ...p],
+          [] as number[]
+        )
+        .filter((v, i, a) => a.indexOf(v) === i)
+        .sort((a, b) => Number(a) - Number(b));
+
+      let bestCost = Number.POSITIVE_INFINITY;
+      for (const t of thresholdList) {
+        let totalCharged = 0;
+        let totalCost = 0;
+        let lvl = 0;
+        let neededLevel = 0;
+        for (let i = 0; i < historyMap.length; ++i) {
+          if (i < 1 || historyMap[i - 1].offsite) {
+            // We charged somewhere else on the way, so reset simulated battery lvl
+            lvl = historyMap[i].start_level;
+          } else {
+            lvl -= historyMap[i - 1].needed;
+            if (
+              lvl < historyMap[i].start_level &&
+              lvl < charge_levels.minimum_charge / 2
+            ) {
+              // half of minimum charge is where I draw the line
+              lvl = -1;
+              break;
+            }
+          }
+          let hours = [...historyMap[i].hours];
+          neededLevel = Math.min(
+            charge_levels.maximum_charge,
+            Math.max(
+              charge_levels.minimum_charge,
+              charge_levels.minimum_charge + historyMap[i].needed * 1.1
+            )
+          );
+          let smartCharging = false;
+
+          while (hours.length > 0) {
+            if (lvl >= charge_levels.minimum_charge && !smartCharging) {
+              hours = hours.sort((a, b) => a.threshold - b.threshold);
+              smartCharging = true;
+            }
+            const h = hours.shift()!;
+            const charge =
+              h.threshold <= t
+                ? charge_levels.maximum_charge - lvl
+                : lvl < neededLevel
+                ? neededLevel - lvl
+                : 0;
+            if (charge > 0) {
+              const chargeTime = Math.min(
+                3600 * h.fraction,
+                charge * level_charge_time
+              );
+              const newLevel = Math.min(
+                charge_levels.maximum_charge,
+                lvl + chargeTime / level_charge_time
+              );
+              totalCharged += newLevel - lvl;
+              totalCost += (chargeTime / 3600) * h.price;
+              lvl = newLevel;
+            }
+          }
+        }
+        const f = totalCost / totalCharged;
+        if (lvl > charge_levels.minimum_charge && f < bestCost) {
+          bestCost = f;
+          threshold = t;
+          log(LogLevel.Trace, `Cost simulation ${vehicle_uuid} t=${t} => ${f}`);
+        }
+      }
+    }
+    return this.db.pg.one(
+      `INSERT INTO current_stats($[this:name]) VALUES ($[this:csv]) RETURNING *;`,
+      {
+        vehicle_uuid: vehicle_uuid,
+        location_uuid: location_uuid,
+        price_list_ts: avg_prices.price_list_ts,
+        level_charge_time: Math.round(level_charge_time),
+        weekly_avg7_price: Math.round(avg_prices.avg7),
+        weekly_avg21_price: Math.round(avg_prices.avg21),
+        threshold: Math.round(threshold * 100)
+      }
+    );
+  }
+
+  public async currentStats(
+    vehicle_uuid: string,
+    location_uuid: string
+  ): Promise<DBCurrentStats> {
+    const stats = await this.db.pg.oneOrNone(
+      `SELECT s.*, s.price_list_ts = (SELECT MAX(ts) FROM price_list p JOIN location l ON (l.price_code = p.price_code) WHERE l.location_uuid = s.location_uuid) as fresh
+      FROM current_stats s WHERE vehicle_uuid=$1 AND location_uuid=$2 ORDER BY updated DESC LIMIT 1`,
+      [vehicle_uuid, location_uuid]
+    );
+    if (stats && stats.fresh) {
+      return stats;
+    } else {
+      return this.createNewStats(vehicle_uuid, location_uuid);
     }
   }
 

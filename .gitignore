@@ -6,6 +6,6 @@ node_modules
 npm-debug.log*
 .vscode
 
-local-test-data\.sql
 schema\.gql
 logs/
+*.sql
