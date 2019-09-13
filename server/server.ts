@@ -60,9 +60,12 @@ program
       const app = express();
 
       // Force https on official site
-      if (config.SINGLE_USER !== "false") {
+      if (config.SINGLE_USER === "false") {
         app.use((req, res, next) => {
-          if (req.headers["x-forwarded-proto"] !== "https") {
+          if (
+            req.headers["x-forwarded-proto"] &&
+            req.headers["x-forwarded-proto"] !== "https"
+          ) {
             return res.redirect(
               ["https://", req.get("Host"), req.url].join("")
             );
