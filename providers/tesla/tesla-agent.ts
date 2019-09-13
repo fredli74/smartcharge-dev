@@ -154,9 +154,8 @@ export class TeslaAgent extends AbstractAgent {
         SolidBlack: "PBSB",
         SteelGrey: "PMNG",
         RedMulticoat: "PPMR",
-        Pearl: "PPSW"
-        // TODO: Add more information
-        // Silver Metallic : "PMSS",
+        Pearl: "PPSW",
+        SilverMetallic: "PMSS"
       })
     );
 
@@ -173,7 +172,8 @@ export class TeslaAgent extends AbstractAgent {
       optionTranslate("wheel_type", {
         Pinwheel18: "W38B",
         Stiletto19: "W39B",
-        Slipstream19Carbon: "WTAS"
+        Slipstream19Carbon: "WTAS",
+        Turbine22Dark: "WT20"
         // TODO: Add more information
         // 20" Sport Wheels: "W32B"
       })
@@ -181,8 +181,10 @@ export class TeslaAgent extends AbstractAgent {
 
     option_codes.push(
       optionTranslate("spoiler_type", {
+        Passive: "X021",
+        // "SLR1"
         None: null
-      }) || "SLR1"
+      })
     );
 
     option_codes.push(
@@ -191,6 +193,11 @@ export class TeslaAgent extends AbstractAgent {
         false: "DRLH"
       })
     );
+
+    if (config.trim_badging.match(/^p/i)) {
+      option_codes.push("BC0R"); // Red Brake Calipers
+      option_codes.push("X024"); // Performance Package
+    }
 
     option_codes = option_codes.filter(f => f !== undefined);
 
@@ -738,13 +745,13 @@ export class TeslaAgent extends AbstractAgent {
             delete subject.hvacOn;
             delete subject.hvacOff;
           } else if (!subject.hvacOff) {
-              log(
-                LogLevel.Info,
-                `${subject.teslaID} stopping climate control on ${
-                  subject.data.name
-                }`
-              );
-              await this[AgentAction.ClimateControl](job, {
+            log(
+              LogLevel.Info,
+              `${subject.teslaID} stopping climate control on ${
+                subject.data.name
+              }`
+            );
+            await this[AgentAction.ClimateControl](job, {
               data: { id: subject.vehicleUUID, enable: false }
             } as any);
           }
