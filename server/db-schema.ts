@@ -199,7 +199,7 @@ const DBEventMap_TSQL = `CREATE TABLE scserver.event_map
 
 /** DBTrip not used anymore, should we stop collecting it?  **/
 export interface DBTrip {
-  trip_id: number; // trip uuid
+  trip_id: number; // trip id
   vehicle_uuid: string; // vehicle identifier
   start_ts: Date; // time when starting
   start_level: number; // charge level when starting (%)
@@ -356,6 +356,7 @@ const DBChargeCurve_TSQL = `CREATE TABLE scserver.charge_curve
     );`;
 
 export interface DBCurrentStats {
+  stats_id: number; // stats id
   vehicle_uuid: string; // vehicle uuid
   location_uuid: string; // location identifer
   updated: Date; // date when stats where updated
@@ -367,6 +368,7 @@ export interface DBCurrentStats {
 }
 const DBCurrentStats_TSQL = `CREATE TABLE scserver.current_stats
     (
+        stats_id integer NOT NULL GENERATED ALWAYS AS IDENTITY,
         vehicle_uuid uuid NOT NULL,
         location_uuid uuid NOT NULL,
         updated timestamp(0) with time zone NOT NULL DEFAULT NOW(),
@@ -375,7 +377,8 @@ const DBCurrentStats_TSQL = `CREATE TABLE scserver.current_stats
         weekly_avg7_price integer,
         weekly_avg21_price integer,
         threshold integer,
-        CONSTRAINT current_stats_pkey PRIMARY KEY (vehicle_uuid,location_uuid,updated),
+        CONSTRAINT current_stats_pkey PRIMARY KEY (stats_id)
+            INCLUDE(vehicle_uuid, location_uuid),
         CONSTRAINT current_stats_fkeyA FOREIGN KEY (vehicle_uuid)
             REFERENCES vehicle (vehicle_uuid) MATCH SIMPLE
             ON UPDATE RESTRICT

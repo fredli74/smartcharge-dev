@@ -703,7 +703,7 @@ export class Logic {
   ): Promise<DBCurrentStats> {
     const stats = await this.db.pg.oneOrNone(
       `SELECT s.*, s.price_list_ts = (SELECT MAX(ts) FROM price_list p JOIN location l ON (l.price_code = p.price_code) WHERE l.location_uuid = s.location_uuid) as fresh
-      FROM current_stats s WHERE vehicle_uuid=$1 AND location_uuid=$2 ORDER BY updated DESC LIMIT 1`,
+      FROM current_stats s WHERE vehicle_uuid=$1 AND location_uuid=$2 ORDER BY stats_id DESC LIMIT 1`,
       [vehicle_uuid, location_uuid]
     );
     if (stats && stats.fresh) {
