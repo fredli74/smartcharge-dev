@@ -1094,20 +1094,27 @@ export class Logic {
           );
         } else if (now > trip.time.getTime() - 36 * 3600e3) {
           // ignore trips that are more than 36 hours away
-          const tripLevel = Math.min(trip.level, vehicle.maximum_charge);
-          const topupTime = await this.chargeDuration(
-            vehicle.vehicle_uuid,
-            vehicle.location_uuid,
-            tripLevel,
-            trip.level
+          const departLevel = trip.level;
+          const prepareLevel = Math.max(
+            vehicle.level,
+            Math.min(departLevel, vehicle.maximum_charge)
           );
+          const topupTime =
+            departLevel > prepareLevel
+              ? await this.chargeDuration(
+                  vehicle.vehicle_uuid,
+                  vehicle.location_uuid,
+                  prepareLevel,
+                  departLevel
+                )
+              : 0;
           const topupStart =
             trip.time.getTime() - TRIP_TOPUP_MARGIN - topupTime;
           disconnectTime = Math.max(disconnectTime, topupStart);
 
           const p = await this.generateChargePlan(
             vehicle,
-            tripLevel,
+            prepareLevel,
             ChargeType.trip,
             `upcoming trip`,
             topupStart
@@ -1118,7 +1125,7 @@ export class Logic {
             plan.push({
               chargeStart: new Date(topupStart),
               chargeStop: null,
-              level: trip.level,
+              level: departLevel,
               chargeType: ChargeType.trip,
               comment: `topping up before trip`
             });
@@ -1128,7 +1135,7 @@ export class Logic {
                 (vehicle.connected
                   ? `Trip charging `
                   : `Connect charger to charge `) +
-                  `from ${tripLevel}% to ${trip.level}% (est. ${prettyTime(
+                  `from ${prepareLevel}% to ${departLevel}% (est. ${prettyTime(
                     topupTime / 1e3
                   )})`
               );
