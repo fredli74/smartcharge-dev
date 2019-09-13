@@ -194,7 +194,10 @@ export class TeslaAgent extends AbstractAgent {
       })
     );
 
-    if (config.trim_badging.match(/^p/i)) {
+    if (
+      typeof config.trim_badging === "string" &&
+      config.trim_badging.match(/^p/i)
+    ) {
       option_codes.push("BC0R"); // Red Brake Calipers
       option_codes.push("X024"); // Performance Package
     }
