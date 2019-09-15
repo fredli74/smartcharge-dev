@@ -283,7 +283,10 @@ export class TeslaAgent extends AbstractAgent {
         }
 
         subject.chargeLimit = data.charge_state.charge_limit_soc;
-        subject.chargeEnabled = data.charge_state.charge_enable_request;
+        subject.chargeEnabled =
+          data.charge_state.charging_state !== "Stopped" &&
+          (data.charge_state.charge_enable_request ||
+            data.charge_state.charging_state === "Complete");
         subject.portOpen = data.charge_state.charge_port_door_open;
         subject.online = true;
 
@@ -680,6 +683,7 @@ export class TeslaAgent extends AbstractAgent {
                   chargeto,
                   job.serviceData.token
                 );
+                this.changePollstate(subject, "polling"); // break tired cycle on model S and X so we can verify change of charge limit
               }
             }
           }
