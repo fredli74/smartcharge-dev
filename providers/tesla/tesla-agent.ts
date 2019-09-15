@@ -803,6 +803,8 @@ export class TeslaAgent extends AbstractAgent {
           );
           job.serviceData.invalid_token = true; // client side update to match server
         }
+      } else if (err.code === 408) {
+        this.changePollstate(subject, "offline");
       }
 
       if (err.response && err.response.data) {
