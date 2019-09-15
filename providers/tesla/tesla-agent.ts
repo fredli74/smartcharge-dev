@@ -607,6 +607,7 @@ export class TeslaAgent extends AbstractAgent {
               `${subject.teslaID} stop charging ${subject.data.name}`
             );
             teslaAPI.chargeStop(subject.teslaID, job.serviceData.token);
+            this.changePollstate(subject, "polling"); // break tired cycle on model S and X so we can verify charging is disabled
           } else if (
             shouldCharge !== null &&
             subject.data.batteryLevel < shouldCharge.level
@@ -629,6 +630,7 @@ export class TeslaAgent extends AbstractAgent {
                   job.serviceData.token
                 );
               }
+              this.changePollstate(subject, "polling"); // break tired cycle on model S and X so we can verify charging is enabled
             } else {
               let setLevel = shouldCharge!.level;
               if (shouldCharge!.chargeType === ChargeType.calibrate) {
