@@ -990,7 +990,7 @@ export class Logic {
                 SELECT connected_id, start_ts, end_ts,
                     end_level-(SELECT start_level FROM connected B WHERE B.vehicle_uuid = A.vehicle_uuid AND B.connected_id > A.connected_id ORDER BY connected_id LIMIT 1) as used					 
                 FROM connected A
-                WHERE end_ts >= current_date - interval '4 weeks' AND vehicle_uuid = $1 AND location_uuid is not null
+                WHERE end_ts >= current_date - interval '4 weeks' AND vehicle_uuid = $1 AND location_uuid = $2
             ), similar_connections AS (
                 SELECT target,(SELECT connected_id FROM connections WHERE end_ts > target.target AND end_ts < target.target + interval '1 week' ORDER BY end_ts LIMIT 1)
                 FROM generate_series(NOW() - interval '4 weeks', NOW() - interval '1 week', '1 week') as target
@@ -1004,7 +1004,7 @@ export class Logic {
                     (SELECT percentile_cont(0.6) WITHIN GROUP (ORDER BY used) as used FROM past_weeks)
                 ) as charge,
                 (SELECT percentile_cont(0.25) WITHIN GROUP (ORDER BY extract(epoch from before)) FROM past_weeks) as before;`,
-            [vehicle.vehicle_uuid]
+            [vehicle.vehicle_uuid, vehicle.location_uuid]
           );
 
           if (!guess.before || !guess.charge) {
