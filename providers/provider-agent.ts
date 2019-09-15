@@ -94,6 +94,7 @@ export abstract class AbstractAgent {
           }
           if (action.data.result !== undefined) {
             this.scClient.updateAction(action);
+            action.data.nextrun = now + 120e3; // should not happen because the subscription will remove the action
           } else {
             action.data.nextrun = now + 5e3; // retry in 5s
           }
