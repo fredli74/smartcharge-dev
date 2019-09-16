@@ -99,8 +99,9 @@ export class TeslaAgent extends AbstractAgent {
     let defaults: any;
 
     switch (config.car_type) {
+      case "models":
       case "models2":
-        option_codes.push("MDLS");
+        option_codes.push(config.car_type === "models2" ? "MI03" : "MI02");
         defaults = {
           exterior_color: "PPSW",
           roof_color: "RFFG",
@@ -108,7 +109,6 @@ export class TeslaAgent extends AbstractAgent {
         };
         break;
       case "modelx":
-        option_codes.push("MDLX");
         defaults = {
           exterior_color: "PPSW",
           roof_color: "RFPX",
@@ -116,7 +116,6 @@ export class TeslaAgent extends AbstractAgent {
         };
         break;
       default:
-        option_codes.push("MDL3");
         defaults = {
           exterior_color: "PPSW",
           roof_color: "RF3G",
@@ -172,7 +171,7 @@ export class TeslaAgent extends AbstractAgent {
       optionTranslate("wheel_type", {
         Pinwheel18: "W38B",
         Stiletto19: "W39B",
-        Slipstream19Carbon: "WTAS",
+        Slipstream19Carbon: "WTDS",
         Turbine22Dark: "WT20"
         // TODO: Add more information
         // 20" Sport Wheels: "W32B"
