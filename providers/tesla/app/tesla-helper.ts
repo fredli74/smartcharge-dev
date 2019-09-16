@@ -14,13 +14,12 @@ export function vehicleImage(vehicle: Vehicle, sideView?: boolean): string {
   if (vehicle.providerData.option_codes) {
     options = vehicle.providerData.option_codes;
   }
-  const optionString = options.map(f => "$" + f).join(",");
   let model = "m3";
   let view = `STUD_${sideView ? "SIDE" : "3QTR"}`;
   switch (vehicle.providerData.car_type) {
+    case "models":
     case "models2":
       model = "ms";
-      view += "_V2";
       break;
     case "modelx":
       model = "mx";
@@ -29,5 +28,6 @@ export function vehicleImage(vehicle: Vehicle, sideView?: boolean): string {
       model = "my";
       break;
   }
-  return `https://static-assets.tesla.com/configurator/compositor?&options=${optionString}&view=${view}&model=${model}&size=1441&bkba_opt=1&version=0.0.25`;
+  const optionString = options.join(",");
+  return `https://static-assets.tesla.com/v1/compositor/?model=${model}&view=${view}&size=1440&options=${optionString}&bkba_opt=1&context=design_studio_2`;
 }

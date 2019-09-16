@@ -101,7 +101,7 @@ export class TeslaAgent extends AbstractAgent {
     switch (config.car_type) {
       case "models":
       case "models2":
-        option_codes.push(config.car_type === "models2" ? "MI03" : "MI02");
+        option_codes.push(config.car_type === "models2" ? "MI03" : "MI01");
         defaults = {
           exterior_color: "PPSW",
           roof_color: "RFFG",
