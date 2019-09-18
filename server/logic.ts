@@ -1003,7 +1003,7 @@ export class Logic {
                     (SELECT AVG(used) FROM connections WHERE end_ts > current_date - interval '1 week'),
                     (SELECT percentile_cont(0.6) WITHIN GROUP (ORDER BY used) as used FROM past_weeks)
                 ) as charge,
-                (SELECT percentile_cont(0.25) WITHIN GROUP (ORDER BY extract(epoch from before)) FROM past_weeks) as before;`,
+                (SELECT percentile_disc(0.2) WITHIN GROUP (ORDER BY extract(epoch from before)) FROM past_weeks) as before;`,
             [vehicle.vehicle_uuid, vehicle.location_uuid]
           );
 
