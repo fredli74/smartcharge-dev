@@ -500,11 +500,13 @@ export class DBInterface {
 
   public async getServiceProviders(
     account_uuid: string | null | undefined,
+    service_uuid: string | null | undefined,
     accept: string[] | undefined
   ): Promise<ServiceProvider[]> {
     const [values, where] = queryHelper([
       [account_uuid, `account_uuid = $1`],
-      [accept, `provider_name IN ($2:csv)`]
+      [service_uuid, `service_uuid = $2`],
+      [accept, `provider_name IN ($3:csv)`]
     ]);
     assert(where.length > 0);
 

@@ -4,7 +4,7 @@ import { Vehicle } from "@server/gql/vehicle-type";
 export interface TeslaNewListEntry {
   name: string; // name of vehicle
   id: string; // tesla id to control vehicle
-  vin: string; // For UI display
+  vin: string; // Vehicle Identification Number (only ID that we can rely on)
   service_uuid: string; // provider uuid
   controlled: boolean; // Already controlled by smartcharge
 }

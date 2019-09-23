@@ -109,6 +109,7 @@ const server: IProviderServer = {
         const vehicles = [];
         const serviceList = (await context.db.getServiceProviders(
           accountFilter(context.accountUUID),
+          data.service_uuid,
           [provider.name]
         )) as {
           ownerID: string;
@@ -121,12 +122,13 @@ const server: IProviderServer = {
           accountFilter(context.accountUUID)
         )).reduce(
           (a, v) => {
+            const provider_data = v.provider_data as TeslaProviderData;
             if (
-              v.provider_data &&
-              v.provider_data.provider === "tesla" &&
-              v.provider_data.tesla_id
+              provider_data &&
+              provider_data.provider === "tesla" &&
+              provider_data.vin
             ) {
-              a[v.provider_data.tesla_id] = v.vehicle_uuid;
+              a[provider_data.vin] = v.vehicle_uuid;
             }
             return a;
           },
@@ -151,14 +153,19 @@ const server: IProviderServer = {
                     WHERE service_uuid=$2;`,
                     [{ map: { [teslaID]: null } }, s.serviceID]
                   );
+                  log(
+                    LogLevel.Info,
+                    `Removed map ${teslaID} from service_uuid ${s.serviceID}`
+                  );
                 }
               }
 
               // Add everything that should be controlled
               for (const l of list) {
                 const teslaID = l.id_s;
-                if (!mapped[teslaID] && controlled[teslaID]) {
-                  const vehicleID = controlled[teslaID];
+                const vin = l.vin;
+                if (!mapped[teslaID] && controlled[vin]) {
+                  const vehicleID = controlled[vin];
                   mapped[teslaID] = vehicleID;
                   s.serviceData.map[teslaID] = vehicleID;
                   await context.db.pg.none(
@@ -171,6 +178,12 @@ const server: IProviderServer = {
                       vehicleID,
                       {}
                     ]
+                  );
+                  log(
+                    LogLevel.Info,
+                    `Set map ${teslaID}:${vehicleID} on service_uuid ${
+                      s.serviceID
+                    }`
                   );
                 }
 
@@ -222,7 +235,7 @@ const server: IProviderServer = {
             config.DEFAULT_MINIMUM_LEVEL,
             config.DEFAULT_MAXIMUM_LEVEL,
             input.service_uuid,
-            { provider: "tesla", tesla_id: input.id } as TeslaProviderData
+            { provider: "tesla", vin: input.vin } as TeslaProviderData
           );
         }
         await context.db.pg.none(

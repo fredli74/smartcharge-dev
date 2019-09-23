@@ -20,7 +20,11 @@ import {
   IProviderAgent,
   AgentAction
 } from "@providers/provider-agent";
-import provider, { TeslaServiceData, TeslaProviderMutates } from ".";
+import provider, {
+  TeslaServiceData,
+  TeslaProviderMutates,
+  TeslaProviderQueries
+} from ".";
 import {
   Vehicle,
   UpdateVehicleDataInput,
@@ -803,6 +807,12 @@ export class TeslaAgent extends AbstractAgent {
           );
           job.serviceData.invalid_token = true; // client side update to match server
         }
+      } else if (err.code === 404) {
+        // Vehicle ID does not exist trigger a remap by calling TeslaProviderQueries.Vehicles
+        await this.scClient.providerQuery(provider.name, {
+          query: TeslaProviderQueries.Vehicles,
+          service_uuid: job.serviceID
+        });
       } else if (err.code === 408) {
         this.changePollstate(subject, "offline");
       }

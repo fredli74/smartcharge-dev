@@ -40,7 +40,7 @@ export class ServiceResolver {
     @Ctx() context: IContext
   ): Promise<ServiceProvider[]> {
     authorizeService(context);
-    return context.db.getServiceProviders(undefined, accept);
+    return context.db.getServiceProviders(undefined, undefined, accept);
   }
 
   @Mutation(_returns => Boolean)

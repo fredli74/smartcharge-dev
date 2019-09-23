@@ -37,7 +37,7 @@ import { TeslaNewListEntry } from "./tesla-helper";
 import TeslaTokenVue from "./components/tesla-token.vue";
 import TeslaNewVehicleList from "./components/tesla-new-list.vue";
 import { ProviderVuePage } from "@providers/provider-app";
-import provider from "..";
+import provider, { TeslaProviderQueries } from "..";
 
 @Component({
   components: {
@@ -83,7 +83,7 @@ export default class TeslaVue extends Vue {
     // TODO: break this out into a helper function ?
     try {
       for (const v of await apollo.providerQuery(provider.name, {
-        query: "vehicles",
+        query: TeslaProviderQueries.Vehicles,
         token: newProvider
       })) {
         let entry = this.allProviderVehicles.find(f => f.id === v.id_s);
