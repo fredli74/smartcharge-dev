@@ -754,19 +754,20 @@ export class TeslaAgent extends AbstractAgent {
                 data: { id: subject.vehicleUUID, enable: true }
               } as any);
             }
-          } else if (!subject.data.climateControl) {
-            delete subject.hvacOn;
-            delete subject.hvacOff;
-          } else if (!subject.hvacOff) {
-            log(
-              LogLevel.Info,
-              `${subject.teslaID} stopping climate control on ${
-                subject.data.name
-              }`
-            );
-            await this[AgentAction.ClimateControl](job, {
-              data: { id: subject.vehicleUUID, enable: false }
-            } as any);
+          } else {
+            if (!subject.data.climateControl) {
+              subject.hvacOff = subject.hvacOff || now;
+            } else if (!subject.hvacOff) {
+              log(
+                LogLevel.Info,
+                `${subject.teslaID} stopping climate control on ${
+                  subject.data.name
+                }`
+              );
+              await this[AgentAction.ClimateControl](job, {
+                data: { id: subject.vehicleUUID, enable: false }
+              } as any);
+            }
           }
         } else {
           delete subject.hvacOn;
