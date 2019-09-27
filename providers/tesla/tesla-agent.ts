@@ -256,6 +256,38 @@ export class TeslaAgent extends AbstractAgent {
     }
   }
 
+  private async vehicleInteraction(
+    job: TeslaAgentJob,
+    subject: TeslaSubject,
+    wakeup: boolean
+  ): Promise<boolean> {
+    if (job.serviceData.invalid_token) return false; // provider requires a valid token
+    if (!subject.online && !wakeup) return false; // offline and we should not wake it up
+
+    await this.maintainToken(job);
+    if (!subject.online) {
+      log(
+        LogLevel.Info,
+        `${subject.teslaID} waking up ${(subject.data && subject.data.name) ||
+          subject.vehicleUUID}`
+      );
+      const data = await teslaAPI.wakeUp(
+        subject.teslaID,
+        job.serviceData.token
+      );
+      if (data && data.response && data.response.state === "online") {
+        subject.online = true;
+      }
+    }
+    if (subject.online) {
+      this.changePollstate(subject, "polling"); // break tired cycle
+      this.adjustInterval(job, 0); // poll directly after an interaction
+      return true;
+    }
+    this.adjustInterval(job, 5); // poll more often after an interaction
+    return false;
+  }
+
   private async poll(job: TeslaAgentJob, subject: TeslaSubject): Promise<void> {
     try {
       const now = Date.now();
@@ -609,25 +641,20 @@ export class TeslaAgent extends AbstractAgent {
             subject.data.chargingTo !== null &&
             subject.data.batteryLevel < subject.data.chargingTo // keep it running if we're above or on target
           ) {
-            log(
-              LogLevel.Info,
-              `${subject.teslaID} stop charging ${subject.data.name}`
-            );
-            teslaAPI.chargeStop(subject.teslaID, job.serviceData.token);
-            this.changePollstate(subject, "polling"); // break tired cycle on model S and X so we can verify charging is disabled
+            if (await this.vehicleInteraction(job, subject, false)) {
+              log(
+                LogLevel.Info,
+                `${subject.teslaID} stop charging ${subject.data.name}`
+              );
+              teslaAPI.chargeStop(subject.teslaID, job.serviceData.token);
+              this.changePollstate(subject, "polling"); // break tired cycle on model S and X so we can verify charging is disabled
+            }
           } else if (
             shouldCharge !== null &&
             subject.data.batteryLevel < shouldCharge.level
           ) {
             if (subject.chargeEnabled !== true) {
-              if (!subject.online && !(await this.wakeUp(job, subject))) {
-                log(
-                  LogLevel.Trace,
-                  `${subject.teslaID} waiting for vehicle ${
-                    subject.vehicleUUID
-                  } to be ready`
-                );
-              } else {
+              if (await this.vehicleInteraction(job, subject, true)) {
                 log(
                   LogLevel.Info,
                   `${subject.teslaID} start charging ${subject.data.name}`
@@ -636,8 +663,8 @@ export class TeslaAgent extends AbstractAgent {
                   subject.teslaID,
                   job.serviceData.token
                 );
+                this.changePollstate(subject, "polling"); // break tired cycle on model S and X so we can verify charging is enabled
               }
-              this.changePollstate(subject, "polling"); // break tired cycle on model S and X so we can verify charging is enabled
             } else {
               let setLevel = shouldCharge!.level;
               if (shouldCharge!.chargeType === ChargeType.calibrate) {
@@ -676,18 +703,20 @@ export class TeslaAgent extends AbstractAgent {
                 subject.chargeLimit !== undefined && // Only controll if polled at least once
                 subject.chargeLimit !== chargeto
               ) {
-                log(
-                  LogLevel.Info,
-                  `${subject.teslaID} setting charge limit for ${
-                    subject.data.name
-                  } to ${chargeto}%`
-                );
-                await teslaAPI.setChargeLimit(
-                  subject.teslaID,
-                  chargeto,
-                  job.serviceData.token
-                );
-                this.changePollstate(subject, "polling"); // break tired cycle on model S and X so we can verify change of charge limit
+                if (await this.vehicleInteraction(job, subject, true)) {
+                  log(
+                    LogLevel.Info,
+                    `${subject.teslaID} setting charge limit for ${
+                      subject.data.name
+                    } to ${chargeto}%`
+                  );
+                  await teslaAPI.setChargeLimit(
+                    subject.teslaID,
+                    chargeto,
+                    job.serviceData.token
+                  );
+                  this.changePollstate(subject, "polling"); // break tired cycle on model S and X so we can verify change of charge limit
+                }
               }
             }
           }
@@ -707,21 +736,25 @@ export class TeslaAgent extends AbstractAgent {
             !subject.portOpen &&
             subject.triedOpen === undefined
           ) {
-            // if port is closed and we did not try to open it yet
-            await teslaAPI.openChargePort(
-              subject.teslaID,
-              job.serviceData.token
-            );
+            if (await this.vehicleInteraction(job, subject, false)) {
+              // if port is closed and we did not try to open it yet
+              await teslaAPI.openChargePort(
+                subject.teslaID,
+                job.serviceData.token
+              );
+            }
             subject.triedOpen = now;
           } else if (
             now > subject.parked + 3 * 60e3 && // keep port open for 3 minutes
             subject.portOpen &&
             subject.triedOpen !== undefined
           ) {
-            await teslaAPI.closeChargePort(
-              subject.teslaID,
-              job.serviceData.token
-            );
+            if (await this.vehicleInteraction(job, subject, false)) {
+              await teslaAPI.closeChargePort(
+                subject.teslaID,
+                job.serviceData.token
+              );
+            }
             subject.triedOpen = undefined;
           }
         }
@@ -865,44 +898,13 @@ export class TeslaAgent extends AbstractAgent {
     }
   }
 
-  private async wakeUp(
-    job: TeslaAgentJob,
-    subject: TeslaSubject
-  ): Promise<boolean> {
-    if (job.serviceData.invalid_token) return false; // provider requires a valid token
-    await this.maintainToken(job);
-    log(
-      LogLevel.Info,
-      `${subject.teslaID} waking up ${(subject.data && subject.data.name) ||
-        subject.vehicleUUID}`
-    );
-    const data = await teslaAPI.wakeUp(subject.teslaID, job.serviceData.token);
-    if (data && data.response && data.response.state === "online") {
-      subject.online = true;
-    }
-    return subject.online;
-  }
-  private async userInteraction(
-    job: TeslaAgentJob,
-    subject: TeslaSubject
-  ): Promise<boolean> {
-    this.adjustInterval(job, 0); // poll more often after an interaction
-
-    if (!subject.online && !(await this.wakeUp(job, subject))) {
-      return false; // try again later
-    }
-
-    this.changePollstate(subject, "polling"); // break tired cycle
-    return true;
-  }
-
   public async [AgentAction.Refresh](
     job: TeslaAgentJob,
     action: Action
   ): Promise<any> {
     for (const subject of Object.values(job.state)) {
       if (subject.vehicleUUID === action.data.id) {
-        return this.userInteraction(job, subject);
+        return this.vehicleInteraction(job, subject, true);
       }
     }
   }
@@ -914,11 +916,10 @@ export class TeslaAgent extends AbstractAgent {
 
     for (const subject of Object.values(job.state)) {
       if (subject.vehicleUUID === action.data.id) {
-        if (!(await this.userInteraction(job, subject))) return false; // Not ready for interaction
+        if (!(await this.vehicleInteraction(job, subject, true))) return false; // Not ready for interaction
         if (subject.data && subject.data.climateControl === action.data.enable)
           return true; // Already correct
 
-        await this.maintainToken(job);
         if (action.data.enable) {
           await teslaAPI.climateOn(subject.teslaID, job.serviceData.token);
         } else {
