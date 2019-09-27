@@ -876,7 +876,7 @@ export class Logic {
           chargeStop: new Date(now + timeNeeded),
           level: batteryLevel,
           chargeType: ChargeType.routine,
-          comment: `no price data`
+          comment: comment
         });
       }
     }
