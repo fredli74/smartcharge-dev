@@ -814,6 +814,8 @@ export class TeslaAgent extends AbstractAgent {
           query: TeslaProviderQueries.Vehicles,
           service_uuid: job.serviceID
         });
+      } else if (err.code === 405) {
+        this.changePollstate(subject, "offline");
       } else if (err.code === 408) {
         this.changePollstate(subject, "offline");
       }
