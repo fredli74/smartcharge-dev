@@ -257,6 +257,11 @@ export class TeslaAgent extends AbstractAgent {
     }
   }
 
+  private stayOnline(subject: TeslaSubject) {
+    this.changePollstate(subject, "polling"); // Active polling
+    subject.keepAwake = Date.now() + config.TIME_BEFORE_TIRED;
+  }
+
   private async vehicleInteraction(
     job: TeslaAgentJob,
     subject: TeslaSubject,
@@ -281,7 +286,7 @@ export class TeslaAgent extends AbstractAgent {
       }
     }
     if (subject.online) {
-      this.changePollstate(subject, "polling"); // break tired cycle
+      this.stayOnline(subject);
       this.adjustInterval(job, 0); // poll directly after an interaction
       return true;
     }
@@ -441,8 +446,7 @@ export class TeslaAgent extends AbstractAgent {
           }
         }
         if (insomnia) {
-          this.changePollstate(subject, "polling"); // Keep active polling
-          subject.keepAwake = now + config.TIME_BEFORE_TIRED;
+          this.stayOnline(subject);
         }
         await this.scClient.updateVehicleData(input);
         await this.setOptionCodes(subject, data);
@@ -532,9 +536,8 @@ export class TeslaAgent extends AbstractAgent {
                   subject.pollstate
                 } -> polling)`
               );
-              this.changePollstate(subject, "polling");
+              this.stayOnline(subject);
               this.adjustInterval(job, 0); // Woke up, poll right away
-              subject.keepAwake = now + config.TIME_BEFORE_TIRED; // Something woke it up, so keep it awake for a while
               return;
             }
             break;
@@ -648,7 +651,7 @@ export class TeslaAgent extends AbstractAgent {
                 `${subject.teslaID} stop charging ${subject.data.name}`
               );
               teslaAPI.chargeStop(subject.teslaID, job.serviceData.token);
-              this.changePollstate(subject, "polling"); // break tired cycle on model S and X so we can verify charging is disabled
+              this.stayOnline(subject);
             }
           } else if (
             shouldCharge !== null &&
@@ -664,7 +667,7 @@ export class TeslaAgent extends AbstractAgent {
                   subject.teslaID,
                   job.serviceData.token
                 );
-                this.changePollstate(subject, "polling"); // break tired cycle on model S and X so we can verify charging is enabled
+                this.stayOnline(subject);
               }
             } else {
               let setLevel = shouldCharge!.level;
@@ -716,7 +719,7 @@ export class TeslaAgent extends AbstractAgent {
                     chargeto,
                     job.serviceData.token
                   );
-                  this.changePollstate(subject, "polling"); // break tired cycle on model S and X so we can verify change of charge limit
+                  this.stayOnline(subject);
                 }
               }
             }
