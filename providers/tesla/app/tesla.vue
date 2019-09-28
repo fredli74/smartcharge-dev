@@ -56,10 +56,10 @@ export default class TeslaVue extends Vue {
   showTokenForm!: boolean;
   allProviderVehicles!: TeslaNewListEntry[];
   get newVehiclesNotConnected() {
-    return this.allProviderVehicles.filter(f => !f.controlled);
+    return this.allProviderVehicles.filter(f => f.vehicle_uuid === undefined);
   }
   get newVehiclesConnected() {
-    return this.allProviderVehicles.filter(f => f.controlled);
+    return this.allProviderVehicles.filter(f => f.vehicle_uuid !== undefined);
   }
 
   // HOOKS
@@ -92,7 +92,7 @@ export default class TeslaVue extends Vue {
             id: v.id_s,
             vin: v.vin,
             name: v.display_name,
-            controlled: v.controlled,
+            vehicle_uuid: v.vehicle_uuid,
             service_uuid: v.service_uuid
           } as TeslaNewListEntry;
           this.allProviderVehicles.push(entry);

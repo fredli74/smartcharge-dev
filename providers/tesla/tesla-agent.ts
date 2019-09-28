@@ -65,6 +65,7 @@ interface TeslaAgentState {
 }
 interface TeslaAgentJob extends AgentJob {
   serviceData: TeslaServiceData;
+  mapped: number;
   state: TeslaAgentState;
 }
 
@@ -842,11 +843,8 @@ export class TeslaAgent extends AbstractAgent {
           job.serviceData.invalid_token = true; // client side update to match server
         }
       } else if (err.code === 404) {
-        // Vehicle ID does not exist trigger a remap by calling TeslaProviderQueries.Vehicles
-        await this.scClient.providerQuery(provider.name, {
-          query: TeslaProviderQueries.Vehicles,
-          service_uuid: job.serviceID
-        });
+        // Vehicle ID does not exist, trigger a remap
+        job.mapped = 0;
       } else if (err.code === 405) {
         this.changePollstate(subject, "offline");
       } else if (err.code === 408) {
@@ -871,26 +869,34 @@ export class TeslaAgent extends AbstractAgent {
   public async serviceWork(job: TeslaAgentJob) {
     if (job.serviceData.invalid_token) return; // provider requires a valid token
 
-    for (const s of Object.values(job.state)) {
-      if (
-        !job.serviceData.map[s.teslaID] ||
-        job.serviceData.map[s.teslaID] !== s.vehicleUUID
-      ) {
-        delete job.state[s.teslaID];
+    if (
+      !job.mapped ||
+      (job.serviceData.updated && job.mapped < job.serviceData.updated)
+    ) {
+      job.state = {};
+      const list = await this.scClient.providerQuery("tesla", {
+        query: TeslaProviderQueries.Vehicles,
+        service_uuid: job.serviceID
+      });
+      for (const v of list) {
+        if (v.vehicle_uuid && !job.state[v.vehicle_uuid]) {
+          job.state[v.vehicle_uuid] = {
+            vehicleUUID: v.vehicle_uuid,
+            teslaID: v.id_s,
+            online: false,
+            pollstate: undefined,
+            statestart: Date.now(),
+            status: ""
+          };
+          log(
+            LogLevel.Debug,
+            `Service ${job.serviceID} mapping VIN ${v.vin} -> ID ${
+              v.id_s
+            } -> UUID ${v.vehicle_uuid}`
+          );
+        }
       }
-    }
-
-    for (const [sid, vid] of Object.entries(job.serviceData.map)) {
-      if (!job.state[sid]) {
-        job.state[sid] = {
-          teslaID: sid,
-          vehicleUUID: vid,
-          online: false,
-          pollstate: undefined,
-          statestart: Date.now(),
-          status: ""
-        };
-      }
+      job.mapped = Date.now();
     }
 
     for (const s of Object.values(job.state)) {

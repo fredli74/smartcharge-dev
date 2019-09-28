@@ -15,8 +15,8 @@ export interface TeslaProviderData {
 // agent side info
 export interface TeslaServiceData {
   token: IRestToken; // token for API authentication
+  updated?: number;
   invalid_token?: boolean;
-  map: { [teslaID: string]: string }; // Tesla to vehicle uuid mapping
 }
 
 export enum TeslaProviderQueries {

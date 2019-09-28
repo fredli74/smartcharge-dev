@@ -6,7 +6,7 @@ export interface TeslaNewListEntry {
   id: string; // tesla id to control vehicle
   vin: string; // Vehicle Identification Number (only ID that we can rely on)
   service_uuid: string; // provider uuid
-  controlled: boolean; // Already controlled by smartcharge
+  vehicle_uuid: string; // smartcharge vehicle_uuid
 }
 
 export function vehicleImage(vehicle: Vehicle, sideView?: boolean): string {

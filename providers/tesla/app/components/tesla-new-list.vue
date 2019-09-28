@@ -4,7 +4,7 @@
     <v-list-item
       v-for="vehicle in list"
       :key="vehicle.id"
-      :disabled="vehicle.controlled"
+      :disabled="vehicle.vehicle_uuid !== undefined"
       @click="$emit('click-select', vehicle)"
     >
       <v-list-item-content>

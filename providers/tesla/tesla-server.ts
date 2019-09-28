@@ -101,7 +101,7 @@ const server: IProviderServer = {
             [
               context.accountUUID,
               provider.name,
-              { token: data.token, map: {} } as TeslaServiceData
+              { token: data.token, updated: Date.now() }
             ]
           );
         }
@@ -128,7 +128,7 @@ const server: IProviderServer = {
               provider_data.provider === "tesla" &&
               provider_data.vin
             ) {
-              a[provider_data.vin] = v.vehicle_uuid;
+              a[provider_data.vin] = v;
             }
             return a;
           },
@@ -143,52 +143,31 @@ const server: IProviderServer = {
               const list: any[] = (await teslaAPI.listVehicle(undefined, token))
                 .response;
 
-              // Kill all maps that does not exist or is already mapped
-              for (const teslaID of Object.keys(s.serviceData.map)) {
-                const found = list.findIndex(f => f.id_s === teslaID) >= 0;
-                if (mapped[teslaID] || !found) {
-                  delete s.serviceData.map[teslaID];
-                  await context.db.pg.none(
-                    `UPDATE service_provider SET service_data = jsonb_merge(service_data, $1)
-                    WHERE service_uuid=$2;`,
-                    [{ map: { [teslaID]: null } }, s.serviceID]
-                  );
-                  log(
-                    LogLevel.Info,
-                    `Removed map ${teslaID} from service_uuid ${s.serviceID}`
-                  );
-                }
-              }
-
               // Add everything that should be controlled
               for (const l of list) {
                 const teslaID = l.id_s;
                 const vin = l.vin;
-                if (!mapped[teslaID] && controlled[vin]) {
-                  const vehicleID = controlled[vin];
-                  mapped[teslaID] = vehicleID;
-                  s.serviceData.map[teslaID] = vehicleID;
-                  await context.db.pg.none(
-                    `UPDATE service_provider SET service_data = jsonb_merge(service_data, $1)
-                      WHERE service_uuid=$2;
-                      UPDATE vehicle SET service_uuid=$2, provider_data = provider_data - 'invalid_token' WHERE vehicle_uuid=$3;`,
-                    [
-                      { map: { [teslaID]: vehicleID } },
-                      s.serviceID,
-                      vehicleID,
-                      {}
-                    ]
-                  );
-                  log(
-                    LogLevel.Info,
-                    `Set map ${teslaID}:${vehicleID} on service_uuid ${
-                      s.serviceID
-                    }`
-                  );
-                }
+                const vehicle = controlled[vin];
+                if (vehicle) {
+                  mapped[vin] = mapped[vin] || s.serviceID;
+                  l.service_uuid = mapped[vin];
+                  l.vehicle_uuid = vehicle.vehicle_uuid;
 
-                l.service_uuid = s.serviceID;
-                l.controlled = s.serviceData.map[l.id_s] !== undefined;
+                  if (vehicle.service_uuid !== l.service_uuid) {
+                    // Wrong service_uuid in database
+                    vehicle.service_uuid = l.service_uuid;
+                    await context.db.pg.none(
+                      `UPDATE vehicle SET service_uuid=$1, provider_data = provider_data - 'invalid_token' WHERE vehicle_uuid=$2;`,
+                      [vehicle.service_uuid, vehicle.vehicle_uuid]
+                    );
+                    log(
+                      LogLevel.Info,
+                      `Set service_uuid on ${teslaID}:${
+                        vehicle.vehicle_uuid
+                      } to ${vehicle.service_uuid}`
+                    );
+                  }
+                }
               }
               vehicles.push(...list);
             } catch (err) {
@@ -241,7 +220,7 @@ const server: IProviderServer = {
         await context.db.pg.none(
           `UPDATE service_provider SET service_data = jsonb_merge(service_data, $1)
             WHERE service_uuid=$2;`,
-          [{ map: { [input.id]: vehicle.vehicle_uuid } }, input.service_uuid]
+          [{ updated: Date.now() }, input.service_uuid]
         );
         return vehicle;
       }
