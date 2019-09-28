@@ -178,7 +178,7 @@ export class TeslaAgent extends AbstractAgent {
         Pinwheel18: "W38B",
         Stiletto19: "W39B",
         Slipstream19Carbon: "WTDS",
-        Turbine22Dark: "WT20"
+        Turbine22Dark: "WTUT"
         // TODO: Add more information
         // 20" Sport Wheels: "W32B"
       })
