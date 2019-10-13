@@ -492,12 +492,15 @@ export default class ChargeChart extends Vue {
           if (ce < cs) continue;
           if (data.length < 1 || cs > data[data.length - 1][0])
             data.push([cs, Math.floor(level)]);
-          level = Math.min(
-            c.level,
-            this.chargeAmount(
-              this.chartData.chargeCurve,
-              level,
-              (ce - cs) / 1e3
+          level = Math.max(
+            level,
+            Math.min(
+              c.level,
+              this.chargeAmount(
+                this.chartData.chargeCurve,
+                level,
+                (ce - cs) / 1e3
+              )
             )
           );
           data.push([ce, Math.floor(level)]);
