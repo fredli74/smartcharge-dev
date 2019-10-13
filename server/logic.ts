@@ -978,7 +978,7 @@ export class Logic {
         } else {
           // ****** ANALYSE AND THINK ABOUT IT!  ******
 
-          // Take the time when we connected and compare that to connections for the past 4 weeks
+          // Take the time when we connected and compare that to connections for the past 6 weeks
           // how much battery level did we use from those drives until next connection
           // now compare that to the average use between connections and go with the greatest number
 
@@ -990,10 +990,10 @@ export class Logic {
                 SELECT connected_id, start_ts, end_ts,
                     end_level-(SELECT start_level FROM connected B WHERE B.vehicle_uuid = A.vehicle_uuid AND B.connected_id > A.connected_id ORDER BY connected_id LIMIT 1) as used					 
                 FROM connected A
-                WHERE end_ts >= current_date - interval '4 weeks' AND vehicle_uuid = $1 AND location_uuid = $2
+                WHERE end_ts >= current_date - interval '6 weeks' AND vehicle_uuid = $1 AND location_uuid = $2
             ), similar_connections AS (
                 SELECT target,(SELECT connected_id FROM connections WHERE end_ts > target.target AND end_ts < target.target + interval '1 week' ORDER BY end_ts LIMIT 1)
-                FROM generate_series(NOW() - interval '4 weeks', NOW() - interval '1 week', '1 week') as target
+                FROM generate_series(NOW() - interval '6 weeks', NOW() - interval '1 week', '1 week') as target
             ), past_weeks AS (
                 SELECT CASE WHEN end_ts::time < current_time THEN current_date + interval '1 day' + end_ts::time ELSE current_date + end_ts::time END as before,
                 used FROM similar_connections JOIN connections ON (similar_connections.connected_id = connections.connected_id)
