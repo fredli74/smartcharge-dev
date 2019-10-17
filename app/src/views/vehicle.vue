@@ -72,7 +72,7 @@
             <v-progress-linear
               :value="vehicle.batteryLevel"
               height="1.5em"
-              :buffer-value="vehicle.chargingTo || 0"
+              :buffer-value="vehicle.chargingTo || vehicle.batteryLevel"
               :color="batteryColor"
               ><div class="batteryText">
                 {{ vehicle.batteryLevel }}%
