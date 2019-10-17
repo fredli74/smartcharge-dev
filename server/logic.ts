@@ -768,9 +768,12 @@ export class Logic {
             a.level = Math.max(a.level, b.level);
             plan.splice(i + 1, 1);
             --i;
-          } else {
-            // Adjust them
+          } else if (a.level >= b.level) {
+            // Push the next segment forward
             b.chargeStart = a.chargeStop;
+          } else {
+            // Cut off the current segment
+            a.chargeStop = b.chargeStart;
           }
         }
       }
@@ -785,10 +788,14 @@ export class Logic {
       for (let i = 0; i < plan.length - 1; ++i) {
         const a = plan[i];
         const b = plan[i + 1];
-        const shift =
-          nstart(a.chargeStart) + // charge start
-          3600e3 - // + one hour
-          nstop(a.chargeStop); // - charge stop
+        const shift = Math.min(
+          // max shift between this segment end and next segment start
+          // nextStart - thisStop
+          nstart(b.chargeStart) - nstop(a.chargeStop),
+          // or maximum shift possible within the current hour
+          // hour - (stop - start) => start - stop + hour
+          nstart(a.chargeStart) - nstop(a.chargeStop) + 3600e3
+        );
 
         if (shift > 0 && nstop(a.chargeStop) + shift >= nstart(b.chargeStart)) {
           a.chargeStop = b.chargeStart;
