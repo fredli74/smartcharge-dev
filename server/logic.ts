@@ -999,7 +999,7 @@ export class Logic {
               FROM connected A
               WHERE end_ts >= current_date - interval '6 weeks' AND vehicle_uuid = $1 AND location_uuid = $2
             ), min_target AS (
-              SELECT (select MAX(start_ts) from connections) + (select percentile_cont(0.25) WITHIN GROUP (ORDER BY end_ts-start_ts) from connections)/2 as ts
+              SELECT GREATEST(NOW(), (select MAX(start_ts) from connections) + (select percentile_cont(0.25) WITHIN GROUP (ORDER BY end_ts-start_ts) from connections)/2) as ts
             ), similar_connections AS (
                 SELECT target,(SELECT connected_id FROM connections WHERE end_ts > target.target AND end_ts < target.target + interval '1 week' AND used > (select percentile_cont(0.25) WITHIN GROUP (ORDER BY used) from connections) ORDER BY end_ts LIMIT 1)
                 FROM generate_series((SELECT ts FROM min_target) - interval '6 weeks', (SELECT ts FROM min_target) - interval '1 week', '1 week') as target
