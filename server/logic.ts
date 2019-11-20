@@ -997,13 +997,15 @@ export class Logic {
               SELECT connected_id, start_ts, end_ts,
                 end_level-(SELECT start_level FROM connected B WHERE B.vehicle_uuid = A.vehicle_uuid AND B.connected_id > A.connected_id ORDER BY connected_id LIMIT 1) as used
               FROM connected A
-                WHERE end_ts >= start_ts + interval '1 hour' AND end_ts >= current_date - interval '6 weeks' AND vehicle_uuid = $1 AND location_uuid = $2
+              WHERE end_ts >= current_date - interval '6 weeks' AND vehicle_uuid = $1 AND location_uuid = $2
+            ), min_target AS (
+              SELECT (select MAX(start_ts) from connections) + (select percentile_cont(0.25) WITHIN GROUP (ORDER BY end_ts-start_ts) from connections)/2 as ts
             ), similar_connections AS (
                 SELECT target,(SELECT connected_id FROM connections WHERE end_ts > target.target AND end_ts < target.target + interval '1 week' AND used > (select percentile_cont(0.25) WITHIN GROUP (ORDER BY used) from connections) ORDER BY end_ts LIMIT 1)
-                FROM generate_series(NOW() - interval '6 weeks', NOW() - interval '1 week', '1 week') as target
+                FROM generate_series((SELECT ts FROM min_target) - interval '6 weeks', (SELECT ts FROM min_target) - interval '1 week', '1 week') as target
             ), past_weeks AS (
-              SELECT CASE WHEN end_ts::time < current_time THEN current_date + interval '1 day' + end_ts::time ELSE current_date + end_ts::time END as before,
-              used FROM similar_connections JOIN connections ON (similar_connections.connected_id = connections.connected_id)
+              SELECT CASE WHEN end_ts::time < (select ts from min_target)::time THEN current_date + interval '1 day' + end_ts::time ELSE current_date + end_ts::time END as before,
+                    used FROM similar_connections JOIN connections ON (similar_connections.connected_id = connections.connected_id)
             )
             SELECT 
               GREATEST(
