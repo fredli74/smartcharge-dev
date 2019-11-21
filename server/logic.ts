@@ -983,12 +983,24 @@ export class Logic {
           log(LogLevel.Debug, `Missing stats for smart charging.`);
           learning = true;
         } else {
-          // ****** ANALYSE AND THINK ABOUT IT!  ******
+          /*
+            ****** ANALYSE AND THINK ABOUT IT!  ******
 
-          // Take the time when we connected and compare that to connections for the past 6 weeks
-          // how much battery level did we use from those drives until next connection
-          // now compare that to the average use between connections and go with the greatest number
+            connections: all connected the past 6 weeks for current vehicle and location
+            min_target: calculate when connected and add how long a connection normally is.
+                        half of this is added to connection time, to avoid it trying to cram
+                        in a charge plan in just hours if that is not how you normally charge.
+            similar_connections: go back 6 weeks and find the closest disconnect times for this weekday.
+                                 filter out only charges where a normal amount of energy was used after
+                                 this was added so that if you just disconnect to move your vehicle, it
+                                 won't use that one
+            past_weeks: lookup disconnection times from table above and map it to today
 
+            compare how much was used after these charges to the mean average and go with the greatest number
+            pick the 0.2 percentile of disconnect times
+
+            we now have a guessed disconnect time and and average usage
+          */
           const guess: {
             charge: number;
             before: number;
