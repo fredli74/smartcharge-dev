@@ -1010,21 +1010,25 @@ export class Logic {
                 end_level-(SELECT start_level FROM connected B WHERE B.vehicle_uuid = A.vehicle_uuid AND B.connected_id > A.connected_id ORDER BY connected_id LIMIT 1) as used
               FROM connected A
               WHERE end_ts >= current_date - interval '6 weeks' AND vehicle_uuid = $1 AND location_uuid = $2
-            ), min_target AS (
-              SELECT GREATEST(NOW(), (select MAX(start_ts) from connections) + (select percentile_cont(0.25) WITHIN GROUP (ORDER BY end_ts-start_ts) from connections)/2) as ts
-            ), similar_connections AS (
+              ), min_target AS (
+                SELECT LEAST(NOW() + interval '1 day', GREATEST(NOW(), (select MAX(start_ts) from connections) + (select percentile_cont(0.25) WITHIN GROUP (ORDER BY end_ts-start_ts) from connections)/2)) as ts
+              ), similar_connections AS (
                 SELECT target,(SELECT connected_id FROM connections WHERE end_ts > target.target AND end_ts < target.target + interval '1 week' AND used > (select percentile_cont(0.25) WITHIN GROUP (ORDER BY used) from connections) ORDER BY end_ts LIMIT 1)
                 FROM generate_series((SELECT ts FROM min_target) - interval '6 weeks', (SELECT ts FROM min_target) - interval '1 week', '1 week') as target
-            ), past_weeks AS (
-              SELECT CASE WHEN end_ts::time < (select ts from min_target)::time THEN current_date + interval '1 day' + end_ts::time ELSE current_date + end_ts::time END as before,
-                    used FROM similar_connections JOIN connections ON (similar_connections.connected_id = connections.connected_id)
-            )
-            SELECT 
-              GREATEST(
-                (SELECT AVG(used) FROM connections WHERE end_ts > current_date - interval '1 week'),
-                (SELECT percentile_cont(0.6) WITHIN GROUP (ORDER BY used) as used FROM past_weeks)
-              ) as charge,
-              (SELECT percentile_disc(0.2) WITHIN GROUP (ORDER BY extract(epoch from before)) FROM past_weeks) as before;`,
+              ), past_weeks AS (
+                SELECT used, CASE WHEN end_ts::time < current_time THEN current_date + interval '1 day' + end_ts::time ELSE current_date + end_ts::time END as before
+                FROM similar_connections JOIN connections ON (similar_connections.connected_id = connections.connected_id)
+              ), adjusted AS (
+                SELECT used, CASE WHEN before < (SELECT ts FROM min_target) THEN before + interval '1 day' ELSE before END as before
+                FROM past_weeks
+              )
+              SELECT 
+                GREATEST(
+                  (SELECT AVG(used) FROM connections WHERE end_ts > current_date - interval '1 week'),
+                  (SELECT percentile_cont(0.6) WITHIN GROUP (ORDER BY used) as used FROM adjusted)
+                ) as charge,
+                (SELECT percentile_disc(0.2) WITHIN GROUP (ORDER BY extract(epoch from before)) FROM adjusted) as before;
+              `,
             [vehicle.vehicle_uuid, vehicle.location_uuid]
           );
 
