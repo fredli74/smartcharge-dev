@@ -120,7 +120,7 @@ import ChargeChart from "@app/components/charge-chart.vue";
 import VehicleActions from "@app/components/vehicle-actions.vue";
 import { geoDistance } from "@shared/utils";
 import apollo from "@app/plugins/apollo";
-import { VueApolloComponentOption } from "vue-apollo/types/options";
+import { VueApolloComponentOptions } from "vue-apollo/types/options";
 import { RawLocation } from "vue-router";
 import { Location } from "@server/gql/location-type";
 import { Vehicle } from "@server/gql/vehicle-type";
@@ -191,7 +191,7 @@ const vehicleFragment = `id name minimumLevel maximumLevel anxietyLevel tripSche
         return this.locations === undefined;
       }
     }
-  } as VueApolloComponentOption<VehicleVue> // needed because skip is not declared on subscribeToMore, but I am pretty sure I had to have it in my tests when the query had toggled skip()
+  } as VueApolloComponentOptions<VehicleVue> // needed because skip is not declared on subscribeToMore, but I am pretty sure I had to have it in my tests when the query had toggled skip()
 })
 export default class VehicleVue extends Vue {
   loading!: boolean;
