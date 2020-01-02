@@ -18,6 +18,7 @@ import provider, { NordpoolServiceData } from ".";
 import config from "./nordpool-config";
 import nordpoolAPI from "./nordpool-api";
 import { UpdatePriceInput, LocationPrice } from "@server/gql/location-type";
+import { DateTime } from "luxon";
 
 interface NordpoolAgentJob extends AgentJob {
   serviceData: NordpoolServiceData;
@@ -42,7 +43,9 @@ export class NordpoolAgent extends AbstractAgent {
     // remap table
     for (const row of res.data.Rows) {
       if (row.IsExtraRow) continue;
-      const startAt = new Date(row.StartTime + "+0200");
+      const startAt = DateTime.fromISO(row.StartTime, {
+        zone: "Europe/Oslo"
+      }).toJSDate();
       for (const col of row.Columns) {
         if (!areas[col.Name]) {
           areas[col.Name] = [];

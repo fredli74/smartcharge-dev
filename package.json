@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": "10.x"
+    "node": "12.7.x"
   },
   "scripts": {
     "serve": "vue-cli-service serve",
@@ -37,6 +37,7 @@
     "graphql-type-json": "^0.3.1",
     "jsonwebtoken": "^8.5.1",
     "jwks-rsa": "^1.6.0",
+    "luxon": "^1.21.3",
     "moment": "^2.24.0",
     "pg-promise": "^9.3.6",
     "reflect-metadata": "^0.1.13",
@@ -62,6 +63,8 @@
     "@types/dotenv": "^6.1.1",
     "@types/graphql-type-json": "^0.3.2",
     "@types/jsonwebtoken": "^8.3.5",
+    "@types/luxon": "^1.21.0",
+    "@types/node": "^12.7.12",
     "@types/uuid": "^3.4.6",
     "@vue/cli-plugin-babel": "^3.12.1",
     "@vue/cli-plugin-eslint": "^3.12.1",
