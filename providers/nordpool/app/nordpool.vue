@@ -23,10 +23,18 @@
             item-value="price_code"
             label="Nordpool Area Code"
             outlined
-            hint="<a href='https://www.nordpoolgroup.com/maps#/nordic' target='_blank'>show map</a>"
+            hint="show map"
             persistent-hint
-          ></v-select
-        ></v-card-text>
+            ><template v-slot:message="{ message, key }">
+              <a
+                :key="key"
+                href="https://www.nordpoolgroup.com/maps#/nordic"
+                target="_blank"
+                >{{ message }}</a
+              >
+            </template></v-select
+          ></v-card-text
+        >
         <v-card-actions class="justify-center">
           <v-btn
             :disabled="button.disabled || button.loading"

@@ -6,10 +6,18 @@
       small
       grow
       label="Tesla API refresh token"
-      hint="<a href='https://tesla-token.netlify.com/#refresh_token' target='_blank'>Get it here</a>"
+      hint="Get it here"
       persistent-hint
       filled
-    ></v-text-field>
+      ><template v-slot:message="{ message, key }">
+        <a
+          :key="key"
+          href="https://tesla-token.netlify.com/#refresh_token"
+          target="_blank"
+          >{{ message }}</a
+        >
+      </template>
+    </v-text-field>
 
     <v-card-actions class="justify-center">
       <v-btn
