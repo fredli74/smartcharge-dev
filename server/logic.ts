@@ -1006,15 +1006,19 @@ export class Logic {
             before: number;
           } = await this.db.pg.one(
             `WITH connections AS (
-              SELECT connected_id, start_ts, end_ts, connected, end_ts-start_ts as duration,
-                end_level-(SELECT start_level FROM connected B WHERE B.vehicle_uuid = A.vehicle_uuid AND B.connected_id > A.connected_id ORDER BY connected_id LIMIT 1) as used
+              SELECT connected_id, start_ts, end_ts, connected, end_ts-start_ts as duration, end_level-start_level as charged,
+              end_level-(SELECT start_level FROM connected B WHERE B.vehicle_uuid = A.vehicle_uuid AND B.connected_id > A.connected_id ORDER BY connected_id LIMIT 1) as used
               FROM connected A
-              WHERE end_level > start_level AND end_ts >= current_date - interval '6 weeks' AND vehicle_uuid = $1 AND location_uuid = $2
+              WHERE end_ts >= current_date - interval '6 weeks' AND vehicle_uuid = $1 AND location_uuid = $2
             ), target AS (
               SELECT LEAST(NOW() + interval '1 day', (select COALESCE(NOW(), MAX(start_ts)) from connections WHERE connected)) as ts
             ), similar_connections AS (
               SELECT target,
-                (SELECT connected_id FROM connections WHERE end_ts > target.target+(duration/2) AND end_ts < target.target + interval '1 week' AND used > (select percentile_cont(0.25) WITHIN GROUP (ORDER BY used) from connections) ORDER BY end_ts LIMIT 1)
+                (SELECT connected_id FROM connections
+                  WHERE end_ts > target.target+(duration/2) AND end_ts < target.target + interval '1 week'
+                    AND used >= (select percentile_cont(0.25) WITHIN GROUP (ORDER BY used) FROM connections)
+                    AND charged > (select percentile_cont(0.25) WITHIN GROUP (ORDER BY charged) FROM connections WHERE charged > 0)/2
+                  ORDER BY end_ts LIMIT 1)
               FROM generate_series((SELECT ts FROM target) - interval '6 weeks', (SELECT ts FROM target) - interval '1 week', '1 week') as target
             ), past_weeks AS (
               SELECT used, CASE WHEN end_ts::time < current_time THEN current_date + interval '1 day' + end_ts::time ELSE current_date + end_ts::time END as before, duration
