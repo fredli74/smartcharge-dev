@@ -236,9 +236,7 @@ export class Logic {
             }
             log(
               LogLevel.Debug,
-              `Updating charge ${
-                vehicle.charge_id
-              } with ${deltaUsed} Wm used in ${deltaTime}s`
+              `Updating charge ${vehicle.charge_id} with ${deltaUsed} Wm used in ${deltaTime}s`
             );
             charge = await this.db.pg.one(
               `UPDATE charge SET ($1:name) = ($1:csv) WHERE charge_id=$2 RETURNING *;`,
@@ -422,9 +420,7 @@ export class Logic {
             // totally ignore trips less than 1 km
             log(
               LogLevel.Debug,
-              `Removing trip ${trip.trip_id}, because it only recorded ${
-                trip.distance
-              } meters`
+              `Removing trip ${trip.trip_id}, because it only recorded ${trip.distance} meters`
             );
             await this.db.pg.none(`DELETE FROM trip WHERE trip_id=$1`, [
               vehicle.trip_id
@@ -496,12 +492,14 @@ export class Logic {
     vehicle_uuid: string,
     location_uuid: string
   ): Promise<DBCurrentStats> {
-    const level_charge_time = (await this.db.pg.oneOrNone(
-      `SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY duration) as seconds
+    const level_charge_time = (
+      await this.db.pg.oneOrNone(
+        `SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY duration) as seconds
             FROM charge a JOIN charge_curve b ON (a.charge_id = b.charge_id)
             WHERE a.vehicle_uuid = $1 AND location_uuid = $2`,
-      [vehicle_uuid, location_uuid]
-    )).seconds;
+        [vehicle_uuid, location_uuid]
+      )
+    ).seconds;
 
     // What is the current weekly average power price
     const avg_prices: {
@@ -911,11 +909,13 @@ export class Logic {
       : [];
 
     // Check charge calibration
-    const maxLevel = (await this.db.pg.one(
-      `SELECT MAX(level) as max_level FROM charge a JOIN charge_curve b ON(a.charge_id = b.charge_id)
+    const maxLevel = (
+      await this.db.pg.one(
+        `SELECT MAX(level) as max_level FROM charge a JOIN charge_curve b ON(a.charge_id = b.charge_id)
           WHERE a.vehicle_uuid = $1 AND a.location_uuid = $2;`,
-      [vehicle.vehicle_uuid, vehicle.location_uuid]
-    )).max_level;
+        [vehicle.vehicle_uuid, vehicle.location_uuid]
+      )
+    ).max_level;
     if (vehicle.level < vehicle.maximum_charge && (maxLevel || 0) < 100) {
       plan = [
         {
@@ -1006,29 +1006,30 @@ export class Logic {
             before: number;
           } = await this.db.pg.one(
             `WITH connections AS (
-              SELECT connected_id, start_ts, end_ts,
+              SELECT connected_id, start_ts, end_ts, connected, end_ts-start_ts as duration,
                 end_level-(SELECT start_level FROM connected B WHERE B.vehicle_uuid = A.vehicle_uuid AND B.connected_id > A.connected_id ORDER BY connected_id LIMIT 1) as used
               FROM connected A
               WHERE end_ts >= current_date - interval '6 weeks' AND vehicle_uuid = $1 AND location_uuid = $2
-              ), min_target AS (
-                SELECT LEAST(NOW() + interval '1 day', GREATEST(NOW(), (select MAX(start_ts) from connections) + (select percentile_cont(0.25) WITHIN GROUP (ORDER BY end_ts-start_ts) from connections)/2)) as ts
-              ), similar_connections AS (
-                SELECT target,(SELECT connected_id FROM connections WHERE end_ts > target.target AND end_ts < target.target + interval '1 week' AND used > (select percentile_cont(0.25) WITHIN GROUP (ORDER BY used) from connections) ORDER BY end_ts LIMIT 1)
-                FROM generate_series((SELECT ts FROM min_target) - interval '6 weeks', (SELECT ts FROM min_target) - interval '1 week', '1 week') as target
-              ), past_weeks AS (
-                SELECT used, CASE WHEN end_ts::time < current_time THEN current_date + interval '1 day' + end_ts::time ELSE current_date + end_ts::time END as before
-                FROM similar_connections JOIN connections ON (similar_connections.connected_id = connections.connected_id)
-              ), adjusted AS (
-                SELECT used, CASE WHEN before < (SELECT ts FROM min_target) THEN before + interval '1 day' ELSE before END as before
-                FROM past_weeks
-              )
-              SELECT 
-                GREATEST(
-                  (SELECT AVG(used) FROM connections WHERE end_ts > current_date - interval '1 week'),
-                  (SELECT percentile_cont(0.6) WITHIN GROUP (ORDER BY used) as used FROM adjusted)
-                ) as charge,
-                (SELECT percentile_disc(0.2) WITHIN GROUP (ORDER BY extract(epoch from before)) FROM adjusted) as before;
-              `,
+            ), target AS (
+              SELECT LEAST(NOW() + interval '1 day', (select COALESCE(NOW(), MAX(start_ts)) from connections WHERE connected)) as ts
+            ), similar_connections AS (
+              SELECT target,
+                (SELECT connected_id FROM connections WHERE end_ts > target.target+(duration/2) AND end_ts < target.target + interval '1 week' AND used > (select percentile_cont(0.25) WITHIN GROUP (ORDER BY used) from connections) ORDER BY end_ts LIMIT 1)
+              FROM generate_series((SELECT ts FROM target) - interval '6 weeks', (SELECT ts FROM target) - interval '1 week', '1 week') as target
+            ), past_weeks AS (
+              SELECT used, CASE WHEN end_ts::time < current_time THEN current_date + interval '1 day' + end_ts::time ELSE current_date + end_ts::time END as before, duration
+              FROM similar_connections JOIN connections ON (similar_connections.connected_id = connections.connected_id)
+            ), adjusted AS (
+              SELECT used, CASE WHEN (SELECT ts FROM target)+(duration/2) > before THEN before + interval '1 day' ELSE before END as before
+              FROM past_weeks
+            )
+            SELECT 
+              GREATEST(
+                (SELECT AVG(used) FROM connections WHERE end_ts > current_date - interval '1 week'),
+                (SELECT percentile_cont(0.6) WITHIN GROUP (ORDER BY used) as used FROM adjusted)
+              ) as charge,
+              (SELECT percentile_disc(0.2) WITHIN GROUP (ORDER BY extract(epoch from before)) FROM adjusted) as before;
+            `,
             [vehicle.vehicle_uuid, vehicle.location_uuid]
           );
 
