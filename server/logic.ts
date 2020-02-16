@@ -987,15 +987,15 @@ export class Logic {
             ****** ANALYSE AND THINK ABOUT IT!  ******
 
             connections: all connected the past 6 weeks for current vehicle and location
-            min_target: calculate when connected and add how long a connection normally is.
-                        half of this is added to connection time, to avoid it trying to cram
-                        in a charge plan in just hours if that is not how you normally charge.
+            ref_time: set connection time as base reference, or current time if not connected or 24h have passed
             similar_connections: go back 6 weeks and find the closest disconnect times for this weekday.
-                                 filter out only charges where a normal amount of energy was used after
-                                 this was added so that if you just disconnect to move your vehicle, it
-                                 won't use that one
+                                 only include sessions where the used amount is in the 25th percentile
+                                 (this was added so that if you just disconnect to move your vehicle, it won't use that one)
+                                 and where the charge amount was at least half of the 25th percentile
+                                 (this was added to filter out connections where nothing was charged)
             past_weeks: lookup disconnection times from table above and map it to today
-
+            adjusted: roll disconnection times forward 24 hours if we would not have sufficient time to charge
+            
             compare how much was used after these charges to the mean average and go with the greatest number
             pick the 0.2 percentile of disconnect times
 
@@ -1007,11 +1007,11 @@ export class Logic {
           } = await this.db.pg.one(
             `WITH connections AS (
               SELECT connected_id, start_ts, end_ts, connected, end_ts-start_ts as duration, end_level-start_level as charged,
-              end_level-(SELECT start_level FROM connected B WHERE B.vehicle_uuid = A.vehicle_uuid AND B.connected_id > A.connected_id ORDER BY connected_id LIMIT 1) as used
+                end_level-(SELECT start_level FROM connected B WHERE B.vehicle_uuid = A.vehicle_uuid AND B.connected_id > A.connected_id ORDER BY connected_id LIMIT 1) as used
               FROM connected A
               WHERE end_ts >= current_date - interval '6 weeks' AND vehicle_uuid = $1 AND location_uuid = $2
-            ), target AS (
-              SELECT LEAST(NOW() + interval '1 day', (select COALESCE(NOW(), MAX(start_ts)) from connections WHERE connected)) as ts
+            ), ref_time AS (
+              SELECT COALESCE((SELECT MAX(start_ts) FROM connections WHERE connected AND start_ts > NOW() - interval '1 day'), NOW()) as ts
             ), similar_connections AS (
               SELECT target,
                 (SELECT connected_id FROM connections
@@ -1019,12 +1019,12 @@ export class Logic {
                     AND used >= (select percentile_cont(0.25) WITHIN GROUP (ORDER BY used) FROM connections)
                     AND charged > (select percentile_cont(0.25) WITHIN GROUP (ORDER BY charged) FROM connections WHERE charged > 0)/2
                   ORDER BY end_ts LIMIT 1)
-              FROM generate_series((SELECT ts FROM target) - interval '6 weeks', (SELECT ts FROM target) - interval '1 week', '1 week') as target
+              FROM generate_series((SELECT ts FROM ref_time) - interval '6 weeks', (SELECT ts FROM ref_time) - interval '1 week', '1 week') as target
             ), past_weeks AS (
               SELECT used, CASE WHEN end_ts::time < current_time THEN current_date + interval '1 day' + end_ts::time ELSE current_date + end_ts::time END as before, duration
               FROM similar_connections JOIN connections ON (similar_connections.connected_id = connections.connected_id)
             ), adjusted AS (
-              SELECT used, CASE WHEN (SELECT ts FROM target)+(duration/2) > before THEN before + interval '1 day' ELSE before END as before
+              SELECT used, CASE WHEN (SELECT ts FROM ref_time)+(duration/2) > before THEN before + interval '1 day' ELSE before END as before
               FROM past_weeks
             )
             SELECT 
