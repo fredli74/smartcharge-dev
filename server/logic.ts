@@ -1009,7 +1009,7 @@ export class Logic {
               SELECT connected_id, start_ts, end_ts, connected, end_ts-start_ts as duration,
                 end_level-(SELECT start_level FROM connected B WHERE B.vehicle_uuid = A.vehicle_uuid AND B.connected_id > A.connected_id ORDER BY connected_id LIMIT 1) as used
               FROM connected A
-              WHERE end_ts >= current_date - interval '6 weeks' AND vehicle_uuid = $1 AND location_uuid = $2
+              WHERE end_level > start_level AND end_ts >= current_date - interval '6 weeks' AND vehicle_uuid = $1 AND location_uuid = $2
             ), target AS (
               SELECT LEAST(NOW() + interval '1 day', (select COALESCE(NOW(), MAX(start_ts)) from connections WHERE connected)) as ts
             ), similar_connections AS (
