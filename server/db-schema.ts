@@ -169,18 +169,18 @@ const DBServiceProvider_TSQL = `CREATE TABLE scserver.service_provider
             ON DELETE CASCADE
     );`;
 
-/** DBEventMap data is not used, should we stop collecting it?  **/
-export interface DBEventMap {
+/** DBStatsMap data is not used, should we stop collecting it?  **/
+export interface DBStatsMap {
   vehicle_uuid: string; // vehicle identifier
-  period: Date; // date truncated down to closest hour
-  minimum_level: number; // vehicle minimum battery level during the hour
-  maximum_level: number; // vehicle maximum battery level during the hour
-  driven_seconds: number; // driven seconds during the hour
-  driven_meters: number; // driven meters during the hour
-  charged_seconds: number; // charging during the hour
-  charge_energy: number; // energy used charging in Wm (Watt-minutes) during the hour
+  period: Date; // date truncated down to closest period
+  minimum_level: number; // vehicle minimum battery level during the period
+  maximum_level: number; // vehicle maximum battery level during the period
+  driven_seconds: number; // driven seconds during the period
+  driven_meters: number; // driven meters during the period
+  charged_seconds: number; // charging during the period
+  charge_energy: number; // energy used charging in Wm (Watt-minutes) during the period
 }
-const DBEventMap_TSQL = `CREATE TABLE scserver.event_map
+const DBStatsMap_TSQL = `CREATE TABLE scserver.stats_map
     (
         vehicle_uuid uuid NOT NULL,
         period timestamp(0) with time zone NOT NULL,
@@ -190,8 +190,14 @@ const DBEventMap_TSQL = `CREATE TABLE scserver.event_map
         driven_meters integer,
         charged_seconds integer,
         charge_energy integer,
-        CONSTRAINT event_map_pkey PRIMARY KEY(vehicle_uuid,hour),
-        CONSTRAINT event_map_fkey FOREIGN KEY (vehicle_uuid)
+        charge_cost integer,
+        charge_cost_saved integer,
+        CONSTRAINT stats_map_pkey PRIMARY KEY(vehicle_uuid,period),
+        CONSTRAINT stats_map_fkey FOREIGN KEY (vehicle_uuid)
+            REFERENCES vehicle (vehicle_uuid) MATCH SIMPLE
+            ON UPDATE RESTRICT
+            ON DELETE CASCADE
+    );`;
 
 export interface DBSleep {
   sleep_id: number; // sleep id
@@ -476,7 +482,7 @@ export const DB_SETUP_TSQL = [
 
   DBServiceProvider_TSQL,
 
-  DBEventMap_TSQL,
+  DBStatsMap_TSQL,
 
   DBTrip_TSQL,
 

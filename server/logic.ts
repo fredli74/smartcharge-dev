@@ -26,7 +26,7 @@ import {
 } from "./gql/vehicle-type";
 
 const TRIP_TOPUP_MARGIN = 15 * 60e3; // 15 minutes before trip time
-const MIN_STATS_PERIOD = 5 * 60e3; // 5 minutes
+const MIN_STATS_PERIOD = 1 * 60e3; // 1 minute
 
 export class Logic {
   constructor(private db: DBInterface) {}
@@ -59,6 +59,25 @@ export class Logic {
       estimate: input.estimatedTimeLeft || 0, // estimated time in minutes to complete charge
       power: (input.powerUse || 0) * 1e3, // current power drain kW to W
       added: (input.energyAdded || 0) * 60e3 // added kWh to Wm (1000 * 60)
+    };
+
+    // Setup stats record
+    const statsDelta = (now.getTime() - vehicle.updated.getTime()) / 1e3;
+    const statsData = {
+      vehicle_uuid: vehicle.vehicle_uuid,
+      period: new Date(
+        Math.floor(now.getTime() / MIN_STATS_PERIOD) * MIN_STATS_PERIOD
+      ),
+      minimum_level: data.level,
+      maximum_level: data.level,
+      driven_seconds: data.driving ? statsDelta : 0,
+      driven_meters:
+        vehicle.odometer > 0 ? data.odometer - vehicle.odometer : 0,
+      // all charge info is filled in below
+      charged_seconds: 0,
+      charge_energy: 0,
+      charge_cost: 0,
+      charge_cost_saved: 0
     };
 
     // Did we move?
@@ -184,14 +203,16 @@ export class Logic {
           );
 
           // Update charge record
-          const deltaTime = (now.getTime() - charge.end_ts.getTime()) / 1e3; // ms / 1000 = s
-          const deltaUsed = Math.round(
-            Math.max(0, data.power * deltaTime) / 60
+          const deltaChargeTime =
+            (now.getTime() - charge.end_ts.getTime()) / 1e3; // ms / 1000 = s
+          const deltaPowerUsed = Math.round(
+            Math.max(0, data.power * deltaChargeTime) / 60
           ); // used = power (W) * time (s) = Ws / 60 = Wm
-          connection.energy_used += deltaUsed;
+          connection.energy_used += deltaPowerUsed;
 
-          // TODO add cost calculations
           {
+            let cost = 0;
+            let saved = 0;
             const priceLookup: {
               price_now: number;
               price_then: number;
@@ -209,16 +230,29 @@ export class Logic {
             );
 
             if (priceLookup.price_now !== null) {
-              connection.cost += Math.round(
-                (priceLookup.price_now * deltaUsed) / 60e3
+              cost = Math.round(
+                (priceLookup.price_now * deltaPowerUsed) / 60e3
               ); // price in (kWh) * used in (Wm)   Wm / 60e3 => kWh
+
               if (priceLookup.price_then !== null) {
-                connection.saved += Math.round(
+                saved = Math.round(
                   ((priceLookup.price_then - priceLookup.price_now) *
-                    deltaUsed) /
+                    deltaPowerUsed) /
                     60e3
                 );
               }
+            }
+
+            connection.cost += cost;
+            connection.saved += saved;
+
+            // Update stats with charge information
+            if (deltaChargeTime < statsDelta * 2) {
+              // Just a sanity check that we do not update stats with old data
+              statsData.charge_cost = cost;
+              statsData.charge_cost_saved = saved;
+              statsData.charged_seconds = statsDelta;
+              statsData.charge_energy = deltaPowerUsed;
             }
           }
 
@@ -232,12 +266,12 @@ export class Logic {
               update.estimate = data.estimate;
             }
             if (data.connected) {
-              update.energy_used = charge.energy_used + deltaUsed;
+              update.energy_used = charge.energy_used + deltaPowerUsed;
               update.end_added = data.added;
             }
             log(
               LogLevel.Debug,
-              `Updating charge ${vehicle.charge_id} with ${deltaUsed} Wm used in ${deltaTime}s`
+              `Updating charge ${vehicle.charge_id} with ${deltaPowerUsed} Wm used in ${deltaChargeTime}s`
             );
             charge = await this.db.pg.one(
               `UPDATE charge SET ($1:name) = ($1:csv) WHERE charge_id=$2 RETURNING *;`,
@@ -446,41 +480,23 @@ export class Logic {
       log(LogLevel.Trace, `trip: ${JSON.stringify(trip)}`);
     }
 
-    // Update eventMap
-    {
-      const deltaTime = Math.min(
-        (now.getTime() - vehicle.updated.getTime()) / 1e3
-      );
-      if (deltaTime > 0 && deltaTime < 3 * 60 * 60) {
-        // Limit for data sanity during polling loss
-        const deltaEvent = {
-          vehicle_uuid: input.id,
-          period: new Date(
-            Math.floor(now.getTime() / MIN_STATS_PERIOD) * MIN_STATS_PERIOD
-          ),
-          minimum_level: data.level,
-          maximum_level: data.level,
-          driven_seconds: data.driving ? deltaTime : 0,
-          driven_meters:
-            vehicle.odometer > 0 ? data.odometer - vehicle.odometer : 0,
-          charged_seconds: data.charging_to ? deltaTime : 0,
-          charge_energy: data.charging_to
-            ? Math.round(Math.max(0, data.power * deltaTime) / 60)
-            : 0 // used = power (W) * time (s) = Ws / 60 = Wm
-        };
-        await this.db.pg.one(
-          `INSERT INTO event_map($[this:name]) VALUES ($[this:csv])
+    // Update statsMap
+    if (statsDelta > 0 && statsDelta < 60 * 60) {
+      // Limit statsDelta to 1 hour for data sanity during polling loss
+      await this.db.pg.one(
+        `INSERT INTO stats_map($[this:name]) VALUES ($[this:csv])
             ON CONFLICT(vehicle_uuid, period) DO UPDATE SET
-                minimum_level=LEAST(event_map.minimum_level, EXCLUDED.minimum_level),
-                maximum_level=GREATEST(event_map.maximum_level, EXCLUDED.maximum_level),
-                driven_seconds=event_map.driven_seconds + EXCLUDED.driven_seconds,
-                driven_meters=event_map.driven_meters + EXCLUDED.driven_meters,
-                charged_seconds=event_map.charged_seconds + EXCLUDED.charged_seconds,
-                charge_energy=event_map.charge_energy + EXCLUDED.charge_energy
+                minimum_level=LEAST(stats_map.minimum_level, EXCLUDED.minimum_level),
+                maximum_level=GREATEST(stats_map.maximum_level, EXCLUDED.maximum_level),
+                driven_seconds=stats_map.driven_seconds + EXCLUDED.driven_seconds,
+                driven_meters=stats_map.driven_meters + EXCLUDED.driven_meters,
+                charged_seconds=stats_map.charged_seconds + EXCLUDED.charged_seconds,
+                charge_energy=stats_map.charge_energy + EXCLUDED.charge_energy,
+                charge_cost=stats_map.charge_cost + EXCLUDED.charge_cost,
+                charge_cost_saved=stats_map.charge_cost_saved + EXCLUDED.charge_cost_saved
             RETURNING *;`,
-          deltaEvent
-        );
-      }
+        statsData
+      );
     }
 
     // Update charge plan if needed
