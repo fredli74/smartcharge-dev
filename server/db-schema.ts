@@ -192,6 +192,23 @@ const DBEventMap_TSQL = `CREATE TABLE scserver.event_map
         charge_energy integer,
         CONSTRAINT event_map_pkey PRIMARY KEY(vehicle_uuid,hour),
         CONSTRAINT event_map_fkey FOREIGN KEY (vehicle_uuid)
+
+export interface DBSleep {
+  sleep_id: number; // sleep id
+  vehicle_uuid: string; // vehicle identifier
+  active: boolean; // are we still sleeping
+  start_ts: Date; // time when starting
+  end_ts: Date; // time when ending
+}
+const DBSleep_TSQL = `CREATE TABLE scserver.sleep
+    (
+        sleep_id integer NOT NULL GENERATED ALWAYS AS IDENTITY,
+        vehicle_uuid uuid NOT NULL,
+        active boolean NOT NULL,
+        start_ts timestamp(0) with time zone NOT NULL,
+        end_ts timestamp(0) with time zone NOT NULL,
+        CONSTRAINT sleep_pkey PRIMARY KEY (sleep_id),
+        CONSTRAINT sleep_fkey FOREIGN KEY (vehicle_uuid)
             REFERENCES vehicle (vehicle_uuid) MATCH SIMPLE
             ON UPDATE RESTRICT
             ON DELETE CASCADE
@@ -462,6 +479,8 @@ export const DB_SETUP_TSQL = [
   DBEventMap_TSQL,
 
   DBTrip_TSQL,
+
+  DBSleep_TSQL,
 
   DBChargeSession_TSQL,
   DBCharge_TSQL,

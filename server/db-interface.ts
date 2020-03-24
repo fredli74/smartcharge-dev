@@ -108,9 +108,7 @@ export class DBInterface {
             if (orphanServices[o.service_uuid]) {
               log(
                 LogLevel.Info,
-                `Deleting orphan ${o.provider_name} service_provider ${
-                  o.service_uuid
-                }`
+                `Deleting orphan ${o.provider_name} service_provider ${o.service_uuid}`
               );
               await this.pg.none(
                 `DELETE FROM service_provider WHERE service_uuid = $1;`,
@@ -127,9 +125,9 @@ export class DBInterface {
     }, 60e3);
   }
   public async getDatabaseVersion(): Promise<string> {
-    return (await this.pg.one(
-      `SELECT value FROM setting WHERE key = 'version';`
-    )).value;
+    return (
+      await this.pg.one(`SELECT value FROM setting WHERE key = 'version';`)
+    ).value;
   }
   public async setupDatabase(): Promise<void> {
     for (const q of DB_SETUP_TSQL) {
@@ -413,15 +411,6 @@ export class DBInterface {
     return dblist[0];
   }
 
-  public async setVehicleStatus(
-    vehicleUUID: string,
-    status: string
-  ): Promise<DBVehicle> {
-    return this.pg.one(
-      `UPDATE vehicle SET status = $2 WHERE vehicle_uuid = $1 RETURNING *;`,
-      [vehicleUUID, status]
-    );
-  }
   public async storeVehicleDebug(
     record: DBVehicleDebug
   ): Promise<DBVehicleDebug> {
@@ -455,6 +444,24 @@ export class DBInterface {
       [provider_data, `provider_data = jsonb_merge(provider_data, $10)`]
     ]);
     assert(set.length > 0);
+
+    if (status !== undefined) {
+      if (
+        status.toLowerCase() === "offline" ||
+        status.toLowerCase() === "sleeping"
+      ) {
+        this.pg.none(
+          `WITH upsert AS (UPDATE sleep SET end_ts=NOW() WHERE vehicle_uuid=$1 AND active RETURNING *)
+          INSERT INTO sleep(vehicle_uuid, active, start_ts, end_ts) SELECT $1, true, NOW(), NOW() WHERE NOT EXISTS (SELECT * FROM upsert);`,
+          [vehicle_uuid]
+        );
+      } else {
+        this.pg.none(
+          `UPDATE sleep SET active=false, end_ts=NOW() WHERE vehicle_uuid=$1 AND active;`,
+          [vehicle_uuid]
+        );
+      }
+    }
 
     return this.pg.one(
       `UPDATE vehicle SET ${set.join(
@@ -557,14 +564,18 @@ export class DBInterface {
       current = dbCurve.shift()!.seconds;
     } else {
       current =
-        (await this.pg.one(
-          `SELECT AVG(duration) FROM charge a JOIN charge_curve b ON (a.charge_id = b.charge_id) WHERE a.vehicle_uuid = $1 AND location_uuid = $2;`,
-          [vehicle_uuid, location_uuid]
-        )).avg ||
-        (await this.pg.one(
-          `SELECT AVG(60.0 * estimate / (target_level-end_level)) FROM charge WHERE end_level < target_level AND vehicle_uuid = $1 AND location_uuid = $2;`,
-          [vehicle_uuid, location_uuid]
-        )).avg ||
+        (
+          await this.pg.one(
+            `SELECT AVG(duration) FROM charge a JOIN charge_curve b ON (a.charge_id = b.charge_id) WHERE a.vehicle_uuid = $1 AND location_uuid = $2;`,
+            [vehicle_uuid, location_uuid]
+          )
+        ).avg ||
+        (
+          await this.pg.one(
+            `SELECT AVG(60.0 * estimate / (target_level-end_level)) FROM charge WHERE end_level < target_level AND vehicle_uuid = $1 AND location_uuid = $2;`,
+            [vehicle_uuid, location_uuid]
+          )
+        ).avg ||
         20 * 60; // 20 min default for first time charge
     }
     assert(current !== undefined && current !== null);
@@ -616,10 +627,12 @@ export class DBInterface {
     );
   }
   public async chargeCalibration(vehicle_uuid: string, charge_id: number) {
-    return (await this.pg.one(
-      `SELECT MAX(level) as level FROM charge a JOIN charge_curve b ON(a.charge_id = b.charge_id)
+    return (
+      await this.pg.one(
+        `SELECT MAX(level) as level FROM charge a JOIN charge_curve b ON(a.charge_id = b.charge_id)
       WHERE a.vehicle_uuid = $1 AND a.location_uuid = (SELECT location_uuid FROM charge c WHERE c.charge_id = $2);`,
-      [vehicle_uuid, charge_id]
-    )).level;
+        [vehicle_uuid, charge_id]
+      )
+    ).level;
   }
 }
