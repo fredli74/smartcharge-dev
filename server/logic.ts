@@ -26,6 +26,7 @@ import {
 } from "./gql/vehicle-type";
 
 const TRIP_TOPUP_MARGIN = 15 * 60e3; // 15 minutes before trip time
+const MIN_STATS_PERIOD = 5 * 60e3; // 5 minutes
 
 export class Logic {
   constructor(private db: DBInterface) {}
@@ -454,8 +455,8 @@ export class Logic {
         // Limit for data sanity during polling loss
         const deltaEvent = {
           vehicle_uuid: input.id,
-          hour: new Date(
-            new Date(now.getTime()).setHours(now.getHours(), 0, 0, 0)
+          period: new Date(
+            Math.floor(now.getTime() / MIN_STATS_PERIOD) * MIN_STATS_PERIOD
           ),
           minimum_level: data.level,
           maximum_level: data.level,
@@ -469,7 +470,7 @@ export class Logic {
         };
         await this.db.pg.one(
           `INSERT INTO event_map($[this:name]) VALUES ($[this:csv])
-            ON CONFLICT(vehicle_uuid, hour) DO UPDATE SET
+            ON CONFLICT(vehicle_uuid, period) DO UPDATE SET
                 minimum_level=LEAST(event_map.minimum_level, EXCLUDED.minimum_level),
                 maximum_level=GREATEST(event_map.maximum_level, EXCLUDED.maximum_level),
                 driven_seconds=event_map.driven_seconds + EXCLUDED.driven_seconds,

@@ -172,7 +172,7 @@ const DBServiceProvider_TSQL = `CREATE TABLE scserver.service_provider
 /** DBEventMap data is not used, should we stop collecting it?  **/
 export interface DBEventMap {
   vehicle_uuid: string; // vehicle identifier
-  hour: Date; // date truncated down to closest hour
+  period: Date; // date truncated down to closest hour
   minimum_level: number; // vehicle minimum battery level during the hour
   maximum_level: number; // vehicle maximum battery level during the hour
   driven_seconds: number; // driven seconds during the hour
@@ -183,7 +183,7 @@ export interface DBEventMap {
 const DBEventMap_TSQL = `CREATE TABLE scserver.event_map
     (
         vehicle_uuid uuid NOT NULL,
-        hour timestamp(0) with time zone NOT NULL,
+        period timestamp(0) with time zone NOT NULL,
         minimum_level integer,
         maximum_level integer,
         driven_seconds integer,
