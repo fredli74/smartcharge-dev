@@ -99,6 +99,7 @@ export class DBInterface {
     setInterval(async () => {
       const now = Date.now();
       if (now > nextCleanup) {
+        // Cleanup orphan service_providers
         {
           for (const o of await this.pg.manyOrNone(
             `SELECT * FROM service_provider WHERE 
@@ -118,6 +119,16 @@ export class DBInterface {
               orphanServices[o.service_uuid] = true;
             }
           }
+        }
+
+        // Cleanup old stats_map entries
+        {
+          // TODO: adjust these when I know what we're doing with them
+          await this.pg.none(
+            `DELETE FROM stats_map WHERE period < 60 AND stats_ts < date_trunc('day', NOW() - interval '2 days');
+             DELETE FROM stats_map WHERE period < 1440 AND stats_ts < date_trunc('week', NOW() - interval '8 weeks');
+             DELETE FROM stats_map WHERE stats_ts < date_trunc('year', NOW() - interval '200 years');`
+          );
         }
 
         nextCleanup = now + 3600e3; // 1 hour

@@ -14,7 +14,8 @@ import {
   DBChargeCurrent,
   DBTrip,
   DBConnected,
-  DBCurrentStats
+  DBCurrentStats,
+  DBStatsMap
 } from "./db-schema";
 import { LogLevel, log, arrayMean, prettyTime } from "@shared/utils";
 import {
@@ -63,12 +64,12 @@ export class Logic {
 
     // Setup stats record
     const statsDelta = (now.getTime() - vehicle.updated.getTime()) / 1e3;
-    const statsData = {
+    const statsData: DBStatsMap = {
       vehicle_uuid: vehicle.vehicle_uuid,
-      period: new Date(
+      period: MIN_STATS_PERIOD,
+      stats_ts: new Date(
         Math.floor(now.getTime() / MIN_STATS_PERIOD) * MIN_STATS_PERIOD
       ),
-      interval: MIN_STATS_PERIOD / 60e3,
       minimum_level: data.level,
       maximum_level: data.level,
       driven_seconds: data.driving ? statsDelta : 0,
@@ -484,26 +485,49 @@ export class Logic {
     // Update statsMap
     if (statsDelta > 0 && statsDelta < 60 * 60) {
       // Limit statsDelta to 1 hour for data sanity during polling loss
-      await this.db.pg.one(
-        `INSERT INTO stats_map($[this:name]) VALUES ($[this:csv])
-            ON CONFLICT(vehicle_uuid, period) DO UPDATE SET
-                minimum_level=LEAST(stats_map.minimum_level, EXCLUDED.minimum_level),
-                maximum_level=GREATEST(stats_map.maximum_level, EXCLUDED.maximum_level),
-                driven_seconds=stats_map.driven_seconds + EXCLUDED.driven_seconds,
-                driven_meters=stats_map.driven_meters + EXCLUDED.driven_meters,
-                charged_seconds=stats_map.charged_seconds + EXCLUDED.charged_seconds,
-                charge_energy=stats_map.charge_energy + EXCLUDED.charge_energy,
-                charge_cost=stats_map.charge_cost + EXCLUDED.charge_cost,
-                charge_cost_saved=stats_map.charge_cost_saved + EXCLUDED.charge_cost_saved
-            RETURNING *;`,
-        statsData
-      );
+      await Promise.all([
+        this.updateStatsMap(statsData, 5), // 5 minute stats bucket
+        this.updateStatsMap(statsData, 60), // hourly stats bucket
+        this.updateStatsMap(statsData, 24 * 60) // daily stats bucket
+      ]);
     }
 
     // Update charge plan if needed
     if (doPricePlan) {
       await this.refreshChargePlan(input.id);
     }
+  }
+
+  public async updateStatsMap(data: DBStatsMap, period: number) {
+    return this.db.pg.one(
+      `INSERT INTO stats_map($[this:name]) VALUES ($[this:csv])
+          ON CONFLICT(vehicle_uuid, period, stats_ts) DO UPDATE SET
+              minimum_level=LEAST(stats_map.minimum_level, EXCLUDED.minimum_level),
+              maximum_level=GREATEST(stats_map.maximum_level, EXCLUDED.maximum_level),
+              driven_seconds=stats_map.driven_seconds + EXCLUDED.driven_seconds,
+              driven_meters=stats_map.driven_meters + EXCLUDED.driven_meters,
+              charged_seconds=stats_map.charged_seconds + EXCLUDED.charged_seconds,
+              charge_energy=stats_map.charge_energy + EXCLUDED.charge_energy,
+              charge_cost=stats_map.charge_cost + EXCLUDED.charge_cost,
+              charge_cost_saved=stats_map.charge_cost_saved + EXCLUDED.charge_cost_saved
+          RETURNING *;`,
+      {
+        vehicle_uuid: data.vehicle_uuid,
+        period: period,
+        stats_ts: new Date(
+          Math.floor(data.stats_ts.getTime() / MIN_STATS_PERIOD) *
+            MIN_STATS_PERIOD
+        ),
+        minimum_level: data.minimum_level,
+        maximum_level: data.maximum_level,
+        driven_seconds: data.driven_seconds,
+        driven_meters: data.driven_meters,
+        charged_seconds: data.charged_seconds,
+        charge_energy: data.charge_energy,
+        charge_cost: data.charge_cost,
+        charge_cost_saved: data.charge_cost_saved
+      }
+    );
   }
 
   public async createNewStats(

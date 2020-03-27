@@ -169,38 +169,6 @@ const DBServiceProvider_TSQL = `CREATE TABLE scserver.service_provider
             ON DELETE CASCADE
     );`;
 
-/** DBStatsMap data is not used, should we stop collecting it?  **/
-export interface DBStatsMap {
-  vehicle_uuid: string; // vehicle identifier
-  period: Date; // date truncated down to closest period
-  interval: number; // period interval in minutes
-  minimum_level: number; // vehicle minimum battery level during the period
-  maximum_level: number; // vehicle maximum battery level during the period
-  driven_seconds: number; // driven seconds during the period
-  driven_meters: number; // driven meters during the period
-  charged_seconds: number; // charging during the period
-  charge_energy: number; // energy used charging in Wm (Watt-minutes) during the period
-}
-const DBStatsMap_TSQL = `CREATE TABLE scserver.stats_map
-    (
-        vehicle_uuid uuid NOT NULL,
-        period timestamp(0) with time zone NOT NULL,
-        interval integer NOT NULL,
-        minimum_level integer,
-        maximum_level integer,
-        driven_seconds integer,
-        driven_meters integer,
-        charged_seconds integer,
-        charge_energy integer,
-        charge_cost integer,
-        charge_cost_saved integer,
-        CONSTRAINT stats_map_pkey PRIMARY KEY(vehicle_uuid,period),
-        CONSTRAINT stats_map_fkey FOREIGN KEY (vehicle_uuid)
-            REFERENCES vehicle (vehicle_uuid) MATCH SIMPLE
-            ON UPDATE RESTRICT
-            ON DELETE CASCADE
-    );`;
-
 export interface DBSleep {
   sleep_id: number; // sleep id
   vehicle_uuid: string; // vehicle identifier
@@ -414,6 +382,39 @@ const DBCurrentStats_TSQL = `CREATE TABLE scserver.current_stats
             ON DELETE CASCADE
     );`;
 
+export interface DBStatsMap {
+  vehicle_uuid: string; // vehicle identifier
+  period: number; // period interval in minutes
+  stats_ts: Date; // date truncated down to closest period
+  minimum_level: number; // vehicle minimum battery level during the period
+  maximum_level: number; // vehicle maximum battery level during the period
+  driven_seconds: number; // driven seconds during the period
+  driven_meters: number; // driven meters during the period
+  charged_seconds: number; // charging during the period
+  charge_energy: number; // energy used charging in Wm (Watt-minutes) during the period
+  charge_cost: number; // total cost of energy charged
+  charge_cost_saved: number; // estimated cost savings
+}
+const DBStatsMap_TSQL = `CREATE TABLE scserver.stats_map
+    (
+        vehicle_uuid uuid NOT NULL,
+        period integer NOT NULL,
+        stats_ts timestamp(0) with time zone NOT NULL,
+        minimum_level integer,
+        maximum_level integer,
+        driven_seconds integer,
+        driven_meters integer,
+        charged_seconds integer,
+        charge_energy integer,
+        charge_cost integer,
+        charge_cost_saved integer,
+        CONSTRAINT stats_map_pkey PRIMARY KEY(vehicle_uuid,period,stats_ts),
+        CONSTRAINT stats_map_fkey FOREIGN KEY (vehicle_uuid)
+            REFERENCES vehicle (vehicle_uuid) MATCH SIMPLE
+            ON UPDATE RESTRICT
+            ON DELETE CASCADE
+    );`;
+
 export interface DBSetting {
   key: string; // key
   value: any; // value (json)
@@ -484,8 +485,6 @@ export const DB_SETUP_TSQL = [
 
   DBServiceProvider_TSQL,
 
-  DBStatsMap_TSQL,
-
   DBTrip_TSQL,
 
   DBSleep_TSQL,
@@ -496,6 +495,8 @@ export const DB_SETUP_TSQL = [
   DBChargeCurve_TSQL,
 
   DBCurrentStats_TSQL,
+
+  DBStatsMap_TSQL,
 
   DBSetting_TSQL
 ];
