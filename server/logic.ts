@@ -515,7 +515,8 @@ export class Logic {
         vehicle_uuid: data.vehicle_uuid,
         period: period,
         stats_ts: new Date(
-          Math.floor(data.stats_ts.getTime() / period) * period
+          Math.floor(data.stats_ts.getTime() / (period * 60e3)) *
+            (period * 60e3)
         ),
         minimum_level: data.minimum_level,
         maximum_level: data.maximum_level,
