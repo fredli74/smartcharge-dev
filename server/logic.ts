@@ -68,6 +68,7 @@ export class Logic {
       period: new Date(
         Math.floor(now.getTime() / MIN_STATS_PERIOD) * MIN_STATS_PERIOD
       ),
+      interval: MIN_STATS_PERIOD / 60e3,
       minimum_level: data.level,
       maximum_level: data.level,
       driven_seconds: data.driving ? statsDelta : 0,

@@ -173,6 +173,7 @@ const DBServiceProvider_TSQL = `CREATE TABLE scserver.service_provider
 export interface DBStatsMap {
   vehicle_uuid: string; // vehicle identifier
   period: Date; // date truncated down to closest period
+  interval: number; // period interval in minutes
   minimum_level: number; // vehicle minimum battery level during the period
   maximum_level: number; // vehicle maximum battery level during the period
   driven_seconds: number; // driven seconds during the period
@@ -184,6 +185,7 @@ const DBStatsMap_TSQL = `CREATE TABLE scserver.stats_map
     (
         vehicle_uuid uuid NOT NULL,
         period timestamp(0) with time zone NOT NULL,
+        interval integer NOT NULL,
         minimum_level integer,
         maximum_level integer,
         driven_seconds integer,
