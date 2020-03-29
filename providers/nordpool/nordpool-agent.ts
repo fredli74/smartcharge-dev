@@ -47,13 +47,16 @@ export class NordpoolAgent extends AbstractAgent {
         zone: "Europe/Oslo"
       }).toJSDate();
       for (const col of row.Columns) {
-        if (!areas[col.Name]) {
-          areas[col.Name] = [];
+        const price = parseFloat(col.Value.replace(/,/g, ".")) / 1e3;
+        if (price !== null) {
+          if (!areas[col.Name]) {
+            areas[col.Name] = [];
+          }
+          areas[col.Name].push({
+            startAt,
+            price: price
+          });
         }
-        areas[col.Name].push({
-          startAt,
-          price: parseFloat(col.Value.replace(/,/g, ".")) / 1e3
-        });
       }
     }
 
