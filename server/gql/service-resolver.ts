@@ -122,7 +122,13 @@ export class ServiceResolver {
   ): Promise<Boolean> {
     authorizeService(context);
     for (const point of input.prices) {
-      await context.db.updatePriceList(input.code, point.startAt, point.price);
+      if (point.price != null) {
+        await context.db.updatePriceList(
+          input.code,
+          point.startAt,
+          point.price
+        );
+      }
     }
     await context.logic.priceListRefreshed(input.code);
     return true;
