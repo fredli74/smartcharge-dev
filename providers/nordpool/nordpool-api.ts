@@ -26,6 +26,7 @@ export class NordpoolAPI extends RestClient {
   }
 
   public async getPrices(page: number, currency: string) {
+    // add &endDate=29-03-2020 if we need to poll historic data
     return this.get(
       `/marketdata/page/${page}?currency=${currency},${currency},EUR,EUR`
     );
