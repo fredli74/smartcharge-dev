@@ -121,10 +121,11 @@ export abstract class AbstractAgent {
           );
           await this.serviceWork!(work as AgentJob);
         }
+        work.nextrun = now + work.interval * 1e3;
       } catch (error) {
         log(LogLevel.Error, error);
+        work.nextrun = now + Math.min(60, work.interval) * 1e3;
       }
-      work.nextrun = now + work.interval * 1e3;
       work.running = false;
     }
   }
