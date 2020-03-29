@@ -684,10 +684,8 @@ export class Logic {
           let hours = [...historyMap[i].hours];
           neededLevel = Math.min(
             100,
-            Math.max(
-              charge_levels.minimum_charge,
-              charge_levels.minimum_charge + historyMap[i].needed
-            ) * 1.1
+            charge_levels.minimum_charge +
+              (historyMap[i].needed > 0 ? historyMap[i].needed * 1.1 : needavg)
           );
 
           let smartCharging = false;
