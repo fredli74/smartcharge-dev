@@ -48,7 +48,7 @@ export class NordpoolAgent extends AbstractAgent {
       }).toJSDate();
       for (const col of row.Columns) {
         const price = parseFloat(col.Value.replace(/,/g, ".")) / 1e3;
-        if (price !== null) {
+        if (!isNaN(price)) {
           if (!areas[col.Name]) {
             areas[col.Name] = [];
           }
