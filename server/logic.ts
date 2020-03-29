@@ -657,6 +657,9 @@ export class Logic {
         .filter((v, i, a) => a.indexOf(v) === i)
         .sort((a, b) => Number(a) - Number(b));
 
+      const needsum = historyMap.reduce((p, c) => p + c.needed, 0);
+      const needavg = needsum / historyMap.length;
+
       let bestCost = Number.POSITIVE_INFINITY;
       for (const t of thresholdList) {
         let totalCharged = 0;
@@ -715,7 +718,7 @@ export class Logic {
           }
         }
         const f = totalCost / totalCharged;
-        if (lvl > charge_levels.minimum_charge && f < bestCost) {
+        if (lvl > charge_levels.minimum_charge + needavg && f < bestCost) {
           bestCost = f;
           threshold = t;
           log(LogLevel.Trace, `Cost simulation ${vehicle_uuid} t=${t} => ${f}`);
