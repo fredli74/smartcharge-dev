@@ -680,12 +680,13 @@ export class Logic {
           }
           let hours = [...historyMap[i].hours];
           neededLevel = Math.min(
-            charge_levels.maximum_charge,
+            100,
             Math.max(
               charge_levels.minimum_charge,
-              charge_levels.minimum_charge + historyMap[i].needed * 1.1
-            )
+              charge_levels.minimum_charge + historyMap[i].needed
+            ) * 1.1
           );
+
           let smartCharging = false;
 
           while (hours.length > 0) {
@@ -694,19 +695,17 @@ export class Logic {
               smartCharging = true;
             }
             const h = hours.shift()!;
-            const charge =
-              h.threshold <= t
-                ? charge_levels.maximum_charge - lvl
-                : lvl < neededLevel
-                ? neededLevel - lvl
-                : 0;
+            const charge = Math.max(
+              h.threshold <= t ? charge_levels.maximum_charge - lvl : 0,
+              lvl < neededLevel ? neededLevel - lvl : 0
+            );
             if (charge > 0) {
               const chargeTime = Math.min(
                 3600 * h.fraction,
                 charge * level_charge_time
               );
               const newLevel = Math.min(
-                charge_levels.maximum_charge,
+                100,
                 lvl + chargeTime / level_charge_time
               );
               totalCharged += newLevel - lvl;
