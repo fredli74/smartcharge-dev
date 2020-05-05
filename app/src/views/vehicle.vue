@@ -31,6 +31,24 @@
           <v-layout row align-center>
             <v-flex sm12 grow class="d-none d-sm-flex">
               <v-img id="vehicle-picture" :src="vehiclePicture" />
+              <v-tooltip v-if="vehiclePictureUnknown" left>
+                <template v-slot:activator="{ on }">
+                  <v-btn
+                    class="mx-2"
+                    absolute
+                    right
+                    fab
+                    dark
+                    small
+                    color="warning"
+                    :href="vehiclePictureReportURL"
+                    target="_blank"
+                    v-on="on"
+                    ><v-icon dark>mdi-bug</v-icon></v-btn
+                  >
+                </template>
+                <span>Report incorrect image</span>
+              </v-tooltip>
             </v-flex>
             <v-flex sm12 grow class="">
               <div v-if="freshInfo" id="temperatures" style="margin:0 auto">
@@ -57,9 +75,7 @@
               :hide-below="120"
               :units="2"
               :time="new Date(Date.now() + vehicle.estimatedTimeLeft * 60e3)"
-              >(est.<template v-slot:suffix
-                >)
-              </template>
+              >(est.<template v-slot:suffix>) </template>
             </RelativeTime>
           </div>
           <div class="batteryLevel">
@@ -125,6 +141,7 @@ import { RawLocation } from "vue-router";
 import { Location } from "@server/gql/location-type";
 import { Vehicle } from "@server/gql/vehicle-type";
 import moment from "moment";
+import md5 from "md5";
 
 const vehicleFragment = `id name minimumLevel maximumLevel anxietyLevel tripSchedule { level time } pausedUntil geoLocation { latitude longitude } location batteryLevel outsideTemperature insideTemperature climateControl isDriving isConnected chargePlan { chargeStart chargeStop level chargeType comment } chargingTo estimatedTimeLeft status smartStatus updated serviceID providerData`;
 
@@ -247,13 +264,36 @@ export default class VehicleVue extends Vue {
     }
   }
 
+  get vehiclePictureUnknown() {
+    return (
+      this.vehicle &&
+      this.vehicle.providerData &&
+      this.vehicle.providerData.unknown_image
+    );
+  }
+
+  get vehiclePictureReportURL() {
+    if (this.vehicle !== undefined) {
+      const publicID = md5("public+" + this.vehicle.id);
+      return `https://github.com/fredli74/smartcharge-dev/issues/new?assignees=&labels=enhancement&template=incorrect-image.md&title=Wrong+vehicle+image+for+${publicID.substr(
+        0,
+        8
+      )}`;
+    }
+    return "";
+  }
+
   get vehiclePicture() {
     if (this.vehicle !== undefined) {
-      const provider = providers.find(
-        p => p.name === this.vehicle!.providerData.provider
-      );
-      if (provider && provider.image) {
-        return provider.image(this.vehicle);
+      if (this.vehiclePictureUnknown) {
+        return require("../assets/unknown_vehicle.png");
+      } else {
+        const provider = providers.find(
+          p => p.name === this.vehicle!.providerData.provider
+        );
+        if (provider && provider.image) {
+          return provider.image(this.vehicle);
+        }
       }
     }
     return "";

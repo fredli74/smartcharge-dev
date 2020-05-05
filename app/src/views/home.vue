@@ -115,13 +115,17 @@ export default class Home extends Vue {
   }
 
   vehiclePicture(vehicle: Vehicle) {
-    const provider = providers.find(
-      p => p.name === vehicle.providerData.provider
-    );
-    if (provider && provider.image) {
-      return provider.image(vehicle, true);
+    if (vehicle.providerData && vehicle.providerData.unknown_image) {
+      return require("../assets/unknown_vehicle.png");
     } else {
-      return "";
+      const provider = providers.find(
+        p => p.name === vehicle.providerData.provider
+      );
+      if (provider && provider.image) {
+        return provider.image(vehicle, true);
+      } else {
+        return "";
+      }
     }
   }
   selectVehicle(vehicle: Vehicle) {

@@ -129,6 +129,8 @@ export class TeslaAgent extends AbstractAgent {
         break;
     }
 
+    let unknown_image = undefined;
+
     function optionTranslate(
       field: string,
       a: { [name: string]: string | null }
@@ -146,6 +148,7 @@ export class TeslaAgent extends AbstractAgent {
           LogLevel.Warning,
           `${subject.teslaID} unknown vehicle_config.${field} = ${d}`
         );
+        unknown_image = true;
         return defaults[field];
       }
       return a[d];
@@ -211,12 +214,17 @@ export class TeslaAgent extends AbstractAgent {
 
     if (
       subject.data.providerData.car_type !== config.car_type ||
+      subject.data.providerData.unknown_image !== unknown_image ||
       JSON.stringify(subject.data.providerData.option_codes) !==
         JSON.stringify(option_codes)
     ) {
       await this.scClient.updateVehicle({
         id: subject.vehicleUUID,
-        providerData: { car_type: config.car_type, option_codes: option_codes }
+        providerData: {
+          car_type: config.car_type,
+          unknown_image: unknown_image,
+          option_codes: option_codes
+        }
       });
     }
   }
@@ -309,10 +317,9 @@ export class TeslaAgent extends AbstractAgent {
         (subject.pollstate === "tired" &&
           now >= subject.statestart + timeTryingToSleep) // or if we've been trying to sleep for TIME_BEING_TIRED seconds
       ) {
-        const data = (await teslaAPI.getVehicleData(
-          subject.teslaID,
-          job.serviceData.token
-        )).response;
+        const data = (
+          await teslaAPI.getVehicleData(subject.teslaID, job.serviceData.token)
+        ).response;
         log(
           LogLevel.Trace,
           `${subject.teslaID} full poll : ${JSON.stringify(data)}`
@@ -506,10 +513,9 @@ export class TeslaAgent extends AbstractAgent {
         }
       } else {
         // Poll vehicle list to avoid keeping it awake
-        const data = (await teslaAPI.listVehicle(
-          subject.teslaID,
-          job.serviceData.token
-        )).response;
+        const data = (
+          await teslaAPI.listVehicle(subject.teslaID, job.serviceData.token)
+        ).response;
         if (config.AGENT_SAVE_TO_TRACEFILE) {
           const s = logFormat(LogLevel.Trace, data);
           fs.writeFileSync(config.AGENT_TRACE_FILENAME, `${s}\n`, {
@@ -532,9 +538,7 @@ export class TeslaAgent extends AbstractAgent {
               // We were offline or sleeping
               log(
                 LogLevel.Info,
-                `${subject.teslaID} ${data.display_name} is ${data.state} (${
-                  subject.pollstate
-                } -> polling)`
+                `${subject.teslaID} ${data.display_name} is ${data.state} (${subject.pollstate} -> polling)`
               );
               this.stayOnline(subject);
               this.adjustInterval(job, 0); // Woke up, poll right away
@@ -545,9 +549,7 @@ export class TeslaAgent extends AbstractAgent {
             if (subject.pollstate !== "offline") {
               log(
                 LogLevel.Info,
-                `${subject.teslaID} ${data.display_name} is ${data.state} (${
-                  subject.pollstate
-                } -> offline)`
+                `${subject.teslaID} ${data.display_name} is ${data.state} (${subject.pollstate} -> offline)`
               );
 
               this.changePollstate(subject, "offline");
@@ -559,9 +561,7 @@ export class TeslaAgent extends AbstractAgent {
             if (subject.pollstate !== "asleep") {
               log(
                 LogLevel.Info,
-                `${subject.teslaID} ${data.display_name} is ${data.state} (${
-                  subject.pollstate
-                } -> asleep)`
+                `${subject.teslaID} ${data.display_name} is ${data.state} (${subject.pollstate} -> asleep)`
               );
 
               this.changePollstate(subject, "asleep");
@@ -710,9 +710,7 @@ export class TeslaAgent extends AbstractAgent {
                 if (await this.vehicleInteraction(job, subject, true)) {
                   log(
                     LogLevel.Info,
-                    `${subject.teslaID} setting charge limit for ${
-                      subject.data.name
-                    } to ${chargeto}%`
+                    `${subject.teslaID} setting charge limit for ${subject.data.name} to ${chargeto}%`
                   );
                   await teslaAPI.setChargeLimit(
                     subject.teslaID,
@@ -783,9 +781,7 @@ export class TeslaAgent extends AbstractAgent {
             } else if (!subject.hvacOn) {
               log(
                 LogLevel.Info,
-                `${subject.teslaID} starting climate control on ${
-                  subject.data.name
-                }`
+                `${subject.teslaID} starting climate control on ${subject.data.name}`
               );
               await this[AgentAction.ClimateControl](job, {
                 data: { id: subject.vehicleUUID, enable: true }
@@ -797,9 +793,7 @@ export class TeslaAgent extends AbstractAgent {
             } else if (!subject.hvacOff) {
               log(
                 LogLevel.Info,
-                `${subject.teslaID} stopping climate control on ${
-                  subject.data.name
-                }`
+                `${subject.teslaID} stopping climate control on ${subject.data.name}`
               );
               await this[AgentAction.ClimateControl](job, {
                 data: { id: subject.vehicleUUID, enable: false }
@@ -893,9 +887,7 @@ export class TeslaAgent extends AbstractAgent {
           };
           log(
             LogLevel.Debug,
-            `Service ${job.serviceID} mapping VIN ${v.vin} -> ID ${
-              v.id_s
-            } -> UUID ${v.vehicle_uuid}`
+            `Service ${job.serviceID} mapping VIN ${v.vin} -> ID ${v.id_s} -> UUID ${v.vehicle_uuid}`
           );
         }
       }
