@@ -172,8 +172,8 @@ export class DBInterface {
   public static DBLocationToLocation(l: DBLocation): Location {
     return {
       id: l.location_uuid,
-      name: l.name,
       ownerID: l.account_uuid,
+      name: l.name,
       geoLocation: {
         latitude: l.location_micro_latitude / 1e6,
         longitude: l.location_micro_longitude / 1e6
