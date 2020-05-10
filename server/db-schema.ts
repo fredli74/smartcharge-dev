@@ -54,12 +54,12 @@ export interface DBPriceList {
   ts: Date; // price tariff starts at
   price: number; // cost per kWh
 }
-const DBPriceList_TSQL = `CREATE TABLE scserver.price_list
+const DBPriceList_TSQL = `CREATE TABLE scserver.price_data
     (
         price_code character varying(32) NOT NULL,
         ts timestamp(0) with time zone NOT NULL,
         price integer,
-        CONSTRAINT price_list_pkey PRIMARY KEY (price_code, ts)
+        CONSTRAINT price_data_pkey PRIMARY KEY (price_code, ts)
     );`;
 
 export interface DBVehicle {
@@ -353,7 +353,7 @@ export interface DBCurrentStats {
   vehicle_uuid: string; // vehicle uuid
   location_uuid: string; // location identifer
   updated: Date; // date when stats where updated
-  price_list_ts: Date; // timestamp of last pricelist entry
+  price_data_ts: Date; // timestamp of last pricelist data entry
   level_charge_time: number; // time to charge 1% (in seconds)
   weekly_avg7_price: number; // weekly running average price (per kWh)
   weekly_avg21_price: number; // total charging time (in seconds)
@@ -365,7 +365,7 @@ const DBCurrentStats_TSQL = `CREATE TABLE scserver.current_stats
         vehicle_uuid uuid NOT NULL,
         location_uuid uuid NOT NULL,
         updated timestamp(0) with time zone NOT NULL DEFAULT NOW(),
-        price_list_ts timestamp(0) with time zone,
+        price_data_ts timestamp(0) with time zone,
         level_charge_time integer,
         weekly_avg7_price integer,
         weekly_avg21_price integer,

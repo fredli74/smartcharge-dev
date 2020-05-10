@@ -10,7 +10,7 @@ const server: IProviderServer = {
     switch (data.query) {
       case "areas": {
         return await context.db.pg.manyOrNone(
-          `SELECT DISTINCT price_code, upper(substring(price_code,10)) as area FROM price_list WHERE price_code like 'nordpool.%';`
+          `SELECT DISTINCT price_code, upper(substring(price_code,10)) as area FROM price_data WHERE price_code like 'nordpool.%';`
         );
       }
       default:

@@ -68,7 +68,7 @@ export class DBInterface {
       ssl: config.DATABASE_SSL === "true"
     });
   }
-  public async init() {
+  public async init(): Promise<void> {
     let version = "";
     log(LogLevel.Info, `Checking database`);
     try {
@@ -245,7 +245,7 @@ export class DBInterface {
     }
     return DBInterface.DBLocationToLocation(bestLocation);
   }
-  public async updateAllLocations(accountUUID: string) {
+  public async updateAllLocations(accountUUID: string): Promise<void> {
     for (const v of await this.getVehicles(accountUUID)) {
       const location = await this.lookupKnownLocation(
         v.account_uuid,
@@ -321,13 +321,13 @@ export class DBInterface {
     );
   }
 
-  public async updatePriceList(
+  public async updatePriceData(
     price_code: string,
     ts: Date,
     price: number
   ): Promise<DBPriceList> {
     const result = await this.pg.one(
-      `INSERT INTO price_list(price_code, ts, price) VALUES($1, $2, $3) ` +
+      `INSERT INTO price_data(price_code, ts, price) VALUES($1, $2, $3) ` +
         `ON CONFLICT (price_code,ts) DO UPDATE SET price=EXCLUDED.price RETURNING *;`,
       [price_code, ts, price * 1e5]
     );
@@ -552,7 +552,7 @@ export class DBInterface {
   ): Promise<DBPriceList[]> {
     return this.pg.manyOrNone(
       `WITH data AS (
-        SELECT p.* FROM price_list p JOIN location l ON (l.price_code = p.price_code)
+        SELECT p.* FROM price_data p JOIN location l ON (l.price_code = p.price_code)
         WHERE location_uuid = $1
       )
       SELECT * FROM data WHERE ts > (SELECT max(ts) FROM data) - interval $2 ORDER BY ts;`,
@@ -609,7 +609,7 @@ export class DBInterface {
     outside_deci_temperature: number | undefined,
     energy_used: number | undefined,
     energy_added: number | undefined
-  ) {
+  ): Promise<DBChargeCurve> {
     const input: any = {
       vehicle_uuid,
       charge_id,
@@ -637,7 +637,10 @@ export class DBInterface {
       input
     );
   }
-  public async chargeCalibration(vehicle_uuid: string, charge_id: number) {
+  public async chargeCalibration(
+    vehicle_uuid: string,
+    charge_id: number
+  ): Promise<number | null> {
     return (
       await this.pg.one(
         `SELECT MAX(level) as level FROM charge a JOIN charge_curve b ON(a.charge_id = b.charge_id)

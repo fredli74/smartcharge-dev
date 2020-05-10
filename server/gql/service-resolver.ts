@@ -89,7 +89,7 @@ export class ServiceResolver {
     })
     powerUse: number,
     @Ctx() context: IContext
-  ): Promise<number> {
+  ): Promise<number | null> {
     authorizeService(context);
 
     const vehicle = await context.db.getVehicle(undefined, vehicle_uuid);
@@ -122,7 +122,7 @@ export class ServiceResolver {
   ): Promise<Boolean> {
     authorizeService(context);
     for (const point of input.prices) {
-      await context.db.updatePriceList(input.code, point.startAt, point.price);
+      await context.db.updatePriceData(input.code, point.startAt, point.price);
     }
     await context.logic.priceListRefreshed(input.code);
     return true;

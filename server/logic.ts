@@ -223,7 +223,7 @@ export class Logic {
                   SELECT MIN(b.start_ts) as ts, SUM(a.end_ts - a.start_ts) as duration
                   FROM charge a JOIN connected b ON (a.connected_id = b.connected_id) WHERE b.connected_id = $1
               ), prices AS (
-                  SELECT ts, price FROM price_list p JOIN location l ON (l.price_code = p.price_code) WHERE location_uuid = $2
+                  SELECT ts, price FROM price_data p JOIN location l ON (l.price_code = p.price_code) WHERE location_uuid = $2
               )
               SELECT 
                   (SELECT price FROM prices WHERE ts < $3 ORDER BY ts DESC LIMIT 1) price_now,
@@ -545,17 +545,17 @@ export class Logic {
 
     // What is the current weekly average power price
     const avg_prices: {
-      price_list_ts: Date;
+      price_data_ts: Date;
       avg7: number;
       avg21: number;
     } = await this.db.pg.one(
-      `WITH my_price_list AS (
-                SELECT p.* FROM price_list p JOIN location l ON (l.price_code = p.price_code) WHERE location_uuid = $1
+      `WITH my_price_data AS (
+                SELECT p.* FROM price_data p JOIN location l ON (l.price_code = p.price_code) WHERE location_uuid = $1
             )
             SELECT
-                (SELECT MAX(ts) FROM my_price_list) as price_list_ts,
-                (SELECT AVG(price::float) FROM my_price_list WHERE ts >= current_date - interval '7 days') as avg7,
-                (SELECT AVG(price::float) FROM my_price_list WHERE ts >= current_date - interval '21 days') as avg21;`,
+                (SELECT MAX(ts) FROM my_price_data) as price_data_ts,
+                (SELECT AVG(price::float) FROM my_price_data WHERE ts >= current_date - interval '7 days') as avg7,
+                (SELECT AVG(price::float) FROM my_price_data WHERE ts >= current_date - interval '21 days') as avg21;`,
       [location_uuid]
     );
 
@@ -589,18 +589,18 @@ export class Logic {
         price: number;
         threshold: number;
       }[] = await this.db.pg.manyOrNone(
-        `WITH my_price_list AS (
-        SELECT p.* FROM price_list p JOIN location l ON (l.price_code = p.price_code) WHERE location_uuid = $2
+        `WITH my_price_data AS (
+        SELECT p.* FROM price_data p JOIN location l ON (l.price_code = p.price_code) WHERE location_uuid = $2
       ), my_connected AS (
-        SELECT * FROM connected WHERE vehicle_uuid = $1 AND end_ts >= current_date - interval '3 weeks' AND connected = false AND start_ts::date >= (SELECT MIN(ts)::date FROM my_price_list)
+        SELECT * FROM connected WHERE vehicle_uuid = $1 AND end_ts >= current_date - interval '3 weeks' AND connected = false AND start_ts::date >= (SELECT MIN(ts)::date FROM my_price_data)
       ), connections AS (
         SELECT *, (SELECT a.end_level-b.start_level FROM my_connected b WHERE b.connected_id > a.connected_id ORDER BY connected_id LIMIT 1) as needed
         FROM my_connected a
       ), period AS (
         SELECT generate_series(date_trunc('hour', (SELECT MIN(start_ts) FROM connections)), current_date - interval '1 hour', '1 hour') as hour
       ), week_avg AS (
-        SELECT day, (SELECT AVG(price::float) FROM my_price_list WHERE ts >= day - interval '7 days' AND ts < day) as avg7,
-        (SELECT AVG(price::float) FROM my_price_list WHERE ts >= day - interval '21 days' AND ts < day) as avg21 FROM
+        SELECT day, (SELECT AVG(price::float) FROM my_price_data WHERE ts >= day - interval '7 days' AND ts < day) as avg7,
+        (SELECT AVG(price::float) FROM my_price_data WHERE ts >= day - interval '21 days' AND ts < day) as avg21 FROM
         (SELECT date_trunc('day', hour) as day FROM period GROUP BY 1) as a
       ), connection_map AS (
         SELECT connected_id,location_uuid,start_level,end_level,needed,hour,LEAST(1.0,
@@ -609,7 +609,7 @@ export class Logic {
         ) as fraction, price,price/(avg7+(avg7-avg21)/2) as threshold
         FROM period
         JOIN connections ON (hour >= date_trunc('hour',start_ts) AND hour <= date_trunc('hour',end_ts))
-        JOIN my_price_list ON (ts = hour)
+        JOIN my_price_data ON (ts = hour)
         JOIN week_avg ON (day = date_trunc('day', hour))
       )
       SELECT * FROM connection_map ORDER BY connected_id,hour;`,
@@ -728,7 +728,7 @@ export class Logic {
       {
         vehicle_uuid: vehicle_uuid,
         location_uuid: location_uuid,
-        price_list_ts: avg_prices.price_list_ts,
+        price_data_ts: avg_prices.price_data_ts,
         level_charge_time: Math.round(level_charge_time),
         weekly_avg7_price: Math.round(avg_prices.avg7),
         weekly_avg21_price: Math.round(avg_prices.avg21),
@@ -742,7 +742,7 @@ export class Logic {
     location_uuid: string
   ): Promise<DBCurrentStats> {
     const stats = await this.db.pg.oneOrNone(
-      `SELECT s.*, s.price_list_ts = (SELECT MAX(ts) FROM price_list p JOIN location l ON (l.price_code = p.price_code) WHERE l.location_uuid = s.location_uuid) as fresh
+      `SELECT s.*, s.price_data_ts = (SELECT MAX(ts) FROM price_data p JOIN location l ON (l.price_code = p.price_code) WHERE l.location_uuid = s.location_uuid) as fresh
       FROM current_stats s WHERE vehicle_uuid=$1 AND location_uuid=$2 ORDER BY stats_id DESC LIMIT 1`,
       [vehicle_uuid, location_uuid]
     );
@@ -890,7 +890,7 @@ export class Logic {
         ts: Date;
         price: number;
       }[] = await this.db.pg.manyOrNone(
-        `SELECT ts, price FROM price_list p JOIN location l ON (l.price_code = p.price_code) WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' AND ts < $2 ORDER BY price`,
+        `SELECT ts, price FROM price_data p JOIN location l ON (l.price_code = p.price_code) WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' AND ts < $2 ORDER BY price`,
         [vehicle.location_uuid, new Date(before)]
       );
 
