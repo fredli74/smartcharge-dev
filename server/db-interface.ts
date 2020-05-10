@@ -16,7 +16,8 @@ import {
   DBAccount,
   DB_VERSION,
   DBPriceList,
-  DBServiceProvider
+  DBServiceProvider,
+  DBChargeCurve
 } from "./db-schema";
 import { log, LogLevel, geoDistance, generateToken } from "@shared/utils";
 import config from "@shared/smartcharge-config";
