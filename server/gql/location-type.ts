@@ -99,7 +99,7 @@ export abstract class ChartData {
   @Field(_type => [ChargePlan], { nullable: true })
   chargePlan!: ChargePlan[] | null;
   @Field(_type => Int)
-  minimumLevel!: number;
+  directLevel!: number;
   @Field(_type => Int)
   maximumLevel!: number;
 }

@@ -23,7 +23,8 @@ import {
   ChargePlan,
   ChargeType,
   ChargePlanToJS,
-  ScheduleToJS
+  ScheduleToJS,
+  SmartChargeGoal
 } from "./gql/vehicle-type";
 
 const TRIP_TOPUP_MARGIN = 15 * 60e3; // 15 minutes before trip time
@@ -939,13 +940,17 @@ export class Logic {
 
     const now = Date.now();
 
+    const locationSettings = DBInterface.DBVehicleToVehicleLocationSettings(
+      vehicle,
+      vehicle.location_uuid
+    );
+    const minimum_charge = locationSettings.directLevel;
+
     let plan: ChargePlan[] = vehicle.charge_plan
       ? (vehicle.charge_plan as ChargePlan[])
           .filter(f => {
-            return (
-              f.chargeStart === null &&
-              vehicle.level < vehicle.minimum_charge + 1
-            );
+            // keep emergency charge so that it is not stopped just as it touches minimum_level
+            return f.chargeStart === null && vehicle.level < minimum_charge + 1;
           })
           .map(f => ChargePlanToJS(f))
       : [];
@@ -981,15 +986,15 @@ export class Logic {
 
       let disconnectTime: number = 0;
 
-      if (vehicle.level < vehicle.minimum_charge) {
+      if (vehicle.level < minimum_charge) {
         // Emergency charge up to minimum level
         // new emergency plan needed
-        const chargeNeeded = vehicle.minimum_charge - vehicle.level - 0.25; // remove 0.25 because then we likely end on the correct percentage
+        const chargeNeeded = minimum_charge - vehicle.level - 0.25; // remove 0.25 because then we likely end on the correct percentage
         const timeNeeded = await this.chargeDuration(
           vehicle.vehicle_uuid,
           vehicle.location_uuid,
           vehicle.level,
-          vehicle.minimum_charge
+          minimum_charge
         );
 
         log(
@@ -1002,7 +1007,7 @@ export class Logic {
           {
             chargeStart: null,
             chargeStop: new Date(now + timeNeeded),
-            level: vehicle.minimum_charge,
+            level: minimum_charge,
             chargeType: ChargeType.minimum,
             comment: `emergency charge`
           }
@@ -1013,7 +1018,7 @@ export class Logic {
           (vehicle.connected
             ? `Direct charging to `
             : `Connect charger to charge to `) +
-            `${vehicle.minimum_charge}% (est. ${prettyTime(timeNeeded / 1e3)})`
+            `${minimum_charge}% (est. ${prettyTime(timeNeeded / 1e3)})`
         );
       }
 
@@ -1086,7 +1091,7 @@ export class Logic {
           } else {
             const minimumLevel = Math.min(
               vehicle.maximum_charge,
-              Math.round(vehicle.minimum_charge + guess.charge + 5) // add 5% to avoid spiraling down
+              Math.round(minimum_charge + guess.charge + 5) // add 5% to avoid spiraling down
             );
             const neededCharge = minimumLevel - vehicle.level;
             const before = guess.before * 1e3; // epoch to ms
@@ -1101,11 +1106,11 @@ export class Logic {
 
             log(
               LogLevel.Debug,
-              `Current level: ${vehicle.level}, predicting ${minimumLevel}% (${
-                vehicle.minimum_charge
-              }+${guess.charge}) is needed before ${new Date(
-                before
-              ).toISOString()}`
+              `Current level: ${
+                vehicle.level
+              }, predicting ${minimumLevel}% (${minimum_charge}+${
+                guess.charge
+              }) is needed before ${new Date(before).toISOString()}`
             );
 
             // Routine charging
@@ -1118,23 +1123,38 @@ export class Logic {
             );
             plan.push(...p);
 
-            // Focus settings charging
-            if (vehicle.anxiety_level) {
-              const anxietyLevel =
-                vehicle.anxiety_level > 1
+            // locations settings charging
+            {
+              const goal =
+                (locationSettings && locationSettings.goal) ||
+                SmartChargeGoal.balanced;
+              let goalLevel =
+                goal === SmartChargeGoal.full
                   ? vehicle.maximum_charge
-                  : Math.round(
-                      minimumLevel + (vehicle.maximum_charge - minimumLevel) / 2
+                  : goal === SmartChargeGoal.low
+                  ? 0
+                  : Math.min(
+                      vehicle.maximum_charge,
+                      Math.max(
+                        minimumLevel,
+                        parseInt(goal) ||
+                          Math.round(
+                            minimumLevel +
+                              (vehicle.maximum_charge - minimumLevel) / 2
+                          )
+                      )
                     );
 
-              const p = await this.generateChargePlan(
-                vehicle,
-                anxietyLevel,
-                ChargeType.prefered,
-                `charge setting`,
-                before
-              );
-              plan.push(...p);
+              if (goalLevel > minimumLevel) {
+                const p = await this.generateChargePlan(
+                  vehicle,
+                  goalLevel,
+                  ChargeType.prefered,
+                  `charge setting`,
+                  before
+                );
+                plan.push(...p);
+              }
             }
           }
         }

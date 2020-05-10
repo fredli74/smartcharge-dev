@@ -20,7 +20,12 @@ import {
 } from "type-graphql";
 import { IContext, accountFilter } from "./api";
 import { DBInterface, INTERNAL_SERVICE_UUID } from "@server/db-interface";
-import { Vehicle, UpdateVehicleInput, ChargePlanToJS } from "./vehicle-type";
+import {
+  Vehicle,
+  UpdateVehicleInput,
+  ChargePlanToJS,
+  VehicleLocationSettings
+} from "./vehicle-type";
 import { ChartData } from "./location-type";
 import { log, LogLevel } from "@shared/utils";
 
@@ -93,12 +98,27 @@ export class VehicleResolver {
     // verify vehicle ownage
     log(LogLevel.Debug, `updateVehicle: ${JSON.stringify(input)}`);
     await context.db.getVehicle(accountFilter(context.accountUUID), input.id);
+
+    // remap settings array to settings map
+    const locationSettingsMap =
+      input.locationSettings &&
+      input.locationSettings.reduce(
+        (map: any, obj: VehicleLocationSettings) => {
+          map[obj.location] = {
+            directLevel: obj.directLevel,
+            goal: obj.goal
+          };
+          return map;
+        },
+        {}
+      );
+
     const result = DBInterface.DBVehicleToVehicle(
       await context.db.updateVehicle(
         input.id,
         input.name,
-        input.minimumLevel,
         input.maximumLevel,
+        locationSettingsMap,
         input.anxietyLevel,
         input.tripSchedule,
         input.pausedUntil,
@@ -109,8 +129,8 @@ export class VehicleResolver {
       )
     );
     if (
-      input.minimumLevel !== undefined ||
       input.maximumLevel !== undefined ||
+      input.locationSettings !== undefined ||
       input.anxietyLevel !== undefined ||
       input.tripSchedule !== undefined
     ) {
@@ -162,7 +182,10 @@ export class VehicleResolver {
       chargePlan:
         (vehicle.charge_plan && vehicle.charge_plan.map(ChargePlanToJS)) ||
         null,
-      minimumLevel: vehicle.minimum_charge,
+      directLevel: DBInterface.DBVehicleToVehicleLocationSettings(
+        vehicle,
+        location.location_uuid
+      ).directLevel,
       maximumLevel: vehicle.maximum_charge
     };
   }

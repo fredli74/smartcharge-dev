@@ -66,15 +66,15 @@ export interface DBVehicle {
   vehicle_uuid: string; // vehicle uuid
   account_uuid: string; // account identifier
   name: string; // name of vehicle
-  minimum_charge: number; // minimum allowed charge
   maximum_charge: number; // maximum normal (non trip) charge
   anxiety_level: number; // current smart charging anxiety level
-  scheduled_trip: any; // currently scheduled trip (or null)
+  scheduled_trip: any | null; // currently scheduled trip (or null)
   smart_pause: Date | null; // smart charging is paused
-  charge_plan: any; // current charge plan (or null)
+  charge_plan: any | null; // current charge plan (or null)
   location_micro_latitude: number; // 6 decimal precision converted to integer
   location_micro_longitude: number; // 6 decimal precision converted to integer
   location_uuid: string | null; // known location id
+  location_settings: any | null; // location settings (or null)
   level: number; // current battery charge level %
   odometer: number; // odometer (in meter)
   outside_deci_temperature: number; // temperature (deci-celsius)
@@ -107,6 +107,7 @@ const DBVehicle_TSQL = `CREATE TABLE scserver.vehicle
         location_micro_latitude integer,
         location_micro_longitude integer,
         location_uuid uuid,
+        location_settings jsonb,
         level smallint DEFAULT 0,
         odometer integer DEFAULT 0,
         outside_deci_temperature smallint DEFAULT 0,

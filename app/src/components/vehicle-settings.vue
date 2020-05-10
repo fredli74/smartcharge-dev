@@ -91,9 +91,7 @@ export default class VehicleSettings extends Vue {
   @Prop({ type: Object, required: true }) readonly vehicle!: Vehicle;
 
   formData: any = {};
-  mounted() {
-    // TODO: move auto_port control to a provider specific option?
-  }
+  mounted() {}
   data() {
     return {};
   }
@@ -135,16 +133,19 @@ export default class VehicleSettings extends Vue {
     }
   }
   get minLevel() {
-    if (this.formData.minimumLevel === undefined) {
+    /* TODO
+   if (this.formData.minimumLevel === undefined) {
       this.formData.minimumLevel = this.vehicle.minimumLevel;
     }
-    return this.formData.minimumLevel;
+    return this.formData.minimumLevel;*/
+    return 0;
   }
   set minLevel(value: number) {
+    /* TODO
     if (this.formData.minimumLevel !== value) {
       this.formData.minimumLevel = value;
       this.doChange();
-    }
+    }*/
   }
   get maxLevel() {
     if (this.formData.maximumLevel === undefined) {
@@ -202,8 +203,9 @@ export default class VehicleSettings extends Vue {
       this.doChange();
     }
   }
-}</script
-><style>
+}
+</script>
+<style>
 .selected-charge {
   font-weight: bolder;
 }

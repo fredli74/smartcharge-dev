@@ -36,7 +36,7 @@
             color="green"
             track-color="green lighten-4"
             thumb-color="green"
-            :min="vehicle.minimumLevel"
+            min="50"
             max="100"
             append-icon="mdi-battery-charging"
           ></v-slider>
@@ -84,7 +84,8 @@ export default class VehicleTrip extends Vue {
       ).format(FORMAT),
       tripLevel:
         (this.vehicle &&
-          (this.vehicle.tripSchedule && this.vehicle.tripSchedule.level)) ||
+          this.vehicle.tripSchedule &&
+          this.vehicle.tripSchedule.level) ||
         this.vehicle.maximumLevel ||
         90,
       trip: Boolean(
@@ -121,5 +122,6 @@ export default class VehicleTrip extends Vue {
       this.$emit("changed", 1000, this.formData);
     }
   }
-}</script
-><style></style>
+}
+</script>
+<style></style>

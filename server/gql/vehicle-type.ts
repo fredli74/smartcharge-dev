@@ -18,6 +18,35 @@ import { GraphQLJSONObject } from "graphql-type-json";
 import { GeoLocation } from "./location-type";
 import "reflect-metadata";
 
+export enum SmartChargeGoal {
+  low = "low",
+  balanced = "balanced",
+  full = "full"
+}
+registerEnumType(SmartChargeGoal, { name: "SmartChargeGoal" });
+
+@ObjectType("VehicleLocationSetting")
+@InputType("VehicleLocationSettingInput")
+export abstract class VehicleLocationSettings {
+  @Field(_type => ID, { description: `location id` })
+  location!: string;
+  @Field(_type => Int, {
+    description: `Minimum battery level to reach directly (%)`
+  })
+  directLevel!: number;
+  @Field(_type => String)
+  goal!: SmartChargeGoal | string;
+}
+export function VehicleLocationSettingsToJS(
+  input: VehicleLocationSettings
+): VehicleLocationSettings {
+  return {
+    location: input.location,
+    directLevel: input.directLevel,
+    goal: input.goal
+  };
+}
+
 @ObjectType("Schedule")
 @InputType("ScheduleInput")
 export abstract class Schedule {
@@ -80,10 +109,6 @@ export abstract class Vehicle {
   @Field()
   name!: string;
   @Field(_type => Int, {
-    description: `minimum level to instantly charge to (%)`
-  })
-  minimumLevel!: number;
-  @Field(_type => Int, {
     description: `maximum level to charge to unless a trip is scheduled (%)`
   })
   maximumLevel!: number;
@@ -102,6 +127,11 @@ export abstract class Vehicle {
   geoLocation!: GeoLocation;
   @Field(_type => ID, { nullable: true, description: `known location id` })
   location!: string | null;
+  @Field(_type => [VehicleLocationSettings], {
+    nullable: true,
+    description: `location settings`
+  })
+  locationSettings!: VehicleLocationSettings[] | null;
   @Field(_type => Int, { description: `battery level (%)` })
   batteryLevel!: number;
   @Field(_type => Int, { description: `odometer (meters)` })
@@ -141,7 +171,6 @@ export function VehicleToJS(input: Vehicle): Vehicle {
     id: input.id,
     ownerID: input.ownerID,
     name: input.name,
-    minimumLevel: input.minimumLevel,
     maximumLevel: input.maximumLevel,
     anxietyLevel: input.anxietyLevel,
     tripSchedule:
@@ -149,6 +178,10 @@ export function VehicleToJS(input: Vehicle): Vehicle {
     pausedUntil: (input.pausedUntil && new Date(input.pausedUntil)) || null,
     geoLocation: input.geoLocation,
     location: input.location,
+    locationSettings:
+      (input.locationSettings &&
+        input.locationSettings.map(VehicleLocationSettingsToJS)) ||
+      null,
     batteryLevel: input.batteryLevel,
     odometer: input.odometer,
     outsideTemperature: input.outsideTemperature,
@@ -175,8 +208,6 @@ export abstract class UpdateVehicleInput {
   @Field({ nullable: true })
   name?: string;
   @Field(_type => Int, { nullable: true })
-  minimumLevel?: number;
-  @Field(_type => Int, { nullable: true })
   maximumLevel?: number;
   @Field(_type => Int, { nullable: true })
   anxietyLevel?: number;
@@ -184,6 +215,8 @@ export abstract class UpdateVehicleInput {
   tripSchedule?: Schedule | null;
   @Field(_type => Date, { nullable: true })
   pausedUntil?: Date | null;
+  @Field(_type => [VehicleLocationSettings], { nullable: true })
+  locationSettings?: VehicleLocationSettings[] | null;
   @Field({ nullable: true })
   status?: string;
   @Field(_type => ID, { nullable: true })

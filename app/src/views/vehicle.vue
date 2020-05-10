@@ -143,7 +143,7 @@ import { Vehicle } from "@server/gql/vehicle-type";
 import moment from "moment";
 import md5 from "md5";
 
-const vehicleFragment = `id name minimumLevel maximumLevel anxietyLevel tripSchedule { level time } pausedUntil geoLocation { latitude longitude } location batteryLevel outsideTemperature insideTemperature climateControl isDriving isConnected chargePlan { chargeStart chargeStop level chargeType comment } chargingTo estimatedTimeLeft status smartStatus updated serviceID providerData`;
+const vehicleFragment = `id ownerID name maximumLevel anxietyLevel tripSchedule { level time } pausedUntil geoLocation { latitude longitude } location locationSettings { location directLevel goal } batteryLevel outsideTemperature insideTemperature climateControl isDriving isConnected chargePlan { chargeStart chargeStop level chargeType comment } chargingTo estimatedTimeLeft status smartStatus updated serviceID providerData`;
 
 @Component({
   components: { VehicleActions, RelativeTime, ChargeChart },
@@ -364,7 +364,7 @@ export default class VehicleVue extends Vue {
   get batteryColor() {
     return this.vehicle!.batteryLevel > this.vehicle!.maximumLevel
       ? "#9cef19"
-      : this.vehicle!.batteryLevel > this.vehicle!.minimumLevel
+      : this.vehicle!.batteryLevel > 15 /* TODO  MINIMUM LEVEL */
       ? "#4cd853"
       : this.vehicle!.batteryLevel > 10
       ? "orange"

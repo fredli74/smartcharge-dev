@@ -118,15 +118,15 @@ export class SCClient extends ApolloClient<any> {
 
   static accountFragment = `id name token`;
   public async loginWithPassword(password: string) {
-    this.account = (await this.mutate({
-      mutation: gql`
+    this.account = (
+      await this.mutate({
+        mutation: gql`
           mutation LoginWithPassword($password: String!) {
-              loginWithPassword(password: $password) { ${
-                SCClient.accountFragment
-              } }
+              loginWithPassword(password: $password) { ${SCClient.accountFragment} }
           }`,
-      variables: { password }
-    })).data.loginWithPassword;
+        variables: { password }
+      })
+    ).data.loginWithPassword;
     this.token = this.account!.token;
     localStorage.setItem("token", this.account!.token);
     if (this.wsClient) {
@@ -135,18 +135,22 @@ export class SCClient extends ApolloClient<any> {
   }
   public async loginWithAPIToken(token: string) {
     this.token = token;
-    this.account = (await this.query({
-      query: gql`{ account { ${SCClient.accountFragment} } }`
-    })).data.account;
+    this.account = (
+      await this.query({
+        query: gql`{ account { ${SCClient.accountFragment} } }`
+      })
+    ).data.account;
   }
   public async loginWithIDToken(idToken: string) {
-    this.account = (await this.mutate({
-      mutation: gql`
+    this.account = (
+      await this.mutate({
+        mutation: gql`
       mutation LoginWithIDToken($idToken: String!) {
         loginWithIDToken(idToken: $idToken) { ${SCClient.accountFragment} }
           }`,
-      variables: { idToken }
-    })).data.loginWithIDToken;
+        variables: { idToken }
+      })
+    ).data.loginWithIDToken;
     this.token = this.account!.token;
     localStorage.setItem("token", this.account!.token);
     if (this.wsClient) {
@@ -180,9 +184,7 @@ export class SCClient extends ApolloClient<any> {
 
   public async getLocation(locationUUID: string): Promise<Location> {
     // TODO: should be more flexible, returning just the fields you want into an <any> response instead
-    const query = gql`query GetLocation($id: String!) { location(id: $id) { ${
-      SCClient.locationFragment
-    } } }`;
+    const query = gql`query GetLocation($id: String!) { location(id: $id) { ${SCClient.locationFragment} } }`;
     const result = await this.query({
       query,
       variables: { id: locationUUID }
@@ -190,9 +192,7 @@ export class SCClient extends ApolloClient<any> {
     return result.data.location;
   }
   public async getLocations(): Promise<Location[]> {
-    const query = gql`query GetLocations { locations { ${
-      SCClient.locationFragment
-    } } }`;
+    const query = gql`query GetLocations { locations { ${SCClient.locationFragment} } }`;
     const result = await this.query({ query });
     return result.data.locations as Location[];
   }
@@ -224,7 +224,6 @@ export class SCClient extends ApolloClient<any> {
   static vehicleFragment = `
   id
   name
-  minimumLevel
   maximumLevel
   anxietyLevel
   tripSchedule {
@@ -237,6 +236,11 @@ export class SCClient extends ApolloClient<any> {
     longitude
   }
   location
+  locationSettings {
+    location
+    directLevel
+    goal
+  }
   batteryLevel
   odometer
   outsideTemperature
@@ -261,9 +265,7 @@ export class SCClient extends ApolloClient<any> {
 
   public async getVehicle(vehicleUUID: string): Promise<Vehicle> {
     // TODO: should be more flexible, returning just the fields you want into an <any> response instead
-    const query = gql`query GetVehicle($id: String!) { vehicle(id: $id) { ${
-      SCClient.vehicleFragment
-    } } }`;
+    const query = gql`query GetVehicle($id: String!) { vehicle(id: $id) { ${SCClient.vehicleFragment} } }`;
     const result = await this.query({
       query,
       variables: { id: vehicleUUID }
@@ -271,9 +273,7 @@ export class SCClient extends ApolloClient<any> {
     return VehicleToJS(result.data.vehicle);
   }
   public async getVehicles(): Promise<Vehicle[]> {
-    const query = gql`query GetVehicles { vehicles { ${
-      SCClient.vehicleFragment
-    } } }`;
+    const query = gql`query GetVehicles { vehicles { ${SCClient.vehicleFragment} } }`;
     const result = await this.query({ query });
     return (result.data.vehicles as Vehicle[]).map(v => VehicleToJS(v));
   }

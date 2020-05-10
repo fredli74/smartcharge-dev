@@ -289,8 +289,9 @@ export default class VehicleActions extends Vue {
     });
     this.saving = false;
   }
-}</script
-><style>
+}
+</script>
+<style>
 .time-picker-column-item-text {
   font-size: 18px !important;
 }

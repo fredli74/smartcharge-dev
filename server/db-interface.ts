@@ -22,7 +22,13 @@ import {
 import { log, LogLevel, geoDistance, generateToken } from "@shared/utils";
 import config from "@shared/smartcharge-config";
 import { Location, GeoLocation } from "./gql/location-type";
-import { Vehicle, VehicleToJS, VehicleDebugInput } from "./gql/vehicle-type";
+import {
+  Vehicle,
+  VehicleToJS,
+  VehicleDebugInput,
+  VehicleLocationSettings,
+  SmartChargeGoal
+} from "./gql/vehicle-type";
 import { Account } from "./gql/account-type";
 import { ServiceProvider } from "./gql/service-type";
 import uuidv5 from "uuid/v5";
@@ -335,14 +341,24 @@ export class DBInterface {
     return result;
   }
 
+  public static DBVehicleToVehicleLocationSettings(
+    v: DBVehicle,
+    location_uuid: string
+  ): VehicleLocationSettings {
+    return (
+      (v.location_settings && v.location_settings[location_uuid]) || {
+        location: location_uuid,
+        directLevel: 15,
+        goal: SmartChargeGoal.balanced
+      }
+    );
+  }
+
   public static DBVehicleToVehicle(v: DBVehicle): Vehicle {
-    // TODO: Remove all the "|| default" conversions, a record should always be populated first time
-    // either by the database insert or the function that adds the vehicle
     return VehicleToJS(<Vehicle>{
       id: v.vehicle_uuid,
       ownerID: v.account_uuid,
       name: v.name,
-      minimumLevel: Math.trunc(v.minimum_charge),
       maximumLevel: Math.trunc(v.maximum_charge),
       anxietyLevel: v.anxiety_level,
       tripSchedule: v.scheduled_trip,
@@ -352,8 +368,13 @@ export class DBInterface {
         longitude: v.location_micro_longitude / 1e6
       },
       location: v.location_uuid,
-      batteryLevel: v.level || 0,
-      odometer: Math.trunc(v.odometer) || 0,
+      // convert database map to graphQL array
+      locationSettings: (Object.entries(v.location_settings || {}) as [
+        string,
+        any
+      ][]).map(([key, values]) => ({ location: key, ...values })),
+      batteryLevel: v.level,
+      odometer: Math.trunc(v.odometer),
       outsideTemperature: v.outside_deci_temperature / 10,
       insideTemperature: v.inside_deci_temperature / 10,
       climateControl: v.climate_control,
@@ -382,9 +403,10 @@ export class DBInterface {
       name,
       minimum_charge,
       maximum_charge,
-      anxiety_level: 1,
       service_uuid,
-      provider_data
+      provider_data,
+      level: 0,
+      odometer: 0
     };
     for (const key of Object.keys(fields)) {
       if (fields[key] === undefined) {
@@ -434,8 +456,8 @@ export class DBInterface {
   public async updateVehicle(
     vehicle_uuid: string,
     name: string | undefined,
-    minimum_charge: number | undefined,
     maximum_charge: number | undefined,
+    location_settings: any | undefined,
     anxiety_level: number | undefined,
     scheduled_trip: any | null | undefined,
     smart_pause: Date | null | undefined,
@@ -446,8 +468,11 @@ export class DBInterface {
     const [values, set] = queryHelper([
       vehicle_uuid,
       [name, `name = $2`],
-      [minimum_charge, `minimum_charge = $3`],
-      [maximum_charge, `maximum_charge = $4`],
+      [maximum_charge, `maximum_charge = $3`],
+      [
+        location_settings,
+        `location_settings = jsonb_merge(location_settings, $4)`
+      ],
       [anxiety_level, `anxiety_level = $5`],
       [scheduled_trip, `scheduled_trip = $6`],
       [smart_pause, `smart_pause = $7`],
