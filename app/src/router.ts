@@ -15,24 +15,26 @@ const router = new Router({
       path: "/index.html",
       alias: "/",
       component: Home,
-      meta: { login: true }
+      meta: { login: true, root: true }
     },
     {
       path: "/",
       name: "home",
       component: Home,
-      meta: { login: true }
+      meta: { login: true, root: true }
     },
     {
       path: "/about",
       name: "about",
+      meta: { root: true },
       component: About
     },
     {
       path: "/login",
       name: "login",
       component: () =>
-        import(/* webpackChunkName: "login" */ "./views/login.vue")
+        import(/* webpackChunkName: "login" */ "./views/login.vue"),
+      meta: { root: true }
     },
 
     {
@@ -45,7 +47,9 @@ const router = new Router({
       path: "/provider/:provider/:page",
       name: "provider",
       component: () =>
-        import(/* webpackChunkName: "providerwrapper" */ "./views/provider-wrapper.vue"),
+        import(
+          /* webpackChunkName: "providerwrapper" */ "./views/provider-wrapper.vue"
+        ),
       meta: { login: true }
     },
     {
@@ -53,6 +57,13 @@ const router = new Router({
       name: "vehicle",
       component: () =>
         import(/* webpackChunkName: "vehicle" */ "./views/vehicle.vue"),
+      meta: { login: true }
+    },
+    {
+      path: "/settings",
+      name: "settings",
+      component: () =>
+        import(/* webpackChunkName: "settings" */ "./views/settings.vue"),
       meta: { login: true }
     },
     {

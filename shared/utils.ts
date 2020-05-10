@@ -196,3 +196,8 @@ export function secondsToString(
   });
   return pretty.join(" ").trim() || "now";
 }
+
+import md5 from "md5";
+export function makePublicID(id: string, len?: number): string {
+  return md5("public+" + id).substr(0, len || 8);
+}

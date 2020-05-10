@@ -1,5 +1,5 @@
 <template>
-  <v-flex xs12 class="vehicle">
+  <v-flex xs12 class="vehicle autosize">
     <div v-if="loading">
       <v-progress-linear indeterminate color="primary"></v-progress-linear>
     </div>
@@ -141,7 +141,8 @@ import { RawLocation } from "vue-router";
 import { Location } from "@server/gql/location-type";
 import { Vehicle } from "@server/gql/vehicle-type";
 import moment from "moment";
-import md5 from "md5";
+import config from "@shared/smartcharge-config";
+import { makePublicID } from "@shared/utils";
 
 const vehicleFragment = `id ownerID name maximumLevel anxietyLevel tripSchedule { level time } pausedUntil geoLocation { latitude longitude } location locationSettings { location directLevel goal } batteryLevel outsideTemperature insideTemperature climateControl isDriving isConnected chargePlan { chargeStart chargeStop level chargeType comment } chargingTo estimatedTimeLeft status smartStatus updated serviceID providerData`;
 
@@ -266,6 +267,7 @@ export default class VehicleVue extends Vue {
 
   get vehiclePictureUnknown() {
     return (
+      config.SINGLE_USER === "false" &&
       this.vehicle &&
       this.vehicle.providerData &&
       this.vehicle.providerData.unknown_image
@@ -274,11 +276,8 @@ export default class VehicleVue extends Vue {
 
   get vehiclePictureReportURL() {
     if (this.vehicle !== undefined) {
-      const publicID = md5("public+" + this.vehicle.id);
-      return `https://github.com/fredli74/smartcharge-dev/issues/new?assignees=&labels=enhancement&template=incorrect-image.md&title=Wrong+vehicle+image+for+${publicID.substr(
-        0,
-        8
-      )}`;
+      const publicID = makePublicID(this.vehicle.id);
+      return `https://github.com/fredli74/smartcharge-dev/issues/new?assignees=&labels=enhancement&template=incorrect-image.md&title=Wrong+vehicle+image+for+${publicID}`;
     }
     return "";
   }

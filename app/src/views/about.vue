@@ -1,5 +1,5 @@
 <template>
-  <v-flex id="about" xs11 class="xvga-limit mt-12">
+  <v-flex id="about" xs11 class="xvga-limit mt-12 autosize">
     <p>
       After switching to the Swedish energy provider
       <a href="https://tibber.com">tibber.com</a>, I was inspired to create an

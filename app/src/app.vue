@@ -1,6 +1,16 @@
 <template>
   <v-app>
     <v-app-bar id="app-bar" app flat color="secondary" dark>
+      <v-btn
+        v-if="authorized"
+        v-visible="$route.meta.root !== true"
+        dark
+        icon
+        @click="$router.go(-1)"
+      >
+        <v-icon>mdi-chevron-left</v-icon>
+      </v-btn>
+      <v-spacer v-if="authorized"></v-spacer>
       <v-toolbar-title class="headline text-uppercase">
         <router-link id="homelink" to="/">
           <span>smartcharge.d</span>
@@ -8,9 +18,30 @@
         </router-link>
       </v-toolbar-title>
       <v-spacer></v-spacer>
-      <span id="version" @click="appReload()">{{ version }}</span>
-      <v-spacer></v-spacer>
-      <v-btn v-if="authorized" text @click="logout">sign out</v-btn>
+      <v-menu v-if="authorized" bottom left offset-y>
+        <template v-slot:activator="{ on }">
+          <v-btn dark icon v-on="on">
+            <v-icon>mdi-dots-vertical</v-icon>
+          </v-btn>
+        </template>
+        <v-list>
+          <v-list-item to="/settings"
+            ><v-list-item-title>Settings</v-list-item-title>
+          </v-list-item>
+          <v-list-item @click="appReload()">
+            <v-list-item-content>
+              <v-list-item-title>Reload</v-list-item-title>
+              <v-list-item-subtitle
+                >beta version {{ version }}</v-list-item-subtitle
+              >
+            </v-list-item-content>
+          </v-list-item>
+          <v-divider></v-divider>
+          <v-list-item @click="logout">
+            <v-list-item-title>Sign out</v-list-item-title>
+          </v-list-item>
+        </v-list>
+      </v-menu>
       <v-btn v-else color="primary" @click="login">
         <v-icon left>mdi-login</v-icon>
         sign in</v-btn
@@ -142,7 +173,7 @@ export default class App extends Vue {
 </script>
 
 <style>
-body {
+.autosize {
   font-size: calc(16px + 1vw);
 }
 body * {
@@ -158,7 +189,10 @@ input,
 textarea {
   -moz-user-select: text;
 }
-
+.v-list-item .v-list-item__title,
+.v-list-item .v-list-item__subtitle {
+  line-height: inherit;
+}
 a#homelink {
   color: white;
   text-decoration: none;

@@ -469,4 +469,16 @@ export class SCClient extends ApolloClient<any> {
     });
     return result.data._chargeCalibration;
   }
+
+  public async removeVehicle(id: string, confirm: string): Promise<void> {
+    const mutation = gql`
+      mutation RemoveVehicle($id: String!, $confirm: String!) {
+        removeVehicle(id: $id, confirm: $confirm)
+      }
+    `;
+    await this.mutate({
+      mutation: mutation,
+      variables: { id, confirm }
+    });
+  }
 }

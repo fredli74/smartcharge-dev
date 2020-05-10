@@ -27,7 +27,8 @@ import {
   VehicleLocationSettings
 } from "./vehicle-type";
 import { ChartData } from "./location-type";
-import { log, LogLevel } from "@shared/utils";
+import { log, LogLevel, makePublicID } from "@shared/utils";
+import { ApolloError } from "apollo-server-core";
 
 interface VehicleSubscriptionPayload {
   account_uuid: string;
@@ -87,6 +88,28 @@ export class VehicleResolver {
         await context.db.getVehicle(accountFilter(context.accountUUID), id)
       );
     }
+  }
+
+  @Mutation(_returns => Boolean)
+  async removeVehicle(
+    @Arg("id") id: string,
+    @Arg("confirm") confirm: string,
+    @Ctx() context: IContext
+  ): Promise<Boolean> {
+    // verify vehicle ownage
+    log(LogLevel.Debug, `removeVehicle: ${JSON.stringify(id)}`);
+    const vehicle = await context.db.getVehicle(
+      accountFilter(context.accountUUID),
+      id
+    );
+
+    const publicID = makePublicID(vehicle.vehicle_uuid);
+    if (confirm.toLowerCase() !== publicID) {
+      throw new ApolloError("Incorrect confirmation code");
+    }
+
+    await context.db.removeVehicle(id);
+    return true;
   }
 
   @Mutation(_returns => Vehicle)

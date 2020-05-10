@@ -675,4 +675,20 @@ export class DBInterface {
       )
     ).level;
   }
+
+  public async removeVehicle(vehicle_uuid: string): Promise<void> {
+    await this.pg.none(
+      `DELETE FROM stats_map WHERE vehicle_uuid = $1;
+      DELETE FROM current_stats WHERE vehicle_uuid = $1;
+      DELETE FROM charge_curve WHERE vehicle_uuid = $1;
+      DELETE FROM charge_current USING charge WHERE charge_current.charge_id = charge.charge_id AND charge.vehicle_uuid = $1;
+      DELETE FROM charge WHERE vehicle_uuid = $1;
+      DELETE FROM connected WHERE vehicle_uuid = $1;
+      DELETE FROM trip WHERE vehicle_uuid = $1;
+      DELETE FROM sleep WHERE vehicle_uuid = $1;
+      DELETE FROM vehicle_debug WHERE vehicle_uuid = $1;
+      DELETE FROM vehicle WHERE vehicle_uuid = $1;`,
+      [vehicle_uuid]
+    );
+  }
 }
