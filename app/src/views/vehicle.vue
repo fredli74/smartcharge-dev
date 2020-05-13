@@ -143,7 +143,7 @@ import config from "@shared/smartcharge-config";
 import { makePublicID } from "@shared/utils";
 import { GQLVehicle, GQLLocation } from "@shared/sc-schema";
 
-const vehicleFragment = `id ownerID name maximumLevel anxietyLevel tripSchedule { level time } pausedUntil geoLocation { latitude longitude } location locationSettings { location directLevel goal } batteryLevel outsideTemperature insideTemperature climateControl isDriving isConnected chargePlan { chargeStart chargeStop level chargeType comment } chargingTo estimatedTimeLeft status smartStatus updated serviceID providerData`;
+const vehicleFragment = `id ownerID name maximumLevel tripSchedule { level time } pausedUntil geoLocation { latitude longitude } location locationSettings { location directLevel goal } batteryLevel outsideTemperature insideTemperature climateControl isDriving isConnected chargePlan { chargeStart chargeStop level chargeType comment } chargingTo estimatedTimeLeft status smartStatus updated serviceID providerData`;
 
 @Component({
   components: { VehicleActions, RelativeTime, ChargeChart },
