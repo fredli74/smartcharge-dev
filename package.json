@@ -9,7 +9,7 @@
     "serve": "vue-cli-service serve",
     "build": "npm run build:server && npm run build:app",
     "lint": "vue-cli-service lint",
-    "_babel": "npx babel --extensions \".ts\" --copy-files --verbose --ignore **/*.d.ts --ignore **/node_modules --config-file=./babel.config.js",
+    "_babel": "npx babel --extensions \".ts\" --copy-files --verbose --ignore **/node_modules --config-file=./babel.config.js",
     "_babel:providers": "npm run _babel -- providers --out-dir dist/providers",
     "_babel:shared": "npm run _babel -- shared --out-dir dist/shared",
     "_babel:server": "npm run _babel -- server --out-dir dist/server",

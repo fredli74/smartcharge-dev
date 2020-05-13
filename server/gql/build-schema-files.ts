@@ -11,9 +11,12 @@ import gqlSchema from "./api";
 import path from "path";
 import { generateTypeScriptTypes } from "graphql-schema-typescript";
 
-const schemaFileName = path.resolve(__dirname, "../../../shared/sc-schema.gql");
+const schemaFileName = path.resolve(
+  __dirname,
+  "../../../shared/sc-schema.graphql"
+);
 const typeFileName = path.resolve(__dirname, "../../../shared/sc-schema.ts");
-
+// note: we're not exporting to .d.ts file because that makes enums const and babel did not support it
 (async () => {
   try {
     const schema = await gqlSchema(schemaFileName);
