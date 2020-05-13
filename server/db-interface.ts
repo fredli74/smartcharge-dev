@@ -15,7 +15,7 @@ import {
   DBVehicleDebug,
   DBAccount,
   DB_VERSION,
-  DBPriceList,
+  DBPriceData,
   DBServiceProvider,
   DBChargeCurve
 } from "./db-schema";
@@ -24,14 +24,14 @@ import config from "@shared/smartcharge-config";
 import { Location, GeoLocation } from "./gql/location-type";
 import {
   Vehicle,
-  VehicleToJS,
   VehicleDebugInput,
   VehicleLocationSettings,
-  SmartChargeGoal
+  VehicleToJS
 } from "./gql/vehicle-type";
-import { Account } from "./gql/account-type";
 import { ServiceProvider } from "./gql/service-type";
-import uuidv5 from "uuid/v5";
+import { v5 as uuidv5 } from "uuid";
+import { PriceList } from "./gql/price-type";
+import { SmartChargeGoal } from "@shared/sc-types";
 
 export const DB_OPTIONS = {};
 
@@ -176,6 +176,9 @@ export class DBInterface {
   }
 
   public static DBLocationToLocation(l: DBLocation): Location {
+    return l as Location;
+    //return new Location();
+    /*
     return {
       id: l.location_uuid,
       ownerID: l.account_uuid,
@@ -185,9 +188,10 @@ export class DBInterface {
         longitude: l.location_micro_longitude / 1e6
       },
       geoFenceRadius: l.radius,
+      priceListID: l.price_code,
       serviceID: l.service_uuid,
       providerData: l.provider_data
-    };
+    };*/
   }
   public async newLocation(
     account_uuid: string,
@@ -223,7 +227,7 @@ export class DBInterface {
     accountUUID: string,
     latitude: number,
     longitude: number
-  ): Promise<Location | null> {
+  ): Promise<DBLocation | null> {
     const locations: DBLocation[] = await this.pg.manyOrNone(
       `SELECT * FROM location WHERE account_uuid = $1 ORDER BY name, location_uuid;`,
       [accountUUID]
@@ -250,18 +254,24 @@ export class DBInterface {
     if (bestLocation === null) {
       return null;
     }
-    return DBInterface.DBLocationToLocation(bestLocation);
+    return bestLocation;
   }
   public async updateAllLocations(accountUUID: string): Promise<void> {
     for (const v of await this.getVehicles(accountUUID)) {
-      const location = await this.lookupKnownLocation(
-        v.account_uuid,
-        v.location_micro_latitude,
-        v.location_micro_longitude
-      );
+      let location = null;
+      if (
+        v.location_micro_latitude !== null &&
+        v.location_micro_longitude !== null
+      ) {
+        location = await this.lookupKnownLocation(
+          v.account_uuid,
+          v.location_micro_latitude,
+          v.location_micro_longitude
+        );
+      }
       this.pg.none(
         `UPDATE vehicle SET location_uuid=$1 WHERE vehicle_uuid=$2;`,
-        [location ? location.id : null, v.vehicle_uuid]
+        [location ? location.location_uuid : null, v.vehicle_uuid]
       );
     }
   }
@@ -332,7 +342,7 @@ export class DBInterface {
     price_code: string,
     ts: Date,
     price: number
-  ): Promise<DBPriceList> {
+  ): Promise<DBPriceData> {
     const result = await this.pg.one(
       `INSERT INTO price_data(price_code, ts, price) VALUES($1, $2, $3) ` +
         `ON CONFLICT (price_code,ts) DO UPDATE SET price=EXCLUDED.price RETURNING *;`,
@@ -349,7 +359,7 @@ export class DBInterface {
       (v.location_settings && v.location_settings[location_uuid]) || {
         location: location_uuid,
         directLevel: 15,
-        goal: SmartChargeGoal.balanced
+        goal: SmartChargeGoal.Balanced
       }
     );
   }
@@ -360,12 +370,11 @@ export class DBInterface {
       ownerID: v.account_uuid,
       name: v.name,
       maximumLevel: Math.trunc(v.maximum_charge),
-      anxietyLevel: v.anxiety_level,
       tripSchedule: v.scheduled_trip,
       pausedUntil: v.smart_pause,
       geoLocation: {
-        latitude: v.location_micro_latitude / 1e6,
-        longitude: v.location_micro_longitude / 1e6
+        latitude: 0, //v.location_micro_latitude / 1e6,
+        longitude: 0 //v.location_micro_longitude / 1e6
       },
       location: v.location_uuid,
       // convert database map to graphQL array
@@ -518,9 +527,6 @@ export class DBInterface {
     };
   }
 
-  public static DBAccountToAccount(a: DBAccount): Account {
-    return { id: a.account_uuid, name: a.name, token: a.api_token };
-  }
   public async getAccount(accountUUID: string): Promise<DBAccount> {
     return this.pg.one(`SELECT * FROM account WHERE account_uuid = $1;`, [
       accountUUID
@@ -572,10 +578,10 @@ export class DBInterface {
     );
   }
 
-  public async getChartData(
+  public async getChartPriceData(
     location_uuid: string,
     interval: number
-  ): Promise<DBPriceList[]> {
+  ): Promise<DBPriceData[]> {
     return this.pg.manyOrNone(
       `WITH data AS (
         SELECT p.* FROM price_data p JOIN location l ON (l.price_code = p.price_code)
@@ -690,5 +696,77 @@ export class DBInterface {
       DELETE FROM vehicle WHERE vehicle_uuid = $1;`,
       [vehicle_uuid]
     );
+  }
+
+  public async removeLocation(location_uuid: string): Promise<void> {
+    await this.pg.none(
+      `UPDATE vehicle SET location_uuid = null WHERE location_uuid = $1;
+      DELETE FROM charge_curve USING charge WHERE charge_curve.charge_id = charge.charge_id AND charge.location_uuid = $1;
+      DELETE FROM charge_current USING charge WHERE charge_current.charge_id = charge.charge_id AND charge.location_uuid = $1;
+      DELETE FROM charge WHERE location_uuid = $1;
+      DELETE FROM connected WHERE location_uuid = $1;
+      DELETE FROM trip WHERE start_location_uuid = $1 OR end_location_uuid = $1;
+      DELETE FROM current_stats WHERE location_uuid = $1;
+      DELETE FROM location WHERE location_uuid = $1;`,
+      [location_uuid]
+    );
+  }
+
+  public static DBPriceListToPriceList(l: any): PriceList {
+    return {
+      id: l.price_code,
+      name: l.price_code,
+      ownerID: l.price_code,
+      private: false
+    };
+  }
+  public async getPriceLists(
+    _account_uuid: string | null | undefined,
+    price_list_uuid?: string
+  ): Promise<any[]> {
+    // TODO: add a real price_list table to the database
+    const [values, where] = queryHelper([
+      [price_list_uuid, `price_code = $1`]
+      //  [account_uuid, `account_uuid = $2`]
+    ]);
+    return this.pg.manyOrNone(
+      `SELECT DISTINCT price_code FROM price_data  ${queryWhere(
+        where
+      )} ORDER BY 1`,
+      values
+    );
+  }
+  public async getPriceList(
+    account_uuid: string | null | undefined,
+    price_list_uuid: string
+  ): Promise<any> {
+    // TODO: add a real price_list table to the database
+    const dblist = await this.getPriceLists(account_uuid, price_list_uuid);
+    if (dblist.length === 0) {
+      throw new Error(`Unknown location id ${price_list_uuid}`);
+    }
+    assert(dblist.length === 1);
+    return dblist[0];
+  }
+  public async updatePriceList(
+    _price_list_uuid: string,
+    _name: string | undefined,
+    _isPrivate: boolean | undefined
+  ): Promise<DBLocation> {
+    throw "Not implemented";
+    /*const [values, set] = queryHelper([
+      price_list_uuid,
+      [name, `name = $2`],
+      [isPrivate, `private = $3`]
+    ]);
+    assert(set.length > 0);
+
+    
+    return this.pg.one(
+      `UPDATE price_list SET ${set.join(
+        ","
+      )} WHERE location_uuid = $1 RETURNING *;`,
+      values
+    );*/
   }
 }

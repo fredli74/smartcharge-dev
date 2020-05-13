@@ -26,20 +26,20 @@ import provider, {
   TeslaProviderQueries
 } from ".";
 import {
-  Vehicle,
-  UpdateVehicleDataInput,
-  ChargeConnection,
-  ChargePlan,
-  ChargeType,
-  Action
-} from "@server/gql/vehicle-type";
+  GQLVehicle,
+  GQLUpdateVehicleDataInput,
+  GQLChargeConnection,
+  GQLChargePlan,
+  GQLChargeType,
+  GQLAction
+} from "@shared/sc-schema";
 
 type PollState = "polling" | "tired" | "offline" | "asleep";
 
 interface TeslaSubject {
   teslaID: string;
   vehicleUUID: string;
-  data?: Vehicle;
+  data?: GQLVehicle;
   online: boolean;
   pollstate: PollState | undefined;
   statestart: number;
@@ -342,7 +342,7 @@ export class TeslaAgent extends AbstractAgent {
         const chargingTo =
           data.charge_state.charging_state === "Charging"
             ? Math.trunc(data.charge_state.charge_limit_soc)
-            : null;
+            : undefined;
 
         // charger_phases seems to be reported wrong, or I simply don't understand and someone could explain it?
         // Tesla Wall Connector in Sweden reports 2 phases, 16 amps, and 230 volt = 2*16*230 = 7kW,
@@ -368,7 +368,7 @@ export class TeslaAgent extends AbstractAgent {
             : data.charge_state.charger_power; // fallback to API reported power
 
         // Update info
-        const input: UpdateVehicleDataInput = {
+        const input: GQLUpdateVehicleDataInput = {
           id: subject.vehicleUUID,
           geoLocation: {
             latitude: data.drive_state.latitude,
@@ -384,15 +384,15 @@ export class TeslaAgent extends AbstractAgent {
             data.drive_state.shift_state === "R", // ... or in Reverse
           // Set connection type
           connectedCharger: data.charge_state.fast_charger_present
-            ? ChargeConnection.dc // fast charger
+            ? GQLChargeConnection.DC // fast charger
             : data.charge_state.charging_state !== "Disconnected"
-            ? ChargeConnection.ac
-            : null, // any other charger or no charger
+            ? GQLChargeConnection.AC
+            : undefined, // any other charger or no charger
           chargingTo: chargingTo,
           estimatedTimeLeft: Math.round(
             data.charge_state.time_to_full_charge * 60
           ), // 1 hour = 60 minutes
-          powerUse: chargingTo !== null ? powerUse : null,
+          powerUse: chargingTo !== undefined ? powerUse : undefined,
           energyAdded: data.charge_state.charge_energy_added // added kWh
         };
 
@@ -626,12 +626,13 @@ export class TeslaAgent extends AbstractAgent {
 
         if (subject.data.isConnected) {
           // controll if car is connected
-          let shouldCharge: ChargePlan | null = null;
+          let shouldCharge: GQLChargePlan | undefined = undefined;
           if (subject.data.chargePlan) {
             for (const p of subject.data.chargePlan) {
               if (
-                (p.chargeStart === null || now >= p.chargeStart.getTime()) &&
-                (p.chargeStop === null || now < p.chargeStop.getTime())
+                (p.chargeStart === undefined ||
+                  now >= p.chargeStart.getTime()) &&
+                (p.chargeStop === undefined || now < p.chargeStop.getTime())
               ) {
                 shouldCharge = p;
               }
@@ -642,7 +643,7 @@ export class TeslaAgent extends AbstractAgent {
             shouldCharge === null &&
             subject.online &&
             subject.chargeEnabled === true &&
-            subject.data.chargingTo !== null &&
+            subject.data.chargingTo !== undefined &&
             subject.data.batteryLevel < subject.data.chargingTo // keep it running if we're above or on target
           ) {
             if (await this.vehicleInteraction(job, subject, false)) {
@@ -654,7 +655,7 @@ export class TeslaAgent extends AbstractAgent {
               this.stayOnline(subject);
             }
           } else if (
-            shouldCharge !== null &&
+            shouldCharge !== undefined &&
             subject.data.batteryLevel < shouldCharge.level
           ) {
             if (subject.chargeEnabled !== true) {
@@ -671,7 +672,7 @@ export class TeslaAgent extends AbstractAgent {
               }
             } else {
               let setLevel = shouldCharge!.level;
-              if (shouldCharge!.chargeType === ChargeType.calibrate) {
+              if (shouldCharge!.chargeType === GQLChargeType.Calibrate) {
                 if (!subject.calibrating) {
                   subject.calibrating = {
                     level: Math.max(
@@ -729,8 +730,8 @@ export class TeslaAgent extends AbstractAgent {
           subject.data.chargePlan &&
           subject.data.chargePlan.findIndex(
             f =>
-              f.chargeType !== ChargeType.fill &&
-              f.chargeType !== ChargeType.prefered
+              f.chargeType !== GQLChargeType.Fill &&
+              f.chargeType !== GQLChargeType.Prefered
           ) >= 0
         ) {
           if (
@@ -901,7 +902,7 @@ export class TeslaAgent extends AbstractAgent {
 
   public async [AgentAction.Refresh](
     job: TeslaAgentJob,
-    action: Action
+    action: GQLAction
   ): Promise<any> {
     for (const subject of Object.values(job.state)) {
       if (subject.vehicleUUID === action.data.id) {
@@ -911,7 +912,7 @@ export class TeslaAgent extends AbstractAgent {
   }
   public async [AgentAction.ClimateControl](
     job: TeslaAgentJob,
-    action: Action
+    action: GQLAction
   ): Promise<any> {
     if (!action || job.serviceData.invalid_token) return false; // provider requires a valid token
 

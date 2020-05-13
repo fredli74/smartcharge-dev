@@ -21,11 +21,10 @@ import { LogLevel, log, arrayMean, prettyTime } from "@shared/utils";
 import {
   UpdateVehicleDataInput,
   ChargePlan,
-  ChargeType,
   ChargePlanToJS,
-  ScheduleToJS,
-  SmartChargeGoal
+  ScheduleToJS
 } from "./gql/vehicle-type";
+import { SmartChargeGoal, ChargeType } from "@shared/sc-types";
 
 const TRIP_TOPUP_MARGIN = 15 * 60e3; // 15 minutes before trip time
 const MIN_STATS_PERIOD = 1 * 60e3; // 1 minute
@@ -97,7 +96,7 @@ export class Logic {
         data.longitude
       );
       if (location) {
-        currentLocationUUID = location.id;
+        currentLocationUUID = location.location_uuid;
       } else {
         currentLocationUUID = null;
       }
@@ -149,7 +148,8 @@ export class Logic {
             end_level: data.level,
             energy_used: 0,
             cost: 0,
-            saved: 0
+            saved: 0,
+            connected: true
           }
         );
         vehicle.connected_id = connection.connected_id;
@@ -381,10 +381,12 @@ export class Logic {
           `UPDATE vehicle SET connected_id = null, charge_plan = null WHERE vehicle_uuid = $1;`,
           [vehicle.vehicle_uuid]
         );
-        await this.createNewStats(
-          connection.vehicle_uuid,
-          connection.location_uuid
-        );
+        if (connection.location_uuid !== null) {
+          await this.createNewStats(
+            connection.vehicle_uuid,
+            connection.location_uuid
+          );
+        }
       }
     }
 
@@ -534,8 +536,8 @@ export class Logic {
   public async createNewStats(
     vehicle_uuid: string,
     location_uuid: string
-  ): Promise<DBCurrentStats> {
-    const level_charge_time = (
+  ): Promise<DBCurrentStats | null> {
+    const level_charge_time: number | null = (
       await this.db.pg.oneOrNone(
         `SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY duration) as seconds
             FROM charge a JOIN charge_curve b ON (a.charge_id = b.charge_id)
@@ -544,11 +546,14 @@ export class Logic {
       )
     ).seconds;
 
+    // Exit if we have never charged here
+    if (level_charge_time === null) return null;
+
     // What is the current weekly average power price
     const avg_prices: {
-      price_data_ts: Date;
-      avg7: number;
-      avg21: number;
+      price_data_ts: Date | null;
+      avg7: number | null;
+      avg21: number | null;
     } = await this.db.pg.one(
       `WITH my_price_data AS (
                 SELECT p.* FROM price_data p JOIN location l ON (l.price_code = p.price_code) WHERE location_uuid = $1
@@ -559,6 +564,14 @@ export class Logic {
                 (SELECT AVG(price::float) FROM my_price_data WHERE ts >= current_date - interval '21 days') as avg21;`,
       [location_uuid]
     );
+
+    // Exit if we have no price data for this location
+    if (
+      avg_prices.price_data_ts === null ||
+      avg_prices.avg7 === null ||
+      avg_prices.avg21 === null
+    )
+      return null;
 
     let threshold = 1;
 
@@ -741,7 +754,7 @@ export class Logic {
   public async currentStats(
     vehicle_uuid: string,
     location_uuid: string
-  ): Promise<DBCurrentStats> {
+  ): Promise<DBCurrentStats | null> {
     const stats = await this.db.pg.oneOrNone(
       `SELECT s.*, s.price_data_ts = (SELECT MAX(ts) FROM price_data p JOIN location l ON (l.price_code = p.price_code) WHERE l.location_uuid = s.location_uuid) as fresh
       FROM current_stats s WHERE vehicle_uuid=$1 AND location_uuid=$2 ORDER BY stats_id DESC LIMIT 1`,
@@ -779,12 +792,12 @@ export class Logic {
       return (n && n.getTime()) || Infinity;
     }
     const chargePrio = {
-      [ChargeType.calibrate]: 0,
-      [ChargeType.minimum]: 1,
-      [ChargeType.trip]: 2,
-      [ChargeType.routine]: 3,
-      [ChargeType.prefered]: 4,
-      [ChargeType.fill]: 5
+      [ChargeType.Calibrate]: 0,
+      [ChargeType.Minimum]: 1,
+      [ChargeType.Trip]: 2,
+      [ChargeType.Routine]: 3,
+      [ChargeType.Prefered]: 4,
+      [ChargeType.Fill]: 5
     };
     plan.sort(
       (a, b) =>
@@ -923,7 +936,7 @@ export class Logic {
           chargeStart: null,
           chargeStop: new Date(now + timeNeeded),
           level: batteryLevel,
-          chargeType: ChargeType.routine,
+          chargeType: ChargeType.Routine,
           comment: comment
         });
       }
@@ -969,7 +982,7 @@ export class Logic {
           chargeStart: null,
           chargeStop: null,
           level: 100,
-          chargeType: ChargeType.calibrate,
+          chargeType: ChargeType.Calibrate,
           comment: "Charge calibration"
         }
       ];
@@ -1008,7 +1021,7 @@ export class Logic {
             chargeStart: null,
             chargeStop: new Date(now + timeNeeded),
             level: minimum_charge,
-            chargeType: ChargeType.minimum,
+            chargeType: ChargeType.Minimum,
             comment: `emergency charge`
           }
         ];
@@ -1117,7 +1130,7 @@ export class Logic {
             const p = await this.generateChargePlan(
               vehicle,
               minimumLevel,
-              ChargeType.routine,
+              ChargeType.Routine,
               "routine charge",
               before
             );
@@ -1127,11 +1140,11 @@ export class Logic {
             {
               const goal =
                 (locationSettings && locationSettings.goal) ||
-                SmartChargeGoal.balanced;
+                SmartChargeGoal.Balanced;
               let goalLevel =
-                goal === SmartChargeGoal.full
+                goal === SmartChargeGoal.Full
                   ? vehicle.maximum_charge
-                  : goal === SmartChargeGoal.low
+                  : goal === SmartChargeGoal.Low
                   ? 0
                   : Math.min(
                       vehicle.maximum_charge,
@@ -1149,7 +1162,7 @@ export class Logic {
                 const p = await this.generateChargePlan(
                   vehicle,
                   goalLevel,
-                  ChargeType.prefered,
+                  ChargeType.Prefered,
                   `charge setting`,
                   before
                 );
@@ -1164,7 +1177,7 @@ export class Logic {
             chargeStart: null,
             chargeStop: null,
             level: vehicle.maximum_charge,
-            chargeType: ChargeType.fill,
+            chargeType: ChargeType.Fill,
             comment: `learning`
           }); // run free
 
@@ -1207,7 +1220,7 @@ export class Logic {
           const p = await this.generateChargePlan(
             vehicle,
             prepareLevel,
-            ChargeType.trip,
+            ChargeType.Trip,
             `upcoming trip`,
             topupStart
           );
@@ -1218,7 +1231,7 @@ export class Logic {
               chargeStart: new Date(topupStart),
               chargeStop: null,
               level: departLevel,
-              chargeType: ChargeType.trip,
+              chargeType: ChargeType.Trip,
               comment: `topping up before trip`
             });
             if (now >= topupStart) {
@@ -1237,7 +1250,12 @@ export class Logic {
       }
 
       // Low price fill charging
-      if (stats) {
+      if (
+        stats &&
+        stats.weekly_avg7_price &&
+        stats.weekly_avg21_price &&
+        stats.threshold
+      ) {
         const averagePrice =
           stats.weekly_avg7_price +
           (stats.weekly_avg7_price - stats.weekly_avg21_price) / 2;
@@ -1246,7 +1264,7 @@ export class Logic {
         const p = await this.generateChargePlan(
           vehicle,
           vehicle.maximum_charge,
-          ChargeType.fill,
+          ChargeType.Fill,
           "low price",
           disconnectTime,
           thresholdPrice

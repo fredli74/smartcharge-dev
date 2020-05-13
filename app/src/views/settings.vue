@@ -14,7 +14,12 @@
               location.name
             }}</v-expansion-panel-header>
             <v-expansion-panel-content>
-              Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do
+              <div
+                class="font-light overline caption mr-4 mt-n5 secondary--text text--lighten-2"
+              >
+                ({{ location.id }})
+              </div>
+              <EditLocation :location="location"></EditLocation>
             </v-expansion-panel-content>
           </v-expansion-panel>
         </v-expansion-panels>
@@ -69,15 +74,15 @@
 import { Component, Vue } from "vue-property-decorator";
 import { gql } from "apollo-boost";
 import providers from "@providers/provider-apps";
-import { Vehicle } from "@server/gql/vehicle-type";
 import apollo from "@app/plugins/apollo";
-import { Location } from "@server/gql/location-type";
 import EditVehicle from "@app/components/edit-vehicle.vue";
+import EditLocation from "@app/components/edit-location.vue";
+import { GQLVehicle, GQLLocation } from "@shared/sc-schema";
 
 const vehicleFragment = `id ownerID name maximumLevel locationSettings { location directLevel goal } providerData`;
 
 @Component({
-  components: { EditVehicle },
+  components: { EditVehicle, EditLocation },
   apollo: {
     vehicles: {
       query: gql`
@@ -97,8 +102,8 @@ const vehicleFragment = `id ownerID name maximumLevel locationSettings { locatio
 })
 export default class Home extends Vue {
   loading?: boolean;
-  vehicles?: Vehicle[];
-  locations!: Location[];
+  vehicles?: GQLVehicle[];
+  locations!: GQLLocation[];
 
   data() {
     return { loading: false, vehicles: undefined, locations: undefined };
@@ -112,7 +117,7 @@ export default class Home extends Vue {
     // this.loading = false;
   }
 
-  vehicleDisabled(vehicle: Vehicle): string | undefined {
+  vehicleDisabled(vehicle: GQLVehicle): string | undefined {
     if (vehicle.providerData.invalid_token) {
       return "invalid provider token, please add again";
     }
@@ -122,7 +127,7 @@ export default class Home extends Vue {
     return undefined;
   }
 
-  vehiclePicture(vehicle: Vehicle) {
+  vehiclePicture(vehicle: GQLVehicle) {
     if (vehicle.providerData && vehicle.providerData.unknown_image) {
       return require("../assets/unknown_vehicle.png");
     } else {
@@ -136,7 +141,7 @@ export default class Home extends Vue {
       }
     }
   }
-  selectVehicle(vehicle: Vehicle) {
+  selectVehicle(vehicle: GQLVehicle) {
     this.$router.push(`/vehicle/${vehicle.id}`);
   }
 }

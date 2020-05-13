@@ -84,11 +84,11 @@
 
 <script lang="ts">
 import { Component, Vue, Prop } from "vue-property-decorator";
-import { Vehicle } from "@server/gql/vehicle-type";
+import { GQLVehicle } from "@shared/sc-schema";
 
 @Component({})
 export default class VehicleSettings extends Vue {
-  @Prop({ type: Object, required: true }) readonly vehicle!: Vehicle;
+  @Prop({ type: Object, required: true }) readonly vehicle!: GQLVehicle;
 
   formData: any = {};
   mounted() {}

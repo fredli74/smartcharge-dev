@@ -138,11 +138,10 @@ import { geoDistance } from "@shared/utils";
 import apollo from "@app/plugins/apollo";
 import { VueApolloComponentOptions } from "vue-apollo/types/options";
 import { RawLocation } from "vue-router";
-import { Location } from "@server/gql/location-type";
-import { Vehicle } from "@server/gql/vehicle-type";
 import moment from "moment";
 import config from "@shared/smartcharge-config";
 import { makePublicID } from "@shared/utils";
+import { GQLVehicle, GQLLocation } from "@shared/sc-schema";
 
 const vehicleFragment = `id ownerID name maximumLevel anxietyLevel tripSchedule { level time } pausedUntil geoLocation { latitude longitude } location locationSettings { location directLevel goal } batteryLevel outsideTemperature insideTemperature climateControl isDriving isConnected chargePlan { chargeStart chargeStop level chargeType comment } chargingTo estimatedTimeLeft status smartStatus updated serviceID providerData`;
 
@@ -213,9 +212,9 @@ const vehicleFragment = `id ownerID name maximumLevel anxietyLevel tripSchedule 
 })
 export default class VehicleVue extends Vue {
   loading!: boolean;
-  vehicle?: Vehicle;
-  location?: Location;
-  locations!: Location[];
+  vehicle?: GQLVehicle;
+  location?: GQLLocation;
+  locations!: GQLLocation[];
   prettyStatus!: string;
   freshInfo!: boolean;
 
@@ -230,7 +229,7 @@ export default class VehicleVue extends Vue {
     };
   }
 
-  updateFreshness(vehicle: Vehicle | undefined) {
+  updateFreshness(vehicle: GQLVehicle | undefined) {
     this.freshInfo = Boolean(
       vehicle && Date.now() - new Date(vehicle.updated).getTime() < 300e3
     ); // five minutes
@@ -246,14 +245,14 @@ export default class VehicleVue extends Vue {
         const when = new Date(this.vehicle.pausedUntil).getTime();
         const now = Date.now();
         if (when <= now) {
-          this.vehicle.pausedUntil = null;
+          this.vehicle.pausedUntil = undefined;
         }
       }
       if (this.vehicle && this.vehicle.tripSchedule) {
         const when = new Date(this.vehicle.tripSchedule.time).getTime();
         const now = Date.now();
         if (when + 3600e3 <= now) {
-          this.vehicle.tripSchedule = null;
+          this.vehicle.tripSchedule = undefined;
         }
       }
       this.updateFreshness(this.vehicle);
@@ -316,7 +315,7 @@ export default class VehicleVue extends Vue {
   }
 
   @Watch("vehicle", { immediate: true, deep: true })
-  onVehicleUpdate(val: Vehicle, _oldVal: Vehicle) {
+  onVehicleUpdate(val: GQLVehicle, _oldVal: GQLVehicle) {
     if (!val) return;
     let prefix = "";
     let suffix = "";

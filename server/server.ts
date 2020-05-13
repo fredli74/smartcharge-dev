@@ -123,7 +123,7 @@ program
       const apiServer = new ApolloServer({
         playground: true,
         introspection: true,
-        schema: await gqlSchema,
+        schema: await gqlSchema(),
         context: ({ res, connection }) => {
           if (connection) {
             assert(connection.context !== undefined);

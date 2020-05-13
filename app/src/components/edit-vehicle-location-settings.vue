@@ -75,21 +75,21 @@
 
 <script lang="ts">
 import { Component, Vue, Prop } from "vue-property-decorator";
-import {
-  VehicleLocationSettings,
-  Vehicle,
-  SmartChargeGoal,
-  UpdateVehicleInput
-} from "@server/gql/vehicle-type";
 import deepmerge from "deepmerge";
 import apollo from "@app/plugins/apollo";
+import {
+  GQLVehicle,
+  GQLVehicleLocationSetting,
+  GQLUpdateVehicleInput
+} from "@shared/sc-schema";
+import { SmartChargeGoal } from "@shared/sc-types";
 
 @Component({})
 export default class EditVehicle extends Vue {
-  @Prop({ type: Object, required: true }) readonly vehicle!: Vehicle;
+  @Prop({ type: Object, required: true }) readonly vehicle!: GQLVehicle;
   @Prop({ type: String, required: true }) readonly name!: String;
   @Prop({ type: Object, required: true })
-  readonly settings!: VehicleLocationSettings;
+  readonly settings!: GQLVehicleLocationSetting;
 
   saving!: { [key: string]: boolean };
   goalCBList!: { text: string; value: string }[];
@@ -100,9 +100,9 @@ export default class EditVehicle extends Vue {
         goal: false
       },
       goalCBList: [
-        { text: "Low cost", value: SmartChargeGoal.low },
-        { text: "Balanced", value: SmartChargeGoal.balanced },
-        { text: "Full charge", value: SmartChargeGoal.full },
+        { text: "Low cost", value: SmartChargeGoal.Low },
+        { text: "Balanced", value: SmartChargeGoal.Balanced },
+        { text: "Full charge", value: SmartChargeGoal.Full },
         { text: "Custom", value: "%" }
       ]
     };
@@ -162,7 +162,7 @@ export default class EditVehicle extends Vue {
       const form: any = this.$refs.form;
       if (form.validate && form.validate()) {
         const goal = this.settings.goal as any;
-        const update: UpdateVehicleInput = {
+        const update: GQLUpdateVehicleInput = {
           id: this.vehicle.id,
           locationSettings: [
             {

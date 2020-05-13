@@ -10,7 +10,7 @@ const provider: IProvider = {
   name: "nordpool",
   display: "nordpool",
   version: "1.0",
-  type: ProviderType.location
+  type: ProviderType.Location
 };
 
 export default provider;

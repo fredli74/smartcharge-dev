@@ -20,7 +20,7 @@ import {
 } from "type-graphql";
 import { IContext } from "@server/gql/api";
 import { INTERNAL_SERVICE_UUID, DBInterface } from "@server/db-interface";
-import { AuthenticationError } from "apollo-server-core";
+import { AuthenticationError, ApolloError } from "apollo-server-core";
 
 import { VehicleDebugInput, UpdateVehicleDataInput } from "./vehicle-type";
 import { UpdatePriceInput } from "./location-type";
@@ -93,6 +93,13 @@ export class ServiceResolver {
     authorizeService(context);
 
     const vehicle = await context.db.getVehicle(undefined, vehicle_uuid);
+
+    if (vehicle.charge_id === null) {
+      // TODO: what happens if it just stopped charging? should charge_id be sent with the query instead?
+      throw new ApolloError(
+        "sending _chargeCalibration on a vehicle not charging"
+      );
+    }
 
     if (!level || !duration) {
       return await context.db.chargeCalibration(

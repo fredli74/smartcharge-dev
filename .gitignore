@@ -5,7 +5,5 @@ node_modules
 .env.*
 npm-debug.log*
 .vscode
-
-schema\.gql
 logs/
 *.sql

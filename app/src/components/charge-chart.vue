@@ -2,25 +2,35 @@
   <v-container fluid>
     <v-layout row justify-space-around>
       <v-flex xs12>
-        <apex
+        <line-chart
           v-if="chartData && chartData.prices.length > 1"
           id="pricechart"
           ref="pricechart"
           class="chart"
+          :options="priceChartOptions"
+          :chart-data="priceChartData"
+        ></line-chart>
+      </v-flex>
+      <v-flex xs12>
+        <apex
+          v-if="chartData && chartData.prices.length > 1"
+          id="APEXpricechart"
+          ref="APEXpricechart"
+          class="chart"
           height="400px"
-          :options="priceoptions"
-          :series="priceseries"
+          :options="APEXpriceoptions"
+          :series="APEXpriceseries"
         ></apex
       ></v-flex>
       <v-flex xs12>
         <apex
           v-if="chartData && chartData.prices.length > 1"
-          id="chargechart"
-          ref="chargechart"
+          id="APEXchargechart"
+          ref="APEXchargechart"
           class="chart"
           height="250px"
-          :options="chargeoptions"
-          :series="chargeseries"
+          :options="APEXchargeoptions"
+          :series="APEXchargeseries"
         ></apex
       ></v-flex>
       <p v-if="chartData && !(chartData.prices.length > 1)">
@@ -37,12 +47,17 @@ import VueApexCharts from "vue-apexcharts";
 import { gql } from "apollo-boost";
 import deepmerge from "deepmerge";
 import { log, LogLevel } from "@shared/utils";
-import { ChartData, Location } from "@server/gql/location-type";
-import { Vehicle, ChargeType } from "@server/gql/vehicle-type";
+import LineChart from "./line-chart";
+import {
+  GQLVehicle,
+  GQLLocation,
+  GQLChartData,
+  GQLChargeType
+} from "@shared/sc-schema";
 
-interface chartDataResult {
+/*interface chartDataResult {
   chartData: ChartData;
-}
+}*/
 function scalePrice(input: number): number {
   return Math.round(input / 1e2) / 10;
 }
@@ -53,6 +68,25 @@ function timeOnly(input: Date): string {
 }
 
 const defaultOptions = {
+  plugins: {
+    crosshair: {
+      line: {
+        color: "#3338", // crosshair line color
+        width: 1, // crosshair line width
+        dashPattern: [2, 4] // crosshair line dash pattern
+      },
+      sync: {
+        enabled: true
+      },
+      zoom: {
+        enabled: false
+      },
+      snapping: true
+    }
+  }
+};
+
+const APEXdefaultOptions = {
   chart: {
     type: "line",
     animations: { enabled: false },
@@ -139,7 +173,7 @@ const defaultOptions = {
 };
 
 @Component({
-  components: { apex: VueApexCharts },
+  components: { apex: VueApexCharts, LineChart },
   apollo: {
     chartData: {
       query: gql`
@@ -149,7 +183,7 @@ const defaultOptions = {
             locationName
             vehicleID
             batteryLevel
-            minimumLevel
+            directLevel
             thresholdPrice
             chargeCurve
             prices {
@@ -183,9 +217,9 @@ const defaultOptions = {
   }
 })
 export default class ChargeChart extends Vue {
-  @Prop({ type: Object, required: true }) readonly vehicle!: Vehicle;
-  @Prop({ type: Object, required: true }) readonly location!: Location;
-  chartData?: ChartData;
+  @Prop({ type: Object, required: true }) readonly vehicle!: GQLVehicle;
+  @Prop({ type: Object, required: true }) readonly location!: GQLLocation;
+  chartData?: GQLChartData;
   chartReady: boolean = false;
   minPrice!: number;
   maxPrice!: number;
@@ -209,10 +243,10 @@ export default class ChargeChart extends Vue {
   created() {
     this.timer = setInterval(() => {
       if (this.fullUpdate) {
-        const pricechart = (this.$refs.pricechart as any) as ApexCharts;
-        pricechart && pricechart.updateSeries(this.priceseries);
-        const chargechart = (this.$refs.chargechart as any) as ApexCharts;
-        chargechart && chargechart.updateSeries(this.chargeseries);
+        const pricechart = (this.$refs.APEXpricechart as any) as ApexCharts;
+        pricechart && pricechart.updateSeries(this.APEXpriceseries);
+        const chargechart = (this.$refs.APEXchargechart as any) as ApexCharts;
+        chargechart && chargechart.updateSeries(this.APEXchargeseries);
         this.fullUpdate = false;
       }
       this.annotate(); // Move the timeline
@@ -247,8 +281,8 @@ export default class ChargeChart extends Vue {
     ) {
       return;
     }
-    const pricechart = (this.$refs.pricechart as any) as ApexCharts;
-    const chargechart = (this.$refs.chargechart as any) as ApexCharts;
+    const pricechart = (this.$refs.APEXpricechart as any) as ApexCharts;
+    const chargechart = (this.$refs.APEXchargechart as any) as ApexCharts;
 
     const thisHour = Math.trunc(Date.now() / (60 * 60e3)) * (60 * 60e3);
     const thisPrice = this.chartData!.prices.find(
@@ -323,32 +357,34 @@ export default class ChargeChart extends Vue {
           }
         });
         // Annotate threshold price
-        const t = scalePrice(this.chartData.thresholdPrice);
-        if (t >= this.minPrice && t <= this.maxPrice) {
-          pricechart.addYaxisAnnotation({
-            y: t,
-            strokeDashArray: [2, 5],
-            fillColor: "none",
-            borderColor: "#2E93fA",
-            borderWidth: 2,
-            opacity: 0.2,
-            offsetX: 0,
-            offsetY: 0,
-            label: {
-              borderWidth: 0,
-              text: t.toString(),
-              textAnchor: "end",
-              position: "left",
-              offsetX: -2,
-              offsetY: 7,
-              style: {
-                background: "none",
-                color: "#558ec7",
-                fontSize: "12px",
-                cssClass: "apexcharts-xaxis-annotation-label"
+        if (this.chartData.thresholdPrice) {
+          const t = scalePrice(this.chartData.thresholdPrice);
+          if (t >= this.minPrice && t <= this.maxPrice) {
+            pricechart.addYaxisAnnotation({
+              y: t,
+              strokeDashArray: [2, 5],
+              fillColor: "none",
+              borderColor: "#2E93fA",
+              borderWidth: 2,
+              opacity: 0.2,
+              offsetX: 0,
+              offsetY: 0,
+              label: {
+                borderWidth: 0,
+                text: t.toString(),
+                textAnchor: "end",
+                position: "left",
+                offsetX: -2,
+                offsetY: 7,
+                style: {
+                  background: "none",
+                  color: "#558ec7",
+                  fontSize: "12px",
+                  cssClass: "apexcharts-xaxis-annotation-label"
+                }
               }
-            }
-          });
+            });
+          }
         }
       }
       if (chargechart) {
@@ -383,10 +419,10 @@ export default class ChargeChart extends Vue {
         });
 
         // Annotate emergency level zone
-        if (this.minLevel && this.minLevel < this.chartData.minimumLevel) {
+        if (this.minLevel && this.minLevel < this.chartData.directLevel) {
           chargechart.addYaxisAnnotation({
             y: this.minLevel,
-            y2: this.chartData.minimumLevel,
+            y2: this.chartData.directLevel,
             strokeDashArray: 0,
             fillColor: "#ffaa00",
             borderColor: "none",
@@ -396,7 +432,7 @@ export default class ChargeChart extends Vue {
             offsetY: 0,
             label: {
               borderWidth: 0,
-              text: this.chartData.minimumLevel.toString(),
+              text: this.chartData.directLevel.toString(),
               style: {
                 background: "none",
                 color: "none"
@@ -408,8 +444,118 @@ export default class ChargeChart extends Vue {
     }
   }
 
-  get priceseries() {
-    log(LogLevel.Trace, `priceseries()`);
+  get priceChartOptions() {
+    return deepmerge(defaultOptions, {
+      responsive: true,
+      maintainAspectRatio: false,
+      hover: { intersect: false },
+      tooltips: {
+        yAlign: "bottom",
+        xAlign: "center",
+        mode: "index",
+        intersect: false,
+        // position: "topcorner",
+        caretSize: 8,
+        caretPadding: 8,
+        displayColors: false,
+        callbacks: {
+          label: function(tooltipItem: any, _data: any) {
+            return `${tooltipItem.yLabel} öre / kWh`;
+          }
+        }
+      },
+
+      title: {
+        text: `Price per kWh ${
+          this.chartData
+            ? " when charging at " + this.chartData.locationName
+            : ""
+        }`,
+        display: true
+      },
+      scales: {
+        xAxes: [
+          {
+            type: "time",
+            time: {
+              tooltipFormat: "D MMM HH:mm",
+              displayFormats: {
+                hour: "HH:mm",
+                day: "D MMM"
+              },
+              unit: "hour"
+            },
+            gridLines: {
+              display: false
+            },
+            ticks: {
+              major: { enabled: true, fontStyle: "bold" },
+              maxRotation: 0,
+              autoSkipPadding: 5
+            }
+          }
+        ],
+        yAxes: [
+          {
+            ticks: {
+              //suggestedMin: 0
+            }
+          }
+        ]
+      }
+    });
+  }
+  get priceChartData() {
+    log(LogLevel.Trace, `priceChartData()`);
+    let data: { x: Date; y: number }[] = [];
+    if (this.chartData && this.chartData.prices.length > 1) {
+      data = this.chartData!.prices.map(p => {
+        return {
+          x: new Date(p.startAt),
+          y: scalePrice(p.price)
+        };
+      });
+    }
+    console.log(data);
+    /*
+    if (data.length) {
+      this.minPrice = Number.POSITIVE_INFINITY;
+      this.maxPrice = Number.NEGATIVE_INFINITY;
+      for (const p of data) {
+        if (p[1] !== null && p[1] < this.minPrice!) this.minPrice = p[1];
+        if (p[1] !== null && p[1] > this.maxPrice!) this.maxPrice = p[1];
+      }
+      this.minPrice = Math.round(this.minPrice * 0.95);
+      this.maxPrice = Math.round(this.maxPrice * 1.05);
+    } else {
+      this.minPrice = 0;
+      this.maxPrice = 1;
+    }
+    */
+    return {
+      type: "bar",
+      datasets: [
+        {
+          label: "GitHub Commits",
+          fill: false,
+          borderColor: "#308c30",
+          borderWidth: 2,
+          data: data,
+          steppedLine: true,
+          pointRadius: 0,
+          interpolate: true,
+          pointHoverRadius: 3.5,
+          hoverBorderWidth: 2,
+          hoverBorderColor: "white",
+          hoverBackgroundColor: "#308c30"
+        }
+      ],
+      options: {}
+    };
+  }
+
+  get APEXpriceseries() {
+    log(LogLevel.Trace, `APEXpriceseries()`);
     let data: any = [];
     if (this.chartData && this.chartData.prices.length > 1) {
       data = this.chartData!.prices.map(p => [
@@ -451,8 +597,8 @@ export default class ChargeChart extends Vue {
     return level;
   }
 
-  get chargeseries() {
-    log(LogLevel.Trace, `chargeseries()`);
+  get APEXchargeseries() {
+    log(LogLevel.Trace, `APEXchargeseries()`);
     let data: any = [];
     if (this.chartData && this.chartData.prices.length > 1) {
       let level = this.chartData.batteryLevel;
@@ -467,7 +613,7 @@ export default class ChargeChart extends Vue {
       // Simulate charging
       if (this.chartData.chargePlan) {
         for (const c of this.chartData.chargePlan) {
-          if (c.chargeType === ChargeType.calibrate) continue;
+          if (c.chargeType === GQLChargeType.Calibrate) continue;
 
           let timeNeeded = this.chargeDuration(
             this.chartData.chargeCurve,
@@ -520,8 +666,8 @@ export default class ChargeChart extends Vue {
               x2: to,
               strokeDashArray: 0,
               fillColor:
-                c.chargeType === ChargeType.fill ||
-                c.chargeType === ChargeType.prefered
+                c.chargeType === GQLChargeType.Fill ||
+                c.chargeType === GQLChargeType.Prefered
                   ? "#2ec2fa"
                   : "#2e93fa",
               borderColor: "none",
@@ -544,8 +690,8 @@ export default class ChargeChart extends Vue {
               x2: to,
               strokeDashArray: 0,
               fillColor:
-                c.chargeType === ChargeType.fill ||
-                c.chargeType === ChargeType.prefered
+                c.chargeType === GQLChargeType.Fill ||
+                c.chargeType === GQLChargeType.Prefered
                   ? "#2ec2fa"
                   : "#2e93fa",
               borderColor: "none",
@@ -589,8 +735,8 @@ export default class ChargeChart extends Vue {
     return [{ name: "level", data }];
   }
 
-  get priceoptions() {
-    return deepmerge(defaultOptions, {
+  get APEXpriceoptions() {
+    return deepmerge(APEXdefaultOptions, {
       chart: {
         id: "price-chart",
         events: {
@@ -642,8 +788,8 @@ export default class ChargeChart extends Vue {
     });
   }
 
-  get chargeoptions() {
-    return deepmerge(defaultOptions, {
+  get APEXchargeoptions() {
+    return deepmerge(APEXdefaultOptions, {
       chart: {
         id: "price-chart"
       },
@@ -702,4 +848,8 @@ export default class ChargeChart extends Vue {
 }
 </script>
 
-<style></style>
+<style>
+/*#pricechart {
+    height: 400px;
+}*/
+</style>

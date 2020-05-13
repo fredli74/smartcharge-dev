@@ -7,41 +7,41 @@
 
 export const DB_VERSION = `1.0-beta`;
 
-export interface DBAccount {
-  account_uuid: string; // account uuid
-  name: string; // account name
-  api_token: string; // API-token for data access
+export abstract class DBAccount {
+  account_uuid!: string; // account uuid
+  name!: string; // account name
+  api_token!: string; // API-token for data access
 }
 const DBAccount_TSQL = `CREATE TABLE scserver.account
     (
         account_uuid uuid DEFAULT sequential_uuid(),
-        name character varying(64),
-        api_token character varying(64),
+        name character varying(64) NOT NULL,
+        api_token character varying(64) NOT NULL,
         CONSTRAINT account_pkey PRIMARY KEY (account_uuid)
     );`;
 
-export interface DBLocation {
-  location_uuid: string; // location uuid
-  account_uuid: string; // account identifier
-  name: string; // name of location
-  location_micro_latitude: number; // 6 decimal precision converted to integer
-  location_micro_longitude: number; // 6 decimal precision converted to integer
-  radius: number; // radius tollerance (in meters)
-  price_code: string; // price list code
-  service_uuid: any; // provider uuid
-  provider_data: any; // provider custom data
+export abstract class DBLocation {
+  location_uuid!: string; // location uuid
+  account_uuid!: string; // account identifier
+  name!: string; // name of location
+  location_micro_latitude!: number; // 6 decimal precision converted to integer
+  location_micro_longitude!: number; // 6 decimal precision converted to integer
+  radius!: number; // radius tollerance (in meters)
+  price_code!: string | null; // price list code
+  service_uuid!: string | null; // provider uuid
+  provider_data!: object; // provider custom data
 }
 const DBLocation_TSQL = `CREATE TABLE scserver.location
     (
         location_uuid uuid DEFAULT sequential_uuid(),
         account_uuid uuid NOT NULL,
-        name text,
-        location_micro_latitude integer,
-        location_micro_longitude integer,
-        radius integer,
+        name text NOT NULL,
+        location_micro_latitude integer NOT NULL,
+        location_micro_longitude integer NOT NULL,
+        radius integer NOT NULL,
         price_code character varying(32),
         service_uuid uuid,
-        provider_data jsonb,
+        provider_data jsonb NOT NULL DEFAULT '{}'::jsonb,
         CONSTRAINT location_pkey PRIMARY KEY(location_uuid),
         CONSTRAINT location_fkey FOREIGN KEY(account_uuid)
                 REFERENCES account(account_uuid) MATCH SIMPLE
@@ -49,82 +49,81 @@ const DBLocation_TSQL = `CREATE TABLE scserver.location
                 ON DELETE CASCADE
     );`;
 
-export interface DBPriceList {
-  price_code: string; // location identifer
-  ts: Date; // price tariff starts at
-  price: number; // cost per kWh
+export abstract class DBPriceData {
+  // price_list_uuid!: string; // price list identifier
+  price_code!: string; // location identifer
+  ts!: Date; // price tariff starts at
+  price!: number; // cost per kWh
 }
-const DBPriceList_TSQL = `CREATE TABLE scserver.price_data
+const DBPriceData_TSQL = `CREATE TABLE scserver.price_data
     (
+        /*price_list_uuid uuid NOT NULL,*/
         price_code character varying(32) NOT NULL,
         ts timestamp(0) with time zone NOT NULL,
-        price integer,
+        price integer NOT NULL,
         CONSTRAINT price_data_pkey PRIMARY KEY (price_code, ts)
     );`;
 
-export interface DBVehicle {
-  vehicle_uuid: string; // vehicle uuid
-  account_uuid: string; // account identifier
-  name: string; // name of vehicle
-  maximum_charge: number; // maximum normal (non trip) charge
-  anxiety_level: number; // current smart charging anxiety level
-  scheduled_trip: any | null; // currently scheduled trip (or null)
-  smart_pause: Date | null; // smart charging is paused
-  charge_plan: any | null; // current charge plan (or null)
-  location_micro_latitude: number; // 6 decimal precision converted to integer
-  location_micro_longitude: number; // 6 decimal precision converted to integer
-  location_uuid: string | null; // known location id
-  location_settings: any | null; // location settings (or null)
-  level: number; // current battery charge level %
-  odometer: number; // odometer (in meter)
-  outside_deci_temperature: number; // temperature (deci-celsius)
-  inside_deci_temperature: number; // temperature (deci-celsius)
-  climate_control: boolean; // climate control on
-  connected: boolean; // connected to charger
-  connected_id: number; // current charge session id
-  charging_to: number; // currently charging to level %
-  estimate: number; // estimated time left (in minutes)
-  charge_id: number; // current charge session id
-  driving: boolean; // currently driving
-  trip_id: number; // current trip session id
-  status: string; // informative status string
-  smart_status: string; // smart charging information
-  updated: Date; // timestamp of last record update
-  service_uuid: any; // provider uuid
-  provider_data: any; // provider custom data
+export abstract class DBVehicle {
+  vehicle_uuid!: string; // vehicle uuid
+  account_uuid!: string; // account identifier
+  name!: string | null; // name of vehicle
+  maximum_charge!: number; // maximum normal (non trip) charge
+  scheduled_trip!: any | null; // currently scheduled trip (or null)
+  smart_pause!: Date | null; // smart charging is paused
+  charge_plan!: any | null; // current charge plan (or null)
+  location_micro_latitude!: number | null; // 6 decimal precision converted to integer
+  location_micro_longitude!: number | null; // 6 decimal precision converted to integer
+  location_uuid!: string | null; // known location id
+  location_settings!: any; // location settings (or null)
+  level!: number; // current battery charge level %
+  odometer!: number; // odometer (in meter)
+  outside_deci_temperature!: number; // temperature (deci-celsius)
+  inside_deci_temperature!: number; // temperature (deci-celsius)
+  climate_control!: boolean; // climate control on
+  connected!: boolean; // connected to charger
+  connected_id!: number | null; // current charge session id
+  charging_to!: number | null; // currently charging to level %
+  estimate!: number | null; // estimated time left (in minutes)
+  charge_id!: number | null; // current charge session id
+  driving!: boolean; // currently driving
+  trip_id!: number | null; // current trip session id
+  status!: string; // informative status string
+  smart_status!: string; // smart charging information
+  updated!: Date; // timestamp of last record update
+  service_uuid!: string | null; // provider uuid
+  provider_data!: object | null; // provider custom data
 }
 const DBVehicle_TSQL = `CREATE TABLE scserver.vehicle
     (
-        vehicle_uuid uuid DEFAULT sequential_uuid(),
+        vehicle_uuid uuid NOT NULL DEFAULT sequential_uuid(),
         account_uuid uuid NOT NULL,
-        name text,
-        minimum_charge smallint NOT NULL,
+        name text COLLATE NOT NULL,
         maximum_charge smallint NOT NULL,
-        anxiety_level smallint,
         scheduled_trip jsonb,
-        smart_pause timestamp(0) with time zone,      
+        smart_pause timestamp with time zone,
         charge_plan jsonb,
         location_micro_latitude integer,
         location_micro_longitude integer,
         location_uuid uuid,
-        location_settings jsonb,
-        level smallint DEFAULT 0,
-        odometer integer DEFAULT 0,
-        outside_deci_temperature smallint DEFAULT 0,
-        inside_deci_temperature smallint DEFAULT 0,
-        climate_control boolean DEFAULT false,
-        connected boolean DEFAULT false,
+        location_settings jsonb NOT NULL DEFAULT '{}'::jsonb,
+        level smallint NOT NULL DEFAULT 0,
+        odometer integer NOT NULL DEFAULT 0,
+        outside_deci_temperature smallint NOT NULL DEFAULT 0,
+        inside_deci_temperature smallint NOT NULL DEFAULT 0,
+        climate_control boolean NOT NULL DEFAULT false,
+        connected boolean NOT NULL DEFAULT false,
         connected_id integer,
         charging_to integer,
         estimate integer,
         charge_id integer,
-        driving boolean DEFAULT false,
+        driving boolean NOT NULL DEFAULT false,
         trip_id integer,
-        status text DEFAULT '',
-        smart_status text DEFAULT '',
-        updated timestamp(0) with time zone NOT NULL DEFAULT NOW(),
+        status text COLLATE NOT NULL DEFAULT ''::text,
+        smart_status text COLLATE NOT NULL DEFAULT ''::text,
+        updated timestamp(0) with time zone NOT NULL DEFAULT now(),
         service_uuid uuid,
-        provider_data jsonb,
+        provider_data jsonb NOT NULL DEFAULT '{}'::jsonb,
         CONSTRAINT vehicle_pkey PRIMARY KEY (vehicle_uuid),
         CONSTRAINT vehicle_fkey FOREIGN KEY (account_uuid)
             REFERENCES account (account_uuid) MATCH SIMPLE
@@ -132,10 +131,10 @@ const DBVehicle_TSQL = `CREATE TABLE scserver.vehicle
             ON DELETE CASCADE
     );`;
 
-export interface DBVehicleDebug {
-  vehicle_uuid: string; // vehicle identifier
-  ts: Date; // timestamp
-  category: string; // debug category
+export abstract class DBVehicleDebug {
+  vehicle_uuid!: string; // vehicle identifier
+  ts!: Date; // timestamp
+  category!: string; // debug category
   data: any; // variable data payload
 }
 const DBVehicleDebug_TSQL = `CREATE TABLE scserver.vehicle_debug
@@ -151,18 +150,18 @@ const DBVehicleDebug_TSQL = `CREATE TABLE scserver.vehicle_debug
             ON DELETE CASCADE
     );`;
 
-export interface DBServiceProvider {
-  account_uuid: string; // account uuid
-  provider_name: string; // provider name
-  service_uuid: string; // provider uuid
-  service_data: any; // service data
+export abstract class DBServiceProvider {
+  account_uuid!: string; // account uuid
+  provider_name!: string; // provider name
+  service_uuid!: string; // provider uuid
+  service_data!: any; // service data
 }
 const DBServiceProvider_TSQL = `CREATE TABLE scserver.service_provider
     (
-        account_uuid uuid NOT NULL,
-        provider_name character varying(64),
         service_uuid uuid DEFAULT sequential_uuid(),
-        service_data jsonb,
+        account_uuid uuid NOT NULL,
+        provider_name character varying(64) NOT NULL,
+        service_data jsonb NOT NULL DEFAULT '{}'::jsonb,
         CONSTRAINT provider_pkey PRIMARY KEY (service_uuid),
         CONSTRAINT provider_fkey FOREIGN KEY (account_uuid)
             REFERENCES account (account_uuid) MATCH SIMPLE
@@ -170,12 +169,12 @@ const DBServiceProvider_TSQL = `CREATE TABLE scserver.service_provider
             ON DELETE CASCADE
     );`;
 
-export interface DBSleep {
-  sleep_id: number; // sleep id
-  vehicle_uuid: string; // vehicle identifier
-  active: boolean; // are we still sleeping
-  start_ts: Date; // time when starting
-  end_ts: Date; // time when ending
+export abstract class DBSleep {
+  sleep_id!: number; // sleep id
+  vehicle_uuid!: string; // vehicle identifier
+  active!: boolean; // are we still sleeping
+  start_ts!: Date; // time when starting
+  end_ts!: Date; // time when ending
 }
 const DBSleep_TSQL = `CREATE TABLE scserver.sleep
     (
@@ -192,32 +191,32 @@ const DBSleep_TSQL = `CREATE TABLE scserver.sleep
     );`;
 
 /** DBTrip not used anymore, should we stop collecting it?  **/
-export interface DBTrip {
-  trip_id: number; // trip id
-  vehicle_uuid: string; // vehicle identifier
-  start_ts: Date; // time when starting
-  start_level: number; // charge level when starting (%)
-  start_location_uuid: string; // TODO lookup location from coordinates
-  start_odometer: number; // odometer when starting (in meter)
-  start_outside_deci_temperature: number; // temperature at start (deci-celsius)
-  end_ts: Date; // time when ending
-  end_level: number; // charge level when ending (%)
-  end_location_uuid: string; // TODO lookup location from coordinates
-  distance: number; // distance travelled (in meter)
+export abstract class DBTrip {
+  trip_id!: number; // trip id
+  vehicle_uuid!: string; // vehicle identifier
+  start_ts!: Date; // time when starting
+  start_level!: number; // charge level when starting (%)
+  start_location_uuid!: string | null; // TODO lookup location from coordinates
+  start_odometer!: number; // odometer when starting (in meter)
+  start_outside_deci_temperature!: number; // temperature at start (deci-celsius)
+  end_ts!: Date; // time when ending
+  end_level!: number; // charge level when ending (%)
+  end_location_uuid!: string | null; // TODO lookup location from coordinates
+  distance!: number; // distance travelled (in meter)
 }
 const DBTrip_TSQL = `CREATE TABLE scserver.trip
     (
         trip_id integer NOT NULL GENERATED ALWAYS AS IDENTITY,
         vehicle_uuid uuid NOT NULL,
-        start_ts timestamp(0) with time zone,
-        start_level smallint,
+        start_ts timestamp(0) with time zone NOT NULL,
+        start_level smallint NOT NULL,
         start_location_uuid uuid,
-        start_odometer integer,
+        start_odometer integer NOT NULL,
         start_outside_deci_temperature smallint,
-        end_ts timestamp(0) with time zone,
-        end_level smallint,
+        end_ts timestamp(0) with time zone NOT NULL,
+        end_level smallint NOT NULL,
         end_location_uuid uuid,
-        distance integer,
+        distance integer NOT NULL DEFAULT 0,
         CONSTRAINT trip_pkey PRIMARY KEY (trip_id),
         CONSTRAINT trip_fkey FOREIGN KEY (vehicle_uuid)
             REFERENCES vehicle (vehicle_uuid) MATCH SIMPLE
@@ -225,20 +224,20 @@ const DBTrip_TSQL = `CREATE TABLE scserver.trip
             ON DELETE CASCADE
     );`;
 
-export interface DBConnected {
-  connected_id: number; // charge session id
-  vehicle_uuid: string; // vehicle identifier
-  type: string; // "ac"|"dc"
-  location_uuid: string; // location uuid from coordinates
-  start_ts: Date; // timestamp when session started
-  start_level: number; // battery level in % when session started
-  start_odometer: number; // odometer (in meters)
-  end_ts: Date; // timestamp when session stopped (updated continiously)
-  end_level: number; // battery level in % when session stopped (updated continiously)
-  energy_used: number; // approximated energy used in Wm (Watt-minutes)
-  cost: number; // approximated energy cost (in integer currency unit)
-  saved: number; // approximated energy cost saved (in integer currency unit)
-  connected: boolean; // is it still connected
+export abstract class DBConnected {
+  connected_id!: number; // charge session id
+  vehicle_uuid!: string; // vehicle identifier
+  type!: string; // "ac"|"dc"
+  location_uuid!: string | null; // location uuid from coordinates
+  start_ts!: Date; // timestamp when session started
+  start_level!: number; // battery level in % when session started
+  start_odometer!: number; // odometer (in meters)
+  end_ts!: Date; // timestamp when session stopped (updated continiously)
+  end_level!: number; // battery level in % when session stopped (updated continiously)
+  energy_used!: number; // approximated energy used in Wm (Watt-minutes)
+  cost!: number; // approximated energy cost (in integer currency unit)
+  saved!: number; // approximated energy cost saved (in integer currency unit)
+  connected!: boolean; // is it still connected
 }
 const DBChargeSession_TSQL = `CREATE TABLE scserver.connected
     (
@@ -246,15 +245,15 @@ const DBChargeSession_TSQL = `CREATE TABLE scserver.connected
         vehicle_uuid uuid NOT NULL,
         type character varying(32) NOT NULL,
         location_uuid uuid,
-        start_ts timestamp(0) with time zone,
-        start_level smallint,
-        start_odometer integer,
-        end_ts timestamp(0) with time zone,
-        end_level smallint,
-        energy_used integer,
-        cost integer,
-        saved integer,
-        connected boolean,
+        start_ts timestamp(0) with time zone NOT NULL,
+        start_level smallint NOT NULL,
+        start_odometer integer NOT NULL,
+        end_ts timestamp(0) with time zone NOT NULL,
+        end_level smallint NOT NULL,
+        energy_used integer NOT NULL DEFAULT 0,
+        cost integer NOT NULL DEFAULT 0,
+        saved integer NOT NULL DEFAULT 0,
+        connected boolean NOT NULL,
         CONSTRAINT connected_pkey PRIMARY KEY (connected_id),
         CONSTRAINT connected_fkey FOREIGN KEY (vehicle_uuid)
             REFERENCES vehicle (vehicle_uuid) MATCH SIMPLE
@@ -262,21 +261,21 @@ const DBChargeSession_TSQL = `CREATE TABLE scserver.connected
             ON DELETE CASCADE
     );`;
 
-export interface DBCharge {
-  charge_id: number; // charge id
-  connected_id: number; // charge session id
-  vehicle_uuid: string; // vehicle identifier
-  type: string; // "ac"|"dc"
-  location_uuid: string; // lookup location from coordinates
-  start_ts: Date; // timestamp when charge started
-  start_level: number; // battery level in % when charge started
-  start_added: number; // energy added in Wm (track this because it does not always reset between charges)
-  target_level: number; // charge target %
-  estimate: number; // estimated time to full charge (in minutes)
-  end_ts: Date; // timestamp when charge stopped (updated continiously)
-  end_level: number; // battery level in % when charge stopped (updated continiously)
-  end_added: number; // energy added in Wm
-  energy_used: number; // approximated energy used in Wm (Watt-minutes)
+export abstract class DBCharge {
+  charge_id!: number; // charge id
+  connected_id!: number; // charge session id
+  vehicle_uuid!: string; // vehicle identifier
+  type!: string; // "ac"|"dc"
+  location_uuid!: string | null; // lookup location from coordinates
+  start_ts!: Date; // timestamp when charge started
+  start_level!: number; // battery level in % when charge started
+  start_added!: number; // energy added in Wm (track this because it does not always reset between charges)
+  target_level!: number; // charge target %
+  estimate!: number; // estimated time to full charge (in minutes)
+  end_ts!: Date; // timestamp when charge stopped (updated continiously)
+  end_level!: number; // battery level in % when charge stopped (updated continiously)
+  end_added!: number; // energy added in Wm
+  energy_used!: number; // approximated energy used in Wm (Watt-minutes)
 }
 const DBCharge_TSQL = `CREATE TABLE scserver.charge
     (
@@ -285,15 +284,15 @@ const DBCharge_TSQL = `CREATE TABLE scserver.charge
         vehicle_uuid uuid NOT NULL,
         type character varying(32) NOT NULL,
         location_uuid uuid,
-        start_ts timestamp(0) with time zone,
-        start_level smallint,
-        start_added integer,
-        target_level smallint,
-        estimate integer,
-        end_ts timestamp(0) with time zone,
-        end_level smallint,
-        end_added integer,
-        energy_used integer,
+        start_ts timestamp(0) with time zone NOT NULL,
+        start_level smallint NOT NULL,
+        start_added integer NOT NULL,
+        target_level smallint NOT NULL,
+        estimate integer NOT NULL,
+        end_ts timestamp(0) with time zone NOT NULL,
+        end_level smallint NOT NULL,
+        end_added integer NOT NULL,
+        energy_used integer NOT NULL DEFAULT 0,
         CONSTRAINT charge_pkey PRIMARY KEY (charge_id),
         CONSTRAINT charge_fkeyA FOREIGN KEY (connected_id)
             REFERENCES connected (connected_id) MATCH SIMPLE
@@ -305,14 +304,15 @@ const DBCharge_TSQL = `CREATE TABLE scserver.charge
             ON DELETE CASCADE
     );`;
 
-export interface DBChargeCurrent {
-  charge_id: number; // charge identifier
-  start_ts: Date; // time when starting
-  start_level: number; // charge level when starting (%)
-  start_added: number; // energy added (Wm) when starting
-  powers: number[]; // array of power (W) readings
-  outside_deci_temperatures: number[]; // array of temperature readings (deci-celsius)
+export abstract class DBChargeCurrent {
+  charge_id!: number; // charge identifier
+  start_ts!: Date; // time when starting
+  start_level!: number; // charge level when starting (%)
+  start_added!: number; // energy added (Wm) when starting
+  powers!: number[]; // array of power (W) readings
+  outside_deci_temperatures!: number[]; // array of temperature readings (deci-celsius)
 }
+// TODO: these fields should be NOT NULL, but we have a sloppt INSERT WHERE NOT EXISTS in logic.ts
 const DBChargeCurrent_TSQL = `CREATE TABLE scserver.charge_current
     (
         charge_id integer NOT NULL,
@@ -324,14 +324,14 @@ const DBChargeCurrent_TSQL = `CREATE TABLE scserver.charge_current
         PRIMARY KEY (charge_id)
     );`;
 
-export interface DBChargeCurve {
-  vehicle_uuid: string; // vehicle identifier
-  charge_id: number; // charge identifier
-  level: number; // charge level (%)
-  outside_deci_temperature: number; // average temperature (deci-celsius)
-  duration: number; // duration (in seconds)
-  energy_used: number; // approximated energy used in Wm (Watt-minutes)
-  energy_added: number; // energy added in Wm (Watt-minutes)
+export abstract class DBChargeCurve {
+  vehicle_uuid!: string; // vehicle identifier
+  charge_id!: number; // charge identifier
+  level!: number; // charge level (%)
+  outside_deci_temperature!: number | null; // average temperature (deci-celsius)
+  duration!: number; // duration (in seconds)
+  energy_used!: number; // approximated energy used in Wm (Watt-minutes)
+  energy_added!: number; // energy added in Wm (Watt-minutes)
 }
 const DBChargeCurve_TSQL = `CREATE TABLE scserver.charge_curve
     (
@@ -339,9 +339,9 @@ const DBChargeCurve_TSQL = `CREATE TABLE scserver.charge_curve
         charge_id integer NOT NULL,
         level smallint NOT NULL,
         outside_deci_temperature smallint,
-        duration integer,
-        energy_used integer,
-        energy_added integer,
+        duration integer NOT NULL DEFAULT 0,
+        energy_used integer NOT NULL DEFAULT 0,
+        energy_added integer NOT NULL DEFAULT 0,
         CONSTRAINT charge_curve_pkey PRIMARY KEY (vehicle_uuid,level,charge_id),
         CONSTRAINT charge_curve_fkey FOREIGN KEY (vehicle_uuid)
             REFERENCES vehicle (vehicle_uuid) MATCH SIMPLE
@@ -349,16 +349,16 @@ const DBChargeCurve_TSQL = `CREATE TABLE scserver.charge_curve
             ON DELETE CASCADE
     );`;
 
-export interface DBCurrentStats {
-  stats_id: number; // stats id
-  vehicle_uuid: string; // vehicle uuid
-  location_uuid: string; // location identifer
-  updated: Date; // date when stats where updated
-  price_data_ts: Date; // timestamp of last pricelist data entry
-  level_charge_time: number; // time to charge 1% (in seconds)
-  weekly_avg7_price: number; // weekly running average price (per kWh)
-  weekly_avg21_price: number; // total charging time (in seconds)
-  threshold: number; // price threshold needed to fulfill total charging time
+export abstract class DBCurrentStats {
+  stats_id!: number; // stats id
+  vehicle_uuid!: string; // vehicle uuid
+  location_uuid!: string; // location identifer
+  updated!: Date; // date when stats where updated
+  price_data_ts!: Date | null; // timestamp of last pricelist data entry
+  level_charge_time!: number | null; // time to charge 1% (in seconds)
+  weekly_avg7_price!: number | null; // weekly running average price (per kWh)
+  weekly_avg21_price!: number | null; // total charging time (in seconds)
+  threshold!: number | null; // price threshold needed to fulfill total charging time
 }
 const DBCurrentStats_TSQL = `CREATE TABLE scserver.current_stats
     (
@@ -383,32 +383,32 @@ const DBCurrentStats_TSQL = `CREATE TABLE scserver.current_stats
             ON DELETE CASCADE
     );`;
 
-export interface DBStatsMap {
-  vehicle_uuid: string; // vehicle identifier
-  period: number; // period interval in minutes
-  stats_ts: Date; // date truncated down to closest period
-  minimum_level: number; // vehicle minimum battery level during the period
-  maximum_level: number; // vehicle maximum battery level during the period
-  driven_seconds: number; // driven seconds during the period
-  driven_meters: number; // driven meters during the period
-  charged_seconds: number; // charging during the period
-  charge_energy: number; // energy used charging in Wm (Watt-minutes) during the period
-  charge_cost: number; // total cost of energy charged
-  charge_cost_saved: number; // estimated cost savings
+export abstract class DBStatsMap {
+  vehicle_uuid!: string; // vehicle identifier
+  period!: number; // period interval in minutes
+  stats_ts!: Date; // date truncated down to closest period
+  minimum_level!: number; // vehicle minimum battery level during the period
+  maximum_level!: number; // vehicle maximum battery level during the period
+  driven_seconds!: number; // driven seconds during the period
+  driven_meters!: number; // driven meters during the period
+  charged_seconds!: number; // charging during the period
+  charge_energy!: number; // energy used charging in Wm (Watt-minutes) during the period
+  charge_cost!: number; // total cost of energy charged
+  charge_cost_saved!: number; // estimated cost savings
 }
 const DBStatsMap_TSQL = `CREATE TABLE scserver.stats_map
     (
         vehicle_uuid uuid NOT NULL,
         period integer NOT NULL,
         stats_ts timestamp(0) with time zone NOT NULL,
-        minimum_level integer,
-        maximum_level integer,
-        driven_seconds integer,
-        driven_meters integer,
-        charged_seconds integer,
-        charge_energy integer,
-        charge_cost integer,
-        charge_cost_saved integer,
+        minimum_level integer NOT NULL,
+        maximum_level integer NOT NULL,
+        driven_seconds integer NOT NULL,
+        driven_meters integer NOT NULL,
+        charged_seconds integer NOT NULL,
+        charge_energy integer NOT NULL,
+        charge_cost integer NOT NULL,
+        charge_cost_saved integer NOT NULL,
         CONSTRAINT stats_map_pkey PRIMARY KEY(vehicle_uuid,period,stats_ts),
         CONSTRAINT stats_map_fkey FOREIGN KEY (vehicle_uuid)
             REFERENCES vehicle (vehicle_uuid) MATCH SIMPLE
@@ -416,9 +416,9 @@ const DBStatsMap_TSQL = `CREATE TABLE scserver.stats_map
             ON DELETE CASCADE
     );`;
 
-export interface DBSetting {
-  key: string; // key
-  value: any; // value (json)
+export abstract class DBSetting {
+  key!: string; // key
+  value!: any; // value (json)
 }
 const DBSetting_TSQL = `CREATE TABLE scserver.setting
     (
@@ -479,7 +479,7 @@ export const DB_SETUP_TSQL = [
   DBAccount_TSQL,
 
   DBLocation_TSQL,
-  DBPriceList_TSQL,
+  DBPriceData_TSQL,
 
   DBVehicle_TSQL,
   DBVehicleDebug_TSQL,

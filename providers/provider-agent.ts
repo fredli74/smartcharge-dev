@@ -7,8 +7,7 @@
 import { IProvider } from ".";
 import { SCClient } from "@shared/sc-client";
 import { log, LogLevel, delay } from "@shared/utils";
-import { Action } from "@server/gql/vehicle-type";
-import { ServiceProvider } from "@server/gql/service-type";
+import { GQLAction, GQLServiceProvider } from "@shared/sc-schema";
 
 export interface IProviderAgentInstantiator {
   (scClient: SCClient): AbstractAgent;
@@ -31,10 +30,10 @@ export interface AgentJob extends AgentWork {
   serviceID: string; // unique service identifier
   serviceData: any; // agent service data
   state: any; // current in memory agent job state
-  actionQueue: Action[];
+  actionQueue: GQLAction[];
 }
 export interface AgentActionFunction {
-  (job: AgentJob, action?: Action): Promise<boolean>;
+  (job: AgentJob, action?: GQLAction): Promise<boolean>;
 }
 export abstract class AbstractAgent {
   public abstract name: string;
@@ -140,7 +139,7 @@ export abstract class AbstractAgent {
         this.scClient.subscribeActions(
           this.name,
           undefined,
-          (action: Action) => {
+          (action: GQLAction) => {
             const subject = this.services[action.serviceID];
             if (subject) {
               const hasAction = subject.actionQueue.findIndex(
@@ -189,7 +188,7 @@ export abstract class AbstractAgent {
     })();
     return this.workerPromise;
   }
-  public add(subject: ServiceProvider) {
+  public add(subject: GQLServiceProvider) {
     this.services[subject.serviceID] = {
       serviceID: subject.serviceID,
       serviceData: subject.serviceData,
@@ -200,10 +199,10 @@ export abstract class AbstractAgent {
       actionQueue: []
     };
   }
-  public remove(subject: ServiceProvider) {
+  public remove(subject: GQLServiceProvider) {
     delete this.services[subject.serviceID];
   }
-  public updateData(subject: ServiceProvider) {
+  public updateData(subject: GQLServiceProvider) {
     this.services[subject.serviceID].serviceData = subject.serviceData;
   }
   public async stop() {

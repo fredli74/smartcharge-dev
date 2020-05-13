@@ -31,7 +31,7 @@ const provider: IProvider = {
   name: "tesla",
   display: "Tesla",
   version: "1.0",
-  type: ProviderType.vehicle
+  type: ProviderType.Vehicle
 };
 
 export default provider;

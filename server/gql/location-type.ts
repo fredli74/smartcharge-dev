@@ -5,11 +5,24 @@
  * @license MIT (MIT)
  */
 
-import { Field, ObjectType, InputType, Int, ID } from "type-graphql";
+import {
+  Field,
+  ObjectType,
+  InputType,
+  Int,
+  ID,
+  FieldResolver,
+  Root,
+  Resolver,
+  Ctx
+} from "type-graphql";
 import { GraphQLJSONObject } from "graphql-type-json";
 
 import "reflect-metadata";
-import { ChargePlan } from "./vehicle-type";
+import { DBLocation } from "@server/db-schema";
+import { PriceList } from "./price-type";
+import { IContext } from "./api";
+import { DBInterface } from "@server/db-interface";
 
 @ObjectType()
 @InputType("GeoLocationInput")
@@ -21,43 +34,58 @@ export abstract class GeoLocation {
 }
 
 @ObjectType()
-export abstract class Location {
-  @Field(_type => ID)
-  id!: string;
-  @Field(_type => ID)
-  ownerID!: string;
-  @Field()
-  name!: string;
-  @Field()
-  geoLocation!: GeoLocation;
-  @Field(_type => Int, { description: `Radius in meters` })
-  geoFenceRadius!: number;
-  @Field(_type => String, { nullable: true })
-  priceCode?: string;
-  @Field(_type => ID)
-  serviceID!: string;
-  @Field(_type => GraphQLJSONObject, { nullable: true })
-  providerData!: any;
-}
+export class Location extends DBLocation {}
 
-@ObjectType("LocationPrice")
-@InputType("LocationPriceInput")
-export abstract class LocationPrice {
-  @Field({ description: `Price tariff start time` })
-  startAt!: Date;
-  @Field({ description: `Price in currency per kWh (5 decimal precision)` })
-  price!: number;
-}
-export function LocationPriceToJS(input: LocationPrice): LocationPrice {
-  return { price: input.price, startAt: new Date(input.startAt) };
-}
+@Resolver(_of => Location)
+export class LocationTypeResolver {
+  @FieldResolver(_returns => ID)
+  id(@Root() location: Location): string {
+    return location.location_uuid;
+  }
+  @FieldResolver(_returns => ID)
+  ownerID(@Root() location: Location): string {
+    return location.account_uuid;
+  }
+  @FieldResolver(_returns => String)
+  name(@Root() location: Location): string {
+    return location.name;
+  }
 
-@InputType()
-export abstract class UpdatePriceInput {
-  @Field(_type => String)
-  code!: string;
-  @Field(_type => LocationPrice)
-  prices!: LocationPrice[];
+  @FieldResolver(_returns => GeoLocation)
+  geoLocation(@Root() location: Location): GeoLocation {
+    return {
+      latitude: location.location_micro_latitude / 1e6,
+      longitude: location.location_micro_longitude / 1e6
+    };
+  }
+
+  @FieldResolver(_returns => Int, {
+    nullable: true,
+    description: `Radius in meters`
+  })
+  geoFenceRadius(@Root() location: Location): number {
+    return location.radius;
+  }
+
+  @FieldResolver(_returns => ID, { nullable: true })
+  serviceID(@Root() location: Location): string | null {
+    return location.service_uuid;
+  }
+  @FieldResolver(_returns => GraphQLJSONObject, { nullable: true })
+  providerData(@Root() location: Location): any {
+    return location.provider_data;
+  }
+  @FieldResolver(_returns => PriceList, { nullable: true })
+  async priceList(
+    @Root() location: Location,
+    @Ctx() context: IContext
+  ): Promise<PriceList | undefined> {
+    if (location.price_code) {
+      return DBInterface.DBPriceListToPriceList(
+        await context.db.getPriceList(undefined, location.price_code)
+      );
+    }
+  }
 }
 
 @InputType()
@@ -70,36 +98,31 @@ export abstract class UpdateLocationInput {
   geoLocation?: GeoLocation;
   @Field(_type => Int, { nullable: true, description: `Radius in meters` })
   geoFenceRadius?: number;
-  @Field(_type => String, { nullable: true })
-  priceCode?: string;
+  @Field(_type => ID, { nullable: true })
+  priceListID?: string;
   @Field(_type => ID, { nullable: true })
   serviceID?: string;
   @Field(_type => GraphQLJSONObject, { nullable: true })
   providerData?: any;
 }
 
-@ObjectType()
-export abstract class ChartData {
-  @Field(_type => ID)
-  locationID!: string;
-  @Field()
-  locationName!: string;
-  @Field(_type => ID)
-  vehicleID!: string;
-  @Field(_type => Int)
-  batteryLevel!: number;
-  @Field(_type => Int)
-  levelChargeTime!: number;
-  @Field(_type => Int)
-  thresholdPrice!: number;
-  @Field(_type => GraphQLJSONObject)
-  chargeCurve!: any;
+@ObjectType("LocationPrice")
+@InputType("LocationPriceInput")
+export abstract class LocationPrice {
+  @Field({ description: `Price tariff start time` })
+  startAt!: Date;
+  @Field({ description: `Price in currency per kWh (5 decimal precision)` })
+  price!: number;
+}
+export function LocationPriceToJS(input: LocationPrice): LocationPrice {
+  debugger;
+  return { price: input.price, startAt: new Date(input.startAt) };
+}
+
+@InputType()
+export abstract class UpdatePriceInput {
+  @Field(_type => String)
+  code!: string;
   @Field(_type => LocationPrice)
   prices!: LocationPrice[];
-  @Field(_type => [ChargePlan], { nullable: true })
-  chargePlan!: ChargePlan[] | null;
-  @Field(_type => Int)
-  directLevel!: number;
-  @Field(_type => Int)
-  maximumLevel!: number;
 }

@@ -133,9 +133,9 @@ import { VueConstructor } from "vue";
 import VehicleSettings from "./vehicle-settings.vue";
 import eventBus, { BusEvent } from "@app/plugins/event-bus";
 import deepmerge from "deepmerge";
-import { Action, Vehicle } from "@server/gql/vehicle-type";
 import VehiclePause from "./vehicle-pause.vue";
 import VehicleTrip from "./vehicle-trip.vue";
+import { GQLAction, GQLVehicle } from "@shared/sc-schema";
 
 @Component({
   components: {
@@ -168,7 +168,7 @@ import VehicleTrip from "./vehicle-trip.vue";
           };
         },
         result({ data }: any) {
-          const action = data.actionSubscription as Action;
+          const action = data.actionSubscription as GQLAction;
           if (action.data.id === this.$route.params.id && action.data.error) {
             // Only subscribing for errors to be honest, all other actions
             // are checked in other ways
@@ -186,7 +186,7 @@ import VehicleTrip from "./vehicle-trip.vue";
   }
 })
 export default class VehicleActions extends Vue {
-  @Prop({ type: Object, required: true }) readonly vehicle!: Vehicle;
+  @Prop({ type: Object, required: true }) readonly vehicle!: GQLVehicle;
 
   changed!: boolean;
   saving!: boolean;

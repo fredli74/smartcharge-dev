@@ -1,4 +1,4 @@
-import { Vehicle } from "@server/gql/vehicle-type";
+import { GQLVehicle } from "@shared/sc-schema";
 
 // List entry when adding a new Tesla vehicle
 export interface TeslaNewListEntry {
@@ -9,7 +9,7 @@ export interface TeslaNewListEntry {
   vehicle_uuid: string; // smartcharge vehicle_uuid
 }
 
-export function vehicleImage(vehicle: Vehicle, sideView?: boolean): string {
+export function vehicleImage(vehicle: GQLVehicle, sideView?: boolean): string {
   let options = ["W38B", "PPSW"];
   if (vehicle.providerData.option_codes) {
     options = vehicle.providerData.option_codes;

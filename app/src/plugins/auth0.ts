@@ -9,7 +9,7 @@
 // Should be possible to clean up and make better authentication
 
 import auth0 from "auth0-js";
-import EventEmitter from "events";
+import EventEmitter from "eventemitter3";
 import config from "@shared/smartcharge-config";
 
 const webAuth = new auth0.WebAuth({

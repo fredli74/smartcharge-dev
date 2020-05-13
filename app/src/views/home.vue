@@ -65,7 +65,7 @@
 import { Component, Vue } from "vue-property-decorator";
 import { gql } from "apollo-boost";
 import providers from "@providers/provider-apps";
-import { Vehicle } from "@server/gql/vehicle-type";
+import { GQLVehicle } from "@shared/sc-schema";
 
 @Component({
   components: {},
@@ -93,7 +93,7 @@ import { Vehicle } from "@server/gql/vehicle-type";
 })
 export default class Home extends Vue {
   loading?: boolean;
-  vehicles?: Vehicle[];
+  vehicles?: GQLVehicle[];
 
   data() {
     return { loading: false, vehicles: undefined };
@@ -104,7 +104,7 @@ export default class Home extends Vue {
     // this.loading = false;
   }
 
-  vehicleDisabled(vehicle: Vehicle): string | undefined {
+  vehicleDisabled(vehicle: GQLVehicle): string | undefined {
     if (vehicle.providerData.invalid_token) {
       return "invalid provider token, please add again";
     }
@@ -114,7 +114,7 @@ export default class Home extends Vue {
     return undefined;
   }
 
-  vehiclePicture(vehicle: Vehicle) {
+  vehiclePicture(vehicle: GQLVehicle) {
     if (vehicle.providerData && vehicle.providerData.unknown_image) {
       return require("../assets/unknown_vehicle.png");
     } else {
@@ -128,7 +128,7 @@ export default class Home extends Vue {
       }
     }
   }
-  selectVehicle(vehicle: Vehicle) {
+  selectVehicle(vehicle: GQLVehicle) {
     this.$router.push(`/vehicle/${vehicle.id}`);
   }
 }

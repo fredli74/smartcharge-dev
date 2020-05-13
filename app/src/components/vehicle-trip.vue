@@ -48,16 +48,16 @@
 
 <script lang="ts">
 import { Component, Vue, Prop, Watch } from "vue-property-decorator";
-import { Vehicle, Schedule, ScheduleToJS } from "@server/gql/vehicle-type";
 import VueCtkDateTimePicker from "vue-ctk-date-time-picker";
 import "vue-ctk-date-time-picker/dist/vue-ctk-date-time-picker.css";
 import moment from "moment";
+import { GQLVehicle, GQLSchedule } from "@shared/sc-schema";
 
 const FORMAT = "YYYY-MM-DD HH:mm";
 
 @Component({ components: { VueCtkDateTimePicker } })
 export default class VehicleTrip extends Vue {
-  @Prop({ type: Object, required: true }) readonly vehicle!: Vehicle;
+  @Prop({ type: Object, required: true }) readonly vehicle!: GQLVehicle;
 
   formData!: any;
   trip!: boolean;
@@ -68,11 +68,12 @@ export default class VehicleTrip extends Vue {
     // TODO: move auto_port control to a provider specific option?
   }
   data() {
+    // debugger;
     this.formData = {
       tripSchedule:
         (this.vehicle &&
           this.vehicle.tripSchedule &&
-          ScheduleToJS(this.vehicle.tripSchedule)) ||
+          /*ScheduleToJS*/ this.vehicle.tripSchedule) ||
         null
     };
     return {
@@ -102,7 +103,7 @@ export default class VehicleTrip extends Vue {
   @Watch("tripTime")
   @Watch("tripLevel")
   onChange() {
-    const shouldBe: Schedule | null = this.trip
+    const shouldBe: GQLSchedule | null = this.trip
       ? {
           level: this.tripLevel,
           time: moment(this.tripTime).toDate()

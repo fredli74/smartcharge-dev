@@ -5,6 +5,7 @@
  * @license MIT (MIT)
  */
 
+import "reflect-metadata";
 import {
   Field,
   ObjectType,
@@ -15,15 +16,12 @@ import {
   Float
 } from "type-graphql";
 import { GraphQLJSONObject } from "graphql-type-json";
-import { GeoLocation } from "./location-type";
-import "reflect-metadata";
-
-export enum SmartChargeGoal {
-  low = "low",
-  balanced = "balanced",
-  full = "full"
-}
-registerEnumType(SmartChargeGoal, { name: "SmartChargeGoal" });
+import { GeoLocation, LocationPrice } from "./location-type";
+import {
+  SmartChargeGoal,
+  ChargeType,
+  ChargeConnection
+} from "@shared/sc-types";
 
 @ObjectType("VehicleLocationSetting")
 @InputType("VehicleLocationSettingInput")
@@ -37,9 +35,16 @@ export abstract class VehicleLocationSettings {
   @Field(_type => String)
   goal!: SmartChargeGoal | string;
 }
+// Not used because we cannot union between enum and String in type-graphql
+registerEnumType(SmartChargeGoal, {
+  name: "SmartChargeGoal",
+  description: "Smart Charge Goal Presets"
+});
+
 export function VehicleLocationSettingsToJS(
   input: VehicleLocationSettings
 ): VehicleLocationSettings {
+  debugger;
   return {
     location: input.location,
     directLevel: input.directLevel,
@@ -58,17 +63,11 @@ export abstract class Schedule {
   time!: Date;
 }
 export function ScheduleToJS(input: Schedule): Schedule {
-  return { level: input.level, time: new Date(input.time) };
+  debugger;
+  return input;
+  // return { level: input.level, time: new Date(input.time) };
 }
 
-export enum ChargeType {
-  calibrate = "calibrate",
-  minimum = "minimum",
-  trip = "trip",
-  routine = "routine",
-  prefered = "prefered",
-  fill = "fill"
-}
 registerEnumType(ChargeType, { name: "ChargeType" });
 
 @ObjectType()
@@ -91,6 +90,7 @@ export abstract class ChargePlan {
   comment!: string;
 }
 export function ChargePlanToJS(input: ChargePlan): ChargePlan {
+  debugger;
   return {
     chargeStart: (input.chargeStart && new Date(input.chargeStart)) || null,
     chargeStop: (input.chargeStop && new Date(input.chargeStop)) || null,
@@ -225,10 +225,6 @@ export abstract class UpdateVehicleInput {
   providerData?: any;
 }
 
-export enum ChargeConnection {
-  ac = "ac",
-  dc = "dc"
-}
 registerEnumType(ChargeConnection, { name: "ChargeConnection" });
 
 @InputType()
@@ -300,4 +296,30 @@ export abstract class Action {
   action!: string;
   @Field(_type => GraphQLJSONObject)
   data!: any;
+}
+
+@ObjectType()
+export class ChartData {
+  @Field(_type => ID)
+  locationID!: string;
+  @Field()
+  locationName!: string;
+  @Field(_type => ID)
+  vehicleID!: string;
+  @Field(_type => Int)
+  batteryLevel!: number;
+  @Field(_type => Int, { nullable: true })
+  levelChargeTime!: number | null;
+  @Field(_type => Int, { nullable: true })
+  thresholdPrice!: number | null;
+  @Field(_type => GraphQLJSONObject)
+  chargeCurve!: any;
+  @Field(_type => LocationPrice)
+  prices!: LocationPrice[];
+  @Field(_type => [ChargePlan], { nullable: true })
+  chargePlan!: ChargePlan[] | null;
+  @Field(_type => Int)
+  directLevel!: number;
+  @Field(_type => Int)
+  maximumLevel!: number;
 }

@@ -24,11 +24,12 @@ import {
   Vehicle,
   UpdateVehicleInput,
   ChargePlanToJS,
-  VehicleLocationSettings
+  VehicleLocationSettings,
+  ChartData
 } from "./vehicle-type";
-import { ChartData } from "./location-type";
 import { log, LogLevel, makePublicID } from "@shared/utils";
 import { ApolloError } from "apollo-server-core";
+import { plainToClass } from "class-transformer";
 
 interface VehicleSubscriptionPayload {
   account_uuid: string;
@@ -187,21 +188,16 @@ export class VehicleResolver {
       location && location.location_uuid
     );
 
-    const stats = await context.logic.currentStats(vehicle_uuid, location_uuid);
-    const averagePrice =
-      stats.weekly_avg7_price +
-      (stats.weekly_avg7_price - stats.weekly_avg21_price) / 2;
-
-    const chartData = await context.db.getChartData(location_uuid, 48);
-    return {
+    const priceData = await context.db.getChartPriceData(location_uuid, 48);
+    const chartData: ChartData = plainToClass(ChartData, {
       locationID: location.location_uuid,
       locationName: location.name,
       vehicleID: vehicle.vehicle_uuid,
       batteryLevel: vehicle.level,
-      thresholdPrice: Math.trunc((averagePrice * stats.threshold) / 100),
-      levelChargeTime: stats.level_charge_time,
+      thresholdPrice: null,
+      levelChargeTime: null,
       chargeCurve: chargecurve,
-      prices: chartData.map(f => ({ startAt: f.ts, price: f.price })),
+      prices: priceData.map(f => ({ startAt: f.ts, price: f.price })),
       chargePlan:
         (vehicle.charge_plan && vehicle.charge_plan.map(ChargePlanToJS)) ||
         null,
@@ -210,6 +206,25 @@ export class VehicleResolver {
         location.location_uuid
       ).directLevel,
       maximumLevel: vehicle.maximum_charge
-    };
+    });
+
+    const stats = await context.logic.currentStats(vehicle_uuid, location_uuid);
+    if (
+      stats &&
+      stats.weekly_avg7_price &&
+      stats.weekly_avg21_price &&
+      stats.threshold
+    ) {
+      const averagePrice =
+        stats.weekly_avg7_price +
+        (stats.weekly_avg7_price - stats.weekly_avg21_price) / 2;
+
+      chartData.thresholdPrice = Math.trunc(
+        (averagePrice * stats.threshold) / 100
+      );
+      chartData.levelChargeTime = stats.level_charge_time;
+    }
+
+    return chartData;
   }
 }

@@ -5,15 +5,25 @@
  * @license MIT (MIT)
  */
 
-import { Field, ObjectType, ID } from "type-graphql";
 import "reflect-metadata";
+import { ObjectType, ID, Resolver, Root, FieldResolver } from "type-graphql";
+import { DBAccount } from "@server/db-schema";
 
 @ObjectType()
-export abstract class Account {
-  @Field(_type => ID)
-  id!: string;
-  @Field()
-  name!: string;
-  @Field()
-  token!: string;
+export class Account extends DBAccount {}
+
+@Resolver(_of => Account)
+export class AccountTypeResolver {
+  @FieldResolver(_returns => ID)
+  id(@Root() account: Account): string {
+    return account.account_uuid;
+  }
+  @FieldResolver(_returns => String)
+  name(@Root() account: Account): string {
+    return account.name;
+  }
+  @FieldResolver(_returns => String)
+  token(@Root() account: Account): string {
+    return account.api_token;
+  }
 }

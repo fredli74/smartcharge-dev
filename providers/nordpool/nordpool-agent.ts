@@ -17,8 +17,8 @@ import {
 import provider, { NordpoolServiceData } from ".";
 import config from "./nordpool-config";
 import nordpoolAPI from "./nordpool-api";
-import { UpdatePriceInput, LocationPrice } from "@server/gql/location-type";
 import { DateTime } from "luxon";
+import { GQLLocationPrice, GQLUpdatePriceInput } from "@shared/sc-schema";
 
 interface NordpoolAgentJob extends AgentJob {
   serviceData: NordpoolServiceData;
@@ -39,7 +39,7 @@ export class NordpoolAgent extends AbstractAgent {
     const now = Date.now();
     const res = await nordpoolAPI.getPrices(config.PAGE, config.CURRENCY);
 
-    const areas: { [area: string]: LocationPrice[] } = {};
+    const areas: { [area: string]: GQLLocationPrice[] } = {};
     // remap table
     for (const row of res.data.Rows) {
       if (row.IsExtraRow) continue;
@@ -61,7 +61,7 @@ export class NordpoolAgent extends AbstractAgent {
     }
 
     for (const [area, prices] of Object.entries(areas)) {
-      const update: UpdatePriceInput = {
+      const update: GQLUpdatePriceInput = {
         code: `${this.name}.${area}`.toLowerCase(),
         prices
       };

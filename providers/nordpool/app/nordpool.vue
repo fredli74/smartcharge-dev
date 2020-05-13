@@ -56,7 +56,7 @@ import { Component, Vue, Prop } from "vue-property-decorator";
 import apollo from "@app/plugins/apollo";
 import { ProviderVuePage } from "@providers/provider-app";
 import provider, { NordpoolProviderData } from "..";
-import { Location } from "@server/gql/location-type";
+import { GQLLocation } from "@shared/sc-schema";
 
 interface NordpoolArea {
   price_code: string;
@@ -78,7 +78,7 @@ export default class NordpoolVue extends Vue {
   name!: InputState;
   button!: InputState;
   nordpoolAreas!: NordpoolArea[];
-  knownLocations!: Location[];
+  knownLocations!: GQLLocation[];
 
   // HOOKS
   data() {
@@ -114,11 +114,15 @@ export default class NordpoolVue extends Vue {
     this.knownLocations = await apollo.getLocations();
     // Default names
     if (
-      this.knownLocations.findIndex(f => f.name.toLowerCase() === "home") < 0
+      this.knownLocations.findIndex(
+        f => f.name && f.name.toLowerCase() === "home"
+      ) < 0
     ) {
       this.name.value = "home";
     } else if (
-      this.knownLocations.findIndex(f => f.name.toLowerCase() === "work") < 0
+      this.knownLocations.findIndex(
+        f => f.name && f.name.toLowerCase() === "work"
+      ) < 0
     ) {
       this.name.value = "work";
     }
@@ -136,7 +140,7 @@ export default class NordpoolVue extends Vue {
       this.name.error = "Minimum of 2 characters";
     } else if (
       this.knownLocations.findIndex(
-        f => f.name.toLowerCase() === this.name.value.toLowerCase()
+        f => f.name && f.name.toLowerCase() === this.name.value.toLowerCase()
       ) >= 0
     ) {
       this.name.error = "You already have a location with that name";

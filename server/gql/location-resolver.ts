@@ -7,8 +7,11 @@
 
 import { Resolver, Query, Ctx, Arg, Mutation } from "type-graphql";
 import { IContext, accountFilter } from "@server/gql/api";
-import { DBInterface } from "@server/db-interface";
 import { UpdateLocationInput, Location } from "./location-type";
+import { makePublicID, LogLevel, log } from "@shared/utils";
+import { ApolloError } from "apollo-server-express";
+import { DBInterface } from "@server/db-interface";
+import { plainToClass } from "class-transformer";
 
 @Resolver()
 export class LocationResolver {
@@ -24,9 +27,10 @@ export class LocationResolver {
     @Arg("id") id: string,
     @Ctx() context: IContext
   ): Promise<Location> {
-    return DBInterface.DBLocationToLocation(
+    const l = DBInterface.DBLocationToLocation(
       await context.db.getLocation(accountFilter(context.accountUUID), id)
     );
+    return plainToClass(Location, l);
   }
 
   @Mutation(_returns => Location)
@@ -42,10 +46,32 @@ export class LocationResolver {
         input.name,
         input.geoLocation,
         input.geoFenceRadius,
-        input.priceCode,
+        input.priceListID,
         input.serviceID,
         input.providerData
       )
     );
+  }
+
+  @Mutation(_returns => Boolean)
+  async removeLocation(
+    @Arg("id") id: string,
+    @Arg("confirm") confirm: string,
+    @Ctx() context: IContext
+  ): Promise<Boolean> {
+    // verify location ownage
+    log(LogLevel.Debug, `removeLocation: ${JSON.stringify(id)}`);
+    const location = await context.db.getLocation(
+      accountFilter(context.accountUUID),
+      id
+    );
+
+    const publicID = makePublicID(location.location_uuid);
+    if (confirm.toLowerCase() !== publicID) {
+      throw new ApolloError("Incorrect confirmation code");
+    }
+
+    await context.db.removeLocation(id);
+    return true;
   }
 }

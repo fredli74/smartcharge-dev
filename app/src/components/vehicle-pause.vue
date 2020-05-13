@@ -33,16 +33,16 @@
 
 <script lang="ts">
 import { Component, Vue, Prop, Watch } from "vue-property-decorator";
-import { Vehicle } from "@server/gql/vehicle-type";
 import VueCtkDateTimePicker from "vue-ctk-date-time-picker";
 import "vue-ctk-date-time-picker/dist/vue-ctk-date-time-picker.css";
 import moment from "moment";
+import { GQLVehicle } from "@shared/sc-schema";
 
 const FORMAT = "YYYY-MM-DD HH:mm";
 
 @Component({ components: { VueCtkDateTimePicker } })
 export default class VehiclePause extends Vue {
-  @Prop({ type: Object, required: true }) readonly vehicle!: Vehicle;
+  @Prop({ type: Object, required: true }) readonly vehicle!: GQLVehicle;
 
   formData!: any;
   pause!: boolean;
@@ -80,5 +80,6 @@ export default class VehiclePause extends Vue {
       this.$emit("changed", 1000, this.formData);
     }
   }
-}</script
-><style></style>
+}
+</script>
+<style></style>

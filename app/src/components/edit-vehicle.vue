@@ -93,25 +93,25 @@
 
 <script lang="ts">
 import { Component, Vue, Prop } from "vue-property-decorator";
-import {
-  Vehicle,
-  VehicleLocationSettings,
-  SmartChargeGoal,
-  UpdateVehicleInput
-} from "@server/gql/vehicle-type";
-import { Location } from "@server/gql/location-type";
 import EditVehicleLocationSettings from "@app/components/edit-vehicle-location-settings.vue";
 import RemoveDialog from "@app/components/remove-dialog.vue";
 import deepmerge from "deepmerge";
 import apollo from "@app/plugins/apollo";
 import equal from "fast-deep-equal";
+import {
+  GQLVehicle,
+  GQLLocation,
+  GQLVehicleLocationSetting,
+  GQLUpdateVehicleInput
+} from "@shared/sc-schema";
+import { SmartChargeGoal } from "@shared/sc-types";
 
 @Component({
   components: { EditVehicleLocationSettings, RemoveDialog }
 })
 export default class EditVehicle extends Vue {
-  @Prop({ type: Object, required: true }) readonly vehicle!: Vehicle;
-  @Prop({ type: Array, required: true }) readonly locations!: Location[];
+  @Prop({ type: Object, required: true }) readonly vehicle!: GQLVehicle;
+  @Prop({ type: Array, required: true }) readonly locations!: GQLLocation[];
 
   saving!: { [key: string]: boolean };
 
@@ -133,12 +133,12 @@ export default class EditVehicle extends Vue {
         this.locations
           .filter(l => l.ownerID === this.vehicle.ownerID)
           .map(l => {
-            const settings: VehicleLocationSettings = (this.vehicle
+            const settings: GQLVehicleLocationSetting = (this.vehicle
               .locationSettings &&
               this.vehicle.locationSettings.find(f => f.location === l.id)) || {
               location: l.id,
               directLevel: 15,
-              goal: SmartChargeGoal.balanced
+              goal: SmartChargeGoal.Balanced
             };
             return {
               name: l.name,
@@ -198,7 +198,7 @@ export default class EditVehicle extends Vue {
     this.debounceTimer = setTimeout(async () => {
       const form: any = this.$refs.form;
       if (form.validate && form.validate()) {
-        const update: UpdateVehicleInput = {
+        const update: GQLUpdateVehicleInput = {
           id: this.vehicle.id,
           providerData: {}
         };
@@ -232,11 +232,4 @@ export default class EditVehicle extends Vue {
   }
 }
 </script>
-<style>
-.v-application .monospace {
-  /*letter-spacing: 0.14em !important;*/
-  font-size: 1rem;
-  font-variant-numeric: slashed-zero;
-  font-family: "Roboto Mono", monospace;
-}
-</style>
+<style></style>

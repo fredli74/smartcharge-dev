@@ -12,7 +12,8 @@ import fs from "fs";
 import { delay, LogLevel, setLogLevel } from "@shared/utils";
 import { Logic } from "./logic";
 import { DBInterface } from "./db-interface";
-import { ChargeConnection, UpdateVehicleDataInput } from "./gql/vehicle-type";
+import { UpdateVehicleDataInput } from "./gql/vehicle-type";
+import { ChargeConnection } from "@shared/sc-types";
 
 if (process.argv.length < 3) {
   console.log(`Missing argument`);
@@ -38,10 +39,12 @@ const vid: { [id: string]: string } = {};
 
       if (vid[data.id_s] === undefined) {
         // eslint-disable-next-line require-atomic-updates
-        vid[data.id_s] = (await db.pg.one(
-          `SELECT data->>'vehicle' vehicle_uuid FROM provider WHERE data->>'sid' = $1`,
-          data.id_s
-        )).vehicle_uuid;
+        vid[data.id_s] = (
+          await db.pg.one(
+            `SELECT data->>'vehicle' vehicle_uuid FROM provider WHERE data->>'sid' = $1`,
+            data.id_s
+          )
+        ).vehicle_uuid;
       }
       const job = { subjectID: vid[data.id_s] };
 
@@ -94,9 +97,9 @@ const vid: { [id: string]: string } = {};
           data.drive_state.shift_state === "R", // ... or in Reverse
         // Set connection type
         connectedCharger: data.charge_state.fast_charger_present
-          ? ChargeConnection.dc // fast charger
+          ? ChargeConnection.DC // fast charger
           : data.charge_state.charging_state !== "Disconnected"
-          ? ChargeConnection.ac
+          ? ChargeConnection.AC
           : null, // any other charger or no charger
         chargingTo: chargingTo,
         estimatedTimeLeft: Math.round(
