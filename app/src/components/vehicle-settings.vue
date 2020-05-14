@@ -122,7 +122,7 @@ export default class VehicleSettings extends Vue {
 
   get anxietyLevel() {
     if (this.formData.anxietyLevel === undefined) {
-      this.formData.anxietyLevel = this.vehicle.anxietyLevel;
+      //  this.formData.anxietyLevel = this.vehicle.anxietyLevel;
     }
     return this.formData.anxietyLevel;
   }

@@ -7,6 +7,8 @@
 
 export const DB_VERSION = `1.0-beta`;
 
+type PlainObject = Record<string, any>;
+
 export abstract class DBAccount {
   account_uuid!: string; // account uuid
   name!: string; // account name
@@ -29,7 +31,7 @@ export abstract class DBLocation {
   radius!: number; // radius tollerance (in meters)
   price_code!: string | null; // price list code
   service_uuid!: string | null; // provider uuid
-  provider_data!: object; // provider custom data
+  provider_data!: PlainObject; // provider custom data
 }
 const DBLocation_TSQL = `CREATE TABLE scserver.location
     (
@@ -67,15 +69,15 @@ const DBPriceData_TSQL = `CREATE TABLE scserver.price_data
 export abstract class DBVehicle {
   vehicle_uuid!: string; // vehicle uuid
   account_uuid!: string; // account identifier
-  name!: string | null; // name of vehicle
+  service_uuid!: string | null; // provider uuid
+  name!: string; // name of vehicle
   maximum_charge!: number; // maximum normal (non trip) charge
-  scheduled_trip!: any | null; // currently scheduled trip (or null)
-  smart_pause!: Date | null; // smart charging is paused
-  charge_plan!: any | null; // current charge plan (or null)
+  schedule!: PlainObject; // schedule
+  provider_data!: PlainObject; // provider custom data
   location_micro_latitude!: number | null; // 6 decimal precision converted to integer
   location_micro_longitude!: number | null; // 6 decimal precision converted to integer
   location_uuid!: string | null; // known location id
-  location_settings!: any; // location settings (or null)
+  location_settings!: PlainObject; // location settings (or null)
   level!: number; // current battery charge level %
   odometer!: number; // odometer (in meter)
   outside_deci_temperature!: number; // temperature (deci-celsius)
@@ -90,19 +92,18 @@ export abstract class DBVehicle {
   trip_id!: number | null; // current trip session id
   status!: string; // informative status string
   smart_status!: string; // smart charging information
+  charge_plan!: any | null; // current charge plan (or null)
   updated!: Date; // timestamp of last record update
-  service_uuid!: string | null; // provider uuid
-  provider_data!: object | null; // provider custom data
 }
 const DBVehicle_TSQL = `CREATE TABLE scserver.vehicle
     (
         vehicle_uuid uuid NOT NULL DEFAULT sequential_uuid(),
         account_uuid uuid NOT NULL,
+        service_uuid uuid,
         name text COLLATE NOT NULL,
         maximum_charge smallint NOT NULL,
-        scheduled_trip jsonb,
-        smart_pause timestamp with time zone,
-        charge_plan jsonb,
+        schedule jsonb NOT NULL DEFAULT '[]'::jsonb,
+        provider_data jsonb NOT NULL DEFAULT '{}'::jsonb,
         location_micro_latitude integer,
         location_micro_longitude integer,
         location_uuid uuid,
@@ -121,9 +122,8 @@ const DBVehicle_TSQL = `CREATE TABLE scserver.vehicle
         trip_id integer,
         status text COLLATE NOT NULL DEFAULT ''::text,
         smart_status text COLLATE NOT NULL DEFAULT ''::text,
+        charge_plan jsonb,
         updated timestamp(0) with time zone NOT NULL DEFAULT now(),
-        service_uuid uuid,
-        provider_data jsonb NOT NULL DEFAULT '{}'::jsonb,
         CONSTRAINT vehicle_pkey PRIMARY KEY (vehicle_uuid),
         CONSTRAINT vehicle_fkey FOREIGN KEY (account_uuid)
             REFERENCES account (account_uuid) MATCH SIMPLE
@@ -349,35 +349,35 @@ const DBChargeCurve_TSQL = `CREATE TABLE scserver.charge_curve
             ON DELETE CASCADE
     );`;
 
-export abstract class DBCurrentStats {
+export abstract class DBLocationStats {
   stats_id!: number; // stats id
   vehicle_uuid!: string; // vehicle uuid
   location_uuid!: string; // location identifer
   updated!: Date; // date when stats where updated
-  price_data_ts!: Date | null; // timestamp of last pricelist data entry
-  level_charge_time!: number | null; // time to charge 1% (in seconds)
-  weekly_avg7_price!: number | null; // weekly running average price (per kWh)
-  weekly_avg21_price!: number | null; // total charging time (in seconds)
-  threshold!: number | null; // price threshold needed to fulfill total charging time
+  price_data_ts!: Date; // timestamp of last pricelist data entry
+  level_charge_time!: number; // time to charge 1% (in seconds)
+  weekly_avg7_price!: number; // weekly running average price (per kWh)
+  weekly_avg21_price!: number; // total charging time (in seconds)
+  threshold!: number; // price threshold needed to fulfill total charging time
 }
-const DBCurrentStats_TSQL = `CREATE TABLE scserver.current_stats
+const DBLocationStats_TSQL = `CREATE TABLE scserver.location_stats
     (
         stats_id integer NOT NULL GENERATED ALWAYS AS IDENTITY,
         vehicle_uuid uuid NOT NULL,
         location_uuid uuid NOT NULL,
         updated timestamp(0) with time zone NOT NULL DEFAULT NOW(),
-        price_data_ts timestamp(0) with time zone,
-        level_charge_time integer,
-        weekly_avg7_price integer,
-        weekly_avg21_price integer,
-        threshold integer,
-        CONSTRAINT current_stats_pkey PRIMARY KEY (stats_id)
+        price_data_ts timestamp(0) with time zone NOT NULL,
+        level_charge_time integer NOT NULL,
+        weekly_avg7_price integer NOT NULL,
+        weekly_avg21_price integer NOT NULL,
+        threshold integer NOT NULL,
+        CONSTRAINT location_stats_pkey PRIMARY KEY (stats_id)
             INCLUDE(vehicle_uuid, location_uuid),
-        CONSTRAINT current_stats_fkeyA FOREIGN KEY (vehicle_uuid)
+        CONSTRAINT location_stats_fkeyA FOREIGN KEY (vehicle_uuid)
             REFERENCES vehicle (vehicle_uuid) MATCH SIMPLE
             ON UPDATE RESTRICT
             ON DELETE CASCADE,
-        CONSTRAINT current_stats_fkeyB FOREIGN KEY (location_uuid)
+        CONSTRAINT location_stats_fkeyB FOREIGN KEY (location_uuid)
             REFERENCES location (location_uuid) MATCH SIMPLE
             ON UPDATE RESTRICT
             ON DELETE CASCADE
@@ -495,7 +495,7 @@ export const DB_SETUP_TSQL = [
   DBChargeCurrent_TSQL,
   DBChargeCurve_TSQL,
 
-  DBCurrentStats_TSQL,
+  DBLocationStats_TSQL,
 
   DBStatsMap_TSQL,
 

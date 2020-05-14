@@ -7,32 +7,34 @@
 
 // import { strict as assert } from 'assert';
 
+import "reflect-metadata";
 import {
   buildSchema,
-  Resolver,
-  Subscription,
-  Root,
+  Field,
+  FieldResolver,
   Int,
   ObjectType,
-  Field,
-  ResolverInterface,
   Query,
-  FieldResolver
+  Resolver,
+  ResolverInterface,
+  Root,
+  Subscription
 } from "type-graphql";
-import { DBInterface, INTERNAL_SERVICE_UUID } from "@server/db-interface";
-import { DBAccount } from "@server/db-schema";
-import { Logic } from "@server/logic";
-import "reflect-metadata";
 import { AccountResolver } from "./account-resolver";
-import { ProviderResolver } from "./provider-resolver";
-import { VehicleResolver } from "./vehicle-resolver";
-import { LocationResolver } from "./location-resolver";
-import { ServiceResolver } from "./service-resolver";
-import { PriceResolver } from "./price-resolver";
+import { AccountTypeResolver } from "./account-type";
 import { apolloPubSub, SubscriptionTopic } from "./subscription";
+import { DBAccount } from "@server/db-schema";
+import { DBInterface, INTERNAL_SERVICE_UUID } from "@server/db-interface";
 import { GraphQLSchema } from "graphql";
-import { AccountTypeResolver } from './account-type';
-import { LocationTypeResolver } from './location-type';
+import { LocationResolver } from "./location-resolver";
+import { LocationTypeResolver } from "./location-type";
+import { Logic } from "@server/logic";
+import { PriceResolver } from "./price-resolver";
+import { ProviderResolver } from "./provider-resolver";
+import { ServiceResolver } from "./service-resolver";
+import { StatsResolver } from "./stats-resolver";
+import { VehicleResolver } from "./vehicle-resolver";
+import { VehicleTypeResolver } from "./vehicle-type";
 
 export interface IContext {
   db: DBInterface;
@@ -68,20 +70,20 @@ setInterval(() => {
 }, 30e3);
 
 @ObjectType()
-export class Player {
+export class ResolverTest {
   @Field()
-  isMe: boolean = false;
+  isFieldResolverWorking: boolean = false;
 }
 
-@Resolver(() => Player)
-export class PlayerResolver implements ResolverInterface<Player> {
-  @Query(() => Player)
-  player() {
-    return new Player();
+@Resolver(() => ResolverTest)
+export class TestResolver implements ResolverInterface<ResolverTest> {
+  @Query(() => ResolverTest)
+  test() {
+    return new ResolverTest();
   }
 
   @FieldResolver(() => Boolean)
-  isMe() {
+  isFieldResolverWorking() {
     return true;
   }
 }
@@ -90,15 +92,24 @@ export default function schema(emitFile?: string): Promise<GraphQLSchema> {
   return buildSchema({
     resolvers: [
       PingResolver,
+      TestResolver,
+
       AccountTypeResolver,
       AccountResolver,
+
       ProviderResolver,
-      VehicleResolver,
+
       LocationTypeResolver,
       LocationResolver,
+
+      VehicleTypeResolver,
+      VehicleResolver,
+
       PriceResolver,
+
       ServiceResolver,
-      PlayerResolver
+
+      StatsResolver
     ],
     emitSchemaFile: !!emitFile && emitFile,
     validate: false

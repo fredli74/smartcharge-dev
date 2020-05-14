@@ -19,13 +19,11 @@ import {
   Root
 } from "type-graphql";
 import { IContext, accountFilter } from "./api";
-import { DBInterface, INTERNAL_SERVICE_UUID } from "@server/db-interface";
+import { INTERNAL_SERVICE_UUID } from "@server/db-interface";
 import {
   Vehicle,
   UpdateVehicleInput,
-  ChargePlanToJS,
-  VehicleLocationSettings,
-  ChartData
+  VehicleLocationSettings
 } from "./vehicle-type";
 import { log, LogLevel, makePublicID } from "@shared/utils";
 import { ApolloError } from "apollo-server-core";
@@ -43,14 +41,15 @@ export class VehicleResolver {
     const dblist = await context.db.getVehicles(
       accountFilter(context.accountUUID)
     );
-    return dblist.map(DBInterface.DBVehicleToVehicle);
+    return dblist.map(f => plainToClass(Vehicle, f));
   }
   @Query(_returns => Vehicle)
   async vehicle(
     @Arg("id") id: string,
     @Ctx() context: IContext
   ): Promise<Vehicle> {
-    return DBInterface.DBVehicleToVehicle(
+    return plainToClass(
+      Vehicle,
       await context.db.getVehicle(accountFilter(context.accountUUID), id)
     );
   }
@@ -77,7 +76,8 @@ export class VehicleResolver {
         context.accountUUID === INTERNAL_SERVICE_UUID ||
           context.accountUUID === payload.account_uuid
       );
-      return DBInterface.DBVehicleToVehicle(
+      return plainToClass(
+        Vehicle,
         await context.db.getVehicle(
           accountFilter(payload.account_uuid),
           payload.vehicle_uuid
@@ -85,7 +85,8 @@ export class VehicleResolver {
       );
     } else {
       // This happens when called without websockets
-      return DBInterface.DBVehicleToVehicle(
+      return plainToClass(
+        Vehicle,
         await context.db.getVehicle(accountFilter(context.accountUUID), id)
       );
     }
@@ -137,21 +138,20 @@ export class VehicleResolver {
         {}
       );
 
-    const result = DBInterface.DBVehicleToVehicle(
-      await context.db.updateVehicle(
-        input.id,
-        input.name,
-        input.maximumLevel,
-        locationSettingsMap,
-        input.anxietyLevel,
-        input.tripSchedule,
-        input.pausedUntil,
-        input.status,
-        input.serviceID,
+    const result = await context.db.updateVehicle(
+      input.id,
+      input.name,
+      input.maximumLevel,
+      locationSettingsMap,
+      input.anxietyLevel,
+      input.tripSchedule,
+      input.pausedUntil,
+      input.status,
+      input.serviceID,
 
-        input.providerData
-      )
+      input.providerData
     );
+
     if (
       input.maximumLevel !== undefined ||
       input.locationSettings !== undefined ||
@@ -161,70 +161,9 @@ export class VehicleResolver {
       await context.logic.refreshChargePlan(input.id);
     }
     await pubSub.publish(SubscriptionTopic.VehicleUpdate, {
-      vehicle_uuid: result.id,
-      account_uuid: result.ownerID
+      vehicle_uuid: result.vehicle_uuid,
+      account_uuid: result.account_uuid
     });
     return result;
-  }
-
-  @Query(_returns => ChartData)
-  async chartData(
-    @Arg("vehicleID") vehicle_uuid: string,
-    @Arg("locationID") location_uuid: string,
-    @Ctx() context: IContext
-  ): Promise<ChartData> {
-    const vehicle = await context.db.getVehicle(
-      accountFilter(context.accountUUID),
-      vehicle_uuid
-    );
-
-    const location = await context.db.getLocation(
-      accountFilter(context.accountUUID),
-      location_uuid
-    );
-
-    const chargecurve = await context.db.getChargeCurve(
-      vehicle && vehicle.vehicle_uuid,
-      location && location.location_uuid
-    );
-
-    const priceData = await context.db.getChartPriceData(location_uuid, 48);
-    const chartData: ChartData = plainToClass(ChartData, {
-      locationID: location.location_uuid,
-      locationName: location.name,
-      vehicleID: vehicle.vehicle_uuid,
-      batteryLevel: vehicle.level,
-      thresholdPrice: null,
-      levelChargeTime: null,
-      chargeCurve: chargecurve,
-      prices: priceData.map(f => ({ startAt: f.ts, price: f.price })),
-      chargePlan:
-        (vehicle.charge_plan && vehicle.charge_plan.map(ChargePlanToJS)) ||
-        null,
-      directLevel: DBInterface.DBVehicleToVehicleLocationSettings(
-        vehicle,
-        location.location_uuid
-      ).directLevel,
-      maximumLevel: vehicle.maximum_charge
-    });
-
-    const stats = await context.logic.currentStats(vehicle_uuid, location_uuid);
-    if (
-      stats &&
-      stats.weekly_avg7_price &&
-      stats.weekly_avg21_price &&
-      stats.threshold
-    ) {
-      const averagePrice =
-        stats.weekly_avg7_price +
-        (stats.weekly_avg7_price - stats.weekly_avg21_price) / 2;
-
-      chartData.thresholdPrice = Math.trunc(
-        (averagePrice * stats.threshold) / 100
-      );
-      chartData.levelChargeTime = stats.level_charge_time;
-    }
-
-    return chartData;
   }
 }

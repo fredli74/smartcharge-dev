@@ -109,6 +109,9 @@ input LocationPriceInput {
 type Mutation {
   loginWithPassword(password: String!): Account!
   loginWithIDToken(idToken: String!): Account!
+  updateLocation(input: UpdateLocationInput!): Location!
+  removeLocation(confirm: String!, id: String!): Boolean!
+  updatePriceList(input: UpdatePriceListInput!): PriceList!
   providerMutate(
     input: JSONObject!
 
@@ -116,10 +119,6 @@ type Mutation {
     name: String!
   ): JSONObject!
   performAction(data: JSONObject, action: String!, serviceID: ID!, actionID: Int): JSONObject!
-  removeVehicle(confirm: String!, id: String!): Boolean!
-  updateVehicle(input: UpdateVehicleInput!): Vehicle!
-  updateLocation(input: UpdateLocationInput!): Location!
-  removeLocation(confirm: String!, id: String!): Boolean!
   _updateVehicleData(input: UpdateVehicleDataInput!): Boolean!
   _vehicleDebug(input: VehicleDebugInput!): Boolean!
   _chargeCalibration(
@@ -132,11 +131,8 @@ type Mutation {
     vehicleID: ID!
   ): Int
   _updatePrice(input: UpdatePriceInput!): Boolean!
-  updatePriceList(input: UpdatePriceListInput!): PriceList!
-}
-
-type Player {
-  isMe: Boolean!
+  removeVehicle(confirm: String!, id: String!): Boolean!
+  updateVehicle(input: UpdateVehicleInput!): Vehicle!
 }
 
 type PriceList {
@@ -155,30 +151,45 @@ input PriceListInput {
 
 type Query {
   account: Account!
+  locations: [Location!]!
+  location(id: String!): Location!
+  priceLists: [PriceList!]!
+  priceList(id: String!): PriceList!
   providerQuery(
     input: JSONObject!
 
     """Provider name"""
     name: String!
   ): JSONObject!
+  _serviceProviders(accept: [String!]!): [ServiceProvider!]!
+  chartData(locationID: String!, vehicleID: String!): ChartData!
   vehicles: [Vehicle!]!
   vehicle(id: String!): Vehicle!
-  chartData(locationID: String!, vehicleID: String!): ChartData!
-  locations: [Location!]!
-  location(id: String!): Location!
-  _serviceProviders(accept: [String!]!): [ServiceProvider!]!
-  priceLists: [PriceList!]!
-  priceList(id: String!): PriceList!
-  player: Player!
+  test: ResolverTest!
+}
+
+type ResolverTest {
+  isFieldResolverWorking: Boolean!
+}
+
+enum SchduleType {
+  Guide
+  Manual
+  Pause
+  Trip
 }
 
 type Schedule {
+  type: SchduleType!
+
   """Battery level to reach at scheduled time (%)"""
   level: Int!
   time: DateTime!
 }
 
 input ScheduleInput {
+  type: SchduleType!
+
   """Battery level to reach at scheduled time (%)"""
   level: Int!
   time: DateTime!
@@ -272,23 +283,22 @@ input UpdateVehicleInput {
 type Vehicle {
   id: ID!
   ownerID: ID!
+  serviceID: ID
   name: String!
 
   """maximum level to charge to unless a trip is scheduled (%)"""
   maximumLevel: Int!
 
-  """smart charging anxiety level"""
-  anxietyLevel: Int!
-
-  """trip schedule"""
-  tripSchedule: Schedule
-
-  """smart charging paused"""
-  pausedUntil: DateTime
-  geoLocation: GeoLocation!
+  """schedule"""
+  schedule: [Schedule!]!
+  providerData: JSONObject!
+  geoLocation: GeoLocation
 
   """known location id"""
-  location: ID
+  locationID: ID
+
+  """known location"""
+  location: Location
 
   """location settings"""
   locationSettings: [VehicleLocationSetting!]
@@ -307,24 +317,22 @@ type Vehicle {
 
   """is climate control on"""
   climateControl: Boolean!
-  isDriving: Boolean!
 
   """is a charger connected"""
   isConnected: Boolean!
-
-  """charge plan"""
-  chargePlan: [ChargePlan!]
 
   """charging to level (%)"""
   chargingTo: Int
 
   """estimated time to complete charge (minutes)"""
   estimatedTimeLeft: Int
+  isDriving: Boolean!
   status: String!
   smartStatus: String!
+
+  """charge plan"""
+  chargePlan: [ChargePlan!]
   updated: DateTime!
-  serviceID: ID!
-  providerData: JSONObject
 }
 
 input VehicleDebugInput {

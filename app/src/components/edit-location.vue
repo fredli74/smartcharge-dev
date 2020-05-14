@@ -20,7 +20,7 @@
     <v-row>
       <v-col cols="12" md="9">
         <v-autocomplete
-          v-model="select"
+          v-model="pricelist"
           :loading="$apollo.queries.priceLists.loading"
           :items="priceLists"
           cache-items
@@ -106,6 +106,10 @@ export default class EditLocation extends Vue {
   }
   get mapLink(): string {
     return `https://www.google.com/maps/search/?api=1&query=${this.location.geoLocation.latitude},${this.location.geoLocation.longitude}`;
+  }
+
+  get pricelist(): string {
+    return (this.location.priceList && this.location.priceList.name) || "";
   }
 
   get items(): string[] {

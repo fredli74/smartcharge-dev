@@ -14,16 +14,16 @@ import { GraphQLResolveInfo, GraphQLScalarType } from 'graphql';
  *******************************/
 export interface GQLQuery {
   account: GQLAccount;
-  providerQuery: GQLJSONObject;
-  vehicles: Array<GQLVehicle>;
-  vehicle: GQLVehicle;
-  chartData: GQLChartData;
   locations: Array<GQLLocation>;
   location: GQLLocation;
-  _serviceProviders: Array<GQLServiceProvider>;
   priceLists: Array<GQLPriceList>;
   priceList: GQLPriceList;
-  player: GQLPlayer;
+  providerQuery: GQLJSONObject;
+  _serviceProviders: Array<GQLServiceProvider>;
+  chartData: GQLChartData;
+  vehicles: Array<GQLVehicle>;
+  vehicle: GQLVehicle;
+  test: GQLResolverTest;
 }
 
 export interface GQLAccount {
@@ -32,14 +32,106 @@ export interface GQLAccount {
   token: string;
 }
 
+export interface GQLLocation {
+  id: string;
+  ownerID: string;
+  name: string;
+  geoLocation: GQLGeoLocation;
+  
+  /**
+   * Radius in meters
+   */
+  geoFenceRadius?: number;
+  serviceID?: string;
+  providerData?: GQLJSONObject;
+  priceList?: GQLPriceList;
+}
+
+export interface GQLGeoLocation {
+  latitude: number;
+  longitude: number;
+}
+
 /**
  * The `JSONObject` scalar type represents JSON objects as specified by [ECMA-404](http://www.ecma-international.org/publications/files/ECMA-ST/ECMA-404.pdf).
  */
 export type GQLJSONObject = any;
 
+export interface GQLPriceList {
+  id: string;
+  ownerID: string;
+  name: string;
+  private: boolean;
+}
+
+export interface GQLServiceProvider {
+  ownerID: string;
+  providerName: string;
+  serviceID: string;
+  serviceData: GQLJSONObject;
+}
+
+export interface GQLChartData {
+  locationID: string;
+  locationName: string;
+  vehicleID: string;
+  batteryLevel: number;
+  levelChargeTime?: number;
+  thresholdPrice?: number;
+  chargeCurve: GQLJSONObject;
+  prices: Array<GQLLocationPrice>;
+  chargePlan?: Array<GQLChargePlan>;
+  directLevel: number;
+  maximumLevel: number;
+}
+
+export interface GQLLocationPrice {
+  
+  /**
+   * Price tariff start time
+   */
+  startAt: GQLDateTime;
+  
+  /**
+   * Price in currency per kWh (5 decimal precision)
+   */
+  price: number;
+}
+
+/**
+ * The javascript `Date` as string. Type represents date and time as the ISO Date string.
+ */
+export type GQLDateTime = Date;
+
+export interface GQLChargePlan {
+  chargeType: GQLChargeType;
+  
+  /**
+   * time to start or null for now
+   */
+  chargeStart?: GQLDateTime;
+  
+  /**
+   * time to end or null for never
+   */
+  chargeStop?: GQLDateTime;
+  level: number;
+  comment: string;
+}
+
+export enum GQLChargeType {
+  Calibrate = 'Calibrate',
+  Minimum = 'Minimum',
+  Trip = 'Trip',
+  Routine = 'Routine',
+  Prefered = 'Prefered',
+  Fill = 'Fill'
+}
+
 export interface GQLVehicle {
   id: string;
   ownerID: string;
+  serviceID?: string;
   name: string;
   
   /**
@@ -48,25 +140,21 @@ export interface GQLVehicle {
   maximumLevel: number;
   
   /**
-   * smart charging anxiety level
+   * schedule
    */
-  anxietyLevel: number;
-  
-  /**
-   * trip schedule
-   */
-  tripSchedule?: GQLSchedule;
-  
-  /**
-   * smart charging paused
-   */
-  pausedUntil?: GQLDateTime;
-  geoLocation: GQLGeoLocation;
+  schedule: Array<GQLSchedule>;
+  providerData: GQLJSONObject;
+  geoLocation?: GQLGeoLocation;
   
   /**
    * known location id
    */
-  location?: string;
+  locationID?: string;
+  
+  /**
+   * known location
+   */
+  location?: GQLLocation;
   
   /**
    * location settings
@@ -97,17 +185,11 @@ export interface GQLVehicle {
    * is climate control on
    */
   climateControl: boolean;
-  isDriving: boolean;
   
   /**
    * is a charger connected
    */
   isConnected: boolean;
-  
-  /**
-   * charge plan
-   */
-  chargePlan?: Array<GQLChargePlan>;
   
   /**
    * charging to level (%)
@@ -118,14 +200,19 @@ export interface GQLVehicle {
    * estimated time to complete charge (minutes)
    */
   estimatedTimeLeft?: number;
+  isDriving: boolean;
   status: string;
   smartStatus: string;
+  
+  /**
+   * charge plan
+   */
+  chargePlan?: Array<GQLChargePlan>;
   updated: GQLDateTime;
-  serviceID: string;
-  providerData?: GQLJSONObject;
 }
 
 export interface GQLSchedule {
+  type: GQLSchduleType;
   
   /**
    * Battery level to reach at scheduled time (%)
@@ -134,14 +221,11 @@ export interface GQLSchedule {
   time: GQLDateTime;
 }
 
-/**
- * The javascript `Date` as string. Type represents date and time as the ISO Date string.
- */
-export type GQLDateTime = Date;
-
-export interface GQLGeoLocation {
-  latitude: number;
-  longitude: number;
+export enum GQLSchduleType {
+  Guide = 'Guide',
+  Manual = 'Manual',
+  Pause = 'Pause',
+  Trip = 'Trip'
 }
 
 export interface GQLVehicleLocationSetting {
@@ -158,141 +242,24 @@ export interface GQLVehicleLocationSetting {
   goal: string;
 }
 
-export interface GQLChargePlan {
-  chargeType: GQLChargeType;
-  
-  /**
-   * time to start or null for now
-   */
-  chargeStart?: GQLDateTime;
-  
-  /**
-   * time to end or null for never
-   */
-  chargeStop?: GQLDateTime;
-  level: number;
-  comment: string;
-}
-
-export enum GQLChargeType {
-  Calibrate = 'Calibrate',
-  Minimum = 'Minimum',
-  Trip = 'Trip',
-  Routine = 'Routine',
-  Prefered = 'Prefered',
-  Fill = 'Fill'
-}
-
-export interface GQLChartData {
-  locationID: string;
-  locationName: string;
-  vehicleID: string;
-  batteryLevel: number;
-  levelChargeTime?: number;
-  thresholdPrice?: number;
-  chargeCurve: GQLJSONObject;
-  prices: Array<GQLLocationPrice>;
-  chargePlan?: Array<GQLChargePlan>;
-  directLevel: number;
-  maximumLevel: number;
-}
-
-export interface GQLLocationPrice {
-  
-  /**
-   * Price tariff start time
-   */
-  startAt: GQLDateTime;
-  
-  /**
-   * Price in currency per kWh (5 decimal precision)
-   */
-  price: number;
-}
-
-export interface GQLLocation {
-  id: string;
-  ownerID: string;
-  name: string;
-  geoLocation: GQLGeoLocation;
-  
-  /**
-   * Radius in meters
-   */
-  geoFenceRadius?: number;
-  serviceID?: string;
-  providerData?: GQLJSONObject;
-  priceList?: GQLPriceList;
-}
-
-export interface GQLPriceList {
-  id: string;
-  ownerID: string;
-  name: string;
-  private: boolean;
-}
-
-export interface GQLServiceProvider {
-  ownerID: string;
-  providerName: string;
-  serviceID: string;
-  serviceData: GQLJSONObject;
-}
-
-export interface GQLPlayer {
-  isMe: boolean;
+export interface GQLResolverTest {
+  isFieldResolverWorking: boolean;
 }
 
 export interface GQLMutation {
   loginWithPassword: GQLAccount;
   loginWithIDToken: GQLAccount;
-  providerMutate: GQLJSONObject;
-  performAction: GQLJSONObject;
-  removeVehicle: boolean;
-  updateVehicle: GQLVehicle;
   updateLocation: GQLLocation;
   removeLocation: boolean;
+  updatePriceList: GQLPriceList;
+  providerMutate: GQLJSONObject;
+  performAction: GQLJSONObject;
   _updateVehicleData: boolean;
   _vehicleDebug: boolean;
   _chargeCalibration?: number;
   _updatePrice: boolean;
-  updatePriceList: GQLPriceList;
-}
-
-export interface GQLUpdateVehicleInput {
-  id: string;
-  name?: string;
-  maximumLevel?: number;
-  anxietyLevel?: number;
-  tripSchedule?: GQLScheduleInput;
-  pausedUntil?: GQLDateTime;
-  locationSettings?: Array<GQLVehicleLocationSettingInput>;
-  status?: string;
-  serviceID?: string;
-  providerData?: GQLJSONObject;
-}
-
-export interface GQLScheduleInput {
-  
-  /**
-   * Battery level to reach at scheduled time (%)
-   */
-  level: number;
-  time: GQLDateTime;
-}
-
-export interface GQLVehicleLocationSettingInput {
-  
-  /**
-   * location id
-   */
-  location: string;
-  
-  /**
-   * Minimum battery level to reach directly (%)
-   */
-  directLevel: number;
-  goal: string;
+  removeVehicle: boolean;
+  updateVehicle: GQLVehicle;
 }
 
 export interface GQLUpdateLocationInput {
@@ -312,6 +279,12 @@ export interface GQLUpdateLocationInput {
 export interface GQLGeoLocationInput {
   latitude: number;
   longitude: number;
+}
+
+export interface GQLUpdatePriceListInput {
+  id: string;
+  name: string;
+  private: boolean;
 }
 
 export interface GQLUpdateVehicleDataInput {
@@ -400,10 +373,41 @@ export interface GQLLocationPriceInput {
   price: number;
 }
 
-export interface GQLUpdatePriceListInput {
+export interface GQLUpdateVehicleInput {
   id: string;
-  name: string;
-  private: boolean;
+  name?: string;
+  maximumLevel?: number;
+  anxietyLevel?: number;
+  tripSchedule?: GQLScheduleInput;
+  pausedUntil?: GQLDateTime;
+  locationSettings?: Array<GQLVehicleLocationSettingInput>;
+  status?: string;
+  serviceID?: string;
+  providerData?: GQLJSONObject;
+}
+
+export interface GQLScheduleInput {
+  type: GQLSchduleType;
+  
+  /**
+   * Battery level to reach at scheduled time (%)
+   */
+  level: number;
+  time: GQLDateTime;
+}
+
+export interface GQLVehicleLocationSettingInput {
+  
+  /**
+   * location id
+   */
+  location: string;
+  
+  /**
+   * Minimum battery level to reach directly (%)
+   */
+  directLevel: number;
+  goal: string;
 }
 
 export interface GQLSubscription {
@@ -440,66 +444,39 @@ export interface GQLPriceListInput {
 export interface GQLResolver {
   Query?: GQLQueryTypeResolver;
   Account?: GQLAccountTypeResolver;
-  JSONObject?: GraphQLScalarType;
-  Vehicle?: GQLVehicleTypeResolver;
-  Schedule?: GQLScheduleTypeResolver;
-  DateTime?: GraphQLScalarType;
-  GeoLocation?: GQLGeoLocationTypeResolver;
-  VehicleLocationSetting?: GQLVehicleLocationSettingTypeResolver;
-  ChargePlan?: GQLChargePlanTypeResolver;
-  ChartData?: GQLChartDataTypeResolver;
-  LocationPrice?: GQLLocationPriceTypeResolver;
   Location?: GQLLocationTypeResolver;
+  GeoLocation?: GQLGeoLocationTypeResolver;
+  JSONObject?: GraphQLScalarType;
   PriceList?: GQLPriceListTypeResolver;
   ServiceProvider?: GQLServiceProviderTypeResolver;
-  Player?: GQLPlayerTypeResolver;
+  ChartData?: GQLChartDataTypeResolver;
+  LocationPrice?: GQLLocationPriceTypeResolver;
+  DateTime?: GraphQLScalarType;
+  ChargePlan?: GQLChargePlanTypeResolver;
+  Vehicle?: GQLVehicleTypeResolver;
+  Schedule?: GQLScheduleTypeResolver;
+  VehicleLocationSetting?: GQLVehicleLocationSettingTypeResolver;
+  ResolverTest?: GQLResolverTestTypeResolver;
   Mutation?: GQLMutationTypeResolver;
   Subscription?: GQLSubscriptionTypeResolver;
   Action?: GQLActionTypeResolver;
 }
 export interface GQLQueryTypeResolver<TParent = undefined> {
   account?: QueryToAccountResolver<TParent>;
-  providerQuery?: QueryToProviderQueryResolver<TParent>;
-  vehicles?: QueryToVehiclesResolver<TParent>;
-  vehicle?: QueryToVehicleResolver<TParent>;
-  chartData?: QueryToChartDataResolver<TParent>;
   locations?: QueryToLocationsResolver<TParent>;
   location?: QueryToLocationResolver<TParent>;
-  _serviceProviders?: QueryTo_serviceProvidersResolver<TParent>;
   priceLists?: QueryToPriceListsResolver<TParent>;
   priceList?: QueryToPriceListResolver<TParent>;
-  player?: QueryToPlayerResolver<TParent>;
+  providerQuery?: QueryToProviderQueryResolver<TParent>;
+  _serviceProviders?: QueryTo_serviceProvidersResolver<TParent>;
+  chartData?: QueryToChartDataResolver<TParent>;
+  vehicles?: QueryToVehiclesResolver<TParent>;
+  vehicle?: QueryToVehicleResolver<TParent>;
+  test?: QueryToTestResolver<TParent>;
 }
 
 export interface QueryToAccountResolver<TParent = undefined, TResult = GQLAccount> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface QueryToProviderQueryArgs {
-  input: GQLJSONObject;
-  name: string;
-}
-export interface QueryToProviderQueryResolver<TParent = undefined, TResult = GQLJSONObject> {
-  (parent: TParent, args: QueryToProviderQueryArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface QueryToVehiclesResolver<TParent = undefined, TResult = Array<GQLVehicle>> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface QueryToVehicleArgs {
-  id: string;
-}
-export interface QueryToVehicleResolver<TParent = undefined, TResult = GQLVehicle> {
-  (parent: TParent, args: QueryToVehicleArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface QueryToChartDataArgs {
-  locationID: string;
-  vehicleID: string;
-}
-export interface QueryToChartDataResolver<TParent = undefined, TResult = GQLChartData> {
-  (parent: TParent, args: QueryToChartDataArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
 export interface QueryToLocationsResolver<TParent = undefined, TResult = Array<GQLLocation>> {
@@ -513,13 +490,6 @@ export interface QueryToLocationResolver<TParent = undefined, TResult = GQLLocat
   (parent: TParent, args: QueryToLocationArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface QueryTo_serviceProvidersArgs {
-  accept: Array<string>;
-}
-export interface QueryTo_serviceProvidersResolver<TParent = undefined, TResult = Array<GQLServiceProvider>> {
-  (parent: TParent, args: QueryTo_serviceProvidersArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
 export interface QueryToPriceListsResolver<TParent = undefined, TResult = Array<GQLPriceList>> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
@@ -531,7 +501,41 @@ export interface QueryToPriceListResolver<TParent = undefined, TResult = GQLPric
   (parent: TParent, args: QueryToPriceListArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface QueryToPlayerResolver<TParent = undefined, TResult = GQLPlayer> {
+export interface QueryToProviderQueryArgs {
+  input: GQLJSONObject;
+  name: string;
+}
+export interface QueryToProviderQueryResolver<TParent = undefined, TResult = GQLJSONObject> {
+  (parent: TParent, args: QueryToProviderQueryArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface QueryTo_serviceProvidersArgs {
+  accept: Array<string>;
+}
+export interface QueryTo_serviceProvidersResolver<TParent = undefined, TResult = Array<GQLServiceProvider>> {
+  (parent: TParent, args: QueryTo_serviceProvidersArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface QueryToChartDataArgs {
+  locationID: string;
+  vehicleID: string;
+}
+export interface QueryToChartDataResolver<TParent = undefined, TResult = GQLChartData> {
+  (parent: TParent, args: QueryToChartDataArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface QueryToVehiclesResolver<TParent = undefined, TResult = Array<GQLVehicle>> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface QueryToVehicleArgs {
+  id: string;
+}
+export interface QueryToVehicleResolver<TParent = undefined, TResult = GQLVehicle> {
+  (parent: TParent, args: QueryToVehicleArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface QueryToTestResolver<TParent = undefined, TResult = GQLResolverTest> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
@@ -553,144 +557,46 @@ export interface AccountToTokenResolver<TParent = GQLAccount, TResult = string> 
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface GQLVehicleTypeResolver<TParent = GQLVehicle> {
-  id?: VehicleToIdResolver<TParent>;
-  ownerID?: VehicleToOwnerIDResolver<TParent>;
-  name?: VehicleToNameResolver<TParent>;
-  maximumLevel?: VehicleToMaximumLevelResolver<TParent>;
-  anxietyLevel?: VehicleToAnxietyLevelResolver<TParent>;
-  tripSchedule?: VehicleToTripScheduleResolver<TParent>;
-  pausedUntil?: VehicleToPausedUntilResolver<TParent>;
-  geoLocation?: VehicleToGeoLocationResolver<TParent>;
-  location?: VehicleToLocationResolver<TParent>;
-  locationSettings?: VehicleToLocationSettingsResolver<TParent>;
-  batteryLevel?: VehicleToBatteryLevelResolver<TParent>;
-  odometer?: VehicleToOdometerResolver<TParent>;
-  outsideTemperature?: VehicleToOutsideTemperatureResolver<TParent>;
-  insideTemperature?: VehicleToInsideTemperatureResolver<TParent>;
-  climateControl?: VehicleToClimateControlResolver<TParent>;
-  isDriving?: VehicleToIsDrivingResolver<TParent>;
-  isConnected?: VehicleToIsConnectedResolver<TParent>;
-  chargePlan?: VehicleToChargePlanResolver<TParent>;
-  chargingTo?: VehicleToChargingToResolver<TParent>;
-  estimatedTimeLeft?: VehicleToEstimatedTimeLeftResolver<TParent>;
-  status?: VehicleToStatusResolver<TParent>;
-  smartStatus?: VehicleToSmartStatusResolver<TParent>;
-  updated?: VehicleToUpdatedResolver<TParent>;
-  serviceID?: VehicleToServiceIDResolver<TParent>;
-  providerData?: VehicleToProviderDataResolver<TParent>;
+export interface GQLLocationTypeResolver<TParent = GQLLocation> {
+  id?: LocationToIdResolver<TParent>;
+  ownerID?: LocationToOwnerIDResolver<TParent>;
+  name?: LocationToNameResolver<TParent>;
+  geoLocation?: LocationToGeoLocationResolver<TParent>;
+  geoFenceRadius?: LocationToGeoFenceRadiusResolver<TParent>;
+  serviceID?: LocationToServiceIDResolver<TParent>;
+  providerData?: LocationToProviderDataResolver<TParent>;
+  priceList?: LocationToPriceListResolver<TParent>;
 }
 
-export interface VehicleToIdResolver<TParent = GQLVehicle, TResult = string> {
+export interface LocationToIdResolver<TParent = GQLLocation, TResult = string> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface VehicleToOwnerIDResolver<TParent = GQLVehicle, TResult = string> {
+export interface LocationToOwnerIDResolver<TParent = GQLLocation, TResult = string> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface VehicleToNameResolver<TParent = GQLVehicle, TResult = string> {
+export interface LocationToNameResolver<TParent = GQLLocation, TResult = string> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface VehicleToMaximumLevelResolver<TParent = GQLVehicle, TResult = number> {
+export interface LocationToGeoLocationResolver<TParent = GQLLocation, TResult = GQLGeoLocation> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface VehicleToAnxietyLevelResolver<TParent = GQLVehicle, TResult = number> {
+export interface LocationToGeoFenceRadiusResolver<TParent = GQLLocation, TResult = number | null> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface VehicleToTripScheduleResolver<TParent = GQLVehicle, TResult = GQLSchedule | null> {
+export interface LocationToServiceIDResolver<TParent = GQLLocation, TResult = string | null> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface VehicleToPausedUntilResolver<TParent = GQLVehicle, TResult = GQLDateTime | null> {
+export interface LocationToProviderDataResolver<TParent = GQLLocation, TResult = GQLJSONObject | null> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface VehicleToGeoLocationResolver<TParent = GQLVehicle, TResult = GQLGeoLocation> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface VehicleToLocationResolver<TParent = GQLVehicle, TResult = string | null> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface VehicleToLocationSettingsResolver<TParent = GQLVehicle, TResult = Array<GQLVehicleLocationSetting> | null> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface VehicleToBatteryLevelResolver<TParent = GQLVehicle, TResult = number> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface VehicleToOdometerResolver<TParent = GQLVehicle, TResult = number> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface VehicleToOutsideTemperatureResolver<TParent = GQLVehicle, TResult = number> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface VehicleToInsideTemperatureResolver<TParent = GQLVehicle, TResult = number> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface VehicleToClimateControlResolver<TParent = GQLVehicle, TResult = boolean> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface VehicleToIsDrivingResolver<TParent = GQLVehicle, TResult = boolean> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface VehicleToIsConnectedResolver<TParent = GQLVehicle, TResult = boolean> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface VehicleToChargePlanResolver<TParent = GQLVehicle, TResult = Array<GQLChargePlan> | null> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface VehicleToChargingToResolver<TParent = GQLVehicle, TResult = number | null> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface VehicleToEstimatedTimeLeftResolver<TParent = GQLVehicle, TResult = number | null> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface VehicleToStatusResolver<TParent = GQLVehicle, TResult = string> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface VehicleToSmartStatusResolver<TParent = GQLVehicle, TResult = string> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface VehicleToUpdatedResolver<TParent = GQLVehicle, TResult = GQLDateTime> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface VehicleToServiceIDResolver<TParent = GQLVehicle, TResult = string> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface VehicleToProviderDataResolver<TParent = GQLVehicle, TResult = GQLJSONObject | null> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface GQLScheduleTypeResolver<TParent = GQLSchedule> {
-  level?: ScheduleToLevelResolver<TParent>;
-  time?: ScheduleToTimeResolver<TParent>;
-}
-
-export interface ScheduleToLevelResolver<TParent = GQLSchedule, TResult = number> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface ScheduleToTimeResolver<TParent = GQLSchedule, TResult = GQLDateTime> {
+export interface LocationToPriceListResolver<TParent = GQLLocation, TResult = GQLPriceList | null> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
@@ -707,49 +613,49 @@ export interface GeoLocationToLongitudeResolver<TParent = GQLGeoLocation, TResul
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface GQLVehicleLocationSettingTypeResolver<TParent = GQLVehicleLocationSetting> {
-  location?: VehicleLocationSettingToLocationResolver<TParent>;
-  directLevel?: VehicleLocationSettingToDirectLevelResolver<TParent>;
-  goal?: VehicleLocationSettingToGoalResolver<TParent>;
+export interface GQLPriceListTypeResolver<TParent = GQLPriceList> {
+  id?: PriceListToIdResolver<TParent>;
+  ownerID?: PriceListToOwnerIDResolver<TParent>;
+  name?: PriceListToNameResolver<TParent>;
+  private?: PriceListToPrivateResolver<TParent>;
 }
 
-export interface VehicleLocationSettingToLocationResolver<TParent = GQLVehicleLocationSetting, TResult = string> {
+export interface PriceListToIdResolver<TParent = GQLPriceList, TResult = string> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface VehicleLocationSettingToDirectLevelResolver<TParent = GQLVehicleLocationSetting, TResult = number> {
+export interface PriceListToOwnerIDResolver<TParent = GQLPriceList, TResult = string> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface VehicleLocationSettingToGoalResolver<TParent = GQLVehicleLocationSetting, TResult = string> {
+export interface PriceListToNameResolver<TParent = GQLPriceList, TResult = string> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface GQLChargePlanTypeResolver<TParent = GQLChargePlan> {
-  chargeType?: ChargePlanToChargeTypeResolver<TParent>;
-  chargeStart?: ChargePlanToChargeStartResolver<TParent>;
-  chargeStop?: ChargePlanToChargeStopResolver<TParent>;
-  level?: ChargePlanToLevelResolver<TParent>;
-  comment?: ChargePlanToCommentResolver<TParent>;
-}
-
-export interface ChargePlanToChargeTypeResolver<TParent = GQLChargePlan, TResult = GQLChargeType> {
+export interface PriceListToPrivateResolver<TParent = GQLPriceList, TResult = boolean> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface ChargePlanToChargeStartResolver<TParent = GQLChargePlan, TResult = GQLDateTime | null> {
+export interface GQLServiceProviderTypeResolver<TParent = GQLServiceProvider> {
+  ownerID?: ServiceProviderToOwnerIDResolver<TParent>;
+  providerName?: ServiceProviderToProviderNameResolver<TParent>;
+  serviceID?: ServiceProviderToServiceIDResolver<TParent>;
+  serviceData?: ServiceProviderToServiceDataResolver<TParent>;
+}
+
+export interface ServiceProviderToOwnerIDResolver<TParent = GQLServiceProvider, TResult = string> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface ChargePlanToChargeStopResolver<TParent = GQLChargePlan, TResult = GQLDateTime | null> {
+export interface ServiceProviderToProviderNameResolver<TParent = GQLServiceProvider, TResult = string> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface ChargePlanToLevelResolver<TParent = GQLChargePlan, TResult = number> {
+export interface ServiceProviderToServiceIDResolver<TParent = GQLServiceProvider, TResult = string> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface ChargePlanToCommentResolver<TParent = GQLChargePlan, TResult = string> {
+export interface ServiceProviderToServiceDataResolver<TParent = GQLServiceProvider, TResult = GQLJSONObject> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
@@ -824,117 +730,215 @@ export interface LocationPriceToPriceResolver<TParent = GQLLocationPrice, TResul
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface GQLLocationTypeResolver<TParent = GQLLocation> {
-  id?: LocationToIdResolver<TParent>;
-  ownerID?: LocationToOwnerIDResolver<TParent>;
-  name?: LocationToNameResolver<TParent>;
-  geoLocation?: LocationToGeoLocationResolver<TParent>;
-  geoFenceRadius?: LocationToGeoFenceRadiusResolver<TParent>;
-  serviceID?: LocationToServiceIDResolver<TParent>;
-  providerData?: LocationToProviderDataResolver<TParent>;
-  priceList?: LocationToPriceListResolver<TParent>;
+export interface GQLChargePlanTypeResolver<TParent = GQLChargePlan> {
+  chargeType?: ChargePlanToChargeTypeResolver<TParent>;
+  chargeStart?: ChargePlanToChargeStartResolver<TParent>;
+  chargeStop?: ChargePlanToChargeStopResolver<TParent>;
+  level?: ChargePlanToLevelResolver<TParent>;
+  comment?: ChargePlanToCommentResolver<TParent>;
 }
 
-export interface LocationToIdResolver<TParent = GQLLocation, TResult = string> {
+export interface ChargePlanToChargeTypeResolver<TParent = GQLChargePlan, TResult = GQLChargeType> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface LocationToOwnerIDResolver<TParent = GQLLocation, TResult = string> {
+export interface ChargePlanToChargeStartResolver<TParent = GQLChargePlan, TResult = GQLDateTime | null> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface LocationToNameResolver<TParent = GQLLocation, TResult = string> {
+export interface ChargePlanToChargeStopResolver<TParent = GQLChargePlan, TResult = GQLDateTime | null> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface LocationToGeoLocationResolver<TParent = GQLLocation, TResult = GQLGeoLocation> {
+export interface ChargePlanToLevelResolver<TParent = GQLChargePlan, TResult = number> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface LocationToGeoFenceRadiusResolver<TParent = GQLLocation, TResult = number | null> {
+export interface ChargePlanToCommentResolver<TParent = GQLChargePlan, TResult = string> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface LocationToServiceIDResolver<TParent = GQLLocation, TResult = string | null> {
+export interface GQLVehicleTypeResolver<TParent = GQLVehicle> {
+  id?: VehicleToIdResolver<TParent>;
+  ownerID?: VehicleToOwnerIDResolver<TParent>;
+  serviceID?: VehicleToServiceIDResolver<TParent>;
+  name?: VehicleToNameResolver<TParent>;
+  maximumLevel?: VehicleToMaximumLevelResolver<TParent>;
+  schedule?: VehicleToScheduleResolver<TParent>;
+  providerData?: VehicleToProviderDataResolver<TParent>;
+  geoLocation?: VehicleToGeoLocationResolver<TParent>;
+  locationID?: VehicleToLocationIDResolver<TParent>;
+  location?: VehicleToLocationResolver<TParent>;
+  locationSettings?: VehicleToLocationSettingsResolver<TParent>;
+  batteryLevel?: VehicleToBatteryLevelResolver<TParent>;
+  odometer?: VehicleToOdometerResolver<TParent>;
+  outsideTemperature?: VehicleToOutsideTemperatureResolver<TParent>;
+  insideTemperature?: VehicleToInsideTemperatureResolver<TParent>;
+  climateControl?: VehicleToClimateControlResolver<TParent>;
+  isConnected?: VehicleToIsConnectedResolver<TParent>;
+  chargingTo?: VehicleToChargingToResolver<TParent>;
+  estimatedTimeLeft?: VehicleToEstimatedTimeLeftResolver<TParent>;
+  isDriving?: VehicleToIsDrivingResolver<TParent>;
+  status?: VehicleToStatusResolver<TParent>;
+  smartStatus?: VehicleToSmartStatusResolver<TParent>;
+  chargePlan?: VehicleToChargePlanResolver<TParent>;
+  updated?: VehicleToUpdatedResolver<TParent>;
+}
+
+export interface VehicleToIdResolver<TParent = GQLVehicle, TResult = string> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface LocationToProviderDataResolver<TParent = GQLLocation, TResult = GQLJSONObject | null> {
+export interface VehicleToOwnerIDResolver<TParent = GQLVehicle, TResult = string> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface LocationToPriceListResolver<TParent = GQLLocation, TResult = GQLPriceList | null> {
+export interface VehicleToServiceIDResolver<TParent = GQLVehicle, TResult = string | null> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface GQLPriceListTypeResolver<TParent = GQLPriceList> {
-  id?: PriceListToIdResolver<TParent>;
-  ownerID?: PriceListToOwnerIDResolver<TParent>;
-  name?: PriceListToNameResolver<TParent>;
-  private?: PriceListToPrivateResolver<TParent>;
-}
-
-export interface PriceListToIdResolver<TParent = GQLPriceList, TResult = string> {
+export interface VehicleToNameResolver<TParent = GQLVehicle, TResult = string> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface PriceListToOwnerIDResolver<TParent = GQLPriceList, TResult = string> {
+export interface VehicleToMaximumLevelResolver<TParent = GQLVehicle, TResult = number> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface PriceListToNameResolver<TParent = GQLPriceList, TResult = string> {
+export interface VehicleToScheduleResolver<TParent = GQLVehicle, TResult = Array<GQLSchedule>> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface PriceListToPrivateResolver<TParent = GQLPriceList, TResult = boolean> {
+export interface VehicleToProviderDataResolver<TParent = GQLVehicle, TResult = GQLJSONObject> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface GQLServiceProviderTypeResolver<TParent = GQLServiceProvider> {
-  ownerID?: ServiceProviderToOwnerIDResolver<TParent>;
-  providerName?: ServiceProviderToProviderNameResolver<TParent>;
-  serviceID?: ServiceProviderToServiceIDResolver<TParent>;
-  serviceData?: ServiceProviderToServiceDataResolver<TParent>;
-}
-
-export interface ServiceProviderToOwnerIDResolver<TParent = GQLServiceProvider, TResult = string> {
+export interface VehicleToGeoLocationResolver<TParent = GQLVehicle, TResult = GQLGeoLocation | null> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface ServiceProviderToProviderNameResolver<TParent = GQLServiceProvider, TResult = string> {
+export interface VehicleToLocationIDResolver<TParent = GQLVehicle, TResult = string | null> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface ServiceProviderToServiceIDResolver<TParent = GQLServiceProvider, TResult = string> {
+export interface VehicleToLocationResolver<TParent = GQLVehicle, TResult = GQLLocation | null> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface ServiceProviderToServiceDataResolver<TParent = GQLServiceProvider, TResult = GQLJSONObject> {
+export interface VehicleToLocationSettingsResolver<TParent = GQLVehicle, TResult = Array<GQLVehicleLocationSetting> | null> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface GQLPlayerTypeResolver<TParent = GQLPlayer> {
-  isMe?: PlayerToIsMeResolver<TParent>;
+export interface VehicleToBatteryLevelResolver<TParent = GQLVehicle, TResult = number> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface PlayerToIsMeResolver<TParent = GQLPlayer, TResult = boolean> {
+export interface VehicleToOdometerResolver<TParent = GQLVehicle, TResult = number> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface VehicleToOutsideTemperatureResolver<TParent = GQLVehicle, TResult = number> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface VehicleToInsideTemperatureResolver<TParent = GQLVehicle, TResult = number> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface VehicleToClimateControlResolver<TParent = GQLVehicle, TResult = boolean> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface VehicleToIsConnectedResolver<TParent = GQLVehicle, TResult = boolean> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface VehicleToChargingToResolver<TParent = GQLVehicle, TResult = number | null> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface VehicleToEstimatedTimeLeftResolver<TParent = GQLVehicle, TResult = number | null> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface VehicleToIsDrivingResolver<TParent = GQLVehicle, TResult = boolean> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface VehicleToStatusResolver<TParent = GQLVehicle, TResult = string> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface VehicleToSmartStatusResolver<TParent = GQLVehicle, TResult = string> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface VehicleToChargePlanResolver<TParent = GQLVehicle, TResult = Array<GQLChargePlan> | null> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface VehicleToUpdatedResolver<TParent = GQLVehicle, TResult = GQLDateTime> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface GQLScheduleTypeResolver<TParent = GQLSchedule> {
+  type?: ScheduleToTypeResolver<TParent>;
+  level?: ScheduleToLevelResolver<TParent>;
+  time?: ScheduleToTimeResolver<TParent>;
+}
+
+export interface ScheduleToTypeResolver<TParent = GQLSchedule, TResult = GQLSchduleType> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface ScheduleToLevelResolver<TParent = GQLSchedule, TResult = number> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface ScheduleToTimeResolver<TParent = GQLSchedule, TResult = GQLDateTime> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface GQLVehicleLocationSettingTypeResolver<TParent = GQLVehicleLocationSetting> {
+  location?: VehicleLocationSettingToLocationResolver<TParent>;
+  directLevel?: VehicleLocationSettingToDirectLevelResolver<TParent>;
+  goal?: VehicleLocationSettingToGoalResolver<TParent>;
+}
+
+export interface VehicleLocationSettingToLocationResolver<TParent = GQLVehicleLocationSetting, TResult = string> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface VehicleLocationSettingToDirectLevelResolver<TParent = GQLVehicleLocationSetting, TResult = number> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface VehicleLocationSettingToGoalResolver<TParent = GQLVehicleLocationSetting, TResult = string> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface GQLResolverTestTypeResolver<TParent = GQLResolverTest> {
+  isFieldResolverWorking?: ResolverTestToIsFieldResolverWorkingResolver<TParent>;
+}
+
+export interface ResolverTestToIsFieldResolverWorkingResolver<TParent = GQLResolverTest, TResult = boolean> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
 export interface GQLMutationTypeResolver<TParent = undefined> {
   loginWithPassword?: MutationToLoginWithPasswordResolver<TParent>;
   loginWithIDToken?: MutationToLoginWithIDTokenResolver<TParent>;
-  providerMutate?: MutationToProviderMutateResolver<TParent>;
-  performAction?: MutationToPerformActionResolver<TParent>;
-  removeVehicle?: MutationToRemoveVehicleResolver<TParent>;
-  updateVehicle?: MutationToUpdateVehicleResolver<TParent>;
   updateLocation?: MutationToUpdateLocationResolver<TParent>;
   removeLocation?: MutationToRemoveLocationResolver<TParent>;
+  updatePriceList?: MutationToUpdatePriceListResolver<TParent>;
+  providerMutate?: MutationToProviderMutateResolver<TParent>;
+  performAction?: MutationToPerformActionResolver<TParent>;
   _updateVehicleData?: MutationTo_updateVehicleDataResolver<TParent>;
   _vehicleDebug?: MutationTo_vehicleDebugResolver<TParent>;
   _chargeCalibration?: MutationTo_chargeCalibrationResolver<TParent>;
   _updatePrice?: MutationTo_updatePriceResolver<TParent>;
-  updatePriceList?: MutationToUpdatePriceListResolver<TParent>;
+  removeVehicle?: MutationToRemoveVehicleResolver<TParent>;
+  updateVehicle?: MutationToUpdateVehicleResolver<TParent>;
 }
 
 export interface MutationToLoginWithPasswordArgs {
@@ -949,6 +953,28 @@ export interface MutationToLoginWithIDTokenArgs {
 }
 export interface MutationToLoginWithIDTokenResolver<TParent = undefined, TResult = GQLAccount> {
   (parent: TParent, args: MutationToLoginWithIDTokenArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface MutationToUpdateLocationArgs {
+  input: GQLUpdateLocationInput;
+}
+export interface MutationToUpdateLocationResolver<TParent = undefined, TResult = GQLLocation> {
+  (parent: TParent, args: MutationToUpdateLocationArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface MutationToRemoveLocationArgs {
+  confirm: string;
+  id: string;
+}
+export interface MutationToRemoveLocationResolver<TParent = undefined, TResult = boolean> {
+  (parent: TParent, args: MutationToRemoveLocationArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface MutationToUpdatePriceListArgs {
+  input: GQLUpdatePriceListInput;
+}
+export interface MutationToUpdatePriceListResolver<TParent = undefined, TResult = GQLPriceList> {
+  (parent: TParent, args: MutationToUpdatePriceListArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
 export interface MutationToProviderMutateArgs {
@@ -967,36 +993,6 @@ export interface MutationToPerformActionArgs {
 }
 export interface MutationToPerformActionResolver<TParent = undefined, TResult = GQLJSONObject> {
   (parent: TParent, args: MutationToPerformActionArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface MutationToRemoveVehicleArgs {
-  confirm: string;
-  id: string;
-}
-export interface MutationToRemoveVehicleResolver<TParent = undefined, TResult = boolean> {
-  (parent: TParent, args: MutationToRemoveVehicleArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface MutationToUpdateVehicleArgs {
-  input: GQLUpdateVehicleInput;
-}
-export interface MutationToUpdateVehicleResolver<TParent = undefined, TResult = GQLVehicle> {
-  (parent: TParent, args: MutationToUpdateVehicleArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface MutationToUpdateLocationArgs {
-  input: GQLUpdateLocationInput;
-}
-export interface MutationToUpdateLocationResolver<TParent = undefined, TResult = GQLLocation> {
-  (parent: TParent, args: MutationToUpdateLocationArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface MutationToRemoveLocationArgs {
-  confirm: string;
-  id: string;
-}
-export interface MutationToRemoveLocationResolver<TParent = undefined, TResult = boolean> {
-  (parent: TParent, args: MutationToRemoveLocationArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
 export interface MutationTo_updateVehicleDataArgs {
@@ -1030,11 +1026,19 @@ export interface MutationTo_updatePriceResolver<TParent = undefined, TResult = b
   (parent: TParent, args: MutationTo_updatePriceArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface MutationToUpdatePriceListArgs {
-  input: GQLUpdatePriceListInput;
+export interface MutationToRemoveVehicleArgs {
+  confirm: string;
+  id: string;
 }
-export interface MutationToUpdatePriceListResolver<TParent = undefined, TResult = GQLPriceList> {
-  (parent: TParent, args: MutationToUpdatePriceListArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+export interface MutationToRemoveVehicleResolver<TParent = undefined, TResult = boolean> {
+  (parent: TParent, args: MutationToRemoveVehicleArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface MutationToUpdateVehicleArgs {
+  input: GQLUpdateVehicleInput;
+}
+export interface MutationToUpdateVehicleResolver<TParent = undefined, TResult = GQLVehicle> {
+  (parent: TParent, args: MutationToUpdateVehicleArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
 export interface GQLSubscriptionTypeResolver<TParent = undefined> {

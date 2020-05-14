@@ -20,7 +20,7 @@ export class LocationResolver {
     const dblist = await context.db.getLocations(
       accountFilter(context.accountUUID)
     );
-    return dblist.map(DBInterface.DBLocationToLocation);
+    return dblist.map(f => plainToClass(Location, f));
   }
   @Query(_returns => Location)
   async location(

@@ -13,19 +13,31 @@ import {
   Int,
   ID,
   registerEnumType,
-  Float
+  Float,
+  Resolver,
+  FieldResolver,
+  Root,
+  Ctx
 } from "type-graphql";
 import { GraphQLJSONObject } from "graphql-type-json";
-import { GeoLocation, LocationPrice } from "./location-type";
+import { GeoLocation, Location } from "./location-type";
 import {
   SmartChargeGoal,
   ChargeType,
-  ChargeConnection
+  ChargeConnection,
+  ScheduleType
 } from "@shared/sc-types";
+import { DBVehicle } from "@server/db-schema";
+import { plainToClass, Type } from "class-transformer";
+import { IContext } from "./api";
+
+/*******************************
+ *    VehicleLocationSetting   *
+ *******************************/
 
 @ObjectType("VehicleLocationSetting")
 @InputType("VehicleLocationSettingInput")
-export abstract class VehicleLocationSettings {
+export class VehicleLocationSettings {
   @Field(_type => ID, { description: `location id` })
   location!: string;
   @Field(_type => Int, {
@@ -41,44 +53,43 @@ registerEnumType(SmartChargeGoal, {
   description: "Smart Charge Goal Presets"
 });
 
-export function VehicleLocationSettingsToJS(
-  input: VehicleLocationSettings
-): VehicleLocationSettings {
-  debugger;
-  return {
-    location: input.location,
-    directLevel: input.directLevel,
-    goal: input.goal
-  };
-}
+/*******************************
+ *          Schedule           *
+ *******************************/
+
+registerEnumType(ScheduleType, { name: "SchduleType" });
 
 @ObjectType("Schedule")
 @InputType("ScheduleInput")
-export abstract class Schedule {
+export class Schedule {
+  @Field(_type => ScheduleType)
+  type!: ScheduleType;
   @Field(_type => Int, {
     description: `Battery level to reach at scheduled time (%)`
   })
   level!: number;
-  @Field()
+  @Type(() => Date)
+  @Field(_type => Date)
   time!: Date;
 }
-export function ScheduleToJS(input: Schedule): Schedule {
-  debugger;
-  return input;
-  // return { level: input.level, time: new Date(input.time) };
-}
+
+/*******************************
+ *         ChargePlan          *
+ *******************************/
 
 registerEnumType(ChargeType, { name: "ChargeType" });
 
 @ObjectType()
-export abstract class ChargePlan {
+export class ChargePlan {
   @Field(_type => ChargeType)
   chargeType!: ChargeType;
+  @Type(() => Date)
   @Field(_type => Date, {
     nullable: true,
     description: `time to start or null for now`
   })
   chargeStart!: Date | null;
+  @Type(() => Date)
   @Field(_type => Date, {
     nullable: true,
     description: `time to end or null for never`
@@ -89,117 +100,166 @@ export abstract class ChargePlan {
   @Field()
   comment!: string;
 }
-export function ChargePlanToJS(input: ChargePlan): ChargePlan {
-  debugger;
-  return {
-    chargeStart: (input.chargeStart && new Date(input.chargeStart)) || null,
-    chargeStop: (input.chargeStop && new Date(input.chargeStop)) || null,
-    chargeType: input.chargeType,
-    level: input.level,
-    comment: input.comment || ""
-  };
-}
+
+/*******************************
+ *           Vehicle           *
+ *******************************/
 
 @ObjectType()
-export abstract class Vehicle {
-  @Field(_type => ID)
-  id!: string;
-  @Field(_type => ID)
-  ownerID!: string;
-  @Field()
-  name!: string;
-  @Field(_type => Int, {
+export class Vehicle extends DBVehicle {}
+
+@Resolver(_of => Vehicle)
+export class VehicleTypeResolver {
+  @FieldResolver(_returns => ID)
+  id(@Root() vehicle: Vehicle): string {
+    return vehicle.vehicle_uuid;
+  }
+  @FieldResolver(_returns => ID)
+  ownerID(@Root() vehicle: Vehicle): string {
+    return vehicle.account_uuid;
+  }
+  @FieldResolver(_returns => ID, { nullable: true })
+  serviceID(@Root() vehicle: Vehicle): string | null {
+    return vehicle.service_uuid;
+  }
+  @FieldResolver(_returns => String)
+  name(@Root() vehicle: Vehicle): string {
+    return vehicle.name;
+  }
+  @FieldResolver(_returns => Int, {
     description: `maximum level to charge to unless a trip is scheduled (%)`
   })
-  maximumLevel!: number;
-  @Field(_type => Int, {
-    description: `smart charging anxiety level`
-  })
-  anxietyLevel!: number;
-  @Field(_type => Schedule, { nullable: true, description: `trip schedule` })
-  tripSchedule!: Schedule | null;
-  @Field(_type => Date, {
+  maximumLevel(@Root() vehicle: Vehicle): number {
+    return vehicle.maximum_charge;
+  }
+  @FieldResolver(_returns => [Schedule], { description: `schedule` })
+  schedule(@Root() vehicle: Vehicle): Schedule[] {
+    return (vehicle.schedule as Schedule[]).map(f => plainToClass(Schedule, f));
+  }
+  @FieldResolver(_returns => GraphQLJSONObject)
+  providerData(@Root() vehicle: Vehicle): any {
+    return vehicle.provider_data;
+  }
+  @FieldResolver(_returns => GeoLocation, { nullable: true })
+  geoLocation(@Root() vehicle: Vehicle): GeoLocation | null {
+    if (
+      vehicle.location_micro_latitude === null ||
+      vehicle.location_micro_longitude === null
+    ) {
+      return null;
+    }
+    return {
+      latitude: vehicle.location_micro_latitude / 1e6,
+      longitude: vehicle.location_micro_longitude / 1e6
+    };
+  }
+  @FieldResolver(_returns => ID, {
     nullable: true,
-    description: `smart charging paused`
+    description: `known location id`
   })
-  pausedUntil!: Date | null;
-  @Field()
-  geoLocation!: GeoLocation;
-  @Field(_type => ID, { nullable: true, description: `known location id` })
-  location!: string | null;
-  @Field(_type => [VehicleLocationSettings], {
+  locationID(@Root() vehicle: Vehicle): string | null {
+    return vehicle.location_uuid;
+  }
+  @FieldResolver(_returns => Location, {
+    nullable: true,
+    description: `known location`
+  })
+  async location(
+    @Root() vehicle: Vehicle,
+    @Ctx() context: IContext
+  ): Promise<Location | null> {
+    if (vehicle.location_uuid === null) {
+      return null;
+    }
+    return plainToClass(
+      Location,
+      await context.db.getLocation(vehicle.account_uuid, vehicle.location_uuid)
+    );
+  }
+  @FieldResolver(_returns => [VehicleLocationSettings], {
     nullable: true,
     description: `location settings`
   })
-  locationSettings!: VehicleLocationSettings[] | null;
-  @Field(_type => Int, { description: `battery level (%)` })
-  batteryLevel!: number;
-  @Field(_type => Int, { description: `odometer (meters)` })
-  odometer!: number;
-  @Field(_type => Float, { description: `outside temperature (celcius)` })
-  outsideTemperature!: number;
-  @Field(_type => Float, { description: `inside temperature (celcius)` })
-  insideTemperature!: number;
-  @Field({ description: `is climate control on` })
-  climateControl!: boolean;
-  @Field()
-  isDriving!: boolean;
-  @Field({ description: `is a charger connected` })
-  isConnected!: boolean;
-  @Field(_type => [ChargePlan], { nullable: true, description: `charge plan` })
-  chargePlan!: ChargePlan[] | null;
-  @Field(_type => Int, { nullable: true, description: `charging to level (%)` })
-  chargingTo!: number | null;
-  @Field(_type => Int, {
+  locationSettings(@Root() vehicle: Vehicle): VehicleLocationSettings[] {
+    return Object.entries(vehicle.location_settings).map(([key, values]) =>
+      plainToClass(VehicleLocationSettings, { location: key, ...values })
+    );
+  }
+  @FieldResolver(_returns => Int, { description: `battery level (%)` })
+  batteryLevel(@Root() vehicle: Vehicle): number {
+    return vehicle.level;
+  }
+  @FieldResolver(_returns => Int, { description: `odometer (meters)` })
+  odometer(@Root() vehicle: Vehicle): number {
+    return vehicle.odometer;
+  }
+  @FieldResolver(_returns => Float, {
+    description: `outside temperature (celcius)`
+  })
+  outsideTemperature(@Root() vehicle: Vehicle): number {
+    return vehicle.outside_deci_temperature / 10;
+  }
+  @FieldResolver(_returns => Float, {
+    description: `inside temperature (celcius)`
+  })
+  insideTemperature(@Root() vehicle: Vehicle): number {
+    return vehicle.inside_deci_temperature / 10;
+  }
+  @FieldResolver(_returns => Boolean, { description: `is climate control on` })
+  climateControl(@Root() vehicle: Vehicle): boolean {
+    return vehicle.climate_control;
+  }
+  @FieldResolver(_returns => Boolean, { description: `is a charger connected` })
+  isConnected(@Root() vehicle: Vehicle): boolean {
+    return vehicle.connected;
+  }
+  @FieldResolver(_returns => Int, {
+    nullable: true,
+    description: `charging to level (%)`
+  })
+  chargingTo(@Root() vehicle: Vehicle): number | null {
+    return vehicle.charging_to;
+  }
+  @FieldResolver(_returns => Int, {
     nullable: true,
     description: `estimated time to complete charge (minutes)`
   })
-  estimatedTimeLeft!: number | null;
-  @Field()
-  status!: string;
-  @Field()
-  smartStatus!: string;
-  @Field()
-  updated!: Date;
-  @Field(_type => ID)
-  serviceID!: string;
-  @Field(_type => GraphQLJSONObject, { nullable: true })
-  providerData!: any;
+  estimatedTimeLeft(@Root() vehicle: Vehicle): number | null {
+    return vehicle.estimate;
+  }
+  @FieldResolver(_returns => Boolean)
+  isDriving(@Root() vehicle: Vehicle): boolean {
+    return vehicle.driving;
+  }
+  @FieldResolver(_returns => String)
+  status(@Root() vehicle: Vehicle): string {
+    return vehicle.status;
+  }
+  @FieldResolver(_returns => String)
+  smartStatus(@Root() vehicle: Vehicle): string {
+    return vehicle.smart_status;
+  }
+  @FieldResolver(_returns => [ChargePlan], {
+    nullable: true,
+    description: `charge plan`
+  })
+  chargePlan(@Root() vehicle: Vehicle): ChargePlan[] | null {
+    if (vehicle.charge_plan === null) {
+      return null;
+    }
+    return (vehicle.charge_plan as ChargePlan[]).map(f =>
+      plainToClass(ChargePlan, f)
+    );
+  }
+  @FieldResolver(_returns => Date)
+  updated(@Root() vehicle: Vehicle): Date {
+    return vehicle.updated;
+  }
 }
-export function VehicleToJS(input: Vehicle): Vehicle {
-  return {
-    id: input.id,
-    ownerID: input.ownerID,
-    name: input.name,
-    maximumLevel: input.maximumLevel,
-    anxietyLevel: input.anxietyLevel,
-    tripSchedule:
-      (input.tripSchedule && ScheduleToJS(input.tripSchedule)) || null,
-    pausedUntil: (input.pausedUntil && new Date(input.pausedUntil)) || null,
-    geoLocation: input.geoLocation,
-    location: input.location,
-    locationSettings:
-      (input.locationSettings &&
-        input.locationSettings.map(VehicleLocationSettingsToJS)) ||
-      null,
-    batteryLevel: input.batteryLevel,
-    odometer: input.odometer,
-    outsideTemperature: input.outsideTemperature,
-    insideTemperature: input.insideTemperature,
-    climateControl: input.climateControl,
-    isDriving: input.isDriving,
-    isConnected: input.isConnected,
-    chargePlan:
-      (input.chargePlan && input.chargePlan.map(ChargePlanToJS)) || null,
-    chargingTo: input.chargingTo,
-    estimatedTimeLeft: input.estimatedTimeLeft,
-    status: input.status,
-    smartStatus: input.smartStatus,
-    updated: new Date(input.updated),
-    serviceID: input.serviceID,
-    providerData: input.providerData
-  };
-}
+
+/*******************************
+ *        UpdateClasses        *
+ *******************************/
 
 @InputType()
 export abstract class UpdateVehicleInput {
@@ -282,44 +342,4 @@ export abstract class VehicleDebugInput {
   category!: string;
   @Field(_type => GraphQLJSONObject)
   data!: any;
-}
-
-@ObjectType()
-export abstract class Action {
-  @Field(_type => Int)
-  actionID!: number;
-  @Field(_type => ID)
-  serviceID!: string;
-  @Field()
-  providerName!: string;
-  @Field()
-  action!: string;
-  @Field(_type => GraphQLJSONObject)
-  data!: any;
-}
-
-@ObjectType()
-export class ChartData {
-  @Field(_type => ID)
-  locationID!: string;
-  @Field()
-  locationName!: string;
-  @Field(_type => ID)
-  vehicleID!: string;
-  @Field(_type => Int)
-  batteryLevel!: number;
-  @Field(_type => Int, { nullable: true })
-  levelChargeTime!: number | null;
-  @Field(_type => Int, { nullable: true })
-  thresholdPrice!: number | null;
-  @Field(_type => GraphQLJSONObject)
-  chargeCurve!: any;
-  @Field(_type => LocationPrice)
-  prices!: LocationPrice[];
-  @Field(_type => [ChargePlan], { nullable: true })
-  chargePlan!: ChargePlan[] | null;
-  @Field(_type => Int)
-  directLevel!: number;
-  @Field(_type => Int)
-  maximumLevel!: number;
 }

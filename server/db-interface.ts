@@ -25,8 +25,7 @@ import { Location, GeoLocation } from "./gql/location-type";
 import {
   Vehicle,
   VehicleDebugInput,
-  VehicleLocationSettings,
-  VehicleToJS
+  VehicleLocationSettings
 } from "./gql/vehicle-type";
 import { ServiceProvider } from "./gql/service-type";
 import { v5 as uuidv5 } from "uuid";
@@ -365,13 +364,11 @@ export class DBInterface {
   }
 
   public static DBVehicleToVehicle(v: DBVehicle): Vehicle {
-    return VehicleToJS(<Vehicle>{
+    return {
       id: v.vehicle_uuid,
       ownerID: v.account_uuid,
       name: v.name,
       maximumLevel: Math.trunc(v.maximum_charge),
-      tripSchedule: v.scheduled_trip,
-      pausedUntil: v.smart_pause,
       geoLocation: {
         latitude: 0, //v.location_micro_latitude / 1e6,
         longitude: 0 //v.location_micro_longitude / 1e6
@@ -397,7 +394,7 @@ export class DBInterface {
       updated: v.updated,
       serviceID: v.service_uuid,
       providerData: v.provider_data
-    });
+    } as any;
   }
   public async newVehicle(
     account_uuid: string,
@@ -685,7 +682,7 @@ export class DBInterface {
   public async removeVehicle(vehicle_uuid: string): Promise<void> {
     await this.pg.none(
       `DELETE FROM stats_map WHERE vehicle_uuid = $1;
-      DELETE FROM current_stats WHERE vehicle_uuid = $1;
+      DELETE FROM location_stats WHERE vehicle_uuid = $1;
       DELETE FROM charge_curve WHERE vehicle_uuid = $1;
       DELETE FROM charge_current USING charge WHERE charge_current.charge_id = charge.charge_id AND charge.vehicle_uuid = $1;
       DELETE FROM charge WHERE vehicle_uuid = $1;
@@ -706,7 +703,7 @@ export class DBInterface {
       DELETE FROM charge WHERE location_uuid = $1;
       DELETE FROM connected WHERE location_uuid = $1;
       DELETE FROM trip WHERE start_location_uuid = $1 OR end_location_uuid = $1;
-      DELETE FROM current_stats WHERE location_uuid = $1;
+      DELETE FROM location_stats WHERE location_uuid = $1;
       DELETE FROM location WHERE location_uuid = $1;`,
       [location_uuid]
     );

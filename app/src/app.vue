@@ -227,4 +227,7 @@ a#homelink {
     padding: 0 0 12px !important;
   }
 }
+.v-icon.mdi-menu-down {
+  cursor: pointer;
+}
 </style>

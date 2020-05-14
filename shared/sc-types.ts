@@ -17,3 +17,16 @@ export enum ChargeConnection {
   AC = "ac",
   DC = "dc"
 }
+
+export enum DisableType {
+  Nothing = 0,
+  Control = 1,
+  Everything = 2
+}
+
+export enum ScheduleType {
+  Guide = "guide",
+  Manual = "manual",
+  Pause = "pause",
+  Trip = "trip"
+}

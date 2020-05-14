@@ -14,16 +14,11 @@ import {
   DBChargeCurrent,
   DBTrip,
   DBConnected,
-  DBCurrentStats,
+  DBLocationStats,
   DBStatsMap
 } from "./db-schema";
 import { LogLevel, log, arrayMean, prettyTime } from "@shared/utils";
-import {
-  UpdateVehicleDataInput,
-  ChargePlan,
-  ChargePlanToJS,
-  ScheduleToJS
-} from "./gql/vehicle-type";
+import { UpdateVehicleDataInput, ChargePlan } from "./gql/vehicle-type";
 import { SmartChargeGoal, ChargeType } from "@shared/sc-types";
 
 const TRIP_TOPUP_MARGIN = 15 * 60e3; // 15 minutes before trip time
@@ -536,7 +531,7 @@ export class Logic {
   public async createNewStats(
     vehicle_uuid: string,
     location_uuid: string
-  ): Promise<DBCurrentStats | null> {
+  ): Promise<DBLocationStats | null> {
     const level_charge_time: number | null = (
       await this.db.pg.oneOrNone(
         `SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY duration) as seconds
@@ -738,7 +733,7 @@ export class Logic {
       }
     }
     return this.db.pg.one(
-      `INSERT INTO current_stats($[this:name]) VALUES ($[this:csv]) RETURNING *;`,
+      `INSERT INTO location_stats($[this:name]) VALUES ($[this:csv]) RETURNING *;`,
       {
         vehicle_uuid: vehicle_uuid,
         location_uuid: location_uuid,
@@ -754,10 +749,10 @@ export class Logic {
   public async currentStats(
     vehicle_uuid: string,
     location_uuid: string
-  ): Promise<DBCurrentStats | null> {
+  ): Promise<DBLocationStats | null> {
     const stats = await this.db.pg.oneOrNone(
       `SELECT s.*, s.price_data_ts = (SELECT MAX(ts) FROM price_data p JOIN location l ON (l.price_code = p.price_code) WHERE l.location_uuid = s.location_uuid) as fresh
-      FROM current_stats s WHERE vehicle_uuid=$1 AND location_uuid=$2 ORDER BY stats_id DESC LIMIT 1`,
+      FROM location_stats s WHERE vehicle_uuid=$1 AND location_uuid=$2 ORDER BY stats_id DESC LIMIT 1`,
       [vehicle_uuid, location_uuid]
     );
     if (stats && stats.fresh) {
@@ -959,13 +954,16 @@ export class Logic {
     );
     const minimum_charge = locationSettings.directLevel;
 
+    debugger; // Check the f => f map below, it was a convert JS thingie
     let plan: ChargePlan[] = vehicle.charge_plan
       ? (vehicle.charge_plan as ChargePlan[])
           .filter(f => {
             // keep emergency charge so that it is not stopped just as it touches minimum_level
             return f.chargeStart === null && vehicle.level < minimum_charge + 1;
           })
-          .map(f => ChargePlanToJS(f))
+          .map(f => {
+            return f;
+          })
       : [];
 
     // Check charge calibration
@@ -1187,10 +1185,12 @@ export class Logic {
           );
         }
       }
-
+      throw "TRIP CHARGING!";
       // Trip charging
+      /*
       if (vehicle.scheduled_trip) {
-        const trip = ScheduleToJS(vehicle.scheduled_trip);
+        debugger; // check trip, it was a ScheduleToJS
+        const trip = vehicle.scheduled_trip;
         if (now > trip.time.getTime() + 3600e3) {
           // remove trip 1 hour after the fact
           await this.db.pg.none(
@@ -1248,7 +1248,7 @@ export class Logic {
           }
         }
       }
-
+*/
       // Low price fill charging
       if (
         stats &&

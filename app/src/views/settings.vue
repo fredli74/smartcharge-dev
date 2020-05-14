@@ -74,21 +74,47 @@
 import { Component, Vue } from "vue-property-decorator";
 import { gql } from "apollo-boost";
 import providers from "@providers/provider-apps";
-import apollo from "@app/plugins/apollo";
 import EditVehicle from "@app/components/edit-vehicle.vue";
 import EditLocation from "@app/components/edit-location.vue";
 import { GQLVehicle, GQLLocation } from "@shared/sc-schema";
 
-const vehicleFragment = `id ownerID name maximumLevel locationSettings { location directLevel goal } providerData`;
-
 @Component({
   components: { EditVehicle, EditLocation },
   apollo: {
+    locations: {
+      query: gql`
+        query GetLocations {
+          locations {
+            id
+            name
+            geoLocation {
+              latitude
+              longitude
+            }
+            geoFenceRadius
+            providerData
+            priceList {
+              id
+              name
+            }
+          }
+        }
+      `
+    },
     vehicles: {
       query: gql`
         query GetVehicles {
           vehicles {
-            ${vehicleFragment}
+            id
+            ownerID
+            name
+            maximumLevel
+            locationSettings {
+              location
+              directLevel
+              goal
+            }
+            providerData
           }
         }
       `,
@@ -103,13 +129,13 @@ const vehicleFragment = `id ownerID name maximumLevel locationSettings { locatio
 export default class Home extends Vue {
   loading?: boolean;
   vehicles?: GQLVehicle[];
-  locations!: GQLLocation[];
+  locations?: GQLLocation[];
 
   data() {
     return { loading: false, vehicles: undefined, locations: undefined };
   }
   async created() {
-    this.locations = await apollo.getLocations();
+    // this.locations = await apollo.getLocations();
   }
   async mounted() {
     // this.loading = true;

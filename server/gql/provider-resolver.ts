@@ -15,7 +15,9 @@ import {
   Subscription,
   Root,
   Int,
-  Query
+  Query,
+  ObjectType,
+  Field
 } from "type-graphql";
 import { IContext } from "@server/gql/api";
 import { GraphQLJSONObject } from "graphql-type-json";
@@ -24,19 +26,29 @@ import { ApolloError } from "apollo-server-core";
 import { withFilter } from "graphql-subscriptions";
 import providers from "@providers/provider-servers";
 import { IProviderServer } from "@providers/provider-server";
-import { Action } from "./vehicle-type";
 import { DBServiceProvider } from "@server/db-schema";
 
 const actionMemDatabase: { [id: string]: Action } = {};
 let actionMemDatabaseSN = 0;
 
-const providerMap = providers.reduce(
-  (a, p) => {
-    a[p.name.toLowerCase()] = p;
-    return a;
-  },
-  {} as { [name: string]: IProviderServer }
-);
+const providerMap = providers.reduce((a, p) => {
+  a[p.name.toLowerCase()] = p;
+  return a;
+}, {} as { [name: string]: IProviderServer });
+
+@ObjectType()
+export abstract class Action {
+  @Field(_type => Int)
+  actionID!: number;
+  @Field(_type => ID)
+  serviceID!: string;
+  @Field()
+  providerName!: string;
+  @Field()
+  action!: string;
+  @Field(_type => GraphQLJSONObject)
+  data!: any;
+}
 
 @Resolver()
 export class ProviderResolver {

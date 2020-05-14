@@ -53,17 +53,17 @@ const router = new Router({
       meta: { login: true }
     },
     {
-      path: "/vehicle/:id",
-      name: "vehicle",
-      component: () =>
-        import(/* webpackChunkName: "vehicle" */ "./views/vehicle.vue"),
-      meta: { login: true }
-    },
-    {
       path: "/settings",
       name: "settings",
       component: () =>
         import(/* webpackChunkName: "settings" */ "./views/settings.vue"),
+      meta: { login: true }
+    },
+    {
+      path: "/vehicle/:id",
+      name: "vehicle",
+      component: () =>
+        import(/* webpackChunkName: "vehicle" */ "./views/vehicle.vue"),
       meta: { login: true }
     },
     {
