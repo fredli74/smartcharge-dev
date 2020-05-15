@@ -10,27 +10,26 @@ import { IContext, accountFilter } from "@server/gql/api";
 import { UpdateLocationInput, Location } from "./location-type";
 import { makePublicID, LogLevel, log } from "@shared/utils";
 import { ApolloError } from "apollo-server-express";
-import { DBInterface } from "@server/db-interface";
 import { plainToClass } from "class-transformer";
 
 @Resolver()
 export class LocationResolver {
   @Query(_returns => [Location])
   async locations(@Ctx() context: IContext): Promise<Location[]> {
-    const dblist = await context.db.getLocations(
-      accountFilter(context.accountUUID)
+    return plainToClass(
+      Location,
+      await context.db.getLocations(accountFilter(context.accountUUID))
     );
-    return dblist.map(f => plainToClass(Location, f));
   }
   @Query(_returns => Location)
   async location(
     @Arg("id") id: string,
     @Ctx() context: IContext
   ): Promise<Location> {
-    const l = DBInterface.DBLocationToLocation(
+    return plainToClass(
+      Location,
       await context.db.getLocation(accountFilter(context.accountUUID), id)
     );
-    return plainToClass(Location, l);
   }
 
   @Mutation(_returns => Location)
@@ -40,16 +39,23 @@ export class LocationResolver {
   ): Promise<Location> {
     // verify Location ownage
     await context.db.getLocation(accountFilter(context.accountUUID), input.id);
-    return DBInterface.DBLocationToLocation(
-      await context.db.updateLocation(
-        input.id,
-        input.name,
-        input.geoLocation,
-        input.geoFenceRadius,
-        input.priceListID,
-        input.serviceID,
-        input.providerData
-      )
+    return plainToClass(
+      Location,
+      await context.db.updateLocation(input.id, {
+        name: input.name,
+        location_micro_latitude:
+          input.geoLocation === undefined
+            ? undefined
+            : input.geoLocation.latitude * 1e6,
+        location_micro_longitude:
+          input.geoLocation === undefined
+            ? undefined
+            : input.geoLocation.longitude * 1e6,
+        radius: input.geoFenceRadius,
+        price_list_uuid: input.priceListID,
+        service_uuid: input.serviceID,
+        provider_data: input.providerData
+      })
     );
   }
 

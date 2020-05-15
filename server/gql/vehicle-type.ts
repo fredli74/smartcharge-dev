@@ -30,6 +30,8 @@ import {
 import { DBVehicle } from "@server/db-schema";
 import { plainToClass, Type } from "class-transformer";
 import { IContext } from "./api";
+import { LocationResolver } from "./location-resolver";
+import { DBInterface } from "@server/db-interface";
 
 /*******************************
  *    VehicleLocationSetting   *
@@ -39,7 +41,7 @@ import { IContext } from "./api";
 @InputType("VehicleLocationSettingInput")
 export class VehicleLocationSettings {
   @Field(_type => ID, { description: `location id` })
-  location!: string;
+  locationID!: string;
   @Field(_type => Int, {
     description: `Minimum battery level to reach directly (%)`
   })
@@ -97,7 +99,7 @@ export class ChargePlan {
   chargeStop!: Date | null;
   @Field(_type => Int)
   level!: number;
-  @Field()
+  @Field(_type => String)
   comment!: string;
 }
 
@@ -134,7 +136,7 @@ export class VehicleTypeResolver {
   }
   @FieldResolver(_returns => [Schedule], { description: `schedule` })
   schedule(@Root() vehicle: Vehicle): Schedule[] {
-    return (vehicle.schedule as Schedule[]).map(f => plainToClass(Schedule, f));
+    return plainToClass(Schedule, vehicle.schedule as Schedule[]);
   }
   @FieldResolver(_returns => GraphQLJSONObject)
   providerData(@Root() vehicle: Vehicle): any {
@@ -171,18 +173,24 @@ export class VehicleTypeResolver {
     if (vehicle.location_uuid === null) {
       return null;
     }
-    return plainToClass(
-      Location,
-      await context.db.getLocation(vehicle.account_uuid, vehicle.location_uuid)
-    );
+    return new LocationResolver().location(vehicle.location_uuid, context);
   }
   @FieldResolver(_returns => [VehicleLocationSettings], {
     nullable: true,
     description: `location settings`
   })
   locationSettings(@Root() vehicle: Vehicle): VehicleLocationSettings[] {
-    return Object.entries(vehicle.location_settings).map(([key, values]) =>
-      plainToClass(VehicleLocationSettings, { location: key, ...values })
+    return plainToClass(
+      VehicleLocationSettings,
+      Object.entries(vehicle.location_settings).map(
+        ([key, values]: [
+          string,
+          Partial<VehicleLocationSettings>
+        ]): VehicleLocationSettings => ({
+          ...DBInterface.DefaultVehicleLocationSettings(key),
+          ...values
+        })
+      )
     );
   }
   @FieldResolver(_returns => Int, { description: `battery level (%)` })
@@ -265,19 +273,15 @@ export class VehicleTypeResolver {
 export abstract class UpdateVehicleInput {
   @Field(_type => ID)
   id!: string;
-  @Field({ nullable: true })
+  @Field(_type => String, { nullable: true })
   name?: string;
   @Field(_type => Int, { nullable: true })
   maximumLevel?: number;
-  @Field(_type => Int, { nullable: true })
-  anxietyLevel?: number;
   @Field(_type => Schedule, { nullable: true })
-  tripSchedule?: Schedule | null;
-  @Field(_type => Date, { nullable: true })
-  pausedUntil?: Date | null;
+  schedule?: Schedule | null;
   @Field(_type => [VehicleLocationSettings], { nullable: true })
   locationSettings?: VehicleLocationSettings[] | null;
-  @Field({ nullable: true })
+  @Field(_type => String, { nullable: true })
   status?: string;
   @Field(_type => ID, { nullable: true })
   serviceID?: string;
@@ -291,7 +295,7 @@ registerEnumType(ChargeConnection, { name: "ChargeConnection" });
 export abstract class UpdateVehicleDataInput {
   @Field(_type => ID)
   id!: string;
-  @Field()
+  @Field(_type => String)
   geoLocation!: GeoLocation;
   @Field(_type => Int, { description: `battery level (%)` })
   batteryLevel!: number;
@@ -309,7 +313,7 @@ export abstract class UpdateVehicleDataInput {
   insideTemperature!: number | null;
   @Field({ description: `is climate control on` })
   climateControl!: boolean;
-  @Field()
+  @Field(_type => Boolean)
   isDriving!: boolean;
   @Field(_type => ChargeConnection, {
     nullable: true,
@@ -336,9 +340,9 @@ export abstract class UpdateVehicleDataInput {
 export abstract class VehicleDebugInput {
   @Field(_type => ID)
   id!: string;
-  @Field()
+  @Field(_type => Date)
   timestamp!: Date;
-  @Field()
+  @Field(_type => String)
   category!: string;
   @Field(_type => GraphQLJSONObject)
   data!: any;

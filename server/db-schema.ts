@@ -29,7 +29,8 @@ export abstract class DBLocation {
   location_micro_latitude!: number; // 6 decimal precision converted to integer
   location_micro_longitude!: number; // 6 decimal precision converted to integer
   radius!: number; // radius tollerance (in meters)
-  price_code!: string | null; // price list code
+  price_list_uuid!: string | null; // price list code (or null)
+  // TODO: remove service and provider on locations?
   service_uuid!: string | null; // provider uuid
   provider_data!: PlainObject; // provider custom data
 }
@@ -41,29 +42,60 @@ const DBLocation_TSQL = `CREATE TABLE scserver.location
         location_micro_latitude integer NOT NULL,
         location_micro_longitude integer NOT NULL,
         radius integer NOT NULL,
-        price_code character varying(32),
+        price_list_uuid uuid,
         service_uuid uuid,
         provider_data jsonb NOT NULL DEFAULT '{}'::jsonb,
         CONSTRAINT location_pkey PRIMARY KEY(location_uuid),
-        CONSTRAINT location_fkey FOREIGN KEY(account_uuid)
+        CONSTRAINT location_fkeyA FOREIGN KEY(account_uuid)
+                REFERENCES account(account_uuid) MATCH SIMPLE
+                ON UPDATE RESTRICT
+                ON DELETE CASCADE,
+        CONSTRAINT location_fkeyB FOREIGN KEY(price_list_uuid)
+                REFERENCES price_list(price_list_uuid) MATCH SIMPLE
+                ON UPDATE RESTRICT
+                ON DELETE CASCADE
+    );`;
+
+export abstract class DBPriceList {
+  price_list_uuid!: string; // price list identifier
+  account_uuid!: string; // account identifier
+  name!: string; // unique name of price list
+  private_list!: boolean; // only show up for account owner
+  service_uuid!: string | null; // provider uuid
+  provider_data!: PlainObject; // provider custom data
+}
+const DBPriceList_TSQL = `CREATE TABLE scserver.price_list
+    (
+        price_list_uuid uuid NOT NULL,
+        account_uuid uuid NOT NULL,
+        name text NOT NULL,
+        private_list boolean NOT NULL,
+        service_uuid uuid,
+        provider_data jsonb NOT NULL DEFAULT '{}'::jsonb,
+        CONSTRAINT price_list_pkey PRIMARY KEY(price_list_uuid),
+        CONSTRAINT price_list_fkey FOREIGN KEY(account_uuid)
                 REFERENCES account(account_uuid) MATCH SIMPLE
                 ON UPDATE RESTRICT
                 ON DELETE CASCADE
     );`;
 
 export abstract class DBPriceData {
-  // price_list_uuid!: string; // price list identifier
+  price_list_uuid!: string; // price list identifier
   price_code!: string; // location identifer
   ts!: Date; // price tariff starts at
   price!: number; // cost per kWh
 }
+
 const DBPriceData_TSQL = `CREATE TABLE scserver.price_data
     (
-        /*price_list_uuid uuid NOT NULL,*/
-        price_code character varying(32) NOT NULL,
+        price_list_uuid uuid NOT NULL,
         ts timestamp(0) with time zone NOT NULL,
         price integer NOT NULL,
-        CONSTRAINT price_data_pkey PRIMARY KEY (price_code, ts)
+        CONSTRAINT price_data_pkey PRIMARY KEY(price_list_uuid, ts),
+        CONSTRAINT price_list_fkey FOREIGN KEY(price_list_uuid)
+                REFERENCES price_list(price_list_uuid) MATCH SIMPLE
+                ON UPDATE RESTRICT
+                ON DELETE CASCADE
     );`;
 
 export abstract class DBVehicle {
@@ -479,6 +511,8 @@ export const DB_SETUP_TSQL = [
   DBAccount_TSQL,
 
   DBLocation_TSQL,
+
+  DBPriceList_TSQL,
   DBPriceData_TSQL,
 
   DBVehicle_TSQL,

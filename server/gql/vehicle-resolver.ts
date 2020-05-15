@@ -41,7 +41,7 @@ export class VehicleResolver {
     const dblist = await context.db.getVehicles(
       accountFilter(context.accountUUID)
     );
-    return dblist.map(f => plainToClass(Vehicle, f));
+    return plainToClass(Vehicle, dblist);
   }
   @Query(_returns => Vehicle)
   async vehicle(
@@ -129,7 +129,7 @@ export class VehicleResolver {
       input.locationSettings &&
       input.locationSettings.reduce(
         (map: any, obj: VehicleLocationSettings) => {
-          map[obj.location] = {
+          map[obj.locationID] = {
             directLevel: obj.directLevel,
             goal: obj.goal
           };
@@ -138,25 +138,20 @@ export class VehicleResolver {
         {}
       );
 
-    const result = await context.db.updateVehicle(
-      input.id,
-      input.name,
-      input.maximumLevel,
-      locationSettingsMap,
-      input.anxietyLevel,
-      input.tripSchedule,
-      input.pausedUntil,
-      input.status,
-      input.serviceID,
-
-      input.providerData
-    );
+    const result = await context.db.updateVehicle(input.id, {
+      name: input.name,
+      maximum_charge: input.maximumLevel,
+      location_settings: locationSettingsMap,
+      schedule: input.schedule,
+      status: input.status,
+      service_uuid: input.serviceID,
+      provider_data: input.providerData
+    });
 
     if (
       input.maximumLevel !== undefined ||
       input.locationSettings !== undefined ||
-      input.anxietyLevel !== undefined ||
-      input.tripSchedule !== undefined
+      input.schedule !== undefined
     ) {
       await context.logic.refreshChargePlan(input.id);
     }

@@ -15,7 +15,7 @@ import { SCClient } from "@shared/sc-client";
 import providers from "@providers/provider-agents";
 import { AbstractAgent } from "@providers/provider-agent";
 import WebSocket from "ws";
-import { ServiceProvider } from "./gql/service-type";
+import { GQLServiceProvider } from "@shared/sc-schema";
 
 const APP_NAME = `smartcharge-agency`;
 const APP_VERSION = `1.0`;
@@ -23,7 +23,7 @@ const APP_VERSION = `1.0`;
 export class Agency {
   public ID: string | undefined;
   public agents: { [agent: string]: AbstractAgent } = {}; // map of agent names to agent classes
-  public agentJobs: { [service_uuid: string]: ServiceProvider } = {}; // map of job uuid to agent jobs
+  public agentJobs: { [service_uuid: string]: GQLServiceProvider } = {}; // map of job uuid to agent jobs
   private promiseList: Promise<any>[] = [];
   private stopped: boolean = false;
   constructor(private client: SCClient) {}
@@ -34,7 +34,7 @@ export class Agency {
   }
   public async list(accept: string[]) {
     const serviceList = await this.client.getServiceProviders(accept);
-    const serviceMap: { [service_uuid: string]: ServiceProvider } = {};
+    const serviceMap: { [service_uuid: string]: GQLServiceProvider } = {};
 
     // Add new entries
     for (const j of serviceList) {

@@ -17,20 +17,15 @@ import {
   DB_VERSION,
   DBPriceData,
   DBServiceProvider,
-  DBChargeCurve
+  DBChargeCurve,
+  DBPriceList
 } from "./db-schema";
 import { log, LogLevel, geoDistance, generateToken } from "@shared/utils";
 import config from "@shared/smartcharge-config";
-import { Location, GeoLocation } from "./gql/location-type";
-import {
-  Vehicle,
-  VehicleDebugInput,
-  VehicleLocationSettings
-} from "./gql/vehicle-type";
-import { ServiceProvider } from "./gql/service-type";
 import { v5 as uuidv5 } from "uuid";
-import { PriceList } from "./gql/price-type";
 import { SmartChargeGoal } from "@shared/sc-types";
+import { DEFAULT_DIRECTLEVEL } from "@shared/smartcharge-defines";
+import { VehicleLocationSettings, VehicleDebugInput } from "./gql/vehicle-type";
 
 export const DB_OPTIONS = {};
 
@@ -174,49 +169,24 @@ export class DBInterface {
     );
   }
 
-  public static DBLocationToLocation(l: DBLocation): Location {
-    return l as Location;
-    //return new Location();
-    /*
-    return {
-      id: l.location_uuid,
-      ownerID: l.account_uuid,
-      name: l.name,
-      geoLocation: {
-        latitude: l.location_micro_latitude / 1e6,
-        longitude: l.location_micro_longitude / 1e6
-      },
-      geoFenceRadius: l.radius,
-      priceListID: l.price_code,
-      serviceID: l.service_uuid,
-      providerData: l.provider_data
-    };*/
-  }
   public async newLocation(
     account_uuid: string,
-    name: string | undefined,
-    location: GeoLocation,
+    name: string,
+    location_micro_latitude: number,
+    location_micro_longitude: number,
     radius: number,
-    price_code: string,
-    provider_data: any
+    price_list_uuid: string | null
   ): Promise<DBLocation> {
-    const fields: any = {
-      account_uuid,
-      name,
-      location_micro_latitude: location.latitude * 1e6,
-      location_micro_longitude: location.longitude * 1e6,
-      radius,
-      price_code,
-      provider_data
-    };
-    for (const key of Object.keys(fields)) {
-      if (fields[key] === undefined) {
-        delete fields[key];
-      }
-    }
     const result = await this.pg.one(
       `INSERT INTO location($[this:name]) VALUES($[this:csv]) RETURNING *;`,
-      fields
+      {
+        account_uuid,
+        name,
+        location_micro_latitude,
+        location_micro_longitude,
+        radius,
+        price_list_uuid
+      }
     );
     await this.updateAllLocations(account_uuid);
     return result;
@@ -304,28 +274,17 @@ export class DBInterface {
 
   public async updateLocation(
     location_uuid: string,
-    name: string | undefined,
-    location: GeoLocation | undefined,
-    radius: number | undefined,
-    price_code: string | undefined,
-    service_uuid: string | undefined,
-    provider_data: any | undefined
+    input: Partial<DBLocation>
   ): Promise<DBLocation> {
     const [values, set] = queryHelper([
       location_uuid,
-      [name, `name = $2`],
-      [
-        location ? location.latitude * 1e6 : undefined,
-        `location_micro_latitude = $3`
-      ],
-      [
-        location ? location.longitude * 1e6 : undefined,
-        `location_micro_longitude = $4`
-      ],
-      [radius, `radius = $5`],
-      [price_code, `price_code = $6`],
-      [service_uuid, `service_uuid = $7`],
-      [provider_data, `provider_data = jsonb_merge(provider_data, $8)`]
+      [input.name, `name = $2`],
+      [input.location_micro_latitude, `location_micro_latitude = $3`],
+      [input.location_micro_longitude, `location_micro_longitude = $4`],
+      [input.radius, `radius = $5`],
+      [input.price_list_uuid, `price_list_uuid = $6`],
+      [input.service_uuid, `service_uuid = $7`],
+      [input.provider_data, `provider_data = jsonb_merge(provider_data, $8)`]
     ]);
     assert(set.length > 0);
 
@@ -338,68 +297,31 @@ export class DBInterface {
   }
 
   public async updatePriceData(
-    price_code: string,
+    price_list_uuid: string,
     ts: Date,
     price: number
   ): Promise<DBPriceData> {
     const result = await this.pg.one(
-      `INSERT INTO price_data(price_code, ts, price) VALUES($1, $2, $3) ` +
-        `ON CONFLICT (price_code,ts) DO UPDATE SET price=EXCLUDED.price RETURNING *;`,
-      [price_code, ts, price * 1e5]
+      `INSERT INTO price_data(price_list_uuid, ts, price) VALUES($1, $2, $3) ` +
+        `ON CONFLICT (price_list_uuid,ts) DO UPDATE SET price=EXCLUDED.price RETURNING *;`,
+      [price_list_uuid, ts, price * 1e5]
     );
     return result;
   }
 
-  public static DBVehicleToVehicleLocationSettings(
-    v: DBVehicle,
+  public static DefaultVehicleLocationSettings(
     location_uuid: string
   ): VehicleLocationSettings {
-    return (
-      (v.location_settings && v.location_settings[location_uuid]) || {
-        location: location_uuid,
-        directLevel: 15,
-        goal: SmartChargeGoal.Balanced
-      }
-    );
+    return {
+      locationID: location_uuid,
+      directLevel: DEFAULT_DIRECTLEVEL,
+      goal: SmartChargeGoal.Balanced
+    };
   }
 
-  public static DBVehicleToVehicle(v: DBVehicle): Vehicle {
-    return {
-      id: v.vehicle_uuid,
-      ownerID: v.account_uuid,
-      name: v.name,
-      maximumLevel: Math.trunc(v.maximum_charge),
-      geoLocation: {
-        latitude: 0, //v.location_micro_latitude / 1e6,
-        longitude: 0 //v.location_micro_longitude / 1e6
-      },
-      location: v.location_uuid,
-      // convert database map to graphQL array
-      locationSettings: (Object.entries(v.location_settings || {}) as [
-        string,
-        any
-      ][]).map(([key, values]) => ({ location: key, ...values })),
-      batteryLevel: v.level,
-      odometer: Math.trunc(v.odometer),
-      outsideTemperature: v.outside_deci_temperature / 10,
-      insideTemperature: v.inside_deci_temperature / 10,
-      climateControl: v.climate_control,
-      isDriving: v.driving,
-      isConnected: v.connected,
-      chargePlan: v.charge_plan,
-      chargingTo: v.charging_to,
-      estimatedTimeLeft: v.estimate,
-      status: v.status,
-      smartStatus: v.smart_status,
-      updated: v.updated,
-      serviceID: v.service_uuid,
-      providerData: v.provider_data
-    } as any;
-  }
   public async newVehicle(
     account_uuid: string,
     name: string,
-    minimum_charge: number,
     maximum_charge: number,
     service_uuid: string,
     provider_data: any
@@ -407,12 +329,9 @@ export class DBInterface {
     const fields: any = {
       account_uuid,
       name,
-      minimum_charge,
       maximum_charge,
       service_uuid,
-      provider_data,
-      level: 0,
-      odometer: 0
+      provider_data
     };
     for (const key of Object.keys(fields)) {
       if (fields[key] === undefined) {
@@ -461,37 +380,27 @@ export class DBInterface {
   }
   public async updateVehicle(
     vehicle_uuid: string,
-    name: string | undefined,
-    maximum_charge: number | undefined,
-    location_settings: any | undefined,
-    anxiety_level: number | undefined,
-    scheduled_trip: any | null | undefined,
-    smart_pause: Date | null | undefined,
-    status: string | undefined,
-    service_uuid: string | undefined,
-    provider_data: any | undefined
+    input: Partial<DBVehicle>
   ): Promise<DBVehicle> {
     const [values, set] = queryHelper([
       vehicle_uuid,
-      [name, `name = $2`],
-      [maximum_charge, `maximum_charge = $3`],
+      [input.name, `name = $2`],
+      [input.maximum_charge, `maximum_charge = $3`],
       [
-        location_settings,
+        input.location_settings,
         `location_settings = jsonb_merge(location_settings, $4)`
       ],
-      [anxiety_level, `anxiety_level = $5`],
-      [scheduled_trip, `scheduled_trip = $6`],
-      [smart_pause, `smart_pause = $7`],
-      [status, `status = $8`],
-      [service_uuid, `service_uuid = $9`],
-      [provider_data, `provider_data = jsonb_merge(provider_data, $10)`]
+      [input.schedule, `schedule = $5`],
+      [input.status, `status = $6`],
+      [input.service_uuid, `service_uuid = $7`],
+      [input.provider_data, `provider_data = jsonb_merge(provider_data, $8)`]
     ]);
     assert(set.length > 0);
 
-    if (status !== undefined) {
+    if (input.status !== undefined) {
       if (
-        status.toLowerCase() === "offline" ||
-        status.toLowerCase() === "sleeping"
+        input.status.toLowerCase() === "offline" ||
+        input.status.toLowerCase() === "sleeping"
       ) {
         this.pg.none(
           `WITH upsert AS (UPDATE sleep SET end_ts=NOW() WHERE vehicle_uuid=$1 AND active RETURNING *)
@@ -538,7 +447,6 @@ export class DBInterface {
     account_uuid: string,
     name: string
   ): Promise<DBAccount> {
-    // Creating the single user
     return this.pg.one(
       `INSERT INTO account($[this:name]) VALUES($[this:csv]) RETURNING *;`,
       { account_uuid, name, api_token: generateToken(48) }
@@ -549,7 +457,7 @@ export class DBInterface {
     account_uuid: string | null | undefined,
     service_uuid: string | null | undefined,
     accept: string[] | undefined
-  ): Promise<ServiceProvider[]> {
+  ): Promise<DBServiceProvider[]> {
     const [values, where] = queryHelper([
       [account_uuid, `account_uuid = $1`],
       [service_uuid, `service_uuid = $2`],
@@ -557,21 +465,11 @@ export class DBInterface {
     ]);
     assert(where.length > 0);
 
-    const dblist = (await this.pg.manyOrNone(
+    return this.pg.manyOrNone(
       `SELECT * FROM service_provider WHERE ${where.join(
         " AND "
       )} ORDER BY 1,2;`,
       values
-    )) as DBServiceProvider[];
-
-    return dblist.map(
-      f =>
-        <ServiceProvider>{
-          ownerID: f.account_uuid,
-          providerName: f.provider_name,
-          serviceData: f.service_data,
-          serviceID: f.service_uuid
-        }
     );
   }
 
@@ -709,61 +607,50 @@ export class DBInterface {
     );
   }
 
-  public static DBPriceListToPriceList(l: any): PriceList {
-    return {
-      id: l.price_code,
-      name: l.price_code,
-      ownerID: l.price_code,
-      private: false
-    };
-  }
   public async getPriceLists(
-    _account_uuid: string | null | undefined,
+    account_uuid: string | null | undefined,
     price_list_uuid?: string
-  ): Promise<any[]> {
-    // TODO: add a real price_list table to the database
+  ): Promise<DBPriceList[]> {
     const [values, where] = queryHelper([
-      [price_list_uuid, `price_code = $1`]
-      //  [account_uuid, `account_uuid = $2`]
+      [price_list_uuid, `price_list_uuid = $1`],
+      [account_uuid, `(account_uuid = $2 OR private_list IS NOT TRUE)`]
     ]);
     return this.pg.manyOrNone(
-      `SELECT DISTINCT price_code FROM price_data  ${queryWhere(
+      `SELECT * FROM price_list ${queryWhere(
         where
-      )} ORDER BY 1`,
+      )} ORDER BY name, price_list_uuid;`,
       values
     );
   }
   public async getPriceList(
     account_uuid: string | null | undefined,
     price_list_uuid: string
-  ): Promise<any> {
-    // TODO: add a real price_list table to the database
+  ): Promise<DBPriceList> {
     const dblist = await this.getPriceLists(account_uuid, price_list_uuid);
     if (dblist.length === 0) {
-      throw new Error(`Unknown location id ${price_list_uuid}`);
+      throw new Error(`Unknown priceList id ${price_list_uuid}`);
     }
     assert(dblist.length === 1);
     return dblist[0];
   }
   public async updatePriceList(
-    _price_list_uuid: string,
-    _name: string | undefined,
-    _isPrivate: boolean | undefined
-  ): Promise<DBLocation> {
-    throw "Not implemented";
-    /*const [values, set] = queryHelper([
+    price_list_uuid: string,
+    input: Partial<DBPriceList>
+  ): Promise<DBPriceList> {
+    const [values, set] = queryHelper([
       price_list_uuid,
-      [name, `name = $2`],
-      [isPrivate, `private = $3`]
+      [input.name, `name = $2`],
+      [input.private_list, `private_list = $3`],
+      [input.service_uuid, `service_uuid = $4`],
+      [input.provider_data, `provider_data = jsonb_merge(provider_data, $5)`]
     ]);
     assert(set.length > 0);
 
-    
     return this.pg.one(
       `UPDATE price_list SET ${set.join(
         ","
-      )} WHERE location_uuid = $1 RETURNING *;`,
+      )} WHERE price_list_uuid = $1 RETURNING *;`,
       values
-    );*/
+    );
   }
 }

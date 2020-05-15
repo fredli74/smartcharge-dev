@@ -8,7 +8,6 @@
 import { gql, InMemoryCache } from "apollo-boost";
 import ApolloClient from "apollo-client";
 import { mergeURL, log, LogLevel } from "@shared/utils";
-import { API_PATH } from "@shared/smartcharge-globals.json";
 
 import fetch from "cross-fetch";
 
@@ -30,6 +29,7 @@ import {
   GQLServiceProvider,
   GQLAction
 } from "./sc-schema";
+import { API_PATH } from "./smartcharge-defines";
 
 export class SCClient extends ApolloClient<any> {
   public account?: GQLAccount;

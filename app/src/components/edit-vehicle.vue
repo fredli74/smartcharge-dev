@@ -105,6 +105,7 @@ import {
   GQLUpdateVehicleInput
 } from "@shared/sc-schema";
 import { SmartChargeGoal } from "@shared/sc-types";
+import { DEFAULT_DIRECTLEVEL } from "@shared/smartcharge-defines";
 
 @Component({
   components: { EditVehicleLocationSettings, RemoveDialog }
@@ -133,13 +134,14 @@ export default class EditVehicle extends Vue {
         this.locations
           .filter(l => l.ownerID === this.vehicle.ownerID)
           .map(l => {
-            const settings: GQLVehicleLocationSetting = (this.vehicle
-              .locationSettings &&
-              this.vehicle.locationSettings.find(f => f.location === l.id)) || {
-              location: l.id,
-              directLevel: 15,
-              goal: SmartChargeGoal.Balanced
-            };
+            const settings: GQLVehicleLocationSetting =
+              (this.vehicle.locationSettings &&
+                this.vehicle.locationSettings.find(f => f.location === l.id)) ||
+              ({
+                location: l.id,
+                directLevel: DEFAULT_DIRECTLEVEL,
+                goal: SmartChargeGoal.Balanced
+              } as GQLVehicleLocationSetting);
             return {
               name: l.name,
               settings

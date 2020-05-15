@@ -12,17 +12,13 @@ import {
   buildSchema,
   Field,
   FieldResolver,
-  Int,
   ObjectType,
   Query,
   Resolver,
-  ResolverInterface,
-  Root,
-  Subscription
+  ResolverInterface
 } from "type-graphql";
 import { AccountResolver } from "./account-resolver";
 import { AccountTypeResolver } from "./account-type";
-import { apolloPubSub, SubscriptionTopic } from "./subscription";
 import { DBAccount } from "@server/db-schema";
 import { DBInterface, INTERNAL_SERVICE_UUID } from "@server/db-interface";
 import { GraphQLSchema } from "graphql";
@@ -35,6 +31,9 @@ import { ServiceResolver } from "./service-resolver";
 import { StatsResolver } from "./stats-resolver";
 import { VehicleResolver } from "./vehicle-resolver";
 import { VehicleTypeResolver } from "./vehicle-type";
+import { PingResolver } from "./subscription";
+import { PriceListTypeResolver } from "./price-type";
+import { ServiceProviderTypeResolver } from "./service-type";
 
 export interface IContext {
   db: DBInterface;
@@ -52,22 +51,6 @@ export function accountFilter(
     ? undefined // all access
     : account_uuid; // normal access
 }
-
-@Resolver()
-export class PingResolver {
-  @Subscription(_returns => Int, {
-    subscribe: () => {
-      return apolloPubSub.asyncIterator(SubscriptionTopic.Ping);
-    }
-  })
-  async pingSubscription(@Root() payload: number): Promise<number> {
-    return payload;
-  }
-}
-
-setInterval(() => {
-  apolloPubSub.publish(SubscriptionTopic.Ping, Math.trunc(Date.now() / 1e3));
-}, 30e3);
 
 @ObjectType()
 export class ResolverTest {
@@ -105,8 +88,10 @@ export default function schema(emitFile?: string): Promise<GraphQLSchema> {
       VehicleTypeResolver,
       VehicleResolver,
 
+      PriceListTypeResolver,
       PriceResolver,
 
+      ServiceProviderTypeResolver,
       ServiceResolver,
 
       StatsResolver

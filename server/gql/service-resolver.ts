@@ -23,8 +23,9 @@ import { INTERNAL_SERVICE_UUID, DBInterface } from "@server/db-interface";
 import { AuthenticationError, ApolloError } from "apollo-server-core";
 
 import { VehicleDebugInput, UpdateVehicleDataInput } from "./vehicle-type";
-import { UpdatePriceInput } from "./location-type";
 import { ServiceProvider } from "./service-type";
+import { plainToClass } from "class-transformer";
+import { UpdatePriceInput } from "./price-type";
 
 function authorizeService(context: IContext) {
   if (context.accountUUID !== INTERNAL_SERVICE_UUID) {
@@ -40,7 +41,10 @@ export class ServiceResolver {
     @Ctx() context: IContext
   ): Promise<ServiceProvider[]> {
     authorizeService(context);
-    return context.db.getServiceProviders(undefined, undefined, accept);
+    return plainToClass(
+      ServiceProvider,
+      await context.db.getServiceProviders(undefined, undefined, accept)
+    );
   }
 
   @Mutation(_returns => Boolean)
@@ -129,9 +133,13 @@ export class ServiceResolver {
   ): Promise<Boolean> {
     authorizeService(context);
     for (const point of input.prices) {
-      await context.db.updatePriceData(input.code, point.startAt, point.price);
+      await context.db.updatePriceData(
+        input.priceListID,
+        point.startAt,
+        point.price
+      );
     }
-    await context.logic.priceListRefreshed(input.code);
+    await context.logic.priceListRefreshed(input.priceListID);
     return true;
   }
 }

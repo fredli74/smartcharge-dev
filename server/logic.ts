@@ -18,11 +18,13 @@ import {
   DBStatsMap
 } from "./db-schema";
 import { LogLevel, log, arrayMean, prettyTime } from "@shared/utils";
-import { UpdateVehicleDataInput, ChargePlan } from "./gql/vehicle-type";
-import { SmartChargeGoal, ChargeType } from "@shared/sc-types";
-
-const TRIP_TOPUP_MARGIN = 15 * 60e3; // 15 minutes before trip time
-const MIN_STATS_PERIOD = 1 * 60e3; // 1 minute
+import {
+  UpdateVehicleDataInput,
+  ChargePlan,
+  Schedule
+} from "./gql/vehicle-type";
+import { SmartChargeGoal, ChargeType, ScheduleType } from "@shared/sc-types";
+import { MIN_STATS_PERIOD } from "@shared/smartcharge-defines";
 
 export class Logic {
   constructor(private db: DBInterface) {}
@@ -948,11 +950,20 @@ export class Logic {
 
     const now = Date.now();
 
-    const locationSettings = DBInterface.DBVehicleToVehicleLocationSettings(
-      vehicle,
-      vehicle.location_uuid
-    );
+    const locationSettings =
+      vehicle.location_settings[vehicle.location_uuid] ||
+      DBInterface.DefaultVehicleLocationSettings(vehicle.location_uuid);
     const minimum_charge = locationSettings.directLevel;
+
+    // Reduce the array to a map with only the first upcoming event of each type
+    const schedule = (vehicle.schedule as Schedule[])
+      .sort((a, b) => a.time.getTime() - b.time.getTime())
+      .reduce((map, obj) => {
+        if (map[obj.type] === undefined) map[obj.type] = obj;
+        return map;
+      }, {} as Record<string, Schedule>);
+
+    console.debug(schedule);
 
     debugger; // Check the f => f map below, it was a convert JS thingie
     let plan: ChargePlan[] = vehicle.charge_plan

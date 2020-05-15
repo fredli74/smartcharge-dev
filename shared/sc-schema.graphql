@@ -51,7 +51,7 @@ type ChartData {
   levelChargeTime: Int
   thresholdPrice: Int
   chargeCurve: JSONObject!
-  prices: [LocationPrice!]!
+  prices: [PriceData!]!
   chargePlan: [ChargePlan!]
   directLevel: Int!
   maximumLevel: Int!
@@ -90,28 +90,12 @@ type Location {
   priceList: PriceList
 }
 
-type LocationPrice {
-  """Price tariff start time"""
-  startAt: DateTime!
-
-  """Price in currency per kWh (5 decimal precision)"""
-  price: Float!
-}
-
-input LocationPriceInput {
-  """Price tariff start time"""
-  startAt: DateTime!
-
-  """Price in currency per kWh (5 decimal precision)"""
-  price: Float!
-}
-
 type Mutation {
   loginWithPassword(password: String!): Account!
   loginWithIDToken(idToken: String!): Account!
+  updatePriceList(input: UpdatePriceListInput!): PriceList!
   updateLocation(input: UpdateLocationInput!): Location!
   removeLocation(confirm: String!, id: String!): Boolean!
-  updatePriceList(input: UpdatePriceListInput!): PriceList!
   providerMutate(
     input: JSONObject!
 
@@ -135,26 +119,35 @@ type Mutation {
   updateVehicle(input: UpdateVehicleInput!): Vehicle!
 }
 
+type PriceData {
+  """Price tariff start time"""
+  startAt: DateTime!
+
+  """Price in currency per kWh (5 decimal precision)"""
+  price: Float!
+}
+
+input PriceDataInput {
+  """Price tariff start time"""
+  startAt: DateTime!
+
+  """Price in currency per kWh (5 decimal precision)"""
+  price: Float!
+}
+
 type PriceList {
   id: ID!
   ownerID: ID!
   name: String!
-  private: Boolean!
-}
-
-input PriceListInput {
-  id: ID!
-  ownerID: ID!
-  name: String!
-  private: Boolean!
+  isPrivate: Boolean!
 }
 
 type Query {
   account: Account!
-  locations: [Location!]!
-  location(id: String!): Location!
   priceLists: [PriceList!]!
   priceList(id: String!): PriceList!
+  locations: [Location!]!
+  location(id: String!): Location!
   providerQuery(
     input: JSONObject!
 
@@ -203,9 +196,9 @@ type ServiceProvider {
 }
 
 type Subscription {
+  pingSubscription: Int!
   actionSubscription(serviceID: ID, providerName: String): Action!
   vehicleSubscription(id: String!): Vehicle!
-  pingSubscription: Int!
 }
 
 input UpdateLocationInput {
@@ -221,19 +214,19 @@ input UpdateLocationInput {
 }
 
 input UpdatePriceInput {
-  code: String!
-  prices: [LocationPriceInput!]!
+  priceListID: ID!
+  prices: [PriceDataInput!]!
 }
 
 input UpdatePriceListInput {
   id: ID!
   name: String!
-  private: Boolean!
+  isPrivate: Boolean!
 }
 
 input UpdateVehicleDataInput {
   id: ID!
-  geoLocation: GeoLocationInput!
+  geoLocation: String!
 
   """battery level (%)"""
   batteryLevel: Int!
@@ -271,9 +264,7 @@ input UpdateVehicleInput {
   id: ID!
   name: String
   maximumLevel: Int
-  anxietyLevel: Int
-  tripSchedule: ScheduleInput
-  pausedUntil: DateTime
+  schedule: ScheduleInput
   locationSettings: [VehicleLocationSettingInput!]
   status: String
   serviceID: ID
@@ -344,7 +335,7 @@ input VehicleDebugInput {
 
 type VehicleLocationSetting {
   """location id"""
-  location: ID!
+  locationID: ID!
 
   """Minimum battery level to reach directly (%)"""
   directLevel: Int!
@@ -353,7 +344,7 @@ type VehicleLocationSetting {
 
 input VehicleLocationSettingInput {
   """location id"""
-  location: ID!
+  locationID: ID!
 
   """Minimum battery level to reach directly (%)"""
   directLevel: Int!

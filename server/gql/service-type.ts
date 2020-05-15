@@ -5,18 +5,30 @@
  * @license MIT (MIT)
  */
 
-import { Field, ObjectType, ID } from "type-graphql";
+import { ObjectType, ID, Root, Resolver, FieldResolver } from "type-graphql";
 import { GraphQLJSONObject } from "graphql-type-json";
 import "reflect-metadata";
+import { DBServiceProvider } from "@server/db-schema";
 
-@ObjectType()
-export abstract class ServiceProvider {
-  @Field(_type => ID)
-  ownerID!: string;
-  @Field()
-  providerName!: string;
-  @Field(_type => ID)
-  serviceID!: string;
-  @Field(_type => GraphQLJSONObject)
-  serviceData!: any;
+@ObjectType("ServiceProvider")
+export class ServiceProvider extends DBServiceProvider {}
+
+@Resolver(_of => ServiceProvider)
+export class ServiceProviderTypeResolver {
+  @FieldResolver(_returns => ID)
+  ownerID(@Root() serviceprovider: ServiceProvider): string {
+    return serviceprovider.account_uuid;
+  }
+  @FieldResolver(_returns => String)
+  providerName(@Root() serviceprovider: ServiceProvider): string {
+    return serviceprovider.provider_name;
+  }
+  @FieldResolver(_returns => ID)
+  serviceID(@Root() serviceprovider: ServiceProvider): string {
+    return serviceprovider.service_uuid;
+  }
+  @FieldResolver(_returns => GraphQLJSONObject)
+  serviceData(@Root() serviceprovider: ServiceProvider): any {
+    return serviceprovider.service_data;
+  }
 }

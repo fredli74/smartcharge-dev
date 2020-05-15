@@ -362,7 +362,7 @@ export default class VehicleVue extends Vue {
   get batteryColor() {
     return this.vehicle!.batteryLevel > this.vehicle!.maximumLevel
       ? "#9cef19"
-      : this.vehicle!.batteryLevel > 15 /* TODO  MINIMUM LEVEL */
+      : this.vehicle!.batteryLevel > 75 /* TODO  MINIMUM LEVEL */
       ? "#4cd853"
       : this.vehicle!.batteryLevel > 10
       ? "orange"

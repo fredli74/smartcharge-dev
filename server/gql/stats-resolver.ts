@@ -8,18 +8,17 @@
 import "reflect-metadata";
 import { Field, ObjectType, Int, ID } from "type-graphql";
 import { GraphQLJSONObject } from "graphql-type-json";
-import { LocationPrice } from "./location-type";
 import { ChargePlan } from "./vehicle-type";
 import { Arg, Resolver, Query, Ctx } from "type-graphql";
 import { IContext, accountFilter } from "./api";
-import { DBInterface } from "@server/db-interface";
 import { plainToClass } from "class-transformer";
+import { PriceData } from "./price-type";
 
 @ObjectType()
 export class ChartData {
   @Field(_type => ID)
   locationID!: string;
-  @Field()
+  @Field(_type => String)
   locationName!: string;
   @Field(_type => ID)
   vehicleID!: string;
@@ -31,8 +30,8 @@ export class ChartData {
   thresholdPrice!: number | null;
   @Field(_type => GraphQLJSONObject)
   chargeCurve!: any;
-  @Field(_type => LocationPrice)
-  prices!: LocationPrice[];
+  @Field(_type => PriceData)
+  prices!: PriceData[];
   @Field(_type => [ChargePlan], { nullable: true })
   chargePlan!: ChargePlan[] | null;
   @Field(_type => Int)
@@ -78,14 +77,19 @@ export class StatsResolver {
       thresholdPrice: null,
       levelChargeTime: null,
       chargeCurve: chargecurve,
-      prices: priceData.map(f => ({ startAt: f.ts, price: f.price })),
-      chargePlan: vehicle.charge_plan,
-      directLevel: DBInterface.DBVehicleToVehicleLocationSettings(
-        vehicle,
-        location.location_uuid
-      ).directLevel,
+      prices: priceData.map(f =>
+        plainToClass(PriceData, {
+          startAt: f.ts,
+          price: f.price
+        } as PriceData)
+      ),
+      chargePlan:
+        vehicle.charge_plan ||
+        (vehicle.charge_plan as ChargePlan[]).map(f =>
+          plainToClass(ChargePlan, f)
+        ),
       maximumLevel: vehicle.maximum_charge
-    });
+    } as ChartData);
 
     const stats = await context.logic.currentStats(vehicle_uuid, location_uuid);
     if (

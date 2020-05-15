@@ -5,29 +5,67 @@
  * @license MIT (MIT)
  */
 
-import { Field, ObjectType, InputType, ID } from "type-graphql";
-
 import "reflect-metadata";
+import {
+  Field,
+  ObjectType,
+  InputType,
+  ID,
+  FieldResolver,
+  Root,
+  Resolver,
+  Float
+} from "type-graphql";
+import { DBPriceList } from "@server/db-schema";
 
 @ObjectType("PriceList")
-@InputType("PriceListInput")
-export class PriceList {
-  @Field(_type => ID)
-  id!: string;
-  @Field(_type => ID)
-  ownerID!: string;
-  @Field()
-  name!: string;
-  @Field(_type => Boolean)
-  private!: boolean;
+export class PriceList extends DBPriceList {}
+
+@Resolver(_of => PriceList)
+export class PriceListTypeResolver {
+  @FieldResolver(_returns => ID)
+  id(@Root() pricelist: PriceList): string {
+    return pricelist.price_list_uuid;
+  }
+  @FieldResolver(_returns => ID)
+  ownerID(@Root() pricelist: PriceList): string {
+    return pricelist.account_uuid;
+  }
+  @FieldResolver(_returns => String)
+  name(@Root() pricelist: PriceList): string {
+    return pricelist.name;
+  }
+  @FieldResolver(_returns => Boolean)
+  isPrivate(@Root() pricelist: PriceList): boolean {
+    return pricelist.private_list;
+  }
 }
 
 @InputType()
 export class UpdatePriceListInput {
   @Field(_type => ID)
   id!: string;
-  @Field()
+  @Field(_type => String)
   name!: string;
   @Field(_type => Boolean)
-  private!: boolean;
+  isPrivate!: boolean;
+}
+
+@ObjectType("PriceData")
+@InputType("PriceDataInput")
+export class PriceData {
+  @Field(_type => Date, { description: `Price tariff start time` })
+  startAt!: Date;
+  @Field(_type => Float, {
+    description: `Price in currency per kWh (5 decimal precision)`
+  })
+  price!: number;
+}
+
+@InputType()
+export abstract class UpdatePriceInput {
+  @Field(_type => ID)
+  priceListID!: string;
+  @Field(_type => [PriceData])
+  prices!: PriceData[];
 }

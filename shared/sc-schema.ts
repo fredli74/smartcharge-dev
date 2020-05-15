@@ -14,10 +14,10 @@ import { GraphQLResolveInfo, GraphQLScalarType } from 'graphql';
  *******************************/
 export interface GQLQuery {
   account: GQLAccount;
-  locations: Array<GQLLocation>;
-  location: GQLLocation;
   priceLists: Array<GQLPriceList>;
   priceList: GQLPriceList;
+  locations: Array<GQLLocation>;
+  location: GQLLocation;
   providerQuery: GQLJSONObject;
   _serviceProviders: Array<GQLServiceProvider>;
   chartData: GQLChartData;
@@ -30,6 +30,13 @@ export interface GQLAccount {
   id: string;
   name: string;
   token: string;
+}
+
+export interface GQLPriceList {
+  id: string;
+  ownerID: string;
+  name: string;
+  isPrivate: boolean;
 }
 
 export interface GQLLocation {
@@ -57,13 +64,6 @@ export interface GQLGeoLocation {
  */
 export type GQLJSONObject = any;
 
-export interface GQLPriceList {
-  id: string;
-  ownerID: string;
-  name: string;
-  private: boolean;
-}
-
 export interface GQLServiceProvider {
   ownerID: string;
   providerName: string;
@@ -79,13 +79,13 @@ export interface GQLChartData {
   levelChargeTime?: number;
   thresholdPrice?: number;
   chargeCurve: GQLJSONObject;
-  prices: Array<GQLLocationPrice>;
+  prices: Array<GQLPriceData>;
   chargePlan?: Array<GQLChargePlan>;
   directLevel: number;
   maximumLevel: number;
 }
 
-export interface GQLLocationPrice {
+export interface GQLPriceData {
   
   /**
    * Price tariff start time
@@ -233,7 +233,7 @@ export interface GQLVehicleLocationSetting {
   /**
    * location id
    */
-  location: string;
+  locationID: string;
   
   /**
    * Minimum battery level to reach directly (%)
@@ -249,9 +249,9 @@ export interface GQLResolverTest {
 export interface GQLMutation {
   loginWithPassword: GQLAccount;
   loginWithIDToken: GQLAccount;
+  updatePriceList: GQLPriceList;
   updateLocation: GQLLocation;
   removeLocation: boolean;
-  updatePriceList: GQLPriceList;
   providerMutate: GQLJSONObject;
   performAction: GQLJSONObject;
   _updateVehicleData: boolean;
@@ -260,6 +260,12 @@ export interface GQLMutation {
   _updatePrice: boolean;
   removeVehicle: boolean;
   updateVehicle: GQLVehicle;
+}
+
+export interface GQLUpdatePriceListInput {
+  id: string;
+  name: string;
+  isPrivate: boolean;
 }
 
 export interface GQLUpdateLocationInput {
@@ -281,15 +287,9 @@ export interface GQLGeoLocationInput {
   longitude: number;
 }
 
-export interface GQLUpdatePriceListInput {
-  id: string;
-  name: string;
-  private: boolean;
-}
-
 export interface GQLUpdateVehicleDataInput {
   id: string;
-  geoLocation: GQLGeoLocationInput;
+  geoLocation: string;
   
   /**
    * battery level (%)
@@ -356,11 +356,11 @@ export interface GQLVehicleDebugInput {
 }
 
 export interface GQLUpdatePriceInput {
-  code: string;
-  prices: Array<GQLLocationPriceInput>;
+  priceListID: string;
+  prices: Array<GQLPriceDataInput>;
 }
 
-export interface GQLLocationPriceInput {
+export interface GQLPriceDataInput {
   
   /**
    * Price tariff start time
@@ -377,9 +377,7 @@ export interface GQLUpdateVehicleInput {
   id: string;
   name?: string;
   maximumLevel?: number;
-  anxietyLevel?: number;
-  tripSchedule?: GQLScheduleInput;
-  pausedUntil?: GQLDateTime;
+  schedule?: GQLScheduleInput;
   locationSettings?: Array<GQLVehicleLocationSettingInput>;
   status?: string;
   serviceID?: string;
@@ -401,7 +399,7 @@ export interface GQLVehicleLocationSettingInput {
   /**
    * location id
    */
-  location: string;
+  locationID: string;
   
   /**
    * Minimum battery level to reach directly (%)
@@ -411,9 +409,9 @@ export interface GQLVehicleLocationSettingInput {
 }
 
 export interface GQLSubscription {
+  pingSubscription: number;
   actionSubscription: GQLAction;
   vehicleSubscription: GQLVehicle;
-  pingSubscription: number;
 }
 
 export interface GQLAction {
@@ -422,13 +420,6 @@ export interface GQLAction {
   providerName: string;
   action: string;
   data: GQLJSONObject;
-}
-
-export interface GQLPriceListInput {
-  id: string;
-  ownerID: string;
-  name: string;
-  private: boolean;
 }
 
 /*********************************
@@ -444,13 +435,13 @@ export interface GQLPriceListInput {
 export interface GQLResolver {
   Query?: GQLQueryTypeResolver;
   Account?: GQLAccountTypeResolver;
+  PriceList?: GQLPriceListTypeResolver;
   Location?: GQLLocationTypeResolver;
   GeoLocation?: GQLGeoLocationTypeResolver;
   JSONObject?: GraphQLScalarType;
-  PriceList?: GQLPriceListTypeResolver;
   ServiceProvider?: GQLServiceProviderTypeResolver;
   ChartData?: GQLChartDataTypeResolver;
-  LocationPrice?: GQLLocationPriceTypeResolver;
+  PriceData?: GQLPriceDataTypeResolver;
   DateTime?: GraphQLScalarType;
   ChargePlan?: GQLChargePlanTypeResolver;
   Vehicle?: GQLVehicleTypeResolver;
@@ -463,10 +454,10 @@ export interface GQLResolver {
 }
 export interface GQLQueryTypeResolver<TParent = undefined> {
   account?: QueryToAccountResolver<TParent>;
-  locations?: QueryToLocationsResolver<TParent>;
-  location?: QueryToLocationResolver<TParent>;
   priceLists?: QueryToPriceListsResolver<TParent>;
   priceList?: QueryToPriceListResolver<TParent>;
+  locations?: QueryToLocationsResolver<TParent>;
+  location?: QueryToLocationResolver<TParent>;
   providerQuery?: QueryToProviderQueryResolver<TParent>;
   _serviceProviders?: QueryTo_serviceProvidersResolver<TParent>;
   chartData?: QueryToChartDataResolver<TParent>;
@@ -479,17 +470,6 @@ export interface QueryToAccountResolver<TParent = undefined, TResult = GQLAccoun
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface QueryToLocationsResolver<TParent = undefined, TResult = Array<GQLLocation>> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface QueryToLocationArgs {
-  id: string;
-}
-export interface QueryToLocationResolver<TParent = undefined, TResult = GQLLocation> {
-  (parent: TParent, args: QueryToLocationArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
 export interface QueryToPriceListsResolver<TParent = undefined, TResult = Array<GQLPriceList>> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
@@ -499,6 +479,17 @@ export interface QueryToPriceListArgs {
 }
 export interface QueryToPriceListResolver<TParent = undefined, TResult = GQLPriceList> {
   (parent: TParent, args: QueryToPriceListArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface QueryToLocationsResolver<TParent = undefined, TResult = Array<GQLLocation>> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface QueryToLocationArgs {
+  id: string;
+}
+export interface QueryToLocationResolver<TParent = undefined, TResult = GQLLocation> {
+  (parent: TParent, args: QueryToLocationArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
 export interface QueryToProviderQueryArgs {
@@ -557,6 +548,29 @@ export interface AccountToTokenResolver<TParent = GQLAccount, TResult = string> 
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
+export interface GQLPriceListTypeResolver<TParent = GQLPriceList> {
+  id?: PriceListToIdResolver<TParent>;
+  ownerID?: PriceListToOwnerIDResolver<TParent>;
+  name?: PriceListToNameResolver<TParent>;
+  isPrivate?: PriceListToIsPrivateResolver<TParent>;
+}
+
+export interface PriceListToIdResolver<TParent = GQLPriceList, TResult = string> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface PriceListToOwnerIDResolver<TParent = GQLPriceList, TResult = string> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface PriceListToNameResolver<TParent = GQLPriceList, TResult = string> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface PriceListToIsPrivateResolver<TParent = GQLPriceList, TResult = boolean> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
 export interface GQLLocationTypeResolver<TParent = GQLLocation> {
   id?: LocationToIdResolver<TParent>;
   ownerID?: LocationToOwnerIDResolver<TParent>;
@@ -610,29 +624,6 @@ export interface GeoLocationToLatitudeResolver<TParent = GQLGeoLocation, TResult
 }
 
 export interface GeoLocationToLongitudeResolver<TParent = GQLGeoLocation, TResult = number> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface GQLPriceListTypeResolver<TParent = GQLPriceList> {
-  id?: PriceListToIdResolver<TParent>;
-  ownerID?: PriceListToOwnerIDResolver<TParent>;
-  name?: PriceListToNameResolver<TParent>;
-  private?: PriceListToPrivateResolver<TParent>;
-}
-
-export interface PriceListToIdResolver<TParent = GQLPriceList, TResult = string> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface PriceListToOwnerIDResolver<TParent = GQLPriceList, TResult = string> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface PriceListToNameResolver<TParent = GQLPriceList, TResult = string> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface PriceListToPrivateResolver<TParent = GQLPriceList, TResult = boolean> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
@@ -701,7 +692,7 @@ export interface ChartDataToChargeCurveResolver<TParent = GQLChartData, TResult 
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface ChartDataToPricesResolver<TParent = GQLChartData, TResult = Array<GQLLocationPrice>> {
+export interface ChartDataToPricesResolver<TParent = GQLChartData, TResult = Array<GQLPriceData>> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
@@ -717,16 +708,16 @@ export interface ChartDataToMaximumLevelResolver<TParent = GQLChartData, TResult
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface GQLLocationPriceTypeResolver<TParent = GQLLocationPrice> {
-  startAt?: LocationPriceToStartAtResolver<TParent>;
-  price?: LocationPriceToPriceResolver<TParent>;
+export interface GQLPriceDataTypeResolver<TParent = GQLPriceData> {
+  startAt?: PriceDataToStartAtResolver<TParent>;
+  price?: PriceDataToPriceResolver<TParent>;
 }
 
-export interface LocationPriceToStartAtResolver<TParent = GQLLocationPrice, TResult = GQLDateTime> {
+export interface PriceDataToStartAtResolver<TParent = GQLPriceData, TResult = GQLDateTime> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface LocationPriceToPriceResolver<TParent = GQLLocationPrice, TResult = number> {
+export interface PriceDataToPriceResolver<TParent = GQLPriceData, TResult = number> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
@@ -900,12 +891,12 @@ export interface ScheduleToTimeResolver<TParent = GQLSchedule, TResult = GQLDate
 }
 
 export interface GQLVehicleLocationSettingTypeResolver<TParent = GQLVehicleLocationSetting> {
-  location?: VehicleLocationSettingToLocationResolver<TParent>;
+  locationID?: VehicleLocationSettingToLocationIDResolver<TParent>;
   directLevel?: VehicleLocationSettingToDirectLevelResolver<TParent>;
   goal?: VehicleLocationSettingToGoalResolver<TParent>;
 }
 
-export interface VehicleLocationSettingToLocationResolver<TParent = GQLVehicleLocationSetting, TResult = string> {
+export interface VehicleLocationSettingToLocationIDResolver<TParent = GQLVehicleLocationSetting, TResult = string> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
@@ -928,9 +919,9 @@ export interface ResolverTestToIsFieldResolverWorkingResolver<TParent = GQLResol
 export interface GQLMutationTypeResolver<TParent = undefined> {
   loginWithPassword?: MutationToLoginWithPasswordResolver<TParent>;
   loginWithIDToken?: MutationToLoginWithIDTokenResolver<TParent>;
+  updatePriceList?: MutationToUpdatePriceListResolver<TParent>;
   updateLocation?: MutationToUpdateLocationResolver<TParent>;
   removeLocation?: MutationToRemoveLocationResolver<TParent>;
-  updatePriceList?: MutationToUpdatePriceListResolver<TParent>;
   providerMutate?: MutationToProviderMutateResolver<TParent>;
   performAction?: MutationToPerformActionResolver<TParent>;
   _updateVehicleData?: MutationTo_updateVehicleDataResolver<TParent>;
@@ -955,6 +946,13 @@ export interface MutationToLoginWithIDTokenResolver<TParent = undefined, TResult
   (parent: TParent, args: MutationToLoginWithIDTokenArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
+export interface MutationToUpdatePriceListArgs {
+  input: GQLUpdatePriceListInput;
+}
+export interface MutationToUpdatePriceListResolver<TParent = undefined, TResult = GQLPriceList> {
+  (parent: TParent, args: MutationToUpdatePriceListArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
 export interface MutationToUpdateLocationArgs {
   input: GQLUpdateLocationInput;
 }
@@ -968,13 +966,6 @@ export interface MutationToRemoveLocationArgs {
 }
 export interface MutationToRemoveLocationResolver<TParent = undefined, TResult = boolean> {
   (parent: TParent, args: MutationToRemoveLocationArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface MutationToUpdatePriceListArgs {
-  input: GQLUpdatePriceListInput;
-}
-export interface MutationToUpdatePriceListResolver<TParent = undefined, TResult = GQLPriceList> {
-  (parent: TParent, args: MutationToUpdatePriceListArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
 export interface MutationToProviderMutateArgs {
@@ -1042,9 +1033,14 @@ export interface MutationToUpdateVehicleResolver<TParent = undefined, TResult = 
 }
 
 export interface GQLSubscriptionTypeResolver<TParent = undefined> {
+  pingSubscription?: SubscriptionToPingSubscriptionResolver<TParent>;
   actionSubscription?: SubscriptionToActionSubscriptionResolver<TParent>;
   vehicleSubscription?: SubscriptionToVehicleSubscriptionResolver<TParent>;
-  pingSubscription?: SubscriptionToPingSubscriptionResolver<TParent>;
+}
+
+export interface SubscriptionToPingSubscriptionResolver<TParent = undefined, TResult = number> {
+  resolve?: (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo) => TResult | Promise<TResult>;
+  subscribe: (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo) => AsyncIterator<TResult> | Promise<AsyncIterator<TResult>>;
 }
 
 export interface SubscriptionToActionSubscriptionArgs {
@@ -1062,11 +1058,6 @@ export interface SubscriptionToVehicleSubscriptionArgs {
 export interface SubscriptionToVehicleSubscriptionResolver<TParent = undefined, TResult = GQLVehicle> {
   resolve?: (parent: TParent, args: SubscriptionToVehicleSubscriptionArgs, context: any, info: GraphQLResolveInfo) => TResult | Promise<TResult>;
   subscribe: (parent: TParent, args: SubscriptionToVehicleSubscriptionArgs, context: any, info: GraphQLResolveInfo) => AsyncIterator<TResult> | Promise<AsyncIterator<TResult>>;
-}
-
-export interface SubscriptionToPingSubscriptionResolver<TParent = undefined, TResult = number> {
-  resolve?: (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo) => TResult | Promise<TResult>;
-  subscribe: (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo) => AsyncIterator<TResult> | Promise<AsyncIterator<TResult>>;
 }
 
 export interface GQLActionTypeResolver<TParent = GQLAction> {

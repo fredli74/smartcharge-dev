@@ -7,17 +7,18 @@
 
 import { Resolver, Query, Ctx, Arg, Mutation } from "type-graphql";
 import { IContext, accountFilter } from "@server/gql/api";
-import { DBInterface } from "@server/db-interface";
 import { PriceList, UpdatePriceListInput } from "./price-type";
+import { plainToClass } from "class-transformer";
+import { ApolloError } from "apollo-server-core";
 
 @Resolver()
 export class PriceResolver {
   @Query(_returns => [PriceList])
   async priceLists(@Ctx() context: IContext): Promise<PriceList[]> {
-    const dblist = await context.db.getPriceLists(
-      accountFilter(context.accountUUID)
+    return plainToClass(
+      PriceList,
+      await context.db.getPriceLists(accountFilter(context.accountUUID))
     );
-    return dblist.map(DBInterface.DBPriceListToPriceList);
   }
 
   @Query(_returns => PriceList)
@@ -25,7 +26,8 @@ export class PriceResolver {
     @Arg("id") id: string,
     @Ctx() context: IContext
   ): Promise<PriceList> {
-    return DBInterface.DBPriceListToPriceList(
+    return plainToClass(
+      PriceList,
       await context.db.getPriceList(accountFilter(context.accountUUID), id)
     );
   }
@@ -36,9 +38,18 @@ export class PriceResolver {
     @Ctx() context: IContext
   ): Promise<PriceList> {
     // verify PriceList ownage
-    await context.db.getPriceList(accountFilter(context.accountUUID), input.id);
-    return DBInterface.DBPriceListToPriceList(
-      await context.db.updatePriceList(input.id, input.name, input.private)
+    const accountID = accountFilter(context.accountUUID);
+    const list = await context.db.getPriceList(accountID, input.id);
+    if (accountID === undefined || list.account_uuid === accountID) {
+      // Because we can list public lists, but no edit them
+      throw new ApolloError("Update access denied");
+    }
+    return plainToClass(
+      PriceList,
+      await context.db.updatePriceList(input.id, {
+        name: input.name,
+        private_list: input.isPrivate
+      })
     );
   }
 }

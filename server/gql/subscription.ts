@@ -6,6 +6,7 @@
  */
 
 import { PubSub } from "graphql-subscriptions";
+import { Resolver, Subscription, Root, Int } from "type-graphql";
 
 export enum SubscriptionTopic {
   ActionUpdate = "ACTION_UPDATE",
@@ -14,3 +15,19 @@ export enum SubscriptionTopic {
 }
 
 export const apolloPubSub = new PubSub();
+
+@Resolver()
+export class PingResolver {
+  @Subscription(_returns => Int, {
+    subscribe: () => {
+      return apolloPubSub.asyncIterator(SubscriptionTopic.Ping);
+    }
+  })
+  async pingSubscription(@Root() payload: number): Promise<number> {
+    return payload;
+  }
+}
+
+setInterval(() => {
+  apolloPubSub.publish(SubscriptionTopic.Ping, Math.trunc(Date.now() / 1e3));
+}, 30e3);
