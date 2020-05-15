@@ -1,3 +1,10 @@
+/**
+ * @file Shared server and client types for smartcharge.dev project
+ * @author Fredrik Lidström
+ * @copyright 2020 Fredrik Lidström
+ * @license MIT (MIT)
+ */
+
 export enum SmartChargeGoal {
   Low = "low",
   Balanced = "balanced",

@@ -1,7 +1,7 @@
 /**
  * @file Very simple http/https JSON REST client
  * @author Fredrik Lidström
- * @copyright 2019 Fredrik Lidström
+ * @copyright 2020 Fredrik Lidström
  * @license MIT-0 (MIT No Attribution)
  */
 

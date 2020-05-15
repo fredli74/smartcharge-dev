@@ -3,9 +3,10 @@
 /**
  * @file Server coordinator for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2019 Fredrik Lidström
+ * @copyright 2020 Fredrik Lidström
  * @license MIT (MIT)
  */
+
 import "./env";
 import { strict as assert } from "assert";
 

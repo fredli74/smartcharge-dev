@@ -1,7 +1,7 @@
 /**
  * @file Server Logic for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2019 Fredrik Lidström
+ * @copyright 2020 Fredrik Lidström
  * @license MIT (MIT)
  */
 
@@ -967,6 +967,7 @@ export class Logic {
       : [];
 
     // Check charge calibration
+    // TODO: remake charge calibration, use stats if found, and vehicle reported estimate if not
     const maxLevel = (
       await this.db.pg.one(
         `SELECT MAX(level) as max_level FROM charge a JOIN charge_curve b ON(a.charge_id = b.charge_id)
