@@ -1,7 +1,4 @@
 {
-  "PROJECT_NAME": "SmartCharge",
-  "PROJECT_VERSION": "1.0",
-  "PROJECT_AGENT": "${SmartCharge}/${1.0} (+...)",
   "API_PATH": "/api/gql",
   "DEFAULT_PORT": 3000
 }
