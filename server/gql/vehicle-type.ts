@@ -277,10 +277,10 @@ export abstract class UpdateVehicleInput {
   name?: string;
   @Field(_type => Int, { nullable: true })
   maximumLevel?: number;
-  @Field(_type => Schedule, { nullable: true })
-  schedule?: Schedule | null;
+  @Field(_type => [Schedule], { nullable: true })
+  schedule?: Schedule[];
   @Field(_type => [VehicleLocationSettings], { nullable: true })
-  locationSettings?: VehicleLocationSettings[] | null;
+  locationSettings?: VehicleLocationSettings[];
   @Field(_type => String, { nullable: true })
   status?: string;
   @Field(_type => ID, { nullable: true })
@@ -295,7 +295,7 @@ registerEnumType(ChargeConnection, { name: "ChargeConnection" });
 export abstract class UpdateVehicleDataInput {
   @Field(_type => ID)
   id!: string;
-  @Field(_type => String)
+  @Field(_type => GeoLocation)
   geoLocation!: GeoLocation;
   @Field(_type => Int, { description: `battery level (%)` })
   batteryLevel!: number;

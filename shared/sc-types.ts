@@ -14,6 +14,7 @@ export enum SmartChargeGoal {
 export enum ChargeType {
   Calibrate = "calibrate",
   Minimum = "minimum",
+  Manual = "manual",
   Trip = "trip",
   Routine = "routine",
   Prefered = "prefered",

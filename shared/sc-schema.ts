@@ -122,6 +122,7 @@ export interface GQLChargePlan {
 export enum GQLChargeType {
   Calibrate = 'Calibrate',
   Minimum = 'Minimum',
+  Manual = 'Manual',
   Trip = 'Trip',
   Routine = 'Routine',
   Prefered = 'Prefered',
@@ -289,7 +290,7 @@ export interface GQLGeoLocationInput {
 
 export interface GQLUpdateVehicleDataInput {
   id: string;
-  geoLocation: string;
+  geoLocation: GQLGeoLocationInput;
   
   /**
    * battery level (%)
@@ -377,7 +378,7 @@ export interface GQLUpdateVehicleInput {
   id: string;
   name?: string;
   maximumLevel?: number;
-  schedule?: GQLScheduleInput;
+  schedule?: Array<GQLScheduleInput>;
   locationSettings?: Array<GQLVehicleLocationSettingInput>;
   status?: string;
   serviceID?: string;

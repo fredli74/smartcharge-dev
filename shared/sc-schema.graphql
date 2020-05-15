@@ -37,6 +37,7 @@ type ChargePlan {
 enum ChargeType {
   Calibrate
   Minimum
+  Manual
   Trip
   Routine
   Prefered
@@ -226,7 +227,7 @@ input UpdatePriceListInput {
 
 input UpdateVehicleDataInput {
   id: ID!
-  geoLocation: String!
+  geoLocation: GeoLocationInput!
 
   """battery level (%)"""
   batteryLevel: Int!
@@ -264,7 +265,7 @@ input UpdateVehicleInput {
   id: ID!
   name: String
   maximumLevel: Int
-  schedule: ScheduleInput
+  schedule: [ScheduleInput!]
   locationSettings: [VehicleLocationSettingInput!]
   status: String
   serviceID: ID

@@ -141,7 +141,7 @@ import { RawLocation } from "vue-router";
 import moment from "moment";
 import config from "@shared/smartcharge-config";
 import { makePublicID } from "@shared/utils";
-import { GQLVehicle, GQLLocation } from "@shared/sc-schema";
+import { GQLVehicle, GQLLocation, GQLSchduleType } from "@shared/sc-schema";
 
 const vehicleFragment = `id ownerID name maximumLevel tripSchedule { level time } pausedUntil geoLocation { latitude longitude } location locationSettings { location directLevel goal } batteryLevel outsideTemperature insideTemperature climateControl isDriving isConnected chargePlan { chargeStart chargeStop level chargeType comment } chargingTo estimatedTimeLeft status smartStatus updated serviceID providerData`;
 
@@ -241,18 +241,12 @@ export default class VehicleVue extends Vue {
     this.$apollo.queries.vehicle.skip = false;
 
     this.timer = setInterval(() => {
-      if (this.vehicle && this.vehicle.pausedUntil) {
-        const when = new Date(this.vehicle.pausedUntil).getTime();
-        const now = Date.now();
-        if (when <= now) {
-          this.vehicle.pausedUntil = undefined;
-        }
-      }
-      if (this.vehicle && this.vehicle.tripSchedule) {
-        const when = new Date(this.vehicle.tripSchedule.time).getTime();
-        const now = Date.now();
-        if (when + 3600e3 <= now) {
-          this.vehicle.tripSchedule = undefined;
+      const now = Date.now();
+      if (this.vehicle) {
+        for (const s of this.vehicle.schedule) {
+          if (s.time.getTime() <= now) {
+            this.vehicle.schedule.splice(this.vehicle.schedule.indexOf(s), 1);
+          }
         }
       }
       this.updateFreshness(this.vehicle);
@@ -305,6 +299,7 @@ export default class VehicleVue extends Vue {
   }
   get addLocationURL(): RawLocation {
     assert(this.vehicle !== undefined);
+    assert(this.vehicle.geoLocation !== undefined);
     return {
       path: "/add/location",
       query: {
@@ -325,11 +320,11 @@ export default class VehicleVue extends Vue {
     }
 
     if (val.location && this.locations) {
-      this.location = this.locations.find(f => f.id === val.location);
+      this.location = this.locations.find(f => f.id === val.locationID);
       assert(this.location !== undefined);
 
       suffix = `${val.isDriving ? "near" : "@"} ${this.location!.name}`;
-    } else {
+    } else if (val.geoLocation) {
       this.location = undefined;
       // Find closest location
       if (this.locations && this.locations.length > 0) {
@@ -379,11 +374,12 @@ export default class VehicleVue extends Vue {
   }
 
   get pauseText() {
-    return (
+    const pause =
       this.vehicle &&
-      this.vehicle.pausedUntil &&
-      moment(this.vehicle.pausedUntil).format("YYYY-MM-DD HH:mm")
-    );
+      this.vehicle.schedule.find(
+        f => f.type === GQLSchduleType.Pause && f.time.getTime() > Date.now()
+      );
+    return pause && moment(pause.time).format("YYYY-MM-DD HH:mm");
   }
 
   replaceISOtime(s: string): string {

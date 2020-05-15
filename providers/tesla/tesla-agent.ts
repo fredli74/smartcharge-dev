@@ -31,7 +31,9 @@ import {
   GQLChargeConnection,
   GQLChargePlan,
   GQLChargeType,
-  GQLAction
+  GQLAction,
+  GQLSchedule,
+  GQLSchduleType
 } from "@shared/sc-schema";
 
 type PollState = "polling" | "tired" | "offline" | "asleep";
@@ -615,12 +617,28 @@ export class TeslaAgent extends AbstractAgent {
       console.log(JSON.stringify(subject));*/
       log(LogLevel.Trace, `${subject.teslaID} ${JSON.stringify(subject)}`);
 
+      debugger;
+      // Reduce the array to a map with only the first upcoming event of each type
+      const scheduleMap = subject.data.schedule
+        .sort((a, b) => a.time.getTime() - b.time.getTime())
+        .reduce((map, obj) => {
+          if (map[obj.type] === undefined) map[obj.type] = obj;
+          return map;
+        }, {} as Record<string, GQLSchedule>);
+      console.debug(scheduleMap);
+
+      const paused =
+        scheduleMap[GQLSchduleType.Pause] &&
+        scheduleMap[GQLSchduleType.Pause].time.getTime();
+      const trip =
+        scheduleMap[GQLSchduleType.Trip] &&
+        scheduleMap[GQLSchduleType.Trip].time.getTime();
+
       // Command logic
       assert(subject.data !== undefined);
       if (
-        (!subject.data.pausedUntil ||
-          now >= subject.data.pausedUntil.getTime()) && // Only controll if not paused
-        subject.data.location !== null
+        !(paused && now < paused) && // Only controll if not paused
+        subject.data.locationID !== null
       ) {
         // Only controll if at a known charging location
 
@@ -731,6 +749,7 @@ export class TeslaAgent extends AbstractAgent {
           subject.data.chargePlan.findIndex(
             f =>
               f.chargeType !== GQLChargeType.Fill &&
+              f.chargeType !== GQLChargeType.Manual &&
               f.chargeType !== GQLChargeType.Prefered
           ) >= 0
         ) {
@@ -764,17 +783,13 @@ export class TeslaAgent extends AbstractAgent {
 
         // Should we turn on hvac?
         if (
+          trip &&
           subject.data.providerData &&
-          subject.data.providerData.auto_hvac &&
-          subject.data.tripSchedule
+          subject.data.providerData.auto_hvac
         ) {
           const on =
-            now >
-              subject.data.tripSchedule.time.getTime() -
-                config.TRIP_HVAC_ON_WINDOW &&
-            now <
-              subject.data.tripSchedule.time.getTime() +
-                config.TRIP_HVAC_ON_DURATION;
+            now > trip - config.TRIP_HVAC_ON_WINDOW &&
+            now < trip + config.TRIP_HVAC_ON_DURATION;
 
           if (on) {
             if (subject.data.climateControl) {

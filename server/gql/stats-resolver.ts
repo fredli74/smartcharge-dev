@@ -64,10 +64,6 @@ export class StatsResolver {
     );
 
     const priceData = await context.db.getChartPriceData(location_uuid, 48);
-    debugger; // check chartdata, it had a
-    //chargePlan:
-    //        (vehicle.charge_plan && vehicle.charge_plan.map(ChargePlanToJS)) ||
-    //        null,
 
     const chartData: ChartData = plainToClass(ChartData, {
       locationID: location.location_uuid,
@@ -84,10 +80,11 @@ export class StatsResolver {
         } as PriceData)
       ),
       chargePlan:
-        vehicle.charge_plan ||
-        (vehicle.charge_plan as ChargePlan[]).map(f =>
-          plainToClass(ChargePlan, f)
-        ),
+        (vehicle.charge_plan &&
+          (vehicle.charge_plan as ChargePlan[]).map(f =>
+            plainToClass(ChargePlan, f)
+          )) ||
+        null,
       maximumLevel: vehicle.maximum_charge
     } as ChartData);
 

@@ -1,6 +1,5 @@
 import { IContext, accountFilter } from "@server/gql/api";
 import provider, {
-  TeslaServiceData,
   TeslaProviderMutates,
   TeslaProviderQueries,
   TeslaProviderData
@@ -107,38 +106,30 @@ const server: IProviderServer = {
         }
 
         const vehicles = [];
-        const serviceList = (await context.db.getServiceProviders(
+        const serviceList = await context.db.getServiceProviders(
           accountFilter(context.accountUUID),
           data.service_uuid,
           [provider.name]
-        )) as {
-          ownerID: string;
-          providerName: string;
-          serviceID: string;
-          serviceData: TeslaServiceData;
-        }[];
-
-        const controlled = (await context.db.getVehicles(
-          accountFilter(context.accountUUID)
-        )).reduce(
-          (a, v) => {
-            const provider_data = v.provider_data as TeslaProviderData;
-            if (
-              provider_data &&
-              provider_data.provider === "tesla" &&
-              provider_data.vin
-            ) {
-              a[provider_data.vin] = v;
-            }
-            return a;
-          },
-          {} as any
         );
+
+        const controlled = (
+          await context.db.getVehicles(accountFilter(context.accountUUID))
+        ).reduce((a, v) => {
+          const provider_data = v.provider_data as TeslaProviderData;
+          if (
+            provider_data &&
+            provider_data.provider === "tesla" &&
+            provider_data.vin
+          ) {
+            a[provider_data.vin] = v;
+          }
+          return a;
+        }, {} as any);
         const mapped: any = {};
 
         for (const s of serviceList) {
-          if (!s.serviceData.invalid_token && s.serviceData.token) {
-            const token = await maintainToken(context.db, s.serviceData.token);
+          if (!s.service_data.invalid_token && s.service_data.token) {
+            const token = await maintainToken(context.db, s.service_data.token);
             try {
               const list: any[] = (await teslaAPI.listVehicle(undefined, token))
                 .response;
@@ -149,7 +140,7 @@ const server: IProviderServer = {
                 const vin = l.vin;
                 const vehicle = controlled[vin];
                 if (vehicle) {
-                  mapped[vin] = mapped[vin] || s.serviceID;
+                  mapped[vin] = mapped[vin] || s.service_uuid;
                   l.service_uuid = mapped[vin];
                   l.vehicle_uuid = vehicle.vehicle_uuid;
 
@@ -162,9 +153,7 @@ const server: IProviderServer = {
                     );
                     log(
                       LogLevel.Info,
-                      `Set service_uuid on ${teslaID}:${
-                        vehicle.vehicle_uuid
-                      } to ${vehicle.service_uuid}`
+                      `Set service_uuid on ${teslaID}:${vehicle.vehicle_uuid} to ${vehicle.service_uuid}`
                     );
                   }
                 }
@@ -211,7 +200,6 @@ const server: IProviderServer = {
           vehicle = await context.db.newVehicle(
             context.accountUUID,
             input.name,
-            config.DEFAULT_MINIMUM_LEVEL,
             config.DEFAULT_MAXIMUM_LEVEL,
             input.service_uuid,
             { provider: "tesla", vin: input.vin } as TeslaProviderData

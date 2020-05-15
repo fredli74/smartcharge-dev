@@ -104,7 +104,7 @@ export abstract class DBVehicle {
   service_uuid!: string | null; // provider uuid
   name!: string; // name of vehicle
   maximum_charge!: number; // maximum normal (non trip) charge
-  schedule!: PlainObject; // schedule
+  schedule!: PlainObject[]; // schedule
   provider_data!: PlainObject; // provider custom data
   location_micro_latitude!: number | null; // 6 decimal precision converted to integer
   location_micro_longitude!: number | null; // 6 decimal precision converted to integer

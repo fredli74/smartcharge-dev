@@ -1,7 +1,7 @@
-import provider, { NordpoolProviderData } from "./index";
+import provider from "./index";
 import { IContext } from "@server/gql/api";
 import { IProviderServer } from "@providers/provider-server";
-import { GeoLocation } from "@server/gql/location-type";
+import { DEFAULT_LOCATION_RADIUS } from "@shared/smartcharge-defines";
 
 const server: IProviderServer = {
   ...provider,
@@ -23,13 +23,14 @@ const server: IProviderServer = {
         return context.db.newLocation(
           context.accountUUID,
           data.name,
-          { latitude: data.latitude, longitude: data.longitude } as GeoLocation,
-          250,
-          data.price_code,
-          {
+          data.latitude * 1e6,
+          data.longitude * 1e6,
+          DEFAULT_LOCATION_RADIUS,
+          data.price_code
+          /*{
             provider: "nordpool",
             ...data.provider_data
-          } as NordpoolProviderData
+          } as NordpoolProviderData*/
         );
       }
       default:

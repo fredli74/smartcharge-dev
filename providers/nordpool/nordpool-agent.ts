@@ -7,7 +7,7 @@
  */
 
 import { SCClient } from "@shared/sc-client";
-import { log, LogLevel } from "@shared/utils";
+//import { log, LogLevel } from "@shared/utils";
 import {
   AgentJob,
   AbstractAgent,
@@ -18,7 +18,7 @@ import provider, { NordpoolServiceData } from ".";
 import config from "./nordpool-config";
 import nordpoolAPI from "./nordpool-api";
 import { DateTime } from "luxon";
-import { GQLLocationPrice, GQLUpdatePriceInput } from "@shared/sc-schema";
+import { GQLPriceDataInput } from "@shared/sc-schema";
 
 interface NordpoolAgentJob extends AgentJob {
   serviceData: NordpoolServiceData;
@@ -39,7 +39,7 @@ export class NordpoolAgent extends AbstractAgent {
     const now = Date.now();
     const res = await nordpoolAPI.getPrices(config.PAGE, config.CURRENCY);
 
-    const areas: { [area: string]: GQLLocationPrice[] } = {};
+    const areas: { [area: string]: GQLPriceDataInput[] } = {};
     // remap table
     for (const row of res.data.Rows) {
       if (row.IsExtraRow) continue;
@@ -60,8 +60,12 @@ export class NordpoolAgent extends AbstractAgent {
       }
     }
 
+    debugger;
+    console.debug(areas);
+    /*
     for (const [area, prices] of Object.entries(areas)) {
       const update: GQLUpdatePriceInput = {
+        priceListID
         code: `${this.name}.${area}`.toLowerCase(),
         prices
       };
@@ -71,7 +75,7 @@ export class NordpoolAgent extends AbstractAgent {
       );
       await this.scClient.updatePrice(update);
     }
-
+*/
     const nextUpdate = (Math.floor(now / 3600e3) + 1) * 3600e3 + 120e3;
     job.interval = Math.max(60, (nextUpdate - now) / 1e3);
   }

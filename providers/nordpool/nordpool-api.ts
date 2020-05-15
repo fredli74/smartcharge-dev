@@ -8,9 +8,9 @@
 import { strict as assert } from "assert";
 
 import { RestClient, RestToken } from "@shared/restclient";
-import { PROJECT_AGENT } from "@shared/smartcharge-globals.json";
 import config from "./nordpool-config";
 import provider from ".";
+import { PROJECT_AGENT } from "@shared/smartcharge-defines";
 
 export class NordpoolAPI extends RestClient {
   public async getHomes(token: RestToken) {
