@@ -38,13 +38,12 @@
                     absolute
                     right
                     fab
-                    dark
                     small
                     color="warning"
                     :href="vehiclePictureReportURL"
                     target="_blank"
                     v-on="on"
-                    ><v-icon dark>mdi-bug</v-icon></v-btn
+                    ><v-icon>mdi-bug-outline</v-icon></v-btn
                   >
                 </template>
                 <span>Report incorrect image</span>
@@ -143,7 +142,7 @@ import config from "@shared/smartcharge-config";
 import { makePublicID } from "@shared/utils";
 import { GQLVehicle, GQLLocation, GQLSchduleType } from "@shared/sc-schema";
 
-const vehicleFragment = `id ownerID name maximumLevel tripSchedule { level time } pausedUntil geoLocation { latitude longitude } location locationSettings { location directLevel goal } batteryLevel outsideTemperature insideTemperature climateControl isDriving isConnected chargePlan { chargeStart chargeStop level chargeType comment } chargingTo estimatedTimeLeft status smartStatus updated serviceID providerData`;
+const vehicleFragment = `id ownerID serviceID name maximumLevel schedule { type level time } providerData geoLocation { latitude longitude } locationID locationSettings { locationID directLevel goal } batteryLevel outsideTemperature insideTemperature climateControl isConnected chargingTo estimatedTimeLeft isDriving status smartStatus chargePlan { chargeType chargeStart chargeStop level comment }  updated`;
 
 @Component({
   components: { VehicleActions, RelativeTime, ChargeChart },
@@ -436,9 +435,7 @@ export default class VehicleVue extends Vue {
 .v-btn--outlined {
   border-color: #909090;
 }
-#vehicle-actions > button {
-  margin-left: 14px;
-}
+
 #vehicle-picture {
   pointer-events: none;
   margin: -10% 0;

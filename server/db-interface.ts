@@ -312,6 +312,7 @@ export class DBInterface {
   public static DefaultVehicleLocationSettings(
     location_uuid: string
   ): VehicleLocationSettings {
+    // NOTICE: There is a mirrored function for client side in edit-vehicle.vue
     return {
       locationID: location_uuid,
       directLevel: DEFAULT_DIRECTLEVEL,

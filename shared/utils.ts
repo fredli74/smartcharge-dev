@@ -201,3 +201,35 @@ import md5 from "md5";
 export function makePublicID(id: string, len?: number): string {
   return md5("public+" + id).substr(0, len || 8);
 }
+
+// Functions for comparing start and stop times that can be a Date or null
+export function numericStartTime(a: Date | null) {
+  return (a && a.getTime()) || -Infinity;
+}
+export function numericStopTime(n: Date | null) {
+  return (n && n.getTime()) || Infinity;
+}
+export function compareStartTimes(a: Date | null, b: Date | null): number {
+  return numericStartTime(a) - numericStartTime(b);
+}
+export function compareStopTimes(a: Date | null, b: Date | null): number {
+  return numericStopTime(b) - numericStopTime(a);
+}
+export function compareStartStopTimes(
+  a_start: Date | null,
+  a_stop: Date | null,
+  b_start: Date | null,
+  b_stop: Date | null
+): number {
+  return (
+    compareStartTimes(a_start, b_start) || compareStopTimes(a_stop, b_stop)
+  );
+}
+
+export async function asyncFilter<T>(
+  array: Array<T>,
+  callbackfn: (value: T, index: number, array: T[]) => unknown
+): Promise<T[]> {
+  const results = await Promise.all(array.map(callbackfn));
+  return array.filter((_v, index) => results[index]);
+}

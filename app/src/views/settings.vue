@@ -86,6 +86,7 @@ import { GQLVehicle, GQLLocation } from "@shared/sc-schema";
         query GetLocations {
           locations {
             id
+            ownerID
             name
             geoLocation {
               latitude
@@ -110,7 +111,7 @@ import { GQLVehicle, GQLLocation } from "@shared/sc-schema";
             name
             maximumLevel
             locationSettings {
-              location
+              locationID
               directLevel
               goal
             }

@@ -177,7 +177,14 @@ export class SCClient extends ApolloClient<any> {
     longitude
   }
   geoFenceRadius
-  providerData`;
+  serviceID
+  providerData
+  priceList {
+    id
+    ownerID
+    name
+    isPrivate
+  }`;
 
   public async getLocation(locationUUID: string): Promise<GQLLocation> {
     // TODO: should be more flexible, returning just the fields you want into an <any> response instead
@@ -220,21 +227,23 @@ export class SCClient extends ApolloClient<any> {
 
   static vehicleFragment = `
   id
+  ownerID
+  serviceID
   name
   maximumLevel
-  anxietyLevel
-  tripSchedule {
+  schedule {
+    type
     level
     time
   }
-  pausedUntil
+  providerData
   geoLocation {
     latitude
     longitude
   }
-  location
+  locationID
   locationSettings {
-    location
+    locationID
     directLevel
     goal
   }
@@ -243,8 +252,12 @@ export class SCClient extends ApolloClient<any> {
   outsideTemperature
   insideTemperature
   climateControl
-  isDriving
   isConnected
+  chargingTo
+  estimatedTimeLeft
+  isDriving
+  status
+  smartStatus
   chargePlan {
     chargeType
     chargeStart
@@ -252,13 +265,7 @@ export class SCClient extends ApolloClient<any> {
     level
     comment
   }
-  chargingTo
-  estimatedTimeLeft
-  status
-  smartStatus
-  updated
-  serviceID
-  providerData`;
+  updated`;
 
   public async getVehicle(vehicleUUID: string): Promise<GQLVehicle> {
     // TODO: should be more flexible, returning just the fields you want into an <any> response instead

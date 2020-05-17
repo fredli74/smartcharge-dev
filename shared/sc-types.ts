@@ -33,8 +33,24 @@ export enum DisableType {
 }
 
 export enum ScheduleType {
-  Guide = "guide",
+  /**
+   * Auto generated charge target
+   */
+  AI = "ai",
+  /**
+   * Alternative AI charge target
+   */
+  Suggestion = "suggestion",
+  /**
+   * Manual charge entry
+   */
   Manual = "manual",
+  /**
+   * Smart charge control is paused
+   */
   Pause = "pause",
+  /**
+   * Charge for upcoming trip
+   */
   Trip = "trip"
 }

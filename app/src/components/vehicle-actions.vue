@@ -75,6 +75,22 @@
       </template>
       <span>Climate Control</span>
     </v-tooltip>
+
+    <v-tooltip top>
+      <template v-slot:activator="{ on }">
+        <v-btn
+          depressed
+          fab
+          :small="smallButton"
+          :outlined="!Boolean(vehicle.tripSchedule)"
+          :color="Boolean(vehicle.tripSchedule) ? 'success' : ''"
+          v-on="on"
+          @click="chargeClick()"
+          ><v-icon :large="!smallButton">mdi-lightning-bolt</v-icon></v-btn
+        >
+      </template>
+      <span>Charging</span>
+    </v-tooltip>
     <v-tooltip top>
       <template v-slot:activator="{ on }">
         <v-btn
@@ -85,12 +101,12 @@
           :color="Boolean(vehicle.tripSchedule) ? 'success' : ''"
           v-on="on"
           @click="tripClick()"
-          ><v-icon :large="!smallButton">mdi-road-variant</v-icon></v-btn
+          ><v-icon :large="!smallButton">mdi-calendar-clock</v-icon></v-btn
         >
       </template>
       <span>Trip</span>
     </v-tooltip>
-    <v-tooltip top>
+    <v-tooltip v-if="false" top>
       <template v-slot:activator="{ on }">
         <v-btn
           depressed
@@ -105,21 +121,6 @@
       </template>
       <span>Pause Smart Charging</span>
     </v-tooltip>
-    <v-tooltip top>
-      <template v-slot:activator="{ on }">
-        <v-btn
-          depressed
-          fab
-          :small="smallButton"
-          outlined
-          color=""
-          v-on="on"
-          @click="settingsClick()"
-          ><v-icon :large="!smallButton">mdi-settings</v-icon></v-btn
-        >
-      </template>
-      <span>Settings</span>
-    </v-tooltip>
   </v-card-actions>
 </template>
 
@@ -133,13 +134,13 @@ import { VueConstructor } from "vue";
 import VehicleSettings from "./vehicle-settings.vue";
 import eventBus, { BusEvent } from "@app/plugins/event-bus";
 import deepmerge from "deepmerge";
-import VehiclePause from "./vehicle-pause.vue";
+import VehicleCharge from "./vehicle-charge.vue";
 import VehicleTrip from "./vehicle-trip.vue";
 import { GQLAction, GQLVehicle } from "@shared/sc-schema";
 
 @Component({
   components: {
-    VehiclePause,
+    VehicleCharge,
     VehicleTrip
   },
   apollo: {
@@ -206,7 +207,8 @@ export default class VehicleActions extends Vue {
       smallButton: false,
       dialogShow: false,
       dialogContent: undefined,
-      dialogTitle: undefined
+      dialogTitle: undefined,
+      chargePopup: false
     };
   }
   onResize() {
@@ -252,10 +254,10 @@ export default class VehicleActions extends Vue {
     this.dialogContent = VehicleTrip;
     return true;
   }
-  pauseClick() {
+  chargeClick() {
     this.dialogShow = true;
-    this.dialogTitle = "Pause";
-    this.dialogContent = VehiclePause;
+    this.dialogTitle = "Direct charge control";
+    this.dialogContent = VehicleCharge;
     return true;
   }
   settingsClick() {
@@ -297,5 +299,8 @@ export default class VehicleActions extends Vue {
 }
 .datepicker-day-text {
   font-size: 18px !important;
+}
+#vehicle-actions button {
+  margin-left: 14px;
 }
 </style>

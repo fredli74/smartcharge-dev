@@ -51,6 +51,7 @@ export interface GQLLocation {
   geoFenceRadius?: number;
   serviceID?: string;
   providerData?: GQLJSONObject;
+  priceListID?: string;
   priceList?: GQLPriceList;
 }
 
@@ -160,7 +161,7 @@ export interface GQLVehicle {
   /**
    * location settings
    */
-  locationSettings?: Array<GQLVehicleLocationSetting>;
+  locationSettings: Array<GQLVehicleLocationSetting>;
   
   /**
    * battery level (%)
@@ -219,7 +220,7 @@ export interface GQLSchedule {
    * Battery level to reach at scheduled time (%)
    */
   level: number;
-  time: GQLDateTime;
+  time?: GQLDateTime;
 }
 
 export enum GQLSchduleType {
@@ -392,7 +393,7 @@ export interface GQLScheduleInput {
    * Battery level to reach at scheduled time (%)
    */
   level: number;
-  time: GQLDateTime;
+  time?: GQLDateTime;
 }
 
 export interface GQLVehicleLocationSettingInput {
@@ -580,6 +581,7 @@ export interface GQLLocationTypeResolver<TParent = GQLLocation> {
   geoFenceRadius?: LocationToGeoFenceRadiusResolver<TParent>;
   serviceID?: LocationToServiceIDResolver<TParent>;
   providerData?: LocationToProviderDataResolver<TParent>;
+  priceListID?: LocationToPriceListIDResolver<TParent>;
   priceList?: LocationToPriceListResolver<TParent>;
 }
 
@@ -608,6 +610,10 @@ export interface LocationToServiceIDResolver<TParent = GQLLocation, TResult = st
 }
 
 export interface LocationToProviderDataResolver<TParent = GQLLocation, TResult = GQLJSONObject | null> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface LocationToPriceListIDResolver<TParent = GQLLocation, TResult = string | null> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
@@ -817,7 +823,7 @@ export interface VehicleToLocationResolver<TParent = GQLVehicle, TResult = GQLLo
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface VehicleToLocationSettingsResolver<TParent = GQLVehicle, TResult = Array<GQLVehicleLocationSetting> | null> {
+export interface VehicleToLocationSettingsResolver<TParent = GQLVehicle, TResult = Array<GQLVehicleLocationSetting>> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
@@ -887,7 +893,7 @@ export interface ScheduleToLevelResolver<TParent = GQLSchedule, TResult = number
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface ScheduleToTimeResolver<TParent = GQLSchedule, TResult = GQLDateTime> {
+export interface ScheduleToTimeResolver<TParent = GQLSchedule, TResult = GQLDateTime | null> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 

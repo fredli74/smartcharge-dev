@@ -41,7 +41,7 @@ import { GQLVehicle } from "@shared/sc-schema";
 const FORMAT = "YYYY-MM-DD HH:mm";
 
 @Component({ components: { VueCtkDateTimePicker } })
-export default class VehiclePause extends Vue {
+export default class VehicleCharge extends Vue {
   @Prop({ type: Object, required: true }) readonly vehicle!: GQLVehicle;
 
   formData!: any;

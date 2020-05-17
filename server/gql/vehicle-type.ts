@@ -71,8 +71,8 @@ export class Schedule {
   })
   level!: number;
   @Type(() => Date)
-  @Field(_type => Date)
-  time!: Date;
+  @Field(_type => Date, { nullable: true })
+  time!: Date | null;
 }
 
 /*******************************
@@ -176,7 +176,6 @@ export class VehicleTypeResolver {
     return new LocationResolver().location(vehicle.location_uuid, context);
   }
   @FieldResolver(_returns => [VehicleLocationSettings], {
-    nullable: true,
     description: `location settings`
   })
   locationSettings(@Root() vehicle: Vehicle): VehicleLocationSettings[] {

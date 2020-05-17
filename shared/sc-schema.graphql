@@ -88,6 +88,7 @@ type Location {
   geoFenceRadius: Int
   serviceID: ID
   providerData: JSONObject
+  priceListID: String
   priceList: PriceList
 }
 
@@ -178,7 +179,7 @@ type Schedule {
 
   """Battery level to reach at scheduled time (%)"""
   level: Int!
-  time: DateTime!
+  time: DateTime
 }
 
 input ScheduleInput {
@@ -186,7 +187,7 @@ input ScheduleInput {
 
   """Battery level to reach at scheduled time (%)"""
   level: Int!
-  time: DateTime!
+  time: DateTime
 }
 
 type ServiceProvider {
@@ -293,7 +294,7 @@ type Vehicle {
   location: Location
 
   """location settings"""
-  locationSettings: [VehicleLocationSetting!]
+  locationSettings: [VehicleLocationSetting!]!
 
   """battery level (%)"""
   batteryLevel: Int!

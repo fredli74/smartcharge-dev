@@ -88,6 +88,8 @@
         @action="doConfirm"
       ></RemoveDialog>
     </v-row>
+    {{ locations }}
+    {{ locationSettings() }}
   </v-form>
 </template>
 
@@ -106,6 +108,17 @@ import {
 } from "@shared/sc-schema";
 import { SmartChargeGoal } from "@shared/sc-types";
 import { DEFAULT_DIRECTLEVEL } from "@shared/smartcharge-defines";
+
+function DefaultVehicleLocationSettings(
+  location_uuid: string
+): GQLVehicleLocationSetting {
+  // NOTICE: There is a mirrored function for server side in db-interface.ts
+  return {
+    locationID: location_uuid,
+    directLevel: DEFAULT_DIRECTLEVEL,
+    goal: SmartChargeGoal.Balanced
+  };
+}
 
 @Component({
   components: { EditVehicleLocationSettings, RemoveDialog }
@@ -136,12 +149,10 @@ export default class EditVehicle extends Vue {
           .map(l => {
             const settings: GQLVehicleLocationSetting =
               (this.vehicle.locationSettings &&
-                this.vehicle.locationSettings.find(f => f.location === l.id)) ||
-              ({
-                location: l.id,
-                directLevel: DEFAULT_DIRECTLEVEL,
-                goal: SmartChargeGoal.Balanced
-              } as GQLVehicleLocationSetting);
+                this.vehicle.locationSettings.find(
+                  f => f.locationID === l.id
+                )) ||
+              DefaultVehicleLocationSettings(l.id);
             return {
               name: l.name,
               settings

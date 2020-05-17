@@ -134,7 +134,7 @@ const DBVehicle_TSQL = `CREATE TABLE scserver.vehicle
         service_uuid uuid,
         name text COLLATE NOT NULL,
         maximum_charge smallint NOT NULL,
-        schedule jsonb NOT NULL DEFAULT '[]'::jsonb,
+        schedule jsonb[] NOT NULL DEFAULT '{}',
         provider_data jsonb NOT NULL DEFAULT '{}'::jsonb,
         location_micro_latitude integer,
         location_micro_longitude integer,

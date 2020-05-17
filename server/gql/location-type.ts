@@ -77,6 +77,10 @@ export class LocationTypeResolver {
   providerData(@Root() location: Location): any {
     return location.provider_data;
   }
+  @FieldResolver(_returns => String, { nullable: true })
+  async priceListID(@Root() location: Location): Promise<string | null> {
+    return location.price_list_uuid;
+  }
   @FieldResolver(_returns => PriceList, { nullable: true })
   async priceList(
     @Root() location: Location,

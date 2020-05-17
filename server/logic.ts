@@ -17,7 +17,17 @@ import {
   DBLocationStats,
   DBStatsMap
 } from "./db-schema";
-import { LogLevel, log, arrayMean, prettyTime } from "@shared/utils";
+import {
+  LogLevel,
+  log,
+  arrayMean,
+  prettyTime,
+  compareStartStopTimes,
+  numericStartTime,
+  numericStopTime,
+  asyncFilter,
+  compareStartTimes
+} from "@shared/utils";
 import {
   UpdateVehicleDataInput,
   ChargePlan,
@@ -785,12 +795,6 @@ export class Logic {
   }
 
   private static cleanupPlan(plan: ChargePlan[]): ChargePlan[] {
-    function nstart(n: Date | null) {
-      return (n && n.getTime()) || -Infinity;
-    }
-    function nstop(n: Date | null) {
-      return (n && n.getTime()) || Infinity;
-    }
     const chargePrio = {
       [ChargeType.Calibrate]: 0,
       [ChargeType.Minimum]: 1,
@@ -802,22 +806,25 @@ export class Logic {
     };
     plan.sort(
       (a, b) =>
-        nstart(a.chargeStart) - nstart(b.chargeStart) ||
-        nstop(b.chargeStop) - nstop(a.chargeStop) ||
-        chargePrio[a.chargeType] - chargePrio[b.chargeType]
+        compareStartStopTimes(
+          a.chargeStart,
+          a.chargeStop,
+          b.chargeStart,
+          b.chargeStop
+        ) || chargePrio[a.chargeType] - chargePrio[b.chargeType]
     );
 
     function consolidate() {
       for (let i = 0; i < plan.length - 1; ++i) {
         const a = plan[i];
         const b = plan[i + 1];
-        if (nstart(b.chargeStart) <= nstop(a.chargeStop)) {
+        if (numericStartTime(b.chargeStart) <= numericStopTime(a.chargeStop)) {
           if (
             a.chargeType === b.chargeType ||
-            nstop(b.chargeStop) <= nstop(a.chargeStop)
+            numericStopTime(b.chargeStop) <= numericStopTime(a.chargeStop)
           ) {
             // Merge them
-            if (nstop(b.chargeStop) > nstop(a.chargeStop)) {
+            if (numericStopTime(b.chargeStop) > numericStopTime(a.chargeStop)) {
               a.chargeStop = b.chargeStop;
             }
             a.level = Math.max(a.level, b.level);
@@ -846,15 +853,21 @@ export class Logic {
         const shift = Math.min(
           // max shift between this segment end and next segment start
           // nextStart - thisStop
-          nstart(b.chargeStart) - nstop(a.chargeStop),
+          numericStartTime(b.chargeStart) - numericStopTime(a.chargeStop),
           // or maximum shift possible within the current hour
           // hour - (stop - start) => start - stop + hour
-          nstart(a.chargeStart) - nstop(a.chargeStop) + 3600e3
+          numericStartTime(a.chargeStart) -
+            numericStopTime(a.chargeStop) +
+            3600e3
         );
 
-        if (shift > 0 && nstop(a.chargeStop) + shift >= nstart(b.chargeStart)) {
+        if (
+          shift > 0 &&
+          numericStopTime(a.chargeStop) + shift >=
+            numericStartTime(b.chargeStart)
+        ) {
           a.chargeStop = b.chargeStart;
-          a.chargeStart = new Date(nstart(a.chargeStart) + shift);
+          a.chargeStart = new Date(numericStartTime(a.chargeStart) + shift);
           shifted = true;
         }
       }
@@ -971,9 +984,18 @@ export class Logic {
           })
       : [];
 
-    // Cleanup schedule array
-    const schedule = (vehicle.schedule as Schedule[]).filter(
-      f => now < f.time.getTime() + 3600e3
+    // Cleanup schedule array remove all entries 1 hour after the end time
+    const schedule = await asyncFilter(
+      vehicle.schedule as Schedule[],
+      async f => {
+        const keep = now < numericStopTime(f.time) + 3600e3;
+        if (!keep) {
+          await this.db.pg.none(
+            `UPDATE vehicle SET schedule = array_remove(schedule, $2) WHERE vehicle_uuid = $1;`,
+            [vehicle.vehicle_uuid, f]
+          );
+        }
+      }
     );
     if (schedule.length !== vehicle.schedule.length) {
       // an old entry has passed, cleanup up database
@@ -986,7 +1008,7 @@ export class Logic {
 
     // Reduce the array to a map with only the first upcoming event of each type
     const scheduleMap = schedule
-      .sort((a, b) => a.time.getTime() - b.time.getTime())
+      .sort((a, b) => compareStartTimes(a.time, b.time))
       .reduce((map, obj) => {
         if (map[obj.type] === undefined) map[obj.type] = obj;
         return map;
@@ -995,7 +1017,7 @@ export class Logic {
 
     if (
       scheduleMap[ScheduleType.Pause] &&
-      scheduleMap[ScheduleType.Pause].time.getTime() > now
+      numericStopTime(scheduleMap[ScheduleType.Pause].time) > now
     ) {
       log(
         LogLevel.Trace,
@@ -1077,12 +1099,13 @@ export class Logic {
         }
 
         if (scheduleMap[ScheduleType.Manual]) {
+          disconnectTime = scheduleMap[ScheduleType.Manual].time.getTime();
           const p = await this.generateChargePlan(
             vehicle,
             scheduleMap[ScheduleType.Manual].level,
             ChargeType.Manual,
             "manual charge",
-            scheduleMap[ScheduleType.Manual].time.getTime()
+            disconnectTime
           );
           plan.push(...p);
         } else if (vehicle.level <= vehicle.maximum_charge) {
@@ -1184,7 +1207,6 @@ export class Logic {
                   neededCharge > 0 ? Math.round(neededCharge) + "%" : "no"
                 } charge) is needed before ${new Date(before).toISOString()}`
               );
-
               log(
                 LogLevel.Debug,
                 `Current level: ${

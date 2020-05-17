@@ -5,7 +5,7 @@
         <v-list-item-title>{{ name }}</v-list-item-title>
         <v-list-item-subtitle
           class="font-light overline caption secondary--text text--lighten-2"
-          >({{ settings.location }})</v-list-item-subtitle
+          >({{ settings.locationID }})</v-list-item-subtitle
         >
       </v-col>
       <v-spacer></v-spacer>
@@ -166,10 +166,10 @@ export default class EditVehicle extends Vue {
           id: this.vehicle.id,
           locationSettings: [
             {
-              location: this.settings.location,
+              locationID: this.settings.locationID,
               directLevel: this.settings.directLevel,
               goal: goal.value || goal
-            }
+            } as GQLVehicleLocationSetting
           ]
         };
 

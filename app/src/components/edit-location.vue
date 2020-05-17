@@ -65,7 +65,7 @@ import {
             id
             ownerID
             name
-            private
+            isPrivate
           }
         }
       `,
