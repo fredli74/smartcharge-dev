@@ -198,28 +198,31 @@ export function secondsToString(
 }
 
 import md5 from "md5";
+import { DateTime } from "luxon";
 export function makePublicID(id: string, len?: number): string {
   return md5("public+" + id).substr(0, len || 8);
 }
 
+export type OptionalDate = Date | null | undefined;
+
 // Functions for comparing start and stop times that can be a Date or null
-export function numericStartTime(a: Date | null) {
+export function numericStartTime(a: OptionalDate) {
   return (a && a.getTime()) || -Infinity;
 }
-export function numericStopTime(n: Date | null) {
+export function numericStopTime(n: OptionalDate) {
   return (n && n.getTime()) || Infinity;
 }
-export function compareStartTimes(a: Date | null, b: Date | null): number {
+export function compareStartTimes(a: OptionalDate, b: OptionalDate): number {
   return numericStartTime(a) - numericStartTime(b);
 }
-export function compareStopTimes(a: Date | null, b: Date | null): number {
+export function compareStopTimes(a: OptionalDate, b: OptionalDate): number {
   return numericStopTime(b) - numericStopTime(a);
 }
 export function compareStartStopTimes(
-  a_start: Date | null,
-  a_stop: Date | null,
-  b_start: Date | null,
-  b_stop: Date | null
+  a_start: OptionalDate,
+  a_stop: OptionalDate,
+  b_start: OptionalDate,
+  b_stop: OptionalDate
 ): number {
   return (
     compareStartTimes(a_start, b_start) || compareStopTimes(a_stop, b_stop)
@@ -232,4 +235,30 @@ export async function asyncFilter<T>(
 ): Promise<T[]> {
   const results = await Promise.all(array.map(callbackfn));
   return array.filter((_v, index) => results[index]);
+}
+
+export function relativeTime(when: Date): { date: string; time: string } {
+  const nowLocal = DateTime.local();
+  const thenLocal = DateTime.fromJSDate(when).toLocal();
+
+  const dayDiff = thenLocal
+    .startOf("day")
+    .diff(nowLocal.startOf("day"))
+    .as("days");
+
+  let datestr = "";
+  if (dayDiff === -1) {
+    datestr = "yesterday";
+  } else if (dayDiff === 0) {
+    datestr = "today";
+  } else if (dayDiff === 1) {
+    datestr = "tomorrow";
+  } else if (dayDiff > 0 && dayDiff < 7) {
+    datestr = thenLocal.weekdayLong.toLowerCase();
+  } else if (dayDiff > 0 && dayDiff < 260) {
+    datestr = thenLocal.toFormat("MMM dd");
+  } else {
+    datestr = thenLocal.toFormat("DD");
+  }
+  return { date: datestr, time: thenLocal.toFormat("HH:mm") };
 }

@@ -82,8 +82,9 @@
           depressed
           fab
           :small="smallButton"
-          :outlined="!Boolean(vehicle.tripSchedule)"
-          :color="Boolean(vehicle.tripSchedule) ? 'success' : ''"
+          :dark="Boolean(manualChargeColor)"
+          :outlined="!Boolean(manualChargeColor)"
+          :color="manualChargeColor"
           v-on="on"
           @click="chargeClick()"
           ><v-icon :large="!smallButton">mdi-lightning-bolt</v-icon></v-btn
@@ -136,7 +137,8 @@ import eventBus, { BusEvent } from "@app/plugins/event-bus";
 import deepmerge from "deepmerge";
 import VehicleCharge from "./vehicle-charge.vue";
 import VehicleTrip from "./vehicle-trip.vue";
-import { GQLAction, GQLVehicle } from "@shared/sc-schema";
+import { GQLAction, GQLVehicle, GQLSchduleType } from "@shared/sc-schema";
+import { scheduleMap } from "../plugins/utils";
 
 @Component({
   components: {
@@ -211,6 +213,9 @@ export default class VehicleActions extends Vue {
       chargePopup: false
     };
   }
+  mounted() {
+    // this.chargeClick();
+  }
   onResize() {
     this.smallButton = window.innerWidth > 600 && window.innerWidth < 960;
   }
@@ -220,6 +225,19 @@ export default class VehicleActions extends Vue {
       (this.vehicle!.status.toLowerCase() === "offline" ||
         this.vehicle!.status.toLowerCase() === "sleeping")
     );
+  }
+
+  get manualChargeColor() {
+    const schedule = scheduleMap(this.vehicle.schedule);
+    const manual = schedule[GQLSchduleType.Manual];
+    if (manual) {
+      if (manual.level === 0) {
+        return "red accent-4";
+      } else {
+        return "green darken-3";
+      }
+    }
+    return undefined;
   }
 
   async refreshClick() {
@@ -256,7 +274,7 @@ export default class VehicleActions extends Vue {
   }
   chargeClick() {
     this.dialogShow = true;
-    this.dialogTitle = "Direct charge control";
+    this.dialogTitle = "Charge control";
     this.dialogContent = VehicleCharge;
     return true;
   }

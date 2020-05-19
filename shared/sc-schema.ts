@@ -224,9 +224,10 @@ export interface GQLSchedule {
 }
 
 export enum GQLSchduleType {
-  Guide = 'Guide',
+  AI = 'AI',
+  Suggestion = 'Suggestion',
   Manual = 'Manual',
-  Pause = 'Pause',
+  Disabled = 'Disabled',
   Trip = 'Trip'
 }
 
@@ -262,6 +263,7 @@ export interface GQLMutation {
   _updatePrice: boolean;
   removeVehicle: boolean;
   updateVehicle: GQLVehicle;
+  replaceVehicleSchedule: Array<GQLSchedule>;
 }
 
 export interface GQLUpdatePriceListInput {
@@ -937,6 +939,7 @@ export interface GQLMutationTypeResolver<TParent = undefined> {
   _updatePrice?: MutationTo_updatePriceResolver<TParent>;
   removeVehicle?: MutationToRemoveVehicleResolver<TParent>;
   updateVehicle?: MutationToUpdateVehicleResolver<TParent>;
+  replaceVehicleSchedule?: MutationToReplaceVehicleScheduleResolver<TParent>;
 }
 
 export interface MutationToLoginWithPasswordArgs {
@@ -1037,6 +1040,15 @@ export interface MutationToUpdateVehicleArgs {
 }
 export interface MutationToUpdateVehicleResolver<TParent = undefined, TResult = GQLVehicle> {
   (parent: TParent, args: MutationToUpdateVehicleArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface MutationToReplaceVehicleScheduleArgs {
+  newSchedule: Array<GQLScheduleInput>;
+  oldSchedule: Array<GQLScheduleInput>;
+  id: string;
+}
+export interface MutationToReplaceVehicleScheduleResolver<TParent = undefined, TResult = Array<GQLSchedule>> {
+  (parent: TParent, args: MutationToReplaceVehicleScheduleArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
 export interface GQLSubscriptionTypeResolver<TParent = undefined> {

@@ -46,10 +46,6 @@ export enum ScheduleType {
    */
   Manual = "manual",
   /**
-   * Smart charge control is paused
-   */
-  Pause = "pause",
-  /**
    * Charge for upcoming trip
    */
   Trip = "trip"

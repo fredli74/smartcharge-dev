@@ -27,9 +27,17 @@ import {
   GQLUpdateVehicleDataInput,
   GQLVehicleDebugInput,
   GQLServiceProvider,
-  GQLAction
+  GQLAction,
+  GQLSchedule,
+  GQLScheduleInput
 } from "./sc-schema";
 import { API_PATH } from "./smartcharge-defines";
+import { classToPlain } from "class-transformer";
+
+// Strip __typename from input into mutations
+function plain(val: any): any {
+  return classToPlain(val, { excludePrefixes: ["__"] });
+}
 
 export class SCClient extends ApolloClient<any> {
   public account?: GQLAccount;
@@ -496,5 +504,38 @@ export class SCClient extends ApolloClient<any> {
       mutation: mutation,
       variables: { id, confirm }
     });
+  }
+
+  public async replaceVehicleSchedule(
+    id: string,
+    oldSchedule: GQLScheduleInput[],
+    newSchedule: GQLScheduleInput[]
+  ): Promise<GQLSchedule> {
+    const mutation = gql`
+      mutation replaceVehicleSchedule(
+        $id: String!
+        $oldSchedule: [ScheduleInput!]!
+        $newSchedule: [ScheduleInput!]!
+      ) {
+        replaceVehicleSchedule(
+          id: $id
+          oldSchedule: $oldSchedule
+          newSchedule: $newSchedule
+        ) {
+          type
+          level
+          time
+        }
+      }
+    `;
+    const result = await this.mutate({
+      mutation,
+      variables: {
+        id,
+        oldSchedule: plain(oldSchedule),
+        newSchedule: plain(newSchedule)
+      }
+    });
+    return result.data.replaceVehicleSchedule;
   }
 }

@@ -106,19 +106,7 @@ import {
   GQLVehicleLocationSetting,
   GQLUpdateVehicleInput
 } from "@shared/sc-schema";
-import { SmartChargeGoal } from "@shared/sc-types";
-import { DEFAULT_DIRECTLEVEL } from "@shared/smartcharge-defines";
-
-function DefaultVehicleLocationSettings(
-  location_uuid: string
-): GQLVehicleLocationSetting {
-  // NOTICE: There is a mirrored function for server side in db-interface.ts
-  return {
-    locationID: location_uuid,
-    directLevel: DEFAULT_DIRECTLEVEL,
-    goal: SmartChargeGoal.Balanced
-  };
-}
+import { DefaultVehicleLocationSettings } from "../plugins/utils";
 
 @Component({
   components: { EditVehicleLocationSettings, RemoveDialog }

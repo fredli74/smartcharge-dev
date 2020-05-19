@@ -25,7 +25,11 @@ import config from "@shared/smartcharge-config";
 import { v5 as uuidv5 } from "uuid";
 import { SmartChargeGoal } from "@shared/sc-types";
 import { DEFAULT_DIRECTLEVEL } from "@shared/smartcharge-defines";
-import { VehicleLocationSettings, VehicleDebugInput } from "./gql/vehicle-type";
+import {
+  VehicleLocationSettings,
+  VehicleDebugInput,
+  Schedule
+} from "./gql/vehicle-type";
 
 export const DB_OPTIONS = {};
 
@@ -310,11 +314,11 @@ export class DBInterface {
   }
 
   public static DefaultVehicleLocationSettings(
-    location_uuid: string
+    location_uuid?: string
   ): VehicleLocationSettings {
     // NOTICE: There is a mirrored function for client side in edit-vehicle.vue
     return {
-      locationID: location_uuid,
+      locationID: location_uuid || "",
       directLevel: DEFAULT_DIRECTLEVEL,
       goal: SmartChargeGoal.Balanced
     };
@@ -391,10 +395,9 @@ export class DBInterface {
         input.location_settings,
         `location_settings = jsonb_merge(location_settings, $4)`
       ],
-      [input.schedule, `schedule = $5`],
-      [input.status, `status = $6`],
-      [input.service_uuid, `service_uuid = $7`],
-      [input.provider_data, `provider_data = jsonb_merge(provider_data, $8)`]
+      [input.status, `status = $5`],
+      [input.service_uuid, `service_uuid = $6`],
+      [input.provider_data, `provider_data = jsonb_merge(provider_data, $7)`]
     ]);
     assert(set.length > 0);
 
@@ -490,32 +493,34 @@ export class DBInterface {
 
   public async getChargeCurve(
     vehicle_uuid: string,
-    location_uuid: string
+    location_uuid: string | null
   ): Promise<ChargeCurve> {
-    const dbCurve = await this.pg.manyOrNone(
-      `SELECT level, percentile_cont(0.5) WITHIN GROUP(ORDER BY duration) AS seconds
+    let current;
+
+    // Look for a curve for this location
+    const dbCurve =
+      (location_uuid &&
+        (await this.pg.manyOrNone(
+          `SELECT level, percentile_cont(0.5) WITHIN GROUP(ORDER BY duration) AS seconds
             FROM charge a JOIN charge_curve b ON(a.charge_id = b.charge_id)
             WHERE a.vehicle_uuid = $1 AND a.location_uuid = $2 GROUP BY level ORDER BY level;`,
-      [vehicle_uuid, location_uuid]
-    );
-    let current;
+          [vehicle_uuid, location_uuid]
+        ))) ||
+      [];
+
     if (dbCurve.length > 0) {
       current = dbCurve.shift()!.seconds;
     } else {
+      // Check estimate for current connection
       current =
         (
           await this.pg.one(
-            `SELECT AVG(duration) FROM charge a JOIN charge_curve b ON (a.charge_id = b.charge_id) WHERE a.vehicle_uuid = $1 AND location_uuid = $2;`,
-            [vehicle_uuid, location_uuid]
+            `SELECT AVG(60.0 * c.estimate / (c.target_level - c.end_level))
+        FROM charge c JOIN vehicle v ON (v.connected_id = c.connected_id)
+        WHERE v.vehicle_uuid = $1 AND c.target_level > c.end_level AND c.estimate > 0;`,
+            [vehicle_uuid]
           )
-        ).avg ||
-        (
-          await this.pg.one(
-            `SELECT AVG(60.0 * estimate / (target_level-end_level)) FROM charge WHERE end_level < target_level AND vehicle_uuid = $1 AND location_uuid = $2;`,
-            [vehicle_uuid, location_uuid]
-          )
-        ).avg ||
-        20 * 60; // 20 min default for first time charge
+        ).avg || 20 * 60; // 20 min fallback
     }
     assert(current !== undefined && current !== null);
 
@@ -653,5 +658,43 @@ export class DBInterface {
       )} WHERE price_list_uuid = $1 RETURNING *;`,
       values
     );
+  }
+
+  public async addVehicleSchedule(
+    vehicle_uuid: string,
+    entry: Schedule
+  ): Promise<Schedule[]> {
+    return (
+      await this.pg.one(
+        `UPDATE vehicle SET schedule = array_append(schedule, $2:json)
+        WHERE vehicle_uuid = $1 RETURNING schedule;`,
+        [vehicle_uuid, entry]
+      )
+    ).schedule;
+  }
+  public async removeVehicleSchedule(
+    vehicle_uuid: string,
+    entry: Schedule
+  ): Promise<Schedule[]> {
+    return (
+      await this.pg.one(
+        `UPDATE vehicle SET schedule = array_remove(schedule, $2:json)
+        WHERE vehicle_uuid = $1 RETURNING schedule;`,
+        [vehicle_uuid, entry]
+      )
+    ).schedule;
+  }
+  public async updateVehicleSchedule(
+    vehicle_uuid: string,
+    oldEntry: Schedule,
+    newEntry: Schedule
+  ): Promise<Schedule[]> {
+    return (
+      await this.pg.one(
+        `UPDATE vehicle SET schedule = array_replace(schedule, $2:json, $3:json)
+        WHERE vehicle_uuid = $1 RETURNING schedule;`,
+        [vehicle_uuid, oldEntry, newEntry]
+      )
+    ).schedule;
   }
 }

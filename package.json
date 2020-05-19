@@ -46,6 +46,7 @@
     "type-graphql": "^0.17.6",
     "uuid": "^8.0.0",
     "vue": "^2.6.11",
+    "vue-datetime": "^1.0.0-beta.13",
     "ws": "^7.3.0"
   },
   "devDependencies": {
@@ -63,6 +64,7 @@
     "@types/luxon": "^1.24.0",
     "@types/md5": "^2.2.0",
     "@types/uuid": "^7.0.3",
+    "@types/vue-datetime": "^1.0.0",
     "@typescript-eslint/eslint-plugin": "^2.33.0",
     "@typescript-eslint/parser": "^2.33.0",
     "@vue/cli-plugin-babel": "^4.3.1",

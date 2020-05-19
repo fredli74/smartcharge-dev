@@ -77,7 +77,7 @@
               >(est.<template v-slot:suffix>) </template>
             </RelativeTime>
           </div>
-          <div class="batteryLevel">
+          <div class="batteryLevel mr-2">
             <div
               v-if="vehicle.chargingTo"
               class="chargezone"
@@ -243,7 +243,7 @@ export default class VehicleVue extends Vue {
       const now = Date.now();
       if (this.vehicle) {
         for (const s of this.vehicle.schedule) {
-          if (s.time.getTime() <= now) {
+          if (s.time && s.time.getTime() <= now) {
             this.vehicle.schedule.splice(this.vehicle.schedule.indexOf(s), 1);
           }
         }
@@ -251,6 +251,7 @@ export default class VehicleVue extends Vue {
       this.updateFreshness(this.vehicle);
     }, 30e3);
   }
+
   beforeDestroy() {
     if (this.timer) {
       clearTimeout(this.timer);

@@ -119,6 +119,7 @@ type Mutation {
   _updatePrice(input: UpdatePriceInput!): Boolean!
   removeVehicle(confirm: String!, id: String!): Boolean!
   updateVehicle(input: UpdateVehicleInput!): Vehicle!
+  replaceVehicleSchedule(newSchedule: [ScheduleInput!]!, oldSchedule: [ScheduleInput!]!, id: String!): [Schedule!]!
 }
 
 type PriceData {
@@ -168,9 +169,10 @@ type ResolverTest {
 }
 
 enum SchduleType {
-  Guide
+  AI
+  Suggestion
   Manual
-  Pause
+  Disabled
   Trip
 }
 
