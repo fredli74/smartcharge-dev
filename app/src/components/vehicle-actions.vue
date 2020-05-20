@@ -66,7 +66,7 @@
           fab
           :small="smallButton"
           :outlined="!vehicle.climateControl"
-          :color="vehicle.climateControl ? 'success' : ''"
+          :color="vehicle.climateControl ? 'success darken-1' : ''"
           :loading="hvacLoading"
           :disabled="!Boolean(vehicle.serviceID)"
           v-on="on"
@@ -105,7 +105,7 @@
           fab
           :small="smallButton"
           :outlined="!Boolean(vehicle.tripSchedule)"
-          :color="Boolean(vehicle.tripSchedule) ? 'success' : ''"
+          :color="Boolean(vehicle.tripSchedule) ? 'success darken-1' : ''"
           v-on="on"
           @click="tripClick()"
           ><v-icon :large="!smallButton">mdi-calendar-clock</v-icon></v-btn
@@ -240,7 +240,7 @@ export default class VehicleActions extends Vue {
       if (manual.level === 0) {
         return "red accent-4";
       } else {
-        return "green darken-3";
+        return "success darken-1";
       }
     }
     return undefined;
@@ -253,8 +253,12 @@ export default class VehicleActions extends Vue {
         id: this.vehicle.id
       });
       const was = this.vehicle.updated;
+      const maxWait = Date.now() + 5 * 60e3;
       while (this.vehicle.updated === was) {
         await delay(1000);
+        if (Date.now() > maxWait) {
+          break;
+        }
       }
       this.refreshLoading = false;
     }
@@ -268,8 +272,12 @@ export default class VehicleActions extends Vue {
         id: this.vehicle.id,
         enable: want
       });
+      const maxWait = Date.now() + 5 * 60e3;
       while (this.vehicle.climateControl !== want) {
         await delay(1000);
+        if (Date.now() > maxWait) {
+          break;
+        }
       }
       this.refreshLoading = false;
       this.hvacLoading = false;

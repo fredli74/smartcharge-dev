@@ -242,14 +242,7 @@ export default class VehicleVue extends Vue {
     this.$apollo.queries.vehicle.skip = false;
 
     this.timer = setInterval(() => {
-      const now = Date.now();
-      if (this.vehicle) {
-        for (const s of this.vehicle.schedule) {
-          if (s.time && s.time.getTime() <= now) {
-            this.vehicle.schedule.splice(this.vehicle.schedule.indexOf(s), 1);
-          }
-        }
-      }
+      // TODO: remove?
       this.updateFreshness(this.vehicle);
     }, 30e3);
   }

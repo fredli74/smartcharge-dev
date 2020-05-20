@@ -203,26 +203,34 @@ export function makePublicID(id: string, len?: number): string {
   return md5("public+" + id).substr(0, len || 8);
 }
 
-export type OptionalDate = Date | null | undefined;
+export type OpenDate = Date | null | string | undefined;
 
 // Functions for comparing start and stop times that can be a Date or null
-export function numericStartTime(a: OptionalDate) {
-  return (a && a.getTime()) || -Infinity;
+export function numericStartTime(nstart: OpenDate): number {
+  return nstart instanceof Date
+    ? nstart.getTime()
+    : typeof nstart === "string"
+    ? new Date(nstart).getTime()
+    : -Infinity;
 }
-export function numericStopTime(n: OptionalDate) {
-  return (n && n.getTime()) || Infinity;
+export function numericStopTime(nstop: OpenDate): number {
+  return nstop instanceof Date
+    ? nstop.getTime()
+    : typeof nstop === "string"
+    ? new Date(nstop).getTime()
+    : Infinity;
 }
-export function compareStartTimes(a: OptionalDate, b: OptionalDate): number {
+export function compareStartTimes(a: OpenDate, b: OpenDate): number {
   return numericStartTime(a) - numericStartTime(b);
 }
-export function compareStopTimes(a: OptionalDate, b: OptionalDate): number {
+export function compareStopTimes(a: OpenDate, b: OpenDate): number {
   return numericStopTime(b) - numericStopTime(a);
 }
 export function compareStartStopTimes(
-  a_start: OptionalDate,
-  a_stop: OptionalDate,
-  b_start: OptionalDate,
-  b_stop: OptionalDate
+  a_start: OpenDate,
+  a_stop: OpenDate,
+  b_start: OpenDate,
+  b_stop: OpenDate
 ): number {
   return (
     compareStartTimes(a_start, b_start) || compareStopTimes(a_stop, b_stop)

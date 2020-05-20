@@ -262,6 +262,7 @@ export default class ChargeChart extends Vue {
 
   @Watch("vehicle", { deep: true })
   onVehicleUpdate() {
+    // TODO, looks like we need debouncing here or was it just a glitch?
     log(LogLevel.Trace, `onVehicleUpdate triggered`);
     this.$apollo.queries.chartData.refresh();
   }

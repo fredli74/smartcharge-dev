@@ -305,10 +305,11 @@ export class DBInterface {
     ts: Date,
     price: number
   ): Promise<DBPriceData> {
+    const fakecode = price_list_uuid.substr(0, 30);
     const result = await this.pg.one(
-      `INSERT INTO price_data(price_list_uuid, ts, price) VALUES($1, $2, $3) ` +
-        `ON CONFLICT (price_list_uuid,ts) DO UPDATE SET price=EXCLUDED.price RETURNING *;`,
-      [price_list_uuid, ts, price * 1e5]
+      `INSERT INTO price_data(price_list_uuid, ts, price, price_code ) VALUES($1, $2, $3, $4) ` +
+        `ON CONFLICT (price_code,ts) DO UPDATE SET price=EXCLUDED.price RETURNING *;`,
+      [price_list_uuid, ts, price * 1e5, fakecode]
     );
     return result;
   }
@@ -483,7 +484,7 @@ export class DBInterface {
   ): Promise<DBPriceData[]> {
     return this.pg.manyOrNone(
       `WITH data AS (
-        SELECT p.* FROM price_data p JOIN location l ON (l.price_code = p.price_code)
+        SELECT p.* FROM price_data p JOIN location l ON (l.price_list_uuid = p.price_list_uuid)
         WHERE location_uuid = $1
       )
       SELECT * FROM data WHERE ts > (SELECT max(ts) FROM data) - interval $2 ORDER BY ts;`,
@@ -619,7 +620,7 @@ export class DBInterface {
   ): Promise<DBPriceList[]> {
     const [values, where] = queryHelper([
       [price_list_uuid, `price_list_uuid = $1`],
-      [account_uuid, `(account_uuid = $2 OR private_list IS NOT TRUE)`]
+      [account_uuid, `(account_uuid = $2 OR public_list IS TRUE)`]
     ]);
     return this.pg.manyOrNone(
       `SELECT * FROM price_list ${queryWhere(
@@ -646,7 +647,7 @@ export class DBInterface {
     const [values, set] = queryHelper([
       price_list_uuid,
       [input.name, `name = $2`],
-      [input.private_list, `private_list = $3`],
+      [input.public_list, `public_list = $3`],
       [input.service_uuid, `service_uuid = $4`],
       [input.provider_data, `provider_data = jsonb_merge(provider_data, $5)`]
     ]);
@@ -701,14 +702,14 @@ export class DBInterface {
   public async newPriceList(
     account_uuid: string,
     name: string,
-    private_list: boolean,
+    public_list: boolean,
     price_list_uuid?: string
   ): Promise<DBPriceList> {
     const fields: any = {
       price_list_uuid,
       account_uuid,
       name,
-      private_list
+      public_list
     };
     for (const key of Object.keys(fields)) {
       if (fields[key] === undefined || fields[key] === null) {

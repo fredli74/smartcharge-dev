@@ -132,8 +132,24 @@ export default class VehicleCharge extends Vue {
   scheduleMap!: Record<string, GQLSchedule>;
   directLevel!: number;
   smartText!: string;
+  minDate!: string;
+  maxDate!: string;
 
-  created() {}
+  loadedState: any = {};
+
+  timer?: any;
+  async created() {
+    this.updateMinMax(); // first time
+    this.timer = setInterval(() => {
+      this.updateMinMax(); // every time
+    }, 30e3);
+  }
+  beforeDestroy() {
+    if (this.timer) {
+      clearTimeout(this.timer);
+    }
+  }
+
   mounted() {
     // TODO: move auto_port control to a provider specific option?
   }
@@ -145,8 +161,20 @@ export default class VehicleCharge extends Vue {
       showDate: undefined,
       chargeDate: undefined,
       directLevel: undefined,
-      smartText: undefined
+      smartText: undefined,
+      minDate: this.minDate,
+      maxDate: this.maxDate
     };
+  }
+
+  updateMinMax() {
+    this.minDate = DateTime.utc()
+      .plus({ minutes: 1 })
+      .toISO();
+    this.maxDate = DateTime.utc()
+      .plus({ months: 6 })
+      .endOf("month")
+      .toISO();
   }
 
   onChangeShowDate() {
@@ -154,47 +182,67 @@ export default class VehicleCharge extends Vue {
     this.chargeControlChanged();
   }
 
+  stateToControllers(v: GQLVehicle): any {
+    const map = scheduleMap(v.schedule);
+    const manual = map[GQLSchduleType.Manual];
+    const settings = getVehicleLocationSettings(v);
+
+    return {
+      directLevel: settings.directLevel,
+      chargeControl: !manual ? 1 : manual.level === 0 ? 0 : 2,
+      chargeLevel: (manual && manual.level) || this.vehicle.maximumLevel,
+      showDate: !!(manual && manual.time),
+      chargeDate:
+        (manual && manual.time) ||
+        new Date((Math.ceil(Date.now() / 60e4) + 12 * 6) * 60e4).toISOString(),
+      map
+    };
+  }
+
   @Watch("vehicle", { deep: false, immediate: true })
   loadData() {
-    this.scheduleMap = scheduleMap(this.vehicle.schedule);
-    const manual = this.scheduleMap[GQLSchduleType.Manual];
-    const settings = getVehicleLocationSettings(this.vehicle);
+    const state = this.stateToControllers(this.vehicle);
 
-    this.directLevel = settings.directLevel;
+    if (state.directLevel !== this.loadedState.directLevel) {
+      this.directLevel = state.directLevel;
+    }
+    if (state.chargeControl !== this.loadedState.chargeControl) {
+      this.chargeControl = state.chargeControl;
+    }
+    if (state.chargeLevel !== this.loadedState.chargeLevel) {
+      this.chargeLevel = state.chargeLevel;
+    }
+    if (state.showDate !== this.loadedState.showDate) {
+      this.showDate = state.showDate;
+    }
+    if (state.chargeDate !== this.loadedState.chargeDate) {
+      this.chargeDate = state.chargeDate;
+    }
+    this.loadedState = state;
 
-    this.chargeControl = !manual ? 1 : manual.level === 0 ? 0 : 2;
-    this.chargeLevel = (manual && manual.level) || this.vehicle.maximumLevel;
-    this.showDate = !!(manual && manual.time);
-    this.chargeDate =
-      this.chargeDate ||
-      new Date((Math.ceil(Date.now() / 60e4) + 12 * 6) * 60e4).toISOString();
-
-    switch (this.chargeControl) {
-      case 0: // STOP
-        this.smartText = `Charging is disabled until next time you plug in`;
-        break;
-      case 1: // SMART
-        {
-          const ai = this.scheduleMap[GQLSchduleType.AI];
-          if (ai && ai.time) {
-            const rt = relativeTime(ai.time);
-            this.smartText = `${ai.level}% before ${rt.time} ${rt.date}`;
-          } else {
-            this.smartText = ``;
-          }
-        }
-        break;
-      case 2: // START
-        {
-          if (manual.time) {
-            this.chargeDate = manual.time.toISOString();
-            const rt = relativeTime(manual.time);
-            this.smartText = `Charging to ${this.chargeLevel}% before ${rt.time} ${rt.date}`;
-          } else {
-            this.smartText = `Direct charging to ${this.chargeLevel}%`;
-          }
-        }
-        break;
+    if (this.chargeControl === 0) {
+      // STOP
+      this.smartText = `Charging is disabled until next time you plug in`;
+    }
+    if (this.chargeControl === 1) {
+      // SMART
+      const ai = state.map[GQLSchduleType.AI];
+      if (ai && ai.time) {
+        const rt = relativeTime(new Date(ai.time));
+        this.smartText = `${ai.level}% before ${rt.time} ${rt.date}`;
+      } else {
+        this.smartText = ``;
+      }
+    }
+    if (this.chargeControl === 2) {
+      const manual = state.map[GQLSchduleType.Manual];
+      // START
+      if (manual && manual.time) {
+        const rt = relativeTime(new Date(manual.time));
+        this.smartText = `Charging to ${this.chargeLevel}% before ${rt.time} ${rt.date}`;
+      } else {
+        this.smartText = `Direct charging to ${this.chargeLevel}%`;
+      }
     }
   }
 
@@ -203,25 +251,14 @@ export default class VehicleCharge extends Vue {
     return rt.date + " - " + rt.time;
   }
 
-  get minDate() {
-    return DateTime.utc()
-      .plus({ minutes: 1 })
-      .toISO();
-  }
-  get maxDate() {
-    return DateTime.utc()
-      .plus({ months: 6 })
-      .endOf("month")
-      .toISO();
-  }
-
+  debounceTimer?: any;
   async chargeControl_onChange() {
     console.debug("chargeControl_onChange");
     this.chargeControlChanged();
   }
   async chargeLevel_onEnd() {
-    //console.debug("chargeLevel_onEnd");
-    //this.chargeControlChanged();
+    console.debug("chargeLevel_onEnd");
+    this.chargeControlChanged();
   }
   async chargeLevel_onClick() {
     console.debug("chargeLevel_onClick");
@@ -236,35 +273,40 @@ export default class VehicleCharge extends Vue {
   }
 
   async chargeControlChanged() {
-    // Replace all Charge and Manual events
-    const was: GQLScheduleInput[] = this.vehicle.schedule.filter(
-      f => f.type === GQLSchduleType.Manual
-    );
-    switch (this.chargeControl) {
-      case 0: // STOP
-        this.saving = true;
-        await apollo.replaceVehicleSchedule(this.vehicle.id, was, [
-          { type: GQLSchduleType.Manual, level: 0 }
-        ]);
-        this.saving = false;
-        break;
-      case 1: // SMART
-        this.saving = true;
-        await apollo.replaceVehicleSchedule(this.vehicle.id, was, []);
-        this.saving = false;
-        break;
-      case 2: // START
-        this.saving = true;
-        await apollo.replaceVehicleSchedule(this.vehicle.id, was, [
-          {
-            type: GQLSchduleType.Manual,
-            level: this.chargeLevel,
-            time: this.showDate ? new Date(this.chargeDate) : undefined
-          }
-        ]);
-        this.saving = false;
-        break;
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
     }
+    this.debounceTimer = setTimeout(async () => {
+      // Replace all Charge and Manual events
+      const was: GQLScheduleInput[] = this.vehicle.schedule.filter(
+        f => f.type === GQLSchduleType.Manual
+      );
+      switch (this.chargeControl) {
+        case 0: // STOP
+          this.saving = true;
+          await apollo.replaceVehicleSchedule(this.vehicle.id, was, [
+            { type: GQLSchduleType.Manual, level: 0 }
+          ]);
+          this.saving = false;
+          break;
+        case 1: // SMART
+          this.saving = true;
+          await apollo.replaceVehicleSchedule(this.vehicle.id, was, []);
+          this.saving = false;
+          break;
+        case 2: // START
+          this.saving = true;
+          await apollo.replaceVehicleSchedule(this.vehicle.id, was, [
+            {
+              type: GQLSchduleType.Manual,
+              level: this.chargeLevel,
+              time: this.showDate ? this.chargeDate : undefined
+            }
+          ]);
+          this.saving = false;
+          break;
+      }
+    }, 800);
   }
 }
 </script>

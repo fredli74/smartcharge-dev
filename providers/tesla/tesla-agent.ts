@@ -10,7 +10,13 @@ import { strict as assert } from "assert";
 
 import { IRestToken, RestClient } from "@shared/restclient";
 import * as fs from "fs";
-import { log, logFormat, LogLevel, numericStopTime } from "@shared/utils";
+import {
+  log,
+  logFormat,
+  LogLevel,
+  numericStopTime,
+  numericStartTime
+} from "@shared/utils";
 import { SCClient } from "@shared/sc-client";
 import config from "./tesla-config";
 import teslaAPI from "./tesla-api";
@@ -216,7 +222,8 @@ export class TeslaAgent extends AbstractAgent {
 
     if (
       subject.data.providerData.car_type !== config.car_type ||
-      subject.data.providerData.unknown_image !== unknown_image ||
+      Boolean(subject.data.providerData.unknown_image) !==
+        Boolean(unknown_image) ||
       JSON.stringify(subject.data.providerData.option_codes) !==
         JSON.stringify(option_codes)
     ) {
@@ -261,7 +268,7 @@ export class TeslaAgent extends AbstractAgent {
       await this.scClient.vehicleDebug({
         id: subject.vehicleUUID,
         category: "sleep",
-        timestamp: new Date(),
+        timestamp: new Date().toISOString(),
         data: subject.debugSleep
       });
     }
@@ -442,7 +449,7 @@ export class TeslaAgent extends AbstractAgent {
               await this.scClient.vehicleDebug({
                 id: subject.vehicleUUID,
                 category: "sleep",
-                timestamp: new Date(),
+                timestamp: new Date().toISOString(),
                 data: subject.debugSleep
               });
               subject.debugSleep.info = data;
@@ -611,10 +618,8 @@ export class TeslaAgent extends AbstractAgent {
 
       log(LogLevel.Trace, `${subject.teslaID} ${JSON.stringify(subject)}`);
 
-      debugger;
       // Reduce the array to a map with only the first upcoming event of each type
       const schedule = scheduleMap(subject.data.schedule);
-      console.debug(schedule);
       const disabled = schedule[GQLSchduleType.Disable];
       if (disabled && now < numericStopTime(disabled.time)) {
         // Command disabled
@@ -624,12 +629,12 @@ export class TeslaAgent extends AbstractAgent {
       // Command logic
       if (subject.data.isConnected) {
         // controll if car is connected
-        let shouldCharge: GQLChargePlan | undefined = undefined;
+        let shouldCharge: GQLChargePlan | undefined;
         if (subject.data.chargePlan) {
           for (const p of subject.data.chargePlan) {
             if (
-              (p.chargeStart === undefined || now >= p.chargeStart.getTime()) &&
-              (p.chargeStop === undefined || now < p.chargeStop.getTime())
+              now >= numericStartTime(p.chargeStart) &&
+              now < numericStopTime(p.chargeStop)
             ) {
               shouldCharge = p;
             }
@@ -637,7 +642,7 @@ export class TeslaAgent extends AbstractAgent {
         }
 
         if (
-          shouldCharge === null &&
+          shouldCharge === undefined &&
           subject.online &&
           subject.chargeEnabled === true &&
           subject.data.chargingTo !== undefined &&
@@ -761,14 +766,11 @@ export class TeslaAgent extends AbstractAgent {
       }
 
       // Should we turn on hvac?
-      const trip =
-        schedule[GQLSchduleType.Trip] &&
-        schedule[GQLSchduleType.Trip].time &&
-        schedule[GQLSchduleType.Trip].time!.getTime();
+      const trip = schedule[GQLSchduleType.Trip];
       if (trip && subject.data.providerData.auto_hvac) {
         const on =
-          now > trip - config.TRIP_HVAC_ON_WINDOW &&
-          now < trip + config.TRIP_HVAC_ON_DURATION;
+          now >= numericStartTime(trip.time) - config.TRIP_HVAC_ON_WINDOW &&
+          now < numericStopTime(trip.time) + config.TRIP_HVAC_ON_DURATION;
 
         if (on) {
           if (subject.data.climateControl) {

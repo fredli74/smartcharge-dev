@@ -5,7 +5,7 @@
  * @license MIT (MIT)
  */
 
-import { Resolver, Query, Ctx, Arg, Mutation } from "type-graphql";
+import { Resolver, Query, Ctx, Arg, Mutation, ID } from "type-graphql";
 import { IContext, accountFilter } from "@server/gql/api";
 import { PriceList, UpdatePriceListInput } from "./price-type";
 import { plainToClass } from "class-transformer";
@@ -35,14 +35,14 @@ export class PriceResolver {
   @Mutation(_returns => PriceList)
   async newPriceList(
     @Arg("name", _type => String) name: string,
-    @Arg("isPrivate", _type => Boolean, { nullable: true, defaultValue: true })
-    isPrivate: boolean,
-    @Arg("id", _type => String, { nullable: true }) id: string,
+    @Arg("isPublic", _type => Boolean, { nullable: true, defaultValue: false })
+    isPublic: boolean,
+    @Arg("id", _type => ID, { nullable: true }) id: string,
     @Ctx() context: IContext
   ): Promise<PriceList> {
     return plainToClass(
       PriceList,
-      await context.db.newPriceList(context.accountUUID, name, isPrivate, id)
+      await context.db.newPriceList(context.accountUUID, name, isPublic, id)
     );
   }
 
@@ -62,7 +62,7 @@ export class PriceResolver {
       PriceList,
       await context.db.updatePriceList(input.id, {
         name: input.name,
-        private_list: input.isPrivate
+        public_list: input.isPublic
       })
     );
   }

@@ -60,7 +60,7 @@ export abstract class DBPriceList {
   price_list_uuid!: string; // price list identifier
   account_uuid!: string; // account identifier
   name!: string; // unique name of price list
-  private_list!: boolean; // only show up for account owner
+  public_list!: boolean; // show up for everyone
   service_uuid!: string | null; // provider uuid
   provider_data!: PlainObject; // provider custom data
 }
@@ -69,7 +69,7 @@ const DBPriceList_TSQL = `CREATE TABLE scserver.price_list
         price_list_uuid uuid NOT NULL,
         account_uuid uuid NOT NULL,
         name text NOT NULL,
-        private_list boolean NOT NULL,
+        public_list boolean NOT NULL,
         service_uuid uuid,
         provider_data jsonb NOT NULL DEFAULT '{}'::jsonb,
         CONSTRAINT price_list_pkey PRIMARY KEY(price_list_uuid),

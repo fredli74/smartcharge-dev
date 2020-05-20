@@ -235,7 +235,7 @@ export class Logic {
                   SELECT MIN(b.start_ts) as ts, SUM(a.end_ts - a.start_ts) as duration
                   FROM charge a JOIN connected b ON (a.connected_id = b.connected_id) WHERE b.connected_id = $1
               ), prices AS (
-                  SELECT ts, price FROM price_data p JOIN location l ON (l.price_code = p.price_code) WHERE location_uuid = $2
+                  SELECT ts, price FROM price_data p JOIN location l ON (l.price_list_uuid = p.price_list_uuid) WHERE location_uuid = $2
               )
               SELECT 
                   (SELECT price FROM prices WHERE ts < $3 ORDER BY ts DESC LIMIT 1) price_now,
@@ -567,12 +567,12 @@ export class Logic {
       avg21: number | null;
     } = await this.db.pg.one(
       `WITH my_price_data AS (
-                SELECT p.* FROM price_data p JOIN location l ON (l.price_code = p.price_code) WHERE location_uuid = $1
-            )
-            SELECT
-                (SELECT MAX(ts) FROM my_price_data) as price_data_ts,
-                (SELECT AVG(price::float) FROM my_price_data WHERE ts >= current_date - interval '7 days') as avg7,
-                (SELECT AVG(price::float) FROM my_price_data WHERE ts >= current_date - interval '21 days') as avg21;`,
+          SELECT p.* FROM price_data p JOIN location l ON (l.price_list_uuid = p.price_list_uuid) WHERE location_uuid = $1
+      )
+      SELECT
+          (SELECT MAX(ts) FROM my_price_data) as price_data_ts,
+          (SELECT AVG(price::float) FROM my_price_data WHERE ts >= current_date - interval '7 days') as avg7,
+          (SELECT AVG(price::float) FROM my_price_data WHERE ts >= current_date - interval '21 days') as avg21;`,
       [location_uuid]
     );
 
@@ -615,7 +615,7 @@ export class Logic {
         threshold: number;
       }[] = await this.db.pg.manyOrNone(
         `WITH my_price_data AS (
-        SELECT p.* FROM price_data p JOIN location l ON (l.price_code = p.price_code) WHERE location_uuid = $2
+        SELECT p.* FROM price_data p JOIN location l ON (l.price_list_uuid = p.price_list_uuid) WHERE location_uuid = $2
       ), my_connected AS (
         SELECT * FROM connected WHERE vehicle_uuid = $1 AND end_ts >= current_date - interval '3 weeks' AND connected = false AND start_ts::date >= (SELECT MIN(ts)::date FROM my_price_data)
       ), connections AS (
@@ -767,7 +767,8 @@ export class Logic {
     location_uuid: string
   ): Promise<DBLocationStats | null> {
     const stats = await this.db.pg.oneOrNone(
-      `SELECT s.*, s.price_data_ts = (SELECT MAX(ts) FROM price_data p JOIN location l ON (l.price_code = p.price_code) WHERE l.location_uuid = s.location_uuid) as fresh
+      `SELECT s.*, s.price_data_ts = (SELECT MAX(ts) FROM price_data p JOIN location l ON (l.price_list_uuid = p.price_list_uuid) 
+      WHERE l.location_uuid = s.location_uuid) as fresh
       FROM location_stats s WHERE vehicle_uuid=$1 AND location_uuid=$2 ORDER BY stats_id DESC LIMIT 1`,
       [vehicle_uuid, location_uuid]
     );
@@ -948,7 +949,7 @@ export class Logic {
         ts: Date;
         price: number;
       }[] = await this.db.pg.manyOrNone(
-        `SELECT ts, price FROM price_data p JOIN location l ON (l.price_code = p.price_code) WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' AND ts < $2 ORDER BY price`,
+        `SELECT ts, price FROM price_data p JOIN location l ON (l.price_list_uuid = p.price_list_uuid) WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' AND ts < $2 ORDER BY price`,
         [vehicle.location_uuid, new Date(before)]
       );
 
@@ -1081,7 +1082,7 @@ export class Logic {
             LogLevel.Trace,
             `Manual charging directly to ${
               manual.level
-            } before ${manual.time.toISOString()}`
+            }% before ${manual.time.toISOString()}`
           );
         } else {
           plan.push(
@@ -1092,9 +1093,9 @@ export class Logic {
               `manual charge`
             )
           );
-          log(LogLevel.Trace, `Manual charging directly to ${manual.level}`);
+          log(LogLevel.Trace, `Manual charging directly to ${manual.level}%`);
         }
-        smartStatus = smartStatus || `Manual charging to ${manual.level}`;
+        smartStatus = smartStatus || `Manual charging to ${manual.level}%`;
       } else if (vehicle.location_uuid) {
         stats = await this.currentStats(
           vehicle.vehicle_uuid,
@@ -1394,10 +1395,10 @@ export class Logic {
     }
   }
 
-  public async priceListRefreshed(price_code: string) {
+  public async priceListRefreshed(price_list_uuid: string) {
     const dblist = await this.db.pg.manyOrNone(
-      `SELECT v.* FROM vehicle v JOIN location l ON (l.account_uuid = v.account_uuid) WHERE l.price_code = $1;`,
-      [price_code]
+      `SELECT v.* FROM vehicle v JOIN location l ON (l.account_uuid = v.account_uuid) WHERE l.price_list_uuid = $1;`,
+      [price_list_uuid]
     );
     for (const v of dblist) {
       await this.refreshVehicleChargePlan(v);

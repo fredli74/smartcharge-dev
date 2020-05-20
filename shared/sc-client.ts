@@ -29,10 +29,11 @@ import {
   GQLServiceProvider,
   GQLAction,
   GQLSchedule,
-  GQLScheduleInput
+  GQLScheduleInput,
+  GQLPriceList
 } from "./sc-schema";
 import { API_PATH } from "./smartcharge-defines";
-import { classToPlain, plainToClass } from "class-transformer";
+import { classToPlain } from "class-transformer";
 
 // Strip __typename from input into mutations
 function plain(val: any): any {
@@ -191,7 +192,7 @@ export class SCClient extends ApolloClient<any> {
     id
     ownerID
     name
-    isPrivate
+    isPublic
   }`;
 
   public async getLocation(locationUUID: string): Promise<GQLLocation> {
@@ -282,15 +283,12 @@ export class SCClient extends ApolloClient<any> {
       query,
       variables: { id: vehicleUUID }
     });
-    debugger;
-    const k = plainToClass(GQLVehicle, result.data.vehicle);
-    console.debug(k);
     return result.data.vehicle;
   }
   public async getVehicles(): Promise<GQLVehicle[]> {
     const query = gql`query GetVehicles { vehicles { ${SCClient.vehicleFragment} } }`;
     const result = await this.query({ query });
-    return (result.data.vehicles as GQLVehicle[]).map(v => v);
+    return result.data.vehicles;
   }
   public async updateVehicle(input: GQLUpdateVehicleInput): Promise<boolean> {
     const mutation = gql`
@@ -540,5 +538,63 @@ export class SCClient extends ApolloClient<any> {
       }
     });
     return result.data.replaceVehicleSchedule;
+  }
+
+  public async getPriceList(listUUID: string): Promise<GQLPriceList> {
+    const query = gql`
+      query GetPriceList($id: String!) {
+        priceList(id: $id) {
+          id
+          ownerID
+          name
+          isPublic
+        }
+      }
+    `;
+    const result = await this.query({
+      query,
+      variables: { id: listUUID }
+    });
+    return result.data.priceList;
+  }
+  public async getPriceLists(): Promise<GQLPriceList[]> {
+    const query = gql`
+      query GetPriceLists {
+        priceLists {
+          id
+          ownerID
+          name
+          isPublic
+        }
+      }
+    `;
+    const result = await this.query({ query });
+    return result.data.priceLists;
+  }
+
+  public async newPriceList(
+    name: string,
+    isPublic?: boolean,
+    id?: string
+  ): Promise<GQLPriceList> {
+    const mutation = gql`
+      mutation NewPriceList($name: String!, $isPublic: Boolean, $id: ID) {
+        newPriceList(name: $name, isPublic: $isPublic, id: $id) {
+          id
+          ownerID
+          name
+          isPublic
+        }
+      }
+    `;
+    const result = await this.mutate({
+      mutation,
+      variables: {
+        name,
+        isPublic,
+        id
+      }
+    });
+    return result.data.newPriceList;
   }
 }

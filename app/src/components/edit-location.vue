@@ -17,7 +17,7 @@
       <v-col cols="12" md="9">
         <v-autocomplete
           v-model="pricelist"
-          :loading="$apollo.queries.priceLists.loading"
+          :loading="$apollo.queries.priceLists.loading || saving.pricelist"
           :items="priceLists"
           cache-items
           label="Price list"
@@ -71,7 +71,7 @@ import {
             id
             ownerID
             name
-            isPrivate
+            isPublic
           }
         }
       `,
@@ -93,7 +93,8 @@ export default class EditLocation extends Vue {
       select: null,
 
       saving: {
-        name: false
+        name: false,
+        pricelist: false
       }
     };
   }
@@ -115,7 +116,11 @@ export default class EditLocation extends Vue {
   }
 
   get pricelist(): string {
-    return (this.location.priceList && this.location.priceList.name) || "";
+    return (this.location.priceList && this.location.priceList.id) || "";
+  }
+  set pricelist(value: string) {
+    this.location.priceListID = value;
+    this.save("pricelist");
   }
 
   debounceTimer?: any;
@@ -138,8 +143,7 @@ export default class EditLocation extends Vue {
           update.name = this.location.name;
         }
         if (this.saving["pricelist"]) {
-          update.priceListID =
-            this.location.priceList && this.location.priceList.id;
+          update.priceListID = this.location.priceListID;
         }
         if (equal(update.providerData, {})) {
           delete update.providerData;
@@ -147,7 +151,7 @@ export default class EditLocation extends Vue {
 
         this.clearSaving = deepmerge(this.clearSaving, this.saving);
 
-        await apollo.updateVehicle(update);
+        await apollo.updateLocation(update);
 
         for (let [key, value] of Object.entries(this.clearSaving)) {
           if (value) {

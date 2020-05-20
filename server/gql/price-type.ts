@@ -36,8 +36,8 @@ export class PriceListTypeResolver {
     return pricelist.name;
   }
   @FieldResolver(_returns => Boolean)
-  isPrivate(@Root() pricelist: PriceList): boolean {
-    return pricelist.private_list;
+  isPublic(@Root() pricelist: PriceList): boolean {
+    return pricelist.public_list;
   }
 }
 
@@ -48,7 +48,7 @@ export class UpdatePriceListInput {
   @Field(_type => String)
   name!: string;
   @Field(_type => Boolean)
-  isPrivate!: boolean;
+  isPublic!: boolean;
 }
 
 @ObjectType("PriceData")

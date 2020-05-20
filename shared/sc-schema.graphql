@@ -95,7 +95,7 @@ type Location {
 type Mutation {
   loginWithPassword(password: String!): Account!
   loginWithIDToken(idToken: String!): Account!
-  newPriceList(id: String, isPrivate: Boolean = true, name: String!): PriceList!
+  newPriceList(id: ID, isPublic: Boolean = false, name: String!): PriceList!
   updatePriceList(input: UpdatePriceListInput!): PriceList!
   updateLocation(input: UpdateLocationInput!): Location!
   removeLocation(confirm: String!, id: String!): Boolean!
@@ -143,7 +143,7 @@ type PriceList {
   id: ID!
   ownerID: ID!
   name: String!
-  isPrivate: Boolean!
+  isPublic: Boolean!
 }
 
 type Query {
@@ -226,7 +226,7 @@ input UpdatePriceInput {
 input UpdatePriceListInput {
   id: ID!
   name: String!
-  isPrivate: Boolean!
+  isPublic: Boolean!
 }
 
 input UpdateVehicleDataInput {

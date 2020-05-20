@@ -7,7 +7,7 @@
  */
 
 import { SCClient } from "@shared/sc-client";
-//import { log, LogLevel } from "@shared/utils";
+import { log, LogLevel } from "@shared/utils";
 import {
   AgentJob,
   AbstractAgent,
@@ -18,13 +18,10 @@ import provider, { NordpoolServiceData } from ".";
 import config from "./nordpool-config";
 import nordpoolAPI from "./nordpool-api";
 import { DateTime } from "luxon";
-import { GQLPriceDataInput } from "@shared/sc-schema";
+import { GQLUpdatePriceInput } from "@shared/sc-schema";
 import { v5 as uuidv5 } from "uuid";
 
 const NORDPOOL_NAMESPACE = uuidv5("agent.nordpool.smartcharge.dev", uuidv5.DNS);
-function pricelistUUID(subject: string, domain: string): string {
-  return uuidv5(`${subject}.${domain}`, NORDPOOL_NAMESPACE);
-}
 
 interface NordpoolAgentJob extends AgentJob {
   serviceData: NordpoolServiceData;
@@ -41,24 +38,48 @@ export class NordpoolAgent extends AbstractAgent {
     return {};
   }
 
+  private areaIDmap: Record<string, string> = {};
+
   public async globalWork(job: AgentWork) {
     const now = Date.now();
     const res = await nordpoolAPI.getPrices(config.PAGE, config.CURRENCY);
 
-    const areas: { [area: string]: GQLPriceDataInput[] } = {};
+    const areas: Record<string, GQLUpdatePriceInput> = {};
+
     // remap table
     for (const row of res.data.Rows) {
       if (row.IsExtraRow) continue;
       const startAt = DateTime.fromISO(row.StartTime, {
         zone: "Europe/Oslo"
-      }).toJSDate();
+      }).toISO();
       for (const col of row.Columns) {
         const price = parseFloat(col.Value.replace(/,/g, ".")) / 1e3;
         if (!isNaN(price)) {
           if (!areas[col.Name]) {
-            areas[col.Name] = [];
+            if (this.areaIDmap[col.Name] === undefined) {
+              const id = uuidv5(`${col.Name}.pricelist`, NORDPOOL_NAMESPACE);
+              try {
+                // Check that list exits on server
+                await this.scClient.getPriceList(id);
+              } catch {
+                const list = await this.scClient.newPriceList(
+                  `EU.${col.Name}`,
+                  true,
+                  id
+                );
+                if (list.id !== id) {
+                  throw "Unable to create price list on server";
+                }
+              }
+              this.areaIDmap[col.Name] = id;
+            }
+
+            areas[col.Name] = {
+              priceListID: this.areaIDmap[col.Name],
+              prices: []
+            };
           }
-          areas[col.Name].push({
+          areas[col.Name].prices.push({
             startAt,
             price: price
           });
@@ -66,26 +87,14 @@ export class NordpoolAgent extends AbstractAgent {
       }
     }
 
-    debugger;
-    console.debug(areas);
-    for (const [area, prices] of Object.entries(areas)) {
-      /*await this.scClient.updatePriceList();
-      await this.scClient.getPriceList();
-  */
-      /*
-    
-      const update: GQLUpdatePriceInput = {
-        priceListID
-        code: `${this.name}.${area}`.toLowerCase(),
-        prices
-      };
+    for (const [name, update] of Object.entries(areas)) {
       log(
         LogLevel.Trace,
-        `Sending updatePrice for ${update.code} => ${JSON.stringify(update)}`
+        `Sending updatePrice for ${name} => ${JSON.stringify(update)}`
       );
       await this.scClient.updatePrice(update);
-      */
     }
+
     const nextUpdate = (Math.floor(now / 3600e3) + 1) * 3600e3 + 120e3;
     job.interval = Math.max(60, (nextUpdate - now) / 1e3);
   }

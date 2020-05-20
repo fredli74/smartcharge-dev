@@ -18,10 +18,6 @@ export function scheduleMap(
   schedule: GQLSchedule[]
 ): Record<string, GQLSchedule> {
   return schedule
-    .map(f => {
-      f.time = f.time && new Date(f.time);
-      return f;
-    })
     .sort((a, b) => compareStartTimes(a.time, b.time))
     .reduce((map, obj) => {
       if (map[obj.type] === undefined) map[obj.type] = obj;
