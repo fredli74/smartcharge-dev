@@ -46,6 +46,10 @@ export enum ScheduleType {
    */
   Manual = "manual",
   /**
+   * Disable all vehicle control
+   */
+  Disable = "disable",
+  /**
    * Charge for upcoming trip
    */
   Trip = "trip"

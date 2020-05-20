@@ -19,12 +19,11 @@
             </template>
           </RelativeTime>
           <div
-            v-if="Boolean(vehicle.pausedUntil)"
-            class="pt-4"
-            style="font-size:0.9em"
+            v-if="Boolean(vehicle && vehicle.providerData.disabled)"
+            class="pt-4 text-no-wrap deep-orange--text text--accent-4"
+            style="font-size:0.8em"
           >
-            Smart charge paused until
-            <div class="text-no-wrap">{{ pauseText }}</div>
+            Polling is disabled
           </div>
         </v-flex>
         <v-flex sm6 grow class="">
@@ -140,7 +139,8 @@ import { RawLocation } from "vue-router";
 import moment from "moment";
 import config from "@shared/smartcharge-config";
 import { makePublicID } from "@shared/utils";
-import { GQLVehicle, GQLLocation, GQLSchduleType } from "@shared/sc-schema";
+import { GQLVehicle, GQLLocation } from "@shared/sc-schema";
+import { getVehicleLocationSettings } from "@shared/sc-utils";
 
 const vehicleFragment = `id ownerID serviceID name maximumLevel schedule { type level time } providerData geoLocation { latitude longitude } locationID locationSettings { locationID directLevel goal } batteryLevel outsideTemperature insideTemperature climateControl isConnected chargingTo estimatedTimeLeft isDriving status smartStatus chargePlan { chargeType chargeStart chargeStop level comment }  updated`;
 
@@ -183,6 +183,7 @@ const vehicleFragment = `id ownerID serviceID name maximumLevel schedule { type 
       },
 
       update(data) {
+        // TODO REMOVE
         if (data.vehicle && data.vehicle.pausedUntil) {
           const when = new Date(data.vehicle.pausedUntil).getTime();
           const now = Date.now();
@@ -190,6 +191,7 @@ const vehicleFragment = `id ownerID serviceID name maximumLevel schedule { type 
             data.vehicle.pausedUntil = null;
           }
         }
+        // TODO REMOVE
         if (data.vehicle && data.vehicle.tripSchedule) {
           const when = new Date(data.vehicle.tripSchedule.time).getTime();
           const now = Date.now();
@@ -319,7 +321,7 @@ export default class VehicleVue extends Vue {
       prefix = "Connected and";
     }
 
-    if (val.location && this.locations) {
+    if (val.locationID && this.locations) {
       this.location = this.locations.find(f => f.id === val.locationID);
       assert(this.location !== undefined);
 
@@ -355,9 +357,10 @@ export default class VehicleVue extends Vue {
       (suffix ? " " + suffix : "");
   }
   get batteryColor() {
+    const settings = getVehicleLocationSettings(this.vehicle!);
     return this.vehicle!.batteryLevel > this.vehicle!.maximumLevel
       ? "#9cef19"
-      : this.vehicle!.batteryLevel > 75 /* TODO  MINIMUM LEVEL */
+      : this.vehicle!.batteryLevel > settings.directLevel
       ? "#4cd853"
       : this.vehicle!.batteryLevel > 10
       ? "orange"
@@ -371,15 +374,6 @@ export default class VehicleVue extends Vue {
     } else {
       return `display:none`;
     }
-  }
-
-  get pauseText() {
-    const pause =
-      this.vehicle &&
-      this.vehicle.schedule.find(
-        f => f.type === GQLSchduleType.Pause && f.time.getTime() > Date.now()
-      );
-    return pause && moment(pause.time).format("YYYY-MM-DD HH:mm");
   }
 
   replaceISOtime(s: string): string {

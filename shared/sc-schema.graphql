@@ -95,6 +95,7 @@ type Location {
 type Mutation {
   loginWithPassword(password: String!): Account!
   loginWithIDToken(idToken: String!): Account!
+  newPriceList(id: String, isPrivate: Boolean = true, name: String!): PriceList!
   updatePriceList(input: UpdatePriceListInput!): PriceList!
   updateLocation(input: UpdateLocationInput!): Location!
   removeLocation(confirm: String!, id: String!): Boolean!
@@ -172,7 +173,7 @@ enum SchduleType {
   AI
   Suggestion
   Manual
-  Disabled
+  Disable
   Trip
 }
 

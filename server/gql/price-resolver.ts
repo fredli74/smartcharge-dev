@@ -33,6 +33,20 @@ export class PriceResolver {
   }
 
   @Mutation(_returns => PriceList)
+  async newPriceList(
+    @Arg("name", _type => String) name: string,
+    @Arg("isPrivate", _type => Boolean, { nullable: true, defaultValue: true })
+    isPrivate: boolean,
+    @Arg("id", _type => String, { nullable: true }) id: string,
+    @Ctx() context: IContext
+  ): Promise<PriceList> {
+    return plainToClass(
+      PriceList,
+      await context.db.newPriceList(context.accountUUID, name, isPrivate, id)
+    );
+  }
+
+  @Mutation(_returns => PriceList)
   async updatePriceList(
     @Arg("input") input: UpdatePriceListInput,
     @Ctx() context: IContext

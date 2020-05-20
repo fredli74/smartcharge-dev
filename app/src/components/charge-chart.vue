@@ -1,7 +1,7 @@
 <template>
   <v-container fluid>
-    <v-layout row justify-space-around>
-      <v-flex xs12>
+    <v-row justify="space-around">
+      <v-col v-if="false" cols="12">
         <line-chart
           v-if="chartData && chartData.prices.length > 1"
           id="pricechart"
@@ -10,8 +10,8 @@
           :options="priceChartOptions"
           :chart-data="priceChartData"
         ></line-chart>
-      </v-flex>
-      <v-flex xs12>
+      </v-col>
+      <v-col cols="12">
         <apex
           v-if="chartData && chartData.prices.length > 1"
           id="APEXpricechart"
@@ -21,8 +21,8 @@
           :options="APEXpriceoptions"
           :series="APEXpriceseries"
         ></apex
-      ></v-flex>
-      <v-flex xs12>
+      ></v-col>
+      <v-col cols="12">
         <apex
           v-if="chartData && chartData.prices.length > 1"
           id="APEXchargechart"
@@ -32,11 +32,11 @@
           :options="APEXchargeoptions"
           :series="APEXchargeseries"
         ></apex
-      ></v-flex>
+      ></v-col>
       <p v-if="chartData && !(chartData.prices.length > 1)">
         No price data
       </p>
-    </v-layout>
+    </v-row>
   </v-container>
 </template>
 
@@ -237,7 +237,9 @@ export default class ChargeChart extends Vue {
       fullUpdate: false
     };
   }
-  mounted() {}
+  mounted() {
+    console.debug("mounted");
+  }
 
   timer?: any;
   created() {

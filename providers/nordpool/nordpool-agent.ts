@@ -19,6 +19,12 @@ import config from "./nordpool-config";
 import nordpoolAPI from "./nordpool-api";
 import { DateTime } from "luxon";
 import { GQLPriceDataInput } from "@shared/sc-schema";
+import { v5 as uuidv5 } from "uuid";
+
+const NORDPOOL_NAMESPACE = uuidv5("agent.nordpool.smartcharge.dev", uuidv5.DNS);
+function pricelistUUID(subject: string, domain: string): string {
+  return uuidv5(`${subject}.${domain}`, NORDPOOL_NAMESPACE);
+}
 
 interface NordpoolAgentJob extends AgentJob {
   serviceData: NordpoolServiceData;
@@ -62,8 +68,12 @@ export class NordpoolAgent extends AbstractAgent {
 
     debugger;
     console.debug(areas);
-    /*
     for (const [area, prices] of Object.entries(areas)) {
+      /*await this.scClient.updatePriceList();
+      await this.scClient.getPriceList();
+  */
+      /*
+    
       const update: GQLUpdatePriceInput = {
         priceListID
         code: `${this.name}.${area}`.toLowerCase(),
@@ -74,8 +84,8 @@ export class NordpoolAgent extends AbstractAgent {
         `Sending updatePrice for ${update.code} => ${JSON.stringify(update)}`
       );
       await this.scClient.updatePrice(update);
+      */
     }
-*/
     const nextUpdate = (Math.floor(now / 3600e3) + 1) * 3600e3 + 120e3;
     job.interval = Math.max(60, (nextUpdate - now) / 1e3);
   }

@@ -697,4 +697,27 @@ export class DBInterface {
       )
     ).schedule;
   }
+
+  public async newPriceList(
+    account_uuid: string,
+    name: string,
+    private_list: boolean,
+    price_list_uuid?: string
+  ): Promise<DBPriceList> {
+    const fields: any = {
+      price_list_uuid,
+      account_uuid,
+      name,
+      private_list
+    };
+    for (const key of Object.keys(fields)) {
+      if (fields[key] === undefined || fields[key] === null) {
+        delete fields[key];
+      }
+    }
+    return await this.pg.one(
+      `INSERT INTO price_list($[this:name]) VALUES($[this:csv]) RETURNING *;`,
+      fields
+    );
+  }
 }

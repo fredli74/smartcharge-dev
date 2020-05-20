@@ -1,7 +1,7 @@
 <template>
   <v-form ref="form">
     <v-row>
-      <v-col cols="12" md="6" class="mt-2">
+      <v-col cols="12" sm="5" md="6" class="mt-2">
         <v-list-item-title>{{ name }}</v-list-item-title>
         <v-list-item-subtitle
           class="font-light overline caption secondary--text text--lighten-2"
@@ -9,7 +9,7 @@
         >
       </v-col>
       <v-spacer></v-spacer>
-      <v-col cols="6" sm="5" md="3">
+      <v-col cols="6" sm="3" md="3">
         <v-text-field
           v-model="directLevel"
           :rules="[v => (v >= 5 && v <= 50) || 'allowed range 5% - 50%']"
@@ -32,7 +32,7 @@
           </template>
         </v-text-field>
       </v-col>
-      <v-col cols="6" sm="5" md="3">
+      <v-col cols="6" sm="4" md="3">
         <v-combobox
           v-model="goal"
           :items="goalCBList"
@@ -47,8 +47,9 @@
               <template v-slot:activator="{ on }">
                 <v-icon v-on="on">mdi-help-circle-outline</v-icon>
               </template>
-              To avoid battery degradation, immediately charge to this level
-              when plugged in. (Recommended 10%-20%)
+              Set the smart charge focus from low cost, that may only fill up on
+              days when prices are low, to full charge, that fills up every
+              time. (Recommended Balanced)
             </v-tooltip>
           </template>
         </v-combobox>

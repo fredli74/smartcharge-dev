@@ -10,7 +10,7 @@ import { strict as assert } from "assert";
 
 import { IRestToken, RestClient } from "@shared/restclient";
 import * as fs from "fs";
-import { log, logFormat, LogLevel } from "@shared/utils";
+import { log, logFormat, LogLevel, numericStopTime } from "@shared/utils";
 import { SCClient } from "@shared/sc-client";
 import config from "./tesla-config";
 import teslaAPI from "./tesla-api";
@@ -32,9 +32,9 @@ import {
   GQLChargePlan,
   GQLChargeType,
   GQLAction,
-  GQLSchedule,
   GQLSchduleType
 } from "@shared/sc-schema";
+import { scheduleMap } from "@shared/sc-utils";
 
 type PollState = "polling" | "tired" | "offline" | "asleep";
 
@@ -131,7 +131,7 @@ export class TeslaAgent extends AbstractAgent {
         break;
     }
 
-    let unknown_image = undefined;
+    let unknown_image = null;
 
     function optionTranslate(
       field: string,
@@ -305,13 +305,20 @@ export class TeslaAgent extends AbstractAgent {
   }
 
   private async poll(job: TeslaAgentJob, subject: TeslaSubject): Promise<void> {
+    if (subject.vehicleUUID !== "0e02c557-38e1-90b0-a2e7-879fff5f29db") return;
+
     try {
       const now = Date.now();
+
+      if (!subject.data || subject.data.providerData.disabled) {
+        subject.data = await this.scClient.getVehicle(subject.vehicleUUID);
+        if (subject.data.providerData.disabled) return;
+      }
+
       await this.maintainToken(job);
 
       const timeTryingToSleep =
-        (subject.data && subject.data.providerData.time_tired) ||
-        config.TIME_BEING_TIRED;
+        subject.data.providerData.time_tired || config.TIME_BEING_TIRED;
 
       // API Poll
       if (
@@ -584,11 +591,7 @@ export class TeslaAgent extends AbstractAgent {
         }
       }
 
-      if (
-        subject.data &&
-        subject.data.providerData &&
-        subject.data.providerData.invalid_token
-      ) {
+      if (subject.data.providerData.invalid_token) {
         await this.scClient.updateVehicle({
           id: subject.vehicleUUID,
           providerData: { invalid_token: null }
@@ -605,221 +608,196 @@ export class TeslaAgent extends AbstractAgent {
         assert(subject.parked === undefined);
         subject.parked = now;
       }
-      /*console.log(
-        JSON.stringify({
-          wasDriving: wasDriving,
-          parked: subject.parked,
-          triedOpen: subject.triedOpen,
-          now: now,
-          plan: subject.data.chargePlan !== null
-        })
-      );
-      console.log(JSON.stringify(subject));*/
+
       log(LogLevel.Trace, `${subject.teslaID} ${JSON.stringify(subject)}`);
 
       debugger;
       // Reduce the array to a map with only the first upcoming event of each type
-      const scheduleMap = subject.data.schedule
-        .sort((a, b) => a.time.getTime() - b.time.getTime())
-        .reduce((map, obj) => {
-          if (map[obj.type] === undefined) map[obj.type] = obj;
-          return map;
-        }, {} as Record<string, GQLSchedule>);
-      console.debug(scheduleMap);
-
-      const paused =
-        scheduleMap[GQLSchduleType.Pause] &&
-        scheduleMap[GQLSchduleType.Pause].time.getTime();
-      const trip =
-        scheduleMap[GQLSchduleType.Trip] &&
-        scheduleMap[GQLSchduleType.Trip].time.getTime();
+      const schedule = scheduleMap(subject.data.schedule);
+      console.debug(schedule);
+      const disabled = schedule[GQLSchduleType.Disable];
+      if (disabled && now < numericStopTime(disabled.time)) {
+        // Command disabled
+        return;
+      }
 
       // Command logic
-      assert(subject.data !== undefined);
-      if (
-        !(paused && now < paused) && // Only controll if not paused
-        subject.data.locationID !== null
-      ) {
-        // Only controll if at a known charging location
-
-        if (subject.data.isConnected) {
-          // controll if car is connected
-          let shouldCharge: GQLChargePlan | undefined = undefined;
-          if (subject.data.chargePlan) {
-            for (const p of subject.data.chargePlan) {
-              if (
-                (p.chargeStart === undefined ||
-                  now >= p.chargeStart.getTime()) &&
-                (p.chargeStop === undefined || now < p.chargeStop.getTime())
-              ) {
-                shouldCharge = p;
-              }
+      if (subject.data.isConnected) {
+        // controll if car is connected
+        let shouldCharge: GQLChargePlan | undefined = undefined;
+        if (subject.data.chargePlan) {
+          for (const p of subject.data.chargePlan) {
+            if (
+              (p.chargeStart === undefined || now >= p.chargeStart.getTime()) &&
+              (p.chargeStop === undefined || now < p.chargeStop.getTime())
+            ) {
+              shouldCharge = p;
             }
           }
+        }
 
-          if (
-            shouldCharge === null &&
-            subject.online &&
-            subject.chargeEnabled === true &&
-            subject.data.chargingTo !== undefined &&
-            subject.data.batteryLevel < subject.data.chargingTo // keep it running if we're above or on target
-          ) {
-            if (await this.vehicleInteraction(job, subject, false)) {
+        if (
+          shouldCharge === null &&
+          subject.online &&
+          subject.chargeEnabled === true &&
+          subject.data.chargingTo !== undefined &&
+          subject.data.batteryLevel < subject.data.chargingTo // keep it running if we're above or on target
+        ) {
+          if (await this.vehicleInteraction(job, subject, false)) {
+            log(
+              LogLevel.Info,
+              `${subject.teslaID} stop charging ${subject.data.name}`
+            );
+            teslaAPI.chargeStop(subject.teslaID, job.serviceData.token);
+            this.stayOnline(subject);
+          }
+        } else if (
+          shouldCharge !== undefined &&
+          subject.data.batteryLevel < shouldCharge.level
+        ) {
+          if (subject.chargeEnabled !== true) {
+            if (await this.vehicleInteraction(job, subject, true)) {
               log(
                 LogLevel.Info,
-                `${subject.teslaID} stop charging ${subject.data.name}`
+                `${subject.teslaID} start charging ${subject.data.name}`
               );
-              teslaAPI.chargeStop(subject.teslaID, job.serviceData.token);
+              await teslaAPI.chargeStart(
+                subject.teslaID,
+                job.serviceData.token
+              );
               this.stayOnline(subject);
             }
-          } else if (
-            shouldCharge !== undefined &&
-            subject.data.batteryLevel < shouldCharge.level
-          ) {
-            if (subject.chargeEnabled !== true) {
+          } else {
+            let setLevel = shouldCharge!.level;
+            if (shouldCharge!.chargeType === GQLChargeType.Calibrate) {
+              if (!subject.calibrating) {
+                subject.calibrating = {
+                  level: Math.max(
+                    config.LOWEST_POSSIBLE_CHARGETO,
+                    subject.data.batteryLevel
+                  ),
+                  duration: 0,
+                  next: now + 30e3
+                };
+              }
+              if (subject.calibrating.level >= shouldCharge!.level) {
+                // done!
+                setLevel = 0;
+              } else {
+                setLevel = subject.calibrating.level + 1;
+                if (subject.chargeLimit !== setLevel) {
+                  subject.calibrating.next = Math.max(
+                    now + 15e3,
+                    subject.calibrating.next
+                  );
+                }
+              }
+            } else if (subject.calibrating) {
+              delete subject.calibrating;
+            }
+
+            const chargeto = Math.max(
+              config.LOWEST_POSSIBLE_CHARGETO,
+              setLevel
+            ); // Minimum allowed charge for Tesla is 50
+
+            if (
+              subject.chargeLimit !== undefined && // Only controll if polled at least once
+              subject.chargeLimit !== chargeto
+            ) {
               if (await this.vehicleInteraction(job, subject, true)) {
                 log(
                   LogLevel.Info,
-                  `${subject.teslaID} start charging ${subject.data.name}`
+                  `${subject.teslaID} setting charge limit for ${subject.data.name} to ${chargeto}%`
                 );
-                await teslaAPI.chargeStart(
+                await teslaAPI.setChargeLimit(
                   subject.teslaID,
+                  chargeto,
                   job.serviceData.token
                 );
                 this.stayOnline(subject);
               }
-            } else {
-              let setLevel = shouldCharge!.level;
-              if (shouldCharge!.chargeType === GQLChargeType.Calibrate) {
-                if (!subject.calibrating) {
-                  subject.calibrating = {
-                    level: Math.max(
-                      config.LOWEST_POSSIBLE_CHARGETO,
-                      subject.data.batteryLevel
-                    ),
-                    duration: 0,
-                    next: now + 30e3
-                  };
-                }
-                if (subject.calibrating.level >= shouldCharge!.level) {
-                  // done!
-                  setLevel = 0;
-                } else {
-                  setLevel = subject.calibrating.level + 1;
-                  if (subject.chargeLimit !== setLevel) {
-                    subject.calibrating.next = Math.max(
-                      now + 15e3,
-                      subject.calibrating.next
-                    );
-                  }
-                }
-              } else if (subject.calibrating) {
-                delete subject.calibrating;
-              }
-
-              const chargeto = Math.max(
-                config.LOWEST_POSSIBLE_CHARGETO,
-                setLevel
-              ); // Minimum allowed charge for Tesla is 50
-
-              if (
-                subject.chargeLimit !== undefined && // Only controll if polled at least once
-                subject.chargeLimit !== chargeto
-              ) {
-                if (await this.vehicleInteraction(job, subject, true)) {
-                  log(
-                    LogLevel.Info,
-                    `${subject.teslaID} setting charge limit for ${subject.data.name} to ${chargeto}%`
-                  );
-                  await teslaAPI.setChargeLimit(
-                    subject.teslaID,
-                    chargeto,
-                    job.serviceData.token
-                  );
-                  this.stayOnline(subject);
-                }
-              }
             }
-          }
-        } else if (
-          subject.data.providerData &&
-          subject.data.providerData.auto_port &&
-          subject.parked !== undefined &&
-          subject.data.chargePlan &&
-          subject.data.chargePlan.findIndex(
-            f =>
-              f.chargeType !== GQLChargeType.Fill &&
-              f.chargeType !== GQLChargeType.Manual &&
-              f.chargeType !== GQLChargeType.Prefered
-          ) >= 0
-        ) {
-          if (
-            now < subject.parked + 1 * 60e3 && // only open during the first minute
-            !subject.portOpen &&
-            subject.triedOpen === undefined
-          ) {
-            if (await this.vehicleInteraction(job, subject, false)) {
-              // if port is closed and we did not try to open it yet
-              await teslaAPI.openChargePort(
-                subject.teslaID,
-                job.serviceData.token
-              );
-            }
-            subject.triedOpen = now;
-          } else if (
-            now > subject.parked + 3 * 60e3 && // keep port open for 3 minutes
-            subject.portOpen &&
-            subject.triedOpen !== undefined
-          ) {
-            if (await this.vehicleInteraction(job, subject, false)) {
-              await teslaAPI.closeChargePort(
-                subject.teslaID,
-                job.serviceData.token
-              );
-            }
-            subject.triedOpen = undefined;
           }
         }
-
-        // Should we turn on hvac?
+      } else if (
+        subject.data.locationID !== null &&
+        subject.data.providerData.auto_port &&
+        subject.parked !== undefined &&
+        subject.data.chargePlan &&
+        subject.data.chargePlan.findIndex(
+          f =>
+            f.chargeType !== GQLChargeType.Fill &&
+            f.chargeType !== GQLChargeType.Manual &&
+            f.chargeType !== GQLChargeType.Prefered
+        ) >= 0
+      ) {
         if (
-          trip &&
-          subject.data.providerData &&
-          subject.data.providerData.auto_hvac
+          now < subject.parked + 1 * 60e3 && // only open during the first minute
+          !subject.portOpen &&
+          subject.triedOpen === undefined
         ) {
-          const on =
-            now > trip - config.TRIP_HVAC_ON_WINDOW &&
-            now < trip + config.TRIP_HVAC_ON_DURATION;
+          if (await this.vehicleInteraction(job, subject, false)) {
+            // if port is closed and we did not try to open it yet
+            await teslaAPI.openChargePort(
+              subject.teslaID,
+              job.serviceData.token
+            );
+          }
+          subject.triedOpen = now;
+        } else if (
+          now > subject.parked + 3 * 60e3 && // keep port open for 3 minutes
+          subject.portOpen &&
+          subject.triedOpen !== undefined
+        ) {
+          if (await this.vehicleInteraction(job, subject, false)) {
+            await teslaAPI.closeChargePort(
+              subject.teslaID,
+              job.serviceData.token
+            );
+          }
+          subject.triedOpen = undefined;
+        }
+      }
 
-          if (on) {
-            if (subject.data.climateControl) {
-              subject.hvacOn = subject.hvacOn || now;
-            } else if (!subject.hvacOn) {
-              log(
-                LogLevel.Info,
-                `${subject.teslaID} starting climate control on ${subject.data.name}`
-              );
-              await this[AgentAction.ClimateControl](job, {
-                data: { id: subject.vehicleUUID, enable: true }
-              } as any);
-            }
-          } else {
-            if (!subject.data.climateControl) {
-              subject.hvacOff = subject.hvacOff || now;
-            } else if (!subject.hvacOff) {
-              log(
-                LogLevel.Info,
-                `${subject.teslaID} stopping climate control on ${subject.data.name}`
-              );
-              await this[AgentAction.ClimateControl](job, {
-                data: { id: subject.vehicleUUID, enable: false }
-              } as any);
-            }
+      // Should we turn on hvac?
+      const trip =
+        schedule[GQLSchduleType.Trip] &&
+        schedule[GQLSchduleType.Trip].time &&
+        schedule[GQLSchduleType.Trip].time!.getTime();
+      if (trip && subject.data.providerData.auto_hvac) {
+        const on =
+          now > trip - config.TRIP_HVAC_ON_WINDOW &&
+          now < trip + config.TRIP_HVAC_ON_DURATION;
+
+        if (on) {
+          if (subject.data.climateControl) {
+            subject.hvacOn = subject.hvacOn || now;
+          } else if (!subject.hvacOn) {
+            log(
+              LogLevel.Info,
+              `${subject.teslaID} starting climate control on ${subject.data.name}`
+            );
+            await this[AgentAction.ClimateControl](job, {
+              data: { id: subject.vehicleUUID, enable: true }
+            } as any);
           }
         } else {
-          delete subject.hvacOn;
-          delete subject.hvacOff;
+          if (!subject.data.climateControl) {
+            subject.hvacOff = subject.hvacOff || now;
+          } else if (!subject.hvacOff) {
+            log(
+              LogLevel.Info,
+              `${subject.teslaID} stopping climate control on ${subject.data.name}`
+            );
+            await this[AgentAction.ClimateControl](job, {
+              data: { id: subject.vehicleUUID, enable: false }
+            } as any);
+          }
         }
+      } else {
+        delete subject.hvacOn;
+        delete subject.hvacOff;
       }
     } catch (err) {
       if (config.AGENT_SAVE_TO_TRACEFILE) {

@@ -8,7 +8,7 @@
           color="primary"
           label="charging"
           mandatory
-          @change="chargeControlChanged"
+          @change="chargeControl_onChange"
         >
           <v-btn>Stop</v-btn>
           <v-btn>Smart Charge</v-btn>
@@ -51,13 +51,19 @@
               :thumb-color="
                 chargeLevel > vehicle.maximumLevel ? 'deep-orange darken-2' : ''
               "
-              @end="chargeControlChanged"
+              @end="chargeLevel_onEnd"
+              @click="chargeLevel_onClick"
             >
             </v-slider> </v-col
         ></v-row>
-        <v-row class="" justify="space-around">
+        <v-row class="mt-n3" justify="space-around">
           <v-col cols="10" sm="7">
-            <v-switch v-model="showDate" inset :label="`Schedule`">
+            <v-switch
+              v-model="showDate"
+              inset
+              :label="`Schedule`"
+              @change="onChangeShowDate"
+            >
               <template v-slot:append>
                 <Datetime
                   id="chargeDate"
@@ -71,10 +77,11 @@
                     'primary--text text--darken-2 font-weight-medium'
                   ]"
                   :minute-step="10"
-                  :format="`yyyy-MM-dd hh:mm`"
+                  :format="`yyyy-MM-dd HH:mm`"
                   :min-datetime="minDate"
                   :max-datetime="maxDate"
-                  @input="chargeControlChanged"
+                  @input="chargeDate_onInput"
+                  @confirm="chargeDate_onConfirm"
                 >
                 </Datetime>
               </template>
@@ -109,9 +116,9 @@ import apollo from "@app/plugins/apollo";
 
 import Datetime from "./datetime.vue";
 import "vue-datetime/dist/vue-datetime.css";
-import { scheduleMap, getVehicleLocationSettings } from "../plugins/utils";
 import { DateTime } from "luxon";
 import { relativeTime } from "@shared/utils";
+import { scheduleMap, getVehicleLocationSettings } from "@shared/sc-utils";
 
 @Component({ components: { Datetime } })
 export default class VehicleCharge extends Vue {
@@ -142,11 +149,9 @@ export default class VehicleCharge extends Vue {
     };
   }
 
-  @Watch("showDate")
-  onDateSwitch(val: boolean, old: boolean) {
-    if (old !== undefined && val !== old) {
-      this.chargeControlChanged();
-    }
+  onChangeShowDate() {
+    console.debug("onChangeShowDate");
+    this.chargeControlChanged();
   }
 
   @Watch("vehicle", { deep: false, immediate: true })
@@ -173,7 +178,7 @@ export default class VehicleCharge extends Vue {
           const ai = this.scheduleMap[GQLSchduleType.AI];
           if (ai && ai.time) {
             const rt = relativeTime(ai.time);
-            this.smartText = `${ai.level}% before ${rt.date} at ${rt.time}`;
+            this.smartText = `${ai.level}% before ${rt.time} ${rt.date}`;
           } else {
             this.smartText = ``;
           }
@@ -184,7 +189,7 @@ export default class VehicleCharge extends Vue {
           if (manual.time) {
             this.chargeDate = manual.time.toISOString();
             const rt = relativeTime(manual.time);
-            this.smartText = `Charging to ${this.chargeLevel}% before ${rt.date} at ${rt.time}`;
+            this.smartText = `Charging to ${this.chargeLevel}% before ${rt.time} ${rt.date}`;
           } else {
             this.smartText = `Direct charging to ${this.chargeLevel}%`;
           }
@@ -208,6 +213,26 @@ export default class VehicleCharge extends Vue {
       .plus({ months: 6 })
       .endOf("month")
       .toISO();
+  }
+
+  async chargeControl_onChange() {
+    console.debug("chargeControl_onChange");
+    this.chargeControlChanged();
+  }
+  async chargeLevel_onEnd() {
+    //console.debug("chargeLevel_onEnd");
+    //this.chargeControlChanged();
+  }
+  async chargeLevel_onClick() {
+    console.debug("chargeLevel_onClick");
+    this.chargeControlChanged();
+  }
+  async chargeDate_onInput() {
+    console.debug("chargeDate_onInput");
+  }
+  async chargeDate_onConfirm() {
+    console.debug("chargeDate_onConfirm");
+    this.chargeControlChanged();
   }
 
   async chargeControlChanged() {

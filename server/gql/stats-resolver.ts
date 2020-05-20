@@ -13,6 +13,7 @@ import { Arg, Resolver, Query, Ctx } from "type-graphql";
 import { IContext, accountFilter } from "./api";
 import { plainToClass } from "class-transformer";
 import { PriceData } from "./price-type";
+import { DBInterface } from "@server/db-interface";
 
 @ObjectType()
 export class ChartData {
@@ -85,6 +86,10 @@ export class StatsResolver {
             plainToClass(ChargePlan, f)
           )) ||
         null,
+      directLevel: (
+        vehicle.location_settings[location_uuid] ||
+        DBInterface.DefaultVehicleLocationSettings(location_uuid)
+      ).directLevel,
       maximumLevel: vehicle.maximum_charge
     } as ChartData);
 

@@ -11,11 +11,7 @@
         ></v-text-field>
       </v-col>
       <v-spacer></v-spacer>
-      <v-col cols="auto" align-self="center">
-        <v-btn color="primary" icon :href="mapLink" target="_blank"
-          ><v-icon>mdi-map-marker</v-icon></v-btn
-        >
-      </v-col>
+      <v-col cols="auto" align-self="center"> </v-col>
     </v-row>
     <v-row>
       <v-col cols="12" md="9">
@@ -29,14 +25,24 @@
         ></v-autocomplete>
       </v-col>
     </v-row>
-    <v-row justify="center">
-      <RemoveDialog
-        :id="location.id"
-        label="location"
-        @action="doConfirm"
-      ></RemoveDialog>
+    <v-row justify="space-between">
+      <v-btn
+        class="float-right"
+        color="primary"
+        icon
+        :href="mapLink"
+        target="_blank"
+        ><v-icon>mdi-map-marker</v-icon></v-btn
+      >
+      <v-spacer></v-spacer>
+      <v-col cols="auto">
+        <RemoveDialog
+          :id="location.id"
+          label="location"
+          @action="doConfirm"
+        ></RemoveDialog>
+      </v-col>
     </v-row>
-    {{ location }}
   </v-form>
 </template>
 
@@ -110,11 +116,6 @@ export default class EditLocation extends Vue {
 
   get pricelist(): string {
     return (this.location.priceList && this.location.priceList.name) || "";
-  }
-
-  get items(): string[] {
-    console.debug("LOADED LIST!");
-    return ["hej", "du"];
   }
 
   debounceTimer?: any;

@@ -1,7 +1,7 @@
 <template>
   <v-form ref="form">
-    <v-row>
-      <v-col cols="12" md="9">
+    <v-row class="mb-n5">
+      <v-col cols="12" sm="8">
         <v-text-field
           v-model="name"
           :rules="[v => v.length > 0 || 'Required']"
@@ -10,7 +10,7 @@
           :loading="saving.name"
         ></v-text-field>
       </v-col>
-      <v-col cols="6" sm="5" md="3">
+      <v-col cols="6" sm="4">
         <v-text-field
           v-model="maximumLevel"
           :rules="[v => (v >= 50 && v <= 100) || 'allowed range 50% - 100%']"
@@ -33,32 +33,8 @@
         </v-text-field>
       </v-col>
     </v-row>
-    <v-divider></v-divider>
-    <v-list v-if="locationSettings().length > 0" two-line subheader>
-      <v-subheader class="px-0 mb-n3"
-        >Location settings<v-tooltip right max-width="20rem">
-          <template v-slot:activator="{ on }">
-            <v-icon class="float-right mx-4" v-on="on"
-              >mdi-help-circle-outline</v-icon
-            >
-          </template>
-          Adjust smart charge focus from low cost, that tries to only charge at
-          low prices, to full charge that fills up every time.
-        </v-tooltip>
-      </v-subheader>
-
-      <EditVehicleLocationSettings
-        v-for="l in locationSettings()"
-        :key="l.settings.location"
-        :name="l.name"
-        :settings="l.settings"
-        :vehicle="vehicle"
-      >
-      </EditVehicleLocationSettings>
-    </v-list>
-    <v-divider></v-divider>
-    <v-row align="center" justify="space-around">
-      <v-col cols="auto" align-self="center">
+    <v-row align="center" justify-sm="space-around" class="mb-5">
+      <v-col cols="12" sm="auto" align-self-sm="center">
         <v-switch
           v-model="auto_port"
           color="primary"
@@ -69,7 +45,7 @@
           :loading="saving.auto_port"
         ></v-switch
       ></v-col>
-      <v-col cols="auto" align-self="center"
+      <v-col cols="12" sm="auto" align-self-sm="center"
         ><v-switch
           v-model="auto_hvac"
           color="primary"
@@ -81,15 +57,46 @@
         ></v-switch>
       </v-col>
     </v-row>
-    <v-row justify="center">
-      <RemoveDialog
-        :id="vehicle.id"
-        label="vehicle"
-        @action="doConfirm"
-      ></RemoveDialog>
+    <v-divider></v-divider>
+    <v-list v-if="locationSettings().length > 0" two-line subheader>
+      <v-subheader class="px-0 mb-n3">Location settings</v-subheader>
+
+      <EditVehicleLocationSettings
+        v-for="l in locationSettings()"
+        :key="l.settings.location"
+        :name="l.name"
+        :settings="l.settings"
+        :vehicle="vehicle"
+      >
+      </EditVehicleLocationSettings>
+    </v-list>
+    <v-divider></v-divider>
+    <v-row class="mt-3" justify="space-between">
+      <v-col cols="auto">
+        <v-switch
+          v-model="disabled"
+          hide-details="true"
+          class="mt-0"
+          color="deep-orange accent-4"
+          inset
+          label="Disable"
+          :loading="saving.disabled"
+          ><template v-if="disabled" v-slot:label>
+            <div class="deep-orange--text text--accent-4">
+              Disabled information polling and charge control!
+            </div>
+          </template></v-switch
+        >
+      </v-col>
+      <v-spacer></v-spacer>
+      <v-col cols="auto">
+        <RemoveDialog
+          :id="vehicle.id"
+          label="vehicle"
+          @action="doConfirm"
+        ></RemoveDialog>
+      </v-col>
     </v-row>
-    {{ locations }}
-    {{ locationSettings() }}
   </v-form>
 </template>
 
@@ -106,7 +113,7 @@ import {
   GQLVehicleLocationSetting,
   GQLUpdateVehicleInput
 } from "@shared/sc-schema";
-import { DefaultVehicleLocationSettings } from "../plugins/utils";
+import { DefaultVehicleLocationSettings } from "@shared/sc-utils";
 
 @Component({
   components: { EditVehicleLocationSettings, RemoveDialog }
@@ -123,7 +130,8 @@ export default class EditVehicle extends Vue {
         name: false,
         maximumLevel: false,
         auto_hvac: false,
-        auto_port: false
+        auto_port: false,
+        disabled: false
       }
     };
   }
@@ -185,6 +193,13 @@ export default class EditVehicle extends Vue {
     this.vehicle.providerData.auto_port = value;
     this.save("auto_port");
   }
+  get disabled(): boolean {
+    return this.vehicle.providerData && this.vehicle.providerData.disabled;
+  }
+  set disabled(value: boolean) {
+    this.vehicle.providerData.disabled = value;
+    this.save("disabled");
+  }
 
   debounceTimer?: any;
   touchedFields: any = {};
@@ -214,6 +229,9 @@ export default class EditVehicle extends Vue {
         }
         if (this.saving["auto_port"]) {
           update.providerData.auto_port = this.vehicle.providerData.auto_port;
+        }
+        if (this.saving["disabled"]) {
+          update.providerData.disabled = this.vehicle.providerData.disabled;
         }
         if (equal(update.providerData, {})) {
           delete update.providerData;

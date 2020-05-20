@@ -38,6 +38,7 @@ import {
   MIN_STATS_PERIOD,
   TRIP_TOPUP_MARGIN
 } from "@shared/smartcharge-defines";
+import { plainToClass } from "class-transformer";
 
 export class Logic {
   constructor(private db: DBInterface) {}
@@ -1006,13 +1007,13 @@ export class Logic {
 
     // Cleanup schedule array remove all entries 1 hour after the end time
     const schedule = await asyncFilter(
-      vehicle.schedule as Schedule[],
+      plainToClass(Schedule, vehicle.schedule),
       async f => {
         const keep = now < numericStopTime(f.time) + 3600e3;
         if (!keep) {
-          debugger;
           await this.db.removeVehicleSchedule(vehicle.vehicle_uuid, f);
         }
+        return keep;
       }
     );
 
@@ -1037,17 +1038,15 @@ export class Logic {
       let disconnectTime: number = 0;
       let stats: DBLocationStats | null = null;
 
-      debugger; // Check the f => f map below, it was a convert JS thingie
       if (vehicle.charge_plan) {
         // Find and keep emergency charge if we had one
-        plan = (vehicle.charge_plan as ChargePlan[])
-          .filter(f => {
-            // keep emergency charge so that it is not stopped just as it touches minimum_level
-            return f.chargeStart === null && vehicle.level < minimum_charge + 1;
-          })
-          .map(f => {
-            return f;
-          });
+        plan = plainToClass(
+          ChargePlan,
+          vehicle.charge_plan as ChargePlan[]
+        ).filter(f => {
+          // keep emergency charge so that it is not stopped just as it touches minimum_level
+          return f.chargeStart === null && vehicle.level < minimum_charge + 1;
+        });
       }
 
       if (vehicle.level < minimum_charge) {
@@ -1136,7 +1135,6 @@ export class Logic {
             /*
              ****** ANALYSE AND THINK ABOUT IT!  ******
              */
-            debugger;
 
             const guess: {
               charge: number;

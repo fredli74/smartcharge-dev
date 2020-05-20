@@ -34,6 +34,7 @@
           outlined
           color=""
           :loading="refreshLoading"
+          :disabled="!Boolean(vehicle.serviceID)"
           v-on="on"
           @click="refreshClick()"
           ><v-icon :large="!smallButton">mdi-refresh</v-icon></v-btn
@@ -50,6 +51,7 @@
           outlined
           color=""
           :loading="refreshLoading"
+          :disabled="!Boolean(vehicle.serviceID)"
           v-on="on"
           @click="refreshClick()"
           ><v-icon :large="!smallButton">mdi-sleep-off</v-icon></v-btn
@@ -66,6 +68,7 @@
           :outlined="!vehicle.climateControl"
           :color="vehicle.climateControl ? 'success' : ''"
           :loading="hvacLoading"
+          :disabled="!Boolean(vehicle.serviceID)"
           v-on="on"
           @click="hvacClick()"
           ><v-icon :large="!smallButton"
@@ -78,19 +81,22 @@
 
     <v-tooltip top>
       <template v-slot:activator="{ on }">
-        <v-btn
-          depressed
-          fab
-          :small="smallButton"
-          :dark="Boolean(manualChargeColor)"
-          :outlined="!Boolean(manualChargeColor)"
-          :color="manualChargeColor"
-          v-on="on"
-          @click="chargeClick()"
-          ><v-icon :large="!smallButton">mdi-lightning-bolt</v-icon></v-btn
-        >
+        <div v-on="on">
+          <v-btn
+            depressed
+            fab
+            :small="smallButton"
+            :dark="Boolean(manualChargeColor)"
+            :outlined="!Boolean(manualChargeColor)"
+            :color="manualChargeColor"
+            :disabled="!Boolean(vehicle.isConnected)"
+            @click="chargeClick()"
+            ><v-icon :large="!smallButton">mdi-lightning-bolt</v-icon></v-btn
+          >
+        </div>
       </template>
-      <span>Charging</span>
+      <span v-if="Boolean(vehicle.isConnected)">Charge Control</span>
+      <span v-else>Not connected</span>
     </v-tooltip>
     <v-tooltip top>
       <template v-slot:activator="{ on }">
@@ -138,7 +144,7 @@ import deepmerge from "deepmerge";
 import VehicleCharge from "./vehicle-charge.vue";
 import VehicleTrip from "./vehicle-trip.vue";
 import { GQLAction, GQLVehicle, GQLSchduleType } from "@shared/sc-schema";
-import { scheduleMap } from "../plugins/utils";
+import { scheduleMap } from "@shared/sc-utils";
 
 @Component({
   components: {
@@ -241,29 +247,33 @@ export default class VehicleActions extends Vue {
   }
 
   async refreshClick() {
-    this.refreshLoading = true;
-    apollo.action(this.vehicle!.serviceID, AgentAction.Refresh, {
-      id: this.vehicle!.id
-    });
-    const was = this.vehicle!.updated;
-    while (this.vehicle!.updated === was) {
-      await delay(1000);
+    if (this.vehicle && this.vehicle.serviceID) {
+      this.refreshLoading = true;
+      apollo.action(this.vehicle.serviceID, AgentAction.Refresh, {
+        id: this.vehicle.id
+      });
+      const was = this.vehicle.updated;
+      while (this.vehicle.updated === was) {
+        await delay(1000);
+      }
+      this.refreshLoading = false;
     }
-    this.refreshLoading = false;
   }
   async hvacClick() {
-    this.hvacLoading = true;
-    if (this.isSleeping) this.refreshLoading = true;
-    const want = !this.vehicle!.climateControl;
-    apollo.action(this.vehicle!.serviceID, AgentAction.ClimateControl, {
-      id: this.vehicle!.id,
-      enable: want
-    });
-    while (this.vehicle!.climateControl !== want) {
-      await delay(1000);
+    if (this.vehicle && this.vehicle.serviceID) {
+      this.hvacLoading = true;
+      if (this.isSleeping) this.refreshLoading = true;
+      const want = !this.vehicle.climateControl;
+      apollo.action(this.vehicle.serviceID, AgentAction.ClimateControl, {
+        id: this.vehicle.id,
+        enable: want
+      });
+      while (this.vehicle.climateControl !== want) {
+        await delay(1000);
+      }
+      this.refreshLoading = false;
+      this.hvacLoading = false;
     }
-    this.refreshLoading = false;
-    this.hvacLoading = false;
   }
 
   tripClick() {
@@ -318,7 +328,7 @@ export default class VehicleActions extends Vue {
 .datepicker-day-text {
   font-size: 18px !important;
 }
-#vehicle-actions button {
+#vehicle-actions > * {
   margin-left: 14px;
 }
 </style>

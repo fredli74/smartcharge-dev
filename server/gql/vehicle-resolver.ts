@@ -203,8 +203,6 @@ export class VehicleResolver {
       account_uuid: context.accountUUID
     });
 
-    console.debug(result);
-    console.debug(result.map(f => plainToClass(Schedule, f)));
-    return result;
+    return plainToClass(Schedule, result);
   }
 }

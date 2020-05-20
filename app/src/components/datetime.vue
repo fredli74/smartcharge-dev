@@ -102,7 +102,6 @@ export default class DateTimePicker extends Vue {
           break;
       }
     }
-    console.debug(typeof format);
 
     if (typeof format === "string") {
       return (
@@ -167,6 +166,7 @@ export default class DateTimePicker extends Vue {
   confirm(datetime: any) {
     this.datetime = datetime.toUTC();
     this.emitInput();
+    this.$emit("confirm", datetime ? datetime.toISO() : "");
     this.close();
   }
 
