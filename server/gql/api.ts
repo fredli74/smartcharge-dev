@@ -82,14 +82,14 @@ export default function schema(emitFile?: string): Promise<GraphQLSchema> {
 
       ProviderResolver,
 
+      PriceListTypeResolver,
+      PriceResolver,
+
       LocationTypeResolver,
       LocationResolver,
 
       VehicleTypeResolver,
       VehicleResolver,
-
-      PriceListTypeResolver,
-      PriceResolver,
 
       ServiceProviderTypeResolver,
       ServiceResolver,

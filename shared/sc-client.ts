@@ -32,7 +32,7 @@ import {
   GQLScheduleInput
 } from "./sc-schema";
 import { API_PATH } from "./smartcharge-defines";
-import { classToPlain } from "class-transformer";
+import { classToPlain, plainToClass } from "class-transformer";
 
 // Strip __typename from input into mutations
 function plain(val: any): any {
@@ -282,6 +282,9 @@ export class SCClient extends ApolloClient<any> {
       query,
       variables: { id: vehicleUUID }
     });
+    debugger;
+    const k = plainToClass(GQLVehicle, result.data.vehicle);
+    console.debug(k);
     return result.data.vehicle;
   }
   public async getVehicles(): Promise<GQLVehicle[]> {

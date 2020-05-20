@@ -7,6 +7,9 @@
 /* tslint:disable */
 /* eslint-disable */
 import { GraphQLResolveInfo, GraphQLScalarType } from 'graphql';
+import 'reflect-metadata';
+import { Type } from 'class-transformer';
+
 /*******************************
  *          TYPE DEFS          *
  *******************************/
@@ -24,38 +27,41 @@ export interface GQLQuery {
   test: GQLResolverTest;
 }
 
-export interface GQLAccount {
-  id: string;
-  name: string;
-  token: string;
+export class GQLAccount {
+  id!: string;
+  name!: string;
+  token!: string;
 }
 
-export interface GQLPriceList {
-  id: string;
-  ownerID: string;
-  name: string;
-  isPrivate: boolean;
+export class GQLPriceList {
+  id!: string;
+  ownerID!: string;
+  name!: string;
+  isPrivate!: boolean;
 }
 
-export interface GQLLocation {
-  id: string;
-  ownerID: string;
-  name: string;
-  geoLocation: GQLGeoLocation;
+export class GQLLocation {
+  id!: string;
+  ownerID!: string;
+  name!: string;
+  @Type(() => GQLGeoLocation)
+  geoLocation!: GQLGeoLocation;
   
   /**
    * Radius in meters
    */
   geoFenceRadius?: number;
   serviceID?: string;
+  @Type(() => GQLJSONObject)
   providerData?: GQLJSONObject;
   priceListID?: string;
+  @Type(() => GQLPriceList)
   priceList?: GQLPriceList;
 }
 
-export interface GQLGeoLocation {
-  latitude: number;
-  longitude: number;
+export class GQLGeoLocation {
+  latitude!: number;
+  longitude!: number;
 }
 
 /**
@@ -63,38 +69,43 @@ export interface GQLGeoLocation {
  */
 export type GQLJSONObject = any;
 
-export interface GQLServiceProvider {
-  ownerID: string;
-  providerName: string;
-  serviceID: string;
-  serviceData: GQLJSONObject;
+export class GQLServiceProvider {
+  ownerID!: string;
+  providerName!: string;
+  serviceID!: string;
+  @Type(() => GQLJSONObject)
+  serviceData!: GQLJSONObject;
 }
 
-export interface GQLChartData {
-  locationID: string;
-  locationName: string;
-  vehicleID: string;
-  batteryLevel: number;
+export class GQLChartData {
+  locationID!: string;
+  locationName!: string;
+  vehicleID!: string;
+  batteryLevel!: number;
   levelChargeTime?: number;
   thresholdPrice?: number;
-  chargeCurve: GQLJSONObject;
-  prices: Array<GQLPriceData>;
+  @Type(() => GQLJSONObject)
+  chargeCurve!: GQLJSONObject;
+  @Type(() => GQLPriceData)
+  prices!: Array<GQLPriceData>;
+  @Type(() => GQLChargePlan)
   chargePlan?: Array<GQLChargePlan>;
-  directLevel: number;
-  maximumLevel: number;
+  directLevel!: number;
+  maximumLevel!: number;
 }
 
-export interface GQLPriceData {
+export class GQLPriceData {
   
   /**
    * Price tariff start time
    */
-  startAt: GQLDateTime;
+  @Type(() => GQLDateTime)
+  startAt!: GQLDateTime;
   
   /**
    * Price in currency per kWh (5 decimal precision)
    */
-  price: number;
+  price!: number;
 }
 
 /**
@@ -102,20 +113,23 @@ export interface GQLPriceData {
  */
 export type GQLDateTime = Date;
 
-export interface GQLChargePlan {
-  chargeType: GQLChargeType;
+export class GQLChargePlan {
+  @Type(() => GQLChargeType)
+  chargeType!: GQLChargeType;
   
   /**
    * time to start or null for now
    */
+  @Type(() => GQLDateTime)
   chargeStart?: GQLDateTime;
   
   /**
    * time to end or null for never
    */
+  @Type(() => GQLDateTime)
   chargeStop?: GQLDateTime;
-  level: number;
-  comment: string;
+  level!: number;
+  comment!: string;
 }
 
 export enum GQLChargeType {
@@ -128,22 +142,25 @@ export enum GQLChargeType {
   Fill = 'Fill'
 }
 
-export interface GQLVehicle {
-  id: string;
-  ownerID: string;
+export class GQLVehicle {
+  id!: string;
+  ownerID!: string;
   serviceID?: string;
-  name: string;
+  name!: string;
   
   /**
    * maximum level to charge to unless a trip is scheduled (%)
    */
-  maximumLevel: number;
+  maximumLevel!: number;
   
   /**
    * schedule
    */
-  schedule: Array<GQLSchedule>;
-  providerData: GQLJSONObject;
+  @Type(() => GQLSchedule)
+  schedule!: Array<GQLSchedule>;
+  @Type(() => GQLJSONObject)
+  providerData!: GQLJSONObject;
+  @Type(() => GQLGeoLocation)
   geoLocation?: GQLGeoLocation;
   
   /**
@@ -154,42 +171,44 @@ export interface GQLVehicle {
   /**
    * known location
    */
+  @Type(() => GQLLocation)
   location?: GQLLocation;
   
   /**
    * location settings
    */
-  locationSettings: Array<GQLVehicleLocationSetting>;
+  @Type(() => GQLVehicleLocationSetting)
+  locationSettings!: Array<GQLVehicleLocationSetting>;
   
   /**
    * battery level (%)
    */
-  batteryLevel: number;
+  batteryLevel!: number;
   
   /**
    * odometer (meters)
    */
-  odometer: number;
+  odometer!: number;
   
   /**
    * outside temperature (celcius)
    */
-  outsideTemperature: number;
+  outsideTemperature!: number;
   
   /**
    * inside temperature (celcius)
    */
-  insideTemperature: number;
+  insideTemperature!: number;
   
   /**
    * is climate control on
    */
-  climateControl: boolean;
+  climateControl!: boolean;
   
   /**
    * is a charger connected
    */
-  isConnected: boolean;
+  isConnected!: boolean;
   
   /**
    * charging to level (%)
@@ -200,24 +219,28 @@ export interface GQLVehicle {
    * estimated time to complete charge (minutes)
    */
   estimatedTimeLeft?: number;
-  isDriving: boolean;
-  status: string;
-  smartStatus: string;
+  isDriving!: boolean;
+  status!: string;
+  smartStatus!: string;
   
   /**
    * charge plan
    */
+  @Type(() => GQLChargePlan)
   chargePlan?: Array<GQLChargePlan>;
-  updated: GQLDateTime;
+  @Type(() => GQLDateTime)
+  updated!: GQLDateTime;
 }
 
-export interface GQLSchedule {
-  type: GQLSchduleType;
+export class GQLSchedule {
+  @Type(() => GQLSchduleType)
+  type!: GQLSchduleType;
   
   /**
    * Battery level to reach at scheduled time (%)
    */
-  level: number;
+  level!: number;
+  @Type(() => GQLDateTime)
   time?: GQLDateTime;
 }
 
@@ -229,51 +252,61 @@ export enum GQLSchduleType {
   Trip = 'Trip'
 }
 
-export interface GQLVehicleLocationSetting {
+export class GQLVehicleLocationSetting {
   
   /**
    * location id
    */
-  locationID: string;
+  locationID!: string;
   
   /**
    * Minimum battery level to reach directly (%)
    */
-  directLevel: number;
-  goal: string;
+  directLevel!: number;
+  goal!: string;
 }
 
-export interface GQLResolverTest {
-  isFieldResolverWorking: boolean;
+export class GQLResolverTest {
+  isFieldResolverWorking!: boolean;
 }
 
-export interface GQLMutation {
-  loginWithPassword: GQLAccount;
-  loginWithIDToken: GQLAccount;
-  newPriceList: GQLPriceList;
-  updatePriceList: GQLPriceList;
-  updateLocation: GQLLocation;
-  removeLocation: boolean;
-  providerMutate: GQLJSONObject;
-  performAction: GQLJSONObject;
-  _updateVehicleData: boolean;
-  _vehicleDebug: boolean;
+export class GQLMutation {
+  @Type(() => GQLAccount)
+  loginWithPassword!: GQLAccount;
+  @Type(() => GQLAccount)
+  loginWithIDToken!: GQLAccount;
+  @Type(() => GQLPriceList)
+  newPriceList!: GQLPriceList;
+  @Type(() => GQLPriceList)
+  updatePriceList!: GQLPriceList;
+  @Type(() => GQLLocation)
+  updateLocation!: GQLLocation;
+  removeLocation!: boolean;
+  @Type(() => GQLJSONObject)
+  providerMutate!: GQLJSONObject;
+  @Type(() => GQLJSONObject)
+  performAction!: GQLJSONObject;
+  _updateVehicleData!: boolean;
+  _vehicleDebug!: boolean;
   _chargeCalibration?: number;
-  _updatePrice: boolean;
-  removeVehicle: boolean;
-  updateVehicle: GQLVehicle;
-  replaceVehicleSchedule: Array<GQLSchedule>;
+  _updatePrice!: boolean;
+  removeVehicle!: boolean;
+  @Type(() => GQLVehicle)
+  updateVehicle!: GQLVehicle;
+  @Type(() => GQLSchedule)
+  replaceVehicleSchedule!: Array<GQLSchedule>;
 }
 
-export interface GQLUpdatePriceListInput {
-  id: string;
-  name: string;
-  isPrivate: boolean;
+export class GQLUpdatePriceListInput {
+  id!: string;
+  name!: string;
+  isPrivate!: boolean;
 }
 
-export interface GQLUpdateLocationInput {
-  id: string;
+export class GQLUpdateLocationInput {
+  id!: string;
   name?: string;
+  @Type(() => GQLGeoLocationInput)
   geoLocation?: GQLGeoLocationInput;
   
   /**
@@ -282,27 +315,29 @@ export interface GQLUpdateLocationInput {
   geoFenceRadius?: number;
   priceListID?: string;
   serviceID?: string;
+  @Type(() => GQLJSONObject)
   providerData?: GQLJSONObject;
 }
 
-export interface GQLGeoLocationInput {
-  latitude: number;
-  longitude: number;
+export class GQLGeoLocationInput {
+  latitude!: number;
+  longitude!: number;
 }
 
-export interface GQLUpdateVehicleDataInput {
-  id: string;
-  geoLocation: GQLGeoLocationInput;
+export class GQLUpdateVehicleDataInput {
+  id!: string;
+  @Type(() => GQLGeoLocationInput)
+  geoLocation!: GQLGeoLocationInput;
   
   /**
    * battery level (%)
    */
-  batteryLevel: number;
+  batteryLevel!: number;
   
   /**
    * odometer (meters)
    */
-  odometer: number;
+  odometer!: number;
   
   /**
    * outside temperature (celcius)
@@ -317,12 +352,13 @@ export interface GQLUpdateVehicleDataInput {
   /**
    * is climate control on
    */
-  climateControl: boolean;
-  isDriving: boolean;
+  climateControl!: boolean;
+  isDriving!: boolean;
   
   /**
    * charge connection
    */
+  @Type(() => GQLChargeConnection)
   connectedCharger?: GQLChargeConnection;
   
   /**
@@ -351,79 +387,92 @@ export enum GQLChargeConnection {
   DC = 'DC'
 }
 
-export interface GQLVehicleDebugInput {
-  id: string;
-  timestamp: GQLDateTime;
-  category: string;
-  data: GQLJSONObject;
+export class GQLVehicleDebugInput {
+  id!: string;
+  @Type(() => GQLDateTime)
+  timestamp!: GQLDateTime;
+  category!: string;
+  @Type(() => GQLJSONObject)
+  data!: GQLJSONObject;
 }
 
-export interface GQLUpdatePriceInput {
-  priceListID: string;
-  prices: Array<GQLPriceDataInput>;
+export class GQLUpdatePriceInput {
+  priceListID!: string;
+  @Type(() => GQLPriceDataInput)
+  prices!: Array<GQLPriceDataInput>;
 }
 
-export interface GQLPriceDataInput {
+export class GQLPriceDataInput {
   
   /**
    * Price tariff start time
    */
-  startAt: GQLDateTime;
+  @Type(() => GQLDateTime)
+  startAt!: GQLDateTime;
   
   /**
    * Price in currency per kWh (5 decimal precision)
    */
-  price: number;
+  price!: number;
 }
 
-export interface GQLUpdateVehicleInput {
-  id: string;
+export class GQLUpdateVehicleInput {
+  id!: string;
   name?: string;
   maximumLevel?: number;
+  @Type(() => GQLScheduleInput)
   schedule?: Array<GQLScheduleInput>;
+  @Type(() => GQLVehicleLocationSettingInput)
   locationSettings?: Array<GQLVehicleLocationSettingInput>;
   status?: string;
   serviceID?: string;
+  @Type(() => GQLJSONObject)
   providerData?: GQLJSONObject;
 }
 
-export interface GQLScheduleInput {
-  type: GQLSchduleType;
+export class GQLScheduleInput {
+  @Type(() => GQLSchduleType)
+  type!: GQLSchduleType;
   
   /**
    * Battery level to reach at scheduled time (%)
    */
-  level: number;
+  level!: number;
+  @Type(() => GQLDateTime)
   time?: GQLDateTime;
 }
 
-export interface GQLVehicleLocationSettingInput {
+export class GQLVehicleLocationSettingInput {
   
   /**
    * location id
    */
-  locationID: string;
+  locationID!: string;
   
   /**
    * Minimum battery level to reach directly (%)
    */
-  directLevel: number;
-  goal: string;
+  directLevel!: number;
+  goal!: string;
 }
 
-export interface GQLSubscription {
-  pingSubscription: number;
-  actionSubscription: GQLAction;
-  vehicleSubscription: GQLVehicle;
+export class GQLSubscription {
+  pingSubscription!: number;
+  @Type(() => GQLAction)
+  actionSubscription!: GQLAction;
+  @Type(() => GQLVehicle)
+  vehicleSubscription!: GQLVehicle;
 }
 
-export interface GQLAction {
-  actionID: number;
-  serviceID: string;
-  providerName: string;
-  action: string;
-  data: GQLJSONObject;
+export class GQLAction {
+  actionID!: number;
+  serviceID!: string;
+  providerName!: string;
+  action!: string;
+  @Type(() => GQLJSONObject)
+  data!: GQLJSONObject;
 }
+
 
 /*********************************
  *         TYPE RESOLVERS        *

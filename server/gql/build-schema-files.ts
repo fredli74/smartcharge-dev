@@ -61,12 +61,13 @@ const generateTSTypesAsString = async (
 ): Promise<string> => {
   const mergedOptions = { ...defaultOptions, ...options };
   const introspectResult = await introspectSchema(schema);
+
   const tsGenerator = new TypeScriptGenerator(
     mergedOptions,
     introspectResult,
     outputPath
   );
-  const typeDefs = await tsGenerator.generate();
+  let typeDefs = await tsGenerator.generate();
 
   let typeResolvers: GenerateResolversResult = {
     body: [],
@@ -78,7 +79,54 @@ const generateTSTypesAsString = async (
   );
   typeResolvers = await tsResolverGenerator.generate();
 
-  let header = [jsDoc, ...typeResolvers.importHeader];
+  /***** Project specific replaces *****/
+
+  let isClass = false;
+  typeDefs = typeDefs.reduce((acc, l) => {
+    acc.push(
+      l
+        .replace(/^export interface (\S+) {/, (match: string, name: string) => {
+          if (name !== "GQLQuery") {
+            isClass = true;
+            return `export class ${name} {`;
+          }
+          isClass = false;
+          return match;
+        })
+        .replace(
+          /^(\S+)(: (Array<)?(\S+?)>?;)/,
+          (
+            match: string,
+            name: string,
+            rest: string,
+            _ignore: string,
+            type: string
+          ) => {
+            if (isClass) {
+              if (type.substr(0, 3) === "GQL") {
+                acc.push(`@Type(() => ${type})`);
+              }
+              return `${name}${
+                name.substr(name.length - 1) === "?" ? "" : "!"
+              }${rest}`;
+            }
+            return match;
+          }
+        ) /*
+      .replace(/^(\S+: GQLDateTime;)/, "@Type(() => Date)\n  $1")*/
+    );
+    return acc;
+  }, [] as string[]);
+  console.debug(typeDefs);
+
+  /***** ************************* *****/
+
+  let header = [
+    jsDoc,
+    ...typeResolvers.importHeader,
+    "import 'reflect-metadata';",
+    "import { Type } from 'class-transformer';"
+  ];
   let body: string[] = [
     ...typeDefsDecoration,
     ...typeDefs,
