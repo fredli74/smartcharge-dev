@@ -290,7 +290,9 @@ export class SCClient extends ApolloClient<any> {
     const result = await this.query({ query });
     return result.data.vehicles;
   }
-  public async updateVehicle(input: GQLUpdateVehicleInput): Promise<boolean> {
+  public async updateVehicle(
+    input: Partial<GQLUpdateVehicleInput>
+  ): Promise<boolean> {
     const mutation = gql`
       mutation UpdateVehicle($input: UpdateVehicleInput!) {
         updateVehicle(input: $input) { ${SCClient.vehicleFragment}}

@@ -392,6 +392,14 @@ export class Logic {
           `UPDATE vehicle SET connected_id = null, charge_plan = null WHERE vehicle_uuid = $1;`,
           [vehicle.vehicle_uuid]
         );
+
+        // Remove manual charge entries if we have any
+        (vehicle.schedule as Schedule[]).forEach(f => {
+          if (f.type === ScheduleType.Manual) {
+            this.db.removeVehicleSchedule(vehicle.vehicle_uuid, f);
+          }
+        });
+
         if (connection.location_uuid !== null) {
           await this.createNewStats(
             connection.vehicle_uuid,

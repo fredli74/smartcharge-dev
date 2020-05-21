@@ -27,6 +27,7 @@ const typeFileName = path.resolve(__dirname, "../../../shared/sc-schema.ts");
       smartTResult: true,
       smartTParent: true,
       asyncResult: true,
+      strictNulls: true,
       customScalarType: { DateTime: "string" }
     });
     fs.writeFileSync(typeFileName, content, "utf-8");

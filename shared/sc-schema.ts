@@ -48,11 +48,11 @@ export interface GQLLocation {
   /**
    * Radius in meters
    */
-  geoFenceRadius?: number;
-  serviceID?: string;
-  providerData?: GQLJSONObject;
-  priceListID?: string;
-  priceList?: GQLPriceList;
+  geoFenceRadius: number | null;
+  serviceID: string | null;
+  providerData: GQLJSONObject | null;
+  priceListID: string | null;
+  priceList: GQLPriceList | null;
 }
 
 export interface GQLGeoLocation {
@@ -77,11 +77,11 @@ export interface GQLChartData {
   locationName: string;
   vehicleID: string;
   batteryLevel: number;
-  levelChargeTime?: number;
-  thresholdPrice?: number;
+  levelChargeTime: number | null;
+  thresholdPrice: number | null;
   chargeCurve: GQLJSONObject;
   prices: Array<GQLPriceData>;
-  chargePlan?: Array<GQLChargePlan>;
+  chargePlan: Array<GQLChargePlan> | null;
   directLevel: number;
   maximumLevel: number;
 }
@@ -110,12 +110,12 @@ export interface GQLChargePlan {
   /**
    * time to start or null for now
    */
-  chargeStart?: GQLDateTime;
+  chargeStart: GQLDateTime | null;
   
   /**
    * time to end or null for never
    */
-  chargeStop?: GQLDateTime;
+  chargeStop: GQLDateTime | null;
   level: number;
   comment: string;
 }
@@ -133,7 +133,7 @@ export enum GQLChargeType {
 export interface GQLVehicle {
   id: string;
   ownerID: string;
-  serviceID?: string;
+  serviceID: string | null;
   name: string;
   
   /**
@@ -146,17 +146,17 @@ export interface GQLVehicle {
    */
   schedule: Array<GQLSchedule>;
   providerData: GQLJSONObject;
-  geoLocation?: GQLGeoLocation;
+  geoLocation: GQLGeoLocation | null;
   
   /**
    * known location id
    */
-  locationID?: string;
+  locationID: string | null;
   
   /**
    * known location
    */
-  location?: GQLLocation;
+  location: GQLLocation | null;
   
   /**
    * location settings
@@ -196,12 +196,12 @@ export interface GQLVehicle {
   /**
    * charging to level (%)
    */
-  chargingTo?: number;
+  chargingTo: number | null;
   
   /**
    * estimated time to complete charge (minutes)
    */
-  estimatedTimeLeft?: number;
+  estimatedTimeLeft: number | null;
   isDriving: boolean;
   status: string;
   smartStatus: string;
@@ -209,7 +209,7 @@ export interface GQLVehicle {
   /**
    * charge plan
    */
-  chargePlan?: Array<GQLChargePlan>;
+  chargePlan: Array<GQLChargePlan> | null;
   updated: GQLDateTime;
 }
 
@@ -220,7 +220,7 @@ export interface GQLSchedule {
    * Battery level to reach at scheduled time (%)
    */
   level: number;
-  time?: GQLDateTime;
+  time: GQLDateTime | null;
 }
 
 export enum GQLSchduleType {
@@ -260,7 +260,7 @@ export interface GQLMutation {
   performAction: GQLJSONObject;
   _updateVehicleData: boolean;
   _vehicleDebug: boolean;
-  _chargeCalibration?: number;
+  _chargeCalibration: number | null;
   _updatePrice: boolean;
   removeVehicle: boolean;
   updateVehicle: GQLVehicle;
@@ -275,16 +275,16 @@ export interface GQLUpdatePriceListInput {
 
 export interface GQLUpdateLocationInput {
   id: string;
-  name?: string;
-  geoLocation?: GQLGeoLocationInput;
+  name: string | null;
+  geoLocation: GQLGeoLocationInput | null;
   
   /**
    * Radius in meters
    */
-  geoFenceRadius?: number;
-  priceListID?: string;
-  serviceID?: string;
-  providerData?: GQLJSONObject;
+  geoFenceRadius: number | null;
+  priceListID: string | null;
+  serviceID: string | null;
+  providerData: GQLJSONObject | null;
 }
 
 export interface GQLGeoLocationInput {
@@ -309,12 +309,12 @@ export interface GQLUpdateVehicleDataInput {
   /**
    * outside temperature (celcius)
    */
-  outsideTemperature?: number;
+  outsideTemperature: number | null;
   
   /**
    * inside temperature (celcius)
    */
-  insideTemperature?: number;
+  insideTemperature: number | null;
   
   /**
    * is climate control on
@@ -325,27 +325,27 @@ export interface GQLUpdateVehicleDataInput {
   /**
    * charge connection
    */
-  connectedCharger?: GQLChargeConnection;
+  connectedCharger: GQLChargeConnection | null;
   
   /**
    * charging to level (%)
    */
-  chargingTo?: number;
+  chargingTo: number | null;
   
   /**
    * estimated time to complete charge (minutes)
    */
-  estimatedTimeLeft?: number;
+  estimatedTimeLeft: number | null;
   
   /**
    * current power use (kW)
    */
-  powerUse?: number;
+  powerUse: number | null;
   
   /**
    * charge added (kWh)
    */
-  energyAdded?: number;
+  energyAdded: number | null;
 }
 
 export enum GQLChargeConnection {
@@ -380,13 +380,13 @@ export interface GQLPriceDataInput {
 
 export interface GQLUpdateVehicleInput {
   id: string;
-  name?: string;
-  maximumLevel?: number;
-  schedule?: Array<GQLScheduleInput>;
-  locationSettings?: Array<GQLVehicleLocationSettingInput>;
-  status?: string;
-  serviceID?: string;
-  providerData?: GQLJSONObject;
+  name: string | null;
+  maximumLevel: number | null;
+  schedule: Array<GQLScheduleInput> | null;
+  locationSettings: Array<GQLVehicleLocationSettingInput> | null;
+  status: string | null;
+  serviceID: string | null;
+  providerData: GQLJSONObject | null;
 }
 
 export interface GQLScheduleInput {
@@ -396,7 +396,7 @@ export interface GQLScheduleInput {
    * Battery level to reach at scheduled time (%)
    */
   level: number;
-  time?: GQLDateTime;
+  time: GQLDateTime | null;
 }
 
 export interface GQLVehicleLocationSettingInput {

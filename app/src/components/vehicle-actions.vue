@@ -339,4 +339,7 @@ export default class VehicleActions extends Vue {
 #vehicle-actions > * {
   margin-left: 14px;
 }
+#vehicle-actions button {
+  vertical-align: top;
+}
 </style>

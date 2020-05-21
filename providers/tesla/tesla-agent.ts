@@ -101,9 +101,10 @@ export class TeslaAgent extends AbstractAgent {
   }
 
   public async setOptionCodes(subject: TeslaSubject, data: any) {
-    if (subject.data === undefined || subject.data.providerData === undefined)
-      return;
-    if (data === undefined || data.vehicle_config === undefined) return;
+    assert(subject.data !== undefined);
+    assert(subject.data.providerData !== undefined);
+    assert(data !== undefined);
+    assert(data.vehicle_config !== undefined);
 
     /***** No option codes are correct from the API, so I make my own *****/
 
@@ -358,7 +359,7 @@ export class TeslaAgent extends AbstractAgent {
         const chargingTo =
           data.charge_state.charging_state === "Charging"
             ? Math.trunc(data.charge_state.charge_limit_soc)
-            : undefined;
+            : null;
 
         // charger_phases seems to be reported wrong, or I simply don't understand and someone could explain it?
         // Tesla Wall Connector in Sweden reports 2 phases, 16 amps, and 230 volt = 2*16*230 = 7kW,
@@ -403,12 +404,12 @@ export class TeslaAgent extends AbstractAgent {
             ? GQLChargeConnection.DC // fast charger
             : data.charge_state.charging_state !== "Disconnected"
             ? GQLChargeConnection.AC
-            : undefined, // any other charger or no charger
+            : null, // any other charger or no charger
           chargingTo: chargingTo,
           estimatedTimeLeft: Math.round(
             data.charge_state.time_to_full_charge * 60
           ), // 1 hour = 60 minutes
-          powerUse: chargingTo !== undefined ? powerUse : undefined,
+          powerUse: chargingTo !== null ? powerUse : null,
           energyAdded: data.charge_state.charge_energy_added // added kWh
         };
 
@@ -629,7 +630,7 @@ export class TeslaAgent extends AbstractAgent {
       // Command logic
       if (subject.data.isConnected) {
         // controll if car is connected
-        let shouldCharge: GQLChargePlan | undefined;
+        let shouldCharge: GQLChargePlan | undefined = undefined;
         if (subject.data.chargePlan) {
           for (const p of subject.data.chargePlan) {
             if (
@@ -645,7 +646,7 @@ export class TeslaAgent extends AbstractAgent {
           shouldCharge === undefined &&
           subject.online &&
           subject.chargeEnabled === true &&
-          subject.data.chargingTo !== undefined &&
+          subject.data.chargingTo !== null &&
           subject.data.batteryLevel < subject.data.chargingTo // keep it running if we're above or on target
         ) {
           if (await this.vehicleInteraction(job, subject, false)) {
