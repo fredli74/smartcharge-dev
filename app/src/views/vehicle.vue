@@ -141,8 +141,7 @@ import config from "@shared/smartcharge-config";
 import { makePublicID } from "@shared/utils";
 import { GQLVehicle, GQLLocation } from "@shared/sc-schema";
 import { getVehicleLocationSettings } from "@shared/sc-utils";
-
-const vehicleFragment = `id ownerID serviceID name maximumLevel schedule { type level time } providerData geoLocation { latitude longitude } locationID locationSettings { locationID directLevel goal } batteryLevel outsideTemperature insideTemperature climateControl isConnected chargingTo estimatedTimeLeft isDriving status smartStatus chargePlan { chargeType chargeStart chargeStop level comment }  updated`;
+import { vehicleFragment } from "@shared/sc-client";
 
 @Component({
   components: { VehicleActions, RelativeTime, ChargeChart },
@@ -289,6 +288,7 @@ export default class VehicleVue extends Vue {
     return (
       this.vehicle !== undefined &&
       this.vehicle.isConnected &&
+      this.vehicle.geoLocation !== null &&
       this.vehicle.location === null
     );
   }
@@ -298,8 +298,8 @@ export default class VehicleVue extends Vue {
     return {
       path: "/add/location",
       query: {
-        lat: this.vehicle!.geoLocation.latitude.toString(),
-        long: this.vehicle!.geoLocation.longitude.toString()
+        lat: this.vehicle!.geoLocation!.latitude.toString(),
+        long: this.vehicle!.geoLocation!.longitude.toString()
       }
     };
   }

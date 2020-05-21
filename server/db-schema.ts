@@ -81,7 +81,6 @@ const DBPriceList_TSQL = `CREATE TABLE scserver.price_list
 
 export abstract class DBPriceData {
   price_list_uuid!: string; // price list identifier
-  price_code!: string; // location identifer
   ts!: Date; // price tariff starts at
   price!: number; // cost per kWh
 }
@@ -104,7 +103,6 @@ export abstract class DBVehicle {
   service_uuid!: string | null; // provider uuid
   name!: string; // name of vehicle
   maximum_charge!: number; // maximum normal (non trip) charge
-  schedule!: PlainObject[]; // schedule
   provider_data!: PlainObject; // provider custom data
   location_micro_latitude!: number | null; // 6 decimal precision converted to integer
   location_micro_longitude!: number | null; // 6 decimal precision converted to integer
@@ -134,7 +132,6 @@ const DBVehicle_TSQL = `CREATE TABLE scserver.vehicle
         service_uuid uuid,
         name text COLLATE NOT NULL,
         maximum_charge smallint NOT NULL,
-        schedule jsonb[] NOT NULL DEFAULT '{}',
         provider_data jsonb NOT NULL DEFAULT '{}'::jsonb,
         location_micro_latitude integer,
         location_micro_longitude integer,
@@ -155,7 +152,7 @@ const DBVehicle_TSQL = `CREATE TABLE scserver.vehicle
         status text COLLATE NOT NULL DEFAULT ''::text,
         smart_status text COLLATE NOT NULL DEFAULT ''::text,
         charge_plan jsonb,
-        updated timestamp(0) with time zone NOT NULL DEFAULT now(),
+        updated timestamp(0) with time zone NOT NULL DEFAULT NOW(),
         CONSTRAINT vehicle_pkey PRIMARY KEY (vehicle_uuid),
         CONSTRAINT vehicle_fkey FOREIGN KEY (account_uuid)
             REFERENCES account (account_uuid) MATCH SIMPLE
@@ -178,6 +175,28 @@ const DBVehicleDebug_TSQL = `CREATE TABLE scserver.vehicle_debug
         CONSTRAINT vehicle_debug_pkey PRIMARY KEY (vehicle_uuid,ts),
         CONSTRAINT vehicle_debug_fkey FOREIGN KEY (vehicle_uuid)
             REFERENCES vehicle (vehicle_uuid) MATCH SIMPLE
+            ON UPDATE RESTRICT
+            ON DELETE CASCADE
+    );`;
+
+export abstract class DBSchedule {
+  schedule_id!: number; // schedule id
+  vehicle_uuid!: string; // vehicle identifier
+  schedule_type!: string; // schedule type (enum ScheduleType)
+  schedule_ts!: Date | null; // timestamp associated with schedule
+  level!: number | null; // battery charge level % associated with schedule
+}
+
+const DBSchedule_TSQL = `CREATE TABLE scserver.schedule
+    (
+        schedule_id integer NOT NULL GENERATED ALWAYS AS IDENTITY,
+        vehicle_uuid uuid NOT NULL,
+        schedule_type character varying(32) NOT NULL,
+        schedule_ts timestamp(0) with time zone,
+        level smallint,
+        CONSTRAINT schedule_pkey PRIMARY KEY(schedule_id),
+        CONSTRAINT schedule_fkey FOREIGN KEY(vehicle_uuid)
+            REFERENCES vehicle(vehicle_uuid) MATCH SIMPLE
             ON UPDATE RESTRICT
             ON DELETE CASCADE
     );`;
@@ -517,6 +536,8 @@ export const DB_SETUP_TSQL = [
 
   DBVehicle_TSQL,
   DBVehicleDebug_TSQL,
+
+  DBSchedule_TSQL,
 
   DBServiceProvider_TSQL,
 

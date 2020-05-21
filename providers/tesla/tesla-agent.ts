@@ -38,7 +38,7 @@ import {
   GQLChargePlan,
   GQLChargeType,
   GQLAction,
-  GQLSchduleType
+  GQLScheduleType
 } from "@shared/sc-schema";
 import { scheduleMap } from "@shared/sc-utils";
 
@@ -621,7 +621,7 @@ export class TeslaAgent extends AbstractAgent {
 
       // Reduce the array to a map with only the first upcoming event of each type
       const schedule = scheduleMap(subject.data.schedule);
-      const disabled = schedule[GQLSchduleType.Disable];
+      const disabled = schedule[GQLScheduleType.Disable];
       if (disabled && now < numericStopTime(disabled.time)) {
         // Command disabled
         return;
@@ -767,7 +767,7 @@ export class TeslaAgent extends AbstractAgent {
       }
 
       // Should we turn on hvac?
-      const trip = schedule[GQLSchduleType.Trip];
+      const trip = schedule[GQLScheduleType.Trip];
       if (trip && subject.data.providerData.auto_hvac) {
         const on =
           now >= numericStartTime(trip.time) - config.TRIP_HVAC_ON_WINDOW &&

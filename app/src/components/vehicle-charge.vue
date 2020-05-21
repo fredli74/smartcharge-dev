@@ -106,12 +106,7 @@
 
 <script lang="ts">
 import { Component, Vue, Prop, Watch } from "vue-property-decorator";
-import {
-  GQLVehicle,
-  GQLSchduleType,
-  GQLScheduleInput,
-  GQLSchedule
-} from "@shared/sc-schema";
+import { GQLVehicle, GQLScheduleType, GQLSchedule } from "@shared/sc-schema";
 import apollo from "@app/plugins/apollo";
 
 import Datetime from "./datetime.vue";
@@ -184,12 +179,12 @@ export default class VehicleCharge extends Vue {
 
   stateToControllers(v: GQLVehicle): any {
     const map = scheduleMap(v.schedule);
-    const manual = map[GQLSchduleType.Manual];
+    const manual = map[GQLScheduleType.Manual];
     const settings = getVehicleLocationSettings(v);
 
     return {
       directLevel: settings.directLevel,
-      chargeControl: !manual ? 1 : manual.level === 0 ? 0 : 2,
+      chargeControl: !manual ? 1 : manual.level ? 2 : 0,
       chargeLevel: (manual && manual.level) || this.vehicle.maximumLevel,
       showDate: !!(manual && manual.time),
       chargeDate:
@@ -226,16 +221,16 @@ export default class VehicleCharge extends Vue {
     }
     if (this.chargeControl === 1) {
       // SMART
-      const ai = state.map[GQLSchduleType.AI];
+      const ai = state.map[GQLScheduleType.AI];
       if (ai && ai.time) {
         const rt = relativeTime(new Date(ai.time));
-        this.smartText = `${ai.level}% before ${rt.time} ${rt.date}`;
+        this.smartText = `Charging to ${ai.level}% before ${rt.time} ${rt.date}`;
       } else {
         this.smartText = ``;
       }
     }
     if (this.chargeControl === 2) {
-      const manual = state.map[GQLSchduleType.Manual];
+      const manual = state.map[GQLScheduleType.Manual];
       // START
       if (manual && manual.time) {
         const rt = relativeTime(new Date(manual.time));
@@ -278,31 +273,47 @@ export default class VehicleCharge extends Vue {
     }
     this.debounceTimer = setTimeout(async () => {
       // Replace all Charge and Manual events
-      const was: GQLScheduleInput[] = this.vehicle.schedule.filter(
-        f => f.type === GQLSchduleType.Manual
-      );
+      let scheduleID: number | undefined;
+      const remove = [];
+      for (const s of this.vehicle.schedule) {
+        if (s.type === GQLScheduleType.Manual) {
+          if (scheduleID === undefined) {
+            scheduleID = s.id;
+          } else {
+            remove.push(apollo.removeSchedule(s.id, this.vehicle.id));
+          }
+        }
+      }
+      await Promise.all(remove);
+
       switch (this.chargeControl) {
         case 0: // STOP
           this.saving = true;
-          await apollo.replaceVehicleSchedule(this.vehicle.id, was, [
-            { type: GQLSchduleType.Manual, level: 0 }
-          ]);
+          await apollo.updateSchedule(
+            scheduleID,
+            this.vehicle.id,
+            GQLScheduleType.Manual,
+            null,
+            null
+          );
           this.saving = false;
           break;
         case 1: // SMART
           this.saving = true;
-          await apollo.replaceVehicleSchedule(this.vehicle.id, was, []);
+          if (scheduleID) {
+            await apollo.removeSchedule(scheduleID, this.vehicle.id);
+          }
           this.saving = false;
           break;
         case 2: // START
           this.saving = true;
-          await apollo.replaceVehicleSchedule(this.vehicle.id, was, [
-            {
-              type: GQLSchduleType.Manual,
-              level: this.chargeLevel,
-              time: this.showDate ? this.chargeDate : undefined
-            }
-          ]);
+          await apollo.updateSchedule(
+            scheduleID,
+            this.vehicle.id,
+            GQLScheduleType.Manual,
+            this.chargeLevel,
+            this.showDate ? new Date(this.chargeDate) : null
+          );
           this.saving = false;
           break;
       }

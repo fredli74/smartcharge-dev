@@ -28,18 +28,82 @@ import {
   GQLVehicleDebugInput,
   GQLServiceProvider,
   GQLAction,
-  GQLSchedule,
-  GQLScheduleInput,
-  GQLPriceList
+  GQLScheduleType,
+  GQLPriceList,
+  GQLSchedule
 } from "./sc-schema";
 import { API_PATH } from "./smartcharge-defines";
-import { classToPlain } from "class-transformer";
 
 // Strip __typename from input into mutations
-function plain(val: any): any {
-  return classToPlain(val, { excludePrefixes: ["__"] });
-}
+// import { classToPlain } from "class-transformer";
+// function plain(val: any): any {
+//   return classToPlain(val, { excludePrefixes: ["__"] });
+// }
 
+export type UpdateLocationParams = Pick<GQLUpdateLocationInput, "id"> &
+  Partial<GQLUpdateLocationInput>;
+export type UpdateVehicleParams = Pick<GQLUpdateVehicleInput, "id"> &
+  Partial<GQLUpdateVehicleInput>;
+export const locationFragment = `
+id
+ownerID
+name
+geoLocation {
+  latitude
+  longitude
+}
+geoFenceRadius
+serviceID
+providerData
+priceList {
+  id
+  ownerID
+  name
+  isPublic
+}`;
+export const vehicleFragment = `
+id
+ownerID
+serviceID
+name
+maximumLevel
+schedule {
+  id
+  vehicleID
+  type
+  level
+  time
+}
+providerData
+geoLocation {
+  latitude
+  longitude
+}
+locationID
+locationSettings {
+  locationID
+  directLevel
+  goal
+}
+batteryLevel
+odometer
+outsideTemperature
+insideTemperature
+climateControl
+isConnected
+chargingTo
+estimatedTimeLeft
+isDriving
+status
+smartStatus
+chargePlan {
+  chargeType
+  chargeStart
+  chargeStop
+  level
+  comment
+}
+updated`;
 export class SCClient extends ApolloClient<any> {
   public account?: GQLAccount;
   private token?: string;
@@ -177,27 +241,9 @@ export class SCClient extends ApolloClient<any> {
     }
   }
 
-  static locationFragment = `
-  id
-  ownerID
-  name
-  geoLocation {
-    latitude
-    longitude
-  }
-  geoFenceRadius
-  serviceID
-  providerData
-  priceList {
-    id
-    ownerID
-    name
-    isPublic
-  }`;
-
   public async getLocation(locationUUID: string): Promise<GQLLocation> {
     // TODO: should be more flexible, returning just the fields you want into an <any> response instead
-    const query = gql`query GetLocation($id: String!) { location(id: $id) { ${SCClient.locationFragment} } }`;
+    const query = gql`query GetLocation($id: String!) { location(id: $id) { ${locationFragment} } }`;
     const result = await this.query({
       query,
       variables: { id: locationUUID }
@@ -205,14 +251,14 @@ export class SCClient extends ApolloClient<any> {
     return result.data.location;
   }
   public async getLocations(): Promise<GQLLocation[]> {
-    const query = gql`query GetLocations { locations { ${SCClient.locationFragment} } }`;
+    const query = gql`query GetLocations { locations { ${locationFragment} } }`;
     const result = await this.query({ query });
     return result.data.locations as GQLLocation[];
   }
-  public async updateLocation(input: GQLUpdateLocationInput): Promise<boolean> {
+  public async updateLocation(input: UpdateLocationParams): Promise<boolean> {
     const mutation = gql`
       mutation UpdateLocation($input: UpdateLocationInput!) {
-        updateLocation(input: $input) { ${SCClient.locationFragment}}
+        updateLocation(input: $input) { ${locationFragment}}
       }
     `;
     const result = await this.mutate({
@@ -234,51 +280,9 @@ export class SCClient extends ApolloClient<any> {
     return result.data._updatePrice;
   }
 
-  static vehicleFragment = `
-  id
-  ownerID
-  serviceID
-  name
-  maximumLevel
-  schedule {
-    type
-    level
-    time
-  }
-  providerData
-  geoLocation {
-    latitude
-    longitude
-  }
-  locationID
-  locationSettings {
-    locationID
-    directLevel
-    goal
-  }
-  batteryLevel
-  odometer
-  outsideTemperature
-  insideTemperature
-  climateControl
-  isConnected
-  chargingTo
-  estimatedTimeLeft
-  isDriving
-  status
-  smartStatus
-  chargePlan {
-    chargeType
-    chargeStart
-    chargeStop
-    level
-    comment
-  }
-  updated`;
-
   public async getVehicle(vehicleUUID: string): Promise<GQLVehicle> {
     // TODO: should be more flexible, returning just the fields you want into an <any> response instead
-    const query = gql`query GetVehicle($id: String!) { vehicle(id: $id) { ${SCClient.vehicleFragment} } }`;
+    const query = gql`query GetVehicle($id: String!) { vehicle(id: $id) { ${vehicleFragment} } }`;
     const result = await this.query({
       query,
       variables: { id: vehicleUUID }
@@ -286,16 +290,14 @@ export class SCClient extends ApolloClient<any> {
     return result.data.vehicle;
   }
   public async getVehicles(): Promise<GQLVehicle[]> {
-    const query = gql`query GetVehicles { vehicles { ${SCClient.vehicleFragment} } }`;
+    const query = gql`query GetVehicles { vehicles { ${vehicleFragment} } }`;
     const result = await this.query({ query });
     return result.data.vehicles;
   }
-  public async updateVehicle(
-    input: Partial<GQLUpdateVehicleInput>
-  ): Promise<boolean> {
+  public async updateVehicle(input: UpdateVehicleParams): Promise<boolean> {
     const mutation = gql`
       mutation UpdateVehicle($input: UpdateVehicleInput!) {
-        updateVehicle(input: $input) { ${SCClient.vehicleFragment}}
+        updateVehicle(input: $input) { ${vehicleFragment}}
       }
     `;
     const result = await this.mutate({
@@ -487,7 +489,7 @@ export class SCClient extends ApolloClient<any> {
 
   public async removeVehicle(id: string, confirm: string): Promise<void> {
     const mutation = gql`
-      mutation RemoveVehicle($id: String!, $confirm: String!) {
+      mutation RemoveVehicle($id: ID!, $confirm: String!) {
         removeVehicle(id: $id, confirm: $confirm)
       }
     `;
@@ -499,7 +501,7 @@ export class SCClient extends ApolloClient<any> {
 
   public async removeLocation(id: string, confirm: string): Promise<void> {
     const mutation = gql`
-      mutation RemoveLocation($id: String!, $confirm: String!) {
+      mutation RemoveLocation($id: ID!, $confirm: String!) {
         removeLocation(id: $id, confirm: $confirm)
       }
     `;
@@ -509,37 +511,52 @@ export class SCClient extends ApolloClient<any> {
     });
   }
 
-  public async replaceVehicleSchedule(
-    id: string,
-    oldSchedule: GQLScheduleInput[],
-    newSchedule: GQLScheduleInput[]
-  ): Promise<GQLSchedule> {
+  public async removeSchedule(id: number, vehicleID: string): Promise<void> {
     const mutation = gql`
-      mutation replaceVehicleSchedule(
-        $id: String!
-        $oldSchedule: [ScheduleInput!]!
-        $newSchedule: [ScheduleInput!]!
+      mutation RemoveSchedule($id: Int!, $vehicleID: ID!) {
+        removeSchedule(id: $id, vehicleID: $vehicleID)
+      }
+    `;
+    await this.mutate({
+      mutation: mutation,
+      variables: { id, vehicleID }
+    });
+  }
+  public async updateSchedule(
+    id: number | undefined,
+    vehicleID: string,
+    type: GQLScheduleType,
+    level: number | null,
+    time: Date | null
+  ): Promise<GQLSchedule[]> {
+    const mutation = gql`
+      mutation UpdateSchedule(
+        $id: Int
+        $vehicleID: ID!
+        $type: ScheduleType!
+        $time: DateTime
+        $level: Int
       ) {
-        replaceVehicleSchedule(
+        updateSchedule(
           id: $id
-          oldSchedule: $oldSchedule
-          newSchedule: $newSchedule
+          vehicleID: $vehicleID
+          type: $type
+          time: $time
+          level: $level
         ) {
+          id
+          vehicleID
           type
-          level
           time
+          level
         }
       }
     `;
     const result = await this.mutate({
-      mutation,
-      variables: {
-        id,
-        oldSchedule: plain(oldSchedule),
-        newSchedule: plain(newSchedule)
-      }
+      mutation: mutation,
+      variables: { id, vehicleID, type, time, level }
     });
-    return result.data.replaceVehicleSchedule;
+    return result.data.updateSchedule;
   }
 
   public async getPriceList(listUUID: string): Promise<GQLPriceList> {

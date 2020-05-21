@@ -18,7 +18,8 @@ import {
   DBPriceData,
   DBServiceProvider,
   DBChargeCurve,
-  DBPriceList
+  DBPriceList,
+  DBSchedule
 } from "./db-schema";
 import { log, LogLevel, geoDistance, generateToken } from "@shared/utils";
 import config from "@shared/smartcharge-config";
@@ -305,6 +306,7 @@ export class DBInterface {
     ts: Date,
     price: number
   ): Promise<DBPriceData> {
+    // TODO: remove fakecode and price_code
     const fakecode = price_list_uuid.substr(0, 30);
     const result = await this.pg.one(
       `INSERT INTO price_data(price_list_uuid, ts, price, price_code ) VALUES($1, $2, $3, $4) ` +
@@ -594,6 +596,7 @@ export class DBInterface {
       DELETE FROM connected WHERE vehicle_uuid = $1;
       DELETE FROM trip WHERE vehicle_uuid = $1;
       DELETE FROM sleep WHERE vehicle_uuid = $1;
+      DELETE FROM schedule WHERE vehicle_uuid = $1;
       DELETE FROM vehicle_debug WHERE vehicle_uuid = $1;
       DELETE FROM vehicle WHERE vehicle_uuid = $1;`,
       [vehicle_uuid]
@@ -719,6 +722,47 @@ export class DBInterface {
     return await this.pg.one(
       `INSERT INTO price_list($[this:name]) VALUES($[this:csv]) RETURNING *;`,
       fields
+    );
+  }
+
+  public async updateSchedule(
+    schedule_id: number | undefined,
+    vehicle_uuid: string,
+    schedule_type: string,
+    level: number | null,
+    schedule_ts: Date | null
+  ): Promise<DBSchedule> {
+    const fields: any = {
+      vehicle_uuid,
+      schedule_type,
+      level,
+      schedule_ts
+    };
+    if (schedule_id !== undefined) {
+      return await this.pg.one(
+        `UPDATE schedule SET ($1:name) = ($1:csv) WHERE schedule_id = $2 RETURNING *;`,
+        [fields, schedule_id]
+      );
+    } else {
+      return await this.pg.one(
+        `INSERT INTO schedule($[this:name]) VALUES($[this:csv]) RETURNING *;`,
+        fields
+      );
+    }
+  }
+  public async removeSchedule(
+    schedule_id: number,
+    vehicle_uuid: string
+  ): Promise<void> {
+    await this.pg.none(
+      `DELETE FROM schedule WHERE schedule_id = $1 AND vehicle_uuid = $2`,
+      [schedule_id, vehicle_uuid]
+    );
+  }
+  public async getSchedule(vehicle_uuid: string): Promise<DBSchedule[]> {
+    return this.pg.manyOrNone(
+      `SELECT * FROM schedule WHERE vehicle_uuid = $1 ORDER BY schedule_ts, schedule_id;`,
+      [vehicle_uuid]
     );
   }
 }

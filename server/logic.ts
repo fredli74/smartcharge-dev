@@ -25,7 +25,6 @@ import {
   compareStartStopTimes,
   numericStartTime,
   numericStopTime,
-  asyncFilter,
   compareStartTimes
 } from "@shared/utils";
 import {
@@ -392,13 +391,11 @@ export class Logic {
           `UPDATE vehicle SET connected_id = null, charge_plan = null WHERE vehicle_uuid = $1;`,
           [vehicle.vehicle_uuid]
         );
-
         // Remove manual charge entries if we have any
-        (vehicle.schedule as Schedule[]).forEach(f => {
-          if (f.type === ScheduleType.Manual) {
-            this.db.removeVehicleSchedule(vehicle.vehicle_uuid, f);
-          }
-        });
+        await this.db.pg.none(
+          `DELETE FROM schedule WHERE vehicle_uuid = $1 AND schedule_type = $2;`,
+          [vehicle.vehicle_uuid, ScheduleType.Manual]
+        );
 
         if (connection.location_uuid !== null) {
           await this.createNewStats(
@@ -997,6 +994,18 @@ export class Logic {
     return plan;
   }
 
+  private async updateAIschedule(
+    vehicle_uuid: string,
+    before: Date | null,
+    level: number | null
+  ): Promise<null> {
+    return this.db.pg.none(
+      `WITH upsert AS (UPDATE schedule SET schedule_ts=$3, level=$4 WHERE vehicle_uuid=$1 AND schedule_type = $2 RETURNING *)
+      INSERT INTO schedule(vehicle_uuid, schedule_type, schedule_ts, level) SELECT $1, $2, $3, $4 WHERE NOT EXISTS (SELECT * FROM upsert);`,
+      [vehicle_uuid, ScheduleType.AI, before, level]
+    );
+  }
+
   private async refreshVehicleChargePlan(vehicle: DBVehicle) {
     log(LogLevel.Trace, `vehicle: ${JSON.stringify(vehicle)}`);
 
@@ -1014,16 +1023,11 @@ export class Logic {
       DBInterface.DefaultVehicleLocationSettings();
     const minimum_charge = locationSettings.directLevel;
 
-    // Cleanup schedule array remove all entries 1 hour after the end time
-    const schedule = await asyncFilter(
-      plainToClass(Schedule, vehicle.schedule),
-      async f => {
-        const keep = now < numericStopTime(f.time) + 3600e3;
-        if (!keep) {
-          await this.db.removeVehicleSchedule(vehicle.vehicle_uuid, f);
-        }
-        return keep;
-      }
+    // Cleanup schedule remove all entries 1 hour after the end time
+    const schedule = await this.db.pg.manyOrNone(
+      `DELETE FROM schedule WHERE vehicle_uuid = $1 AND schedule_ts + interval '1 hour' < NOW();
+      SELECT * FROM schedule WHERE vehicle_uuid = $1;`,
+      [vehicle.vehicle_uuid]
     );
 
     // Reduce the array to a map with only the first upcoming event of each type
@@ -1225,6 +1229,12 @@ export class Logic {
               const before = guess.before * 1e3; // epoch to ms
               disconnectTime = before;
 
+              this.updateAIschedule(
+                vehicle.vehicle_uuid,
+                new Date(before),
+                minimumLevel
+              );
+
               smartStatus =
                 smartStatus ||
                 `Predicting battery level ${minimumLevel}% (${
@@ -1293,6 +1303,8 @@ export class Logic {
               chargeType: ChargeType.Fill,
               comment: `learning`
             }); // run free
+
+            this.updateAIschedule(vehicle.vehicle_uuid, null, null);
 
             smartStatus =
               smartStatus || `Smart charging disabled (still learning)`;

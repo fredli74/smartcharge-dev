@@ -16,7 +16,9 @@ import {
   Subscription,
   PubSub,
   PubSubEngine,
-  Root
+  Root,
+  Int,
+  ID
 } from "type-graphql";
 import { IContext, accountFilter } from "./api";
 import { INTERNAL_SERVICE_UUID } from "@server/db-interface";
@@ -29,6 +31,8 @@ import {
 import { log, LogLevel, makePublicID } from "@shared/utils";
 import { ApolloError } from "apollo-server-core";
 import { plainToClass } from "class-transformer";
+import { DBSchedule } from "@server/db-schema";
+import { ScheduleType } from "@shared/sc-types";
 
 interface VehicleSubscriptionPayload {
   account_uuid: string;
@@ -95,7 +99,7 @@ export class VehicleResolver {
 
   @Mutation(_returns => Boolean)
   async removeVehicle(
-    @Arg("id") id: string,
+    @Arg("id", _type => ID) id: string,
     @Arg("confirm") confirm: string,
     @Ctx() context: IContext
   ): Promise<Boolean> {
@@ -150,8 +154,7 @@ export class VehicleResolver {
 
     if (
       input.maximumLevel !== undefined ||
-      input.locationSettings !== undefined ||
-      input.schedule !== undefined
+      input.locationSettings !== undefined
     ) {
       await context.logic.refreshChargePlan(input.id);
     }
@@ -162,47 +165,64 @@ export class VehicleResolver {
     return result;
   }
 
-  @Mutation(_returns => [Schedule])
-  async replaceVehicleSchedule(
-    @Arg("id") id: string,
-    @Arg("oldSchedule", _type => [Schedule]) oldSchedule: Schedule[],
-    @Arg("newSchedule", _type => [Schedule]) newSchedule: Schedule[],
+  @Mutation(_returns => Boolean)
+  async removeSchedule(
+    @Arg("id", _type => Int) id: number,
+    @Arg("vehicleID", _type => ID) vehicleID: string,
     @Ctx() context: IContext,
     @PubSub() pubSub: PubSubEngine
-  ): Promise<Schedule[]> {
-    function excludeNull(obj: any): any {
-      return Object.entries(obj).reduce((r, [k, v]) => {
-        if (v !== null) {
-          r[k] = v;
-        }
-        return r;
-      }, {} as any);
-    }
-    const oldArray = oldSchedule.map(f => excludeNull(f));
-    const newArray = newSchedule.map(f => excludeNull(f));
-    const oldPlain = oldArray.map(f => JSON.stringify(f));
-    const newPlain = newArray.map(f => JSON.stringify(f));
+  ): Promise<boolean> {
+    // verify vehicle ownage
+    log(LogLevel.Debug, `removeSchedule: ${JSON.stringify(id)}`);
+    const vehicle = await context.db.getVehicle(
+      accountFilter(context.accountUUID),
+      vehicleID
+    );
 
-    let result: Schedule[] = [];
-
-    // Find all schedules that have been removed
-    for (let i = 0; i < oldPlain.length; ++i) {
-      if (newPlain.indexOf(oldPlain[i]) < 0) {
-        result = await context.db.removeVehicleSchedule(id, oldArray[i]);
-      }
-    }
-    for (let i = 0; i < newPlain.length; ++i) {
-      if (oldPlain.indexOf(newPlain[i]) < 0) {
-        result = await context.db.addVehicleSchedule(id, newArray[i]);
-      }
-    }
-
-    await context.logic.refreshChargePlan(id);
+    await context.db.removeSchedule(id, vehicle.vehicle_uuid);
+    await context.logic.refreshChargePlan(vehicle.vehicle_uuid);
     await pubSub.publish(SubscriptionTopic.VehicleUpdate, {
-      vehicle_uuid: id,
-      account_uuid: context.accountUUID
+      vehicle_uuid: vehicle.vehicle_uuid,
+      account_uuid: vehicle.account_uuid
     });
+    return true;
+  }
 
-    return plainToClass(Schedule, result);
+  @Mutation(_returns => [Schedule])
+  async updateSchedule(
+    @Arg("id", _type => Int, { nullable: true, defaultValue: undefined })
+    id: number | undefined,
+    @Arg("vehicleID", _type => ID) vehicleID: string,
+    @Arg("type", _type => ScheduleType) type: ScheduleType,
+    @Arg("level", _type => Int, { nullable: true })
+    level: number | null,
+    @Arg("time", _type => Date, { nullable: true })
+    time: Date | null,
+    @Ctx() context: IContext,
+    @PubSub() pubSub: PubSubEngine
+  ): Promise<DBSchedule[]> {
+    // verify vehicle ownage
+    log(
+      LogLevel.Debug,
+      `updateSchedule: ${JSON.stringify(id)} ${JSON.stringify(vehicleID)}`
+    );
+    const vehicle = await context.db.getVehicle(
+      accountFilter(context.accountUUID),
+      vehicleID
+    );
+
+    await context.db.updateSchedule(
+      id,
+      vehicle.vehicle_uuid,
+      type,
+      level,
+      time
+    );
+    await context.logic.refreshChargePlan(vehicle.vehicle_uuid);
+    await pubSub.publish(SubscriptionTopic.VehicleUpdate, {
+      vehicle_uuid: vehicle.vehicle_uuid,
+      account_uuid: vehicle.account_uuid
+    });
+    return context.db.getSchedule(vehicle.vehicle_uuid);
   }
 }

@@ -118,9 +118,10 @@ type Mutation {
     vehicleID: ID!
   ): Int
   _updatePrice(input: UpdatePriceInput!): Boolean!
-  removeVehicle(confirm: String!, id: String!): Boolean!
+  removeVehicle(confirm: String!, id: ID!): Boolean!
   updateVehicle(input: UpdateVehicleInput!): Vehicle!
-  replaceVehicleSchedule(newSchedule: [ScheduleInput!]!, oldSchedule: [ScheduleInput!]!, id: String!): [Schedule!]!
+  removeSchedule(vehicleID: ID!, id: Int!): Boolean!
+  updateSchedule(time: DateTime, level: Int, type: ScheduleType!, vehicleID: ID!, id: Int): [Schedule!]!
 }
 
 type PriceData {
@@ -169,28 +170,20 @@ type ResolverTest {
   isFieldResolverWorking: Boolean!
 }
 
-enum SchduleType {
+type Schedule {
+  id: Int!
+  vehicleID: ID!
+  type: ScheduleType!
+  level: Int
+  time: DateTime
+}
+
+enum ScheduleType {
   AI
   Suggestion
   Manual
   Disable
   Trip
-}
-
-type Schedule {
-  type: SchduleType!
-
-  """Battery level to reach at scheduled time (%)"""
-  level: Int!
-  time: DateTime
-}
-
-input ScheduleInput {
-  type: SchduleType!
-
-  """Battery level to reach at scheduled time (%)"""
-  level: Int!
-  time: DateTime
 }
 
 type ServiceProvider {
@@ -269,7 +262,6 @@ input UpdateVehicleInput {
   id: ID!
   name: String
   maximumLevel: Int
-  schedule: [ScheduleInput!]
   locationSettings: [VehicleLocationSettingInput!]
   status: String
   serviceID: ID
@@ -284,9 +276,6 @@ type Vehicle {
 
   """maximum level to charge to unless a trip is scheduled (%)"""
   maximumLevel: Int!
-
-  """schedule"""
-  schedule: [Schedule!]!
   providerData: JSONObject!
   geoLocation: GeoLocation
 
@@ -295,6 +284,9 @@ type Vehicle {
 
   """known location"""
   location: Location
+
+  """schedule"""
+  schedule: [Schedule!]!
 
   """location settings"""
   locationSettings: [VehicleLocationSetting!]!

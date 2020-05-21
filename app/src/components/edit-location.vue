@@ -55,11 +55,8 @@ import RemoveDialog from "@app/components/remove-dialog.vue";
 import deepmerge from "deepmerge";
 import apollo from "@app/plugins/apollo";
 import equal from "fast-deep-equal";
-import {
-  GQLLocation,
-  GQLUpdateLocationInput,
-  GQLPriceList
-} from "@shared/sc-schema";
+import { GQLLocation, GQLPriceList } from "@shared/sc-schema";
+import { UpdateLocationParams } from "@shared/sc-client";
 
 @Component({
   components: { EditVehicleLocationSettings, RemoveDialog },
@@ -136,7 +133,7 @@ export default class EditLocation extends Vue {
     this.debounceTimer = setTimeout(async () => {
       const form: any = this.$refs.form;
       if (form.validate && form.validate()) {
-        const update: GQLUpdateLocationInput = {
+        const update: UpdateLocationParams = {
           id: this.location.id
         };
         if (this.saving["name"]) {

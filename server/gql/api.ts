@@ -30,7 +30,7 @@ import { ProviderResolver } from "./provider-resolver";
 import { ServiceResolver } from "./service-resolver";
 import { StatsResolver } from "./stats-resolver";
 import { VehicleResolver } from "./vehicle-resolver";
-import { VehicleTypeResolver } from "./vehicle-type";
+import { VehicleTypeResolver, ScheduleTypeResolver } from "./vehicle-type";
 import { PingResolver } from "./subscription";
 import { PriceListTypeResolver } from "./price-type";
 import { ServiceProviderTypeResolver } from "./service-type";
@@ -88,6 +88,7 @@ export default function schema(emitFile?: string): Promise<GraphQLSchema> {
       LocationTypeResolver,
       LocationResolver,
 
+      ScheduleTypeResolver,
       VehicleTypeResolver,
       VehicleResolver,
 

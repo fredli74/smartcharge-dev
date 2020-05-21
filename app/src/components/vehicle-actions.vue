@@ -143,7 +143,7 @@ import eventBus, { BusEvent } from "@app/plugins/event-bus";
 import deepmerge from "deepmerge";
 import VehicleCharge from "./vehicle-charge.vue";
 import VehicleTrip from "./vehicle-trip.vue";
-import { GQLAction, GQLVehicle, GQLSchduleType } from "@shared/sc-schema";
+import { GQLAction, GQLVehicle, GQLScheduleType } from "@shared/sc-schema";
 import { scheduleMap } from "@shared/sc-utils";
 
 @Component({
@@ -235,12 +235,12 @@ export default class VehicleActions extends Vue {
 
   get manualChargeColor() {
     const schedule = scheduleMap(this.vehicle.schedule);
-    const manual = schedule[GQLSchduleType.Manual];
+    const manual = schedule[GQLScheduleType.Manual];
     if (manual) {
-      if (manual.level === 0) {
-        return "red accent-4";
-      } else {
+      if (manual.level) {
         return "success darken-1";
+      } else {
+        return "red accent-4";
       }
     }
     return undefined;

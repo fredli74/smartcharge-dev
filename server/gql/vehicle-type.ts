@@ -27,7 +27,7 @@ import {
   ChargeConnection,
   ScheduleType
 } from "@shared/sc-types";
-import { DBVehicle } from "@server/db-schema";
+import { DBVehicle, DBSchedule } from "@server/db-schema";
 import { plainToClass, Type } from "class-transformer";
 import { IContext } from "./api";
 import { LocationResolver } from "./location-resolver";
@@ -56,26 +56,6 @@ registerEnumType(SmartChargeGoal, {
 });
 
 /*******************************
- *          Schedule           *
- *******************************/
-
-registerEnumType(ScheduleType, { name: "SchduleType" });
-
-@ObjectType("Schedule")
-@InputType("ScheduleInput")
-export class Schedule {
-  @Field(_type => ScheduleType)
-  type!: ScheduleType;
-  @Field(_type => Int, {
-    description: `Battery level to reach at scheduled time (%)`
-  })
-  level!: number;
-  @Type(() => Date)
-  @Field(_type => Date, { nullable: true })
-  time!: Date | null;
-}
-
-/*******************************
  *         ChargePlan          *
  *******************************/
 
@@ -101,6 +81,39 @@ export class ChargePlan {
   level!: number;
   @Field(_type => String)
   comment!: string;
+}
+
+/*******************************
+ *          Schedule           *
+ *******************************/
+
+registerEnumType(ScheduleType, { name: "ScheduleType" });
+
+@ObjectType()
+export class Schedule extends DBSchedule {}
+
+@Resolver(_of => Schedule)
+export class ScheduleTypeResolver {
+  @FieldResolver(_returns => Int)
+  id(@Root() schedule: Schedule): number {
+    return schedule.schedule_id;
+  }
+  @FieldResolver(_returns => ID)
+  vehicleID(@Root() schedule: Schedule): string {
+    return schedule.vehicle_uuid;
+  }
+  @FieldResolver(_returns => ScheduleType)
+  type(@Root() schedule: Schedule): ScheduleType {
+    return schedule.schedule_type as ScheduleType;
+  }
+  @FieldResolver(_returns => Int, { nullable: true })
+  level(@Root() schedule: Schedule): number | null {
+    return schedule.level;
+  }
+  @FieldResolver(_returns => Date, { nullable: true })
+  time(@Root() schedule: Schedule): Date | null {
+    return schedule.schedule_ts;
+  }
 }
 
 /*******************************
@@ -133,10 +146,6 @@ export class VehicleTypeResolver {
   })
   maximumLevel(@Root() vehicle: Vehicle): number {
     return vehicle.maximum_charge;
-  }
-  @FieldResolver(_returns => [Schedule], { description: `schedule` })
-  schedule(@Root() vehicle: Vehicle): Schedule[] {
-    return plainToClass(Schedule, vehicle.schedule as Schedule[]);
   }
   @FieldResolver(_returns => GraphQLJSONObject)
   providerData(@Root() vehicle: Vehicle): any {
@@ -174,6 +183,16 @@ export class VehicleTypeResolver {
       return null;
     }
     return new LocationResolver().location(vehicle.location_uuid, context);
+  }
+  @FieldResolver(_returns => [Schedule], { description: `schedule` })
+  async schedule(
+    @Root() vehicle: Vehicle,
+    @Ctx() context: IContext
+  ): Promise<Schedule[]> {
+    return plainToClass(
+      Schedule,
+      await context.db.getSchedule(vehicle.vehicle_uuid)
+    );
   }
   @FieldResolver(_returns => [VehicleLocationSettings], {
     description: `location settings`
@@ -276,8 +295,6 @@ export abstract class UpdateVehicleInput {
   name?: string;
   @Field(_type => Int, { nullable: true })
   maximumLevel?: number;
-  @Field(_type => [Schedule], { nullable: true })
-  schedule?: Schedule[];
   @Field(_type => [VehicleLocationSettings], { nullable: true })
   locationSettings?: VehicleLocationSettings[];
   @Field(_type => String, { nullable: true })

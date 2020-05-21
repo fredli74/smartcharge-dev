@@ -140,11 +140,6 @@ export interface GQLVehicle {
    * maximum level to charge to unless a trip is scheduled (%)
    */
   maximumLevel: number;
-  
-  /**
-   * schedule
-   */
-  schedule: Array<GQLSchedule>;
   providerData: GQLJSONObject;
   geoLocation: GQLGeoLocation | null;
   
@@ -157,6 +152,11 @@ export interface GQLVehicle {
    * known location
    */
   location: GQLLocation | null;
+  
+  /**
+   * schedule
+   */
+  schedule: Array<GQLSchedule>;
   
   /**
    * location settings
@@ -214,16 +214,14 @@ export interface GQLVehicle {
 }
 
 export interface GQLSchedule {
-  type: GQLSchduleType;
-  
-  /**
-   * Battery level to reach at scheduled time (%)
-   */
-  level: number;
+  id: number;
+  vehicleID: string;
+  type: GQLScheduleType;
+  level: number | null;
   time: GQLDateTime | null;
 }
 
-export enum GQLSchduleType {
+export enum GQLScheduleType {
   AI = 'AI',
   Suggestion = 'Suggestion',
   Manual = 'Manual',
@@ -264,7 +262,8 @@ export interface GQLMutation {
   _updatePrice: boolean;
   removeVehicle: boolean;
   updateVehicle: GQLVehicle;
-  replaceVehicleSchedule: Array<GQLSchedule>;
+  removeSchedule: boolean;
+  updateSchedule: Array<GQLSchedule>;
 }
 
 export interface GQLUpdatePriceListInput {
@@ -382,21 +381,10 @@ export interface GQLUpdateVehicleInput {
   id: string;
   name: string | null;
   maximumLevel: number | null;
-  schedule: Array<GQLScheduleInput> | null;
   locationSettings: Array<GQLVehicleLocationSettingInput> | null;
   status: string | null;
   serviceID: string | null;
   providerData: GQLJSONObject | null;
-}
-
-export interface GQLScheduleInput {
-  type: GQLSchduleType;
-  
-  /**
-   * Battery level to reach at scheduled time (%)
-   */
-  level: number;
-  time: GQLDateTime | null;
 }
 
 export interface GQLVehicleLocationSettingInput {
@@ -765,11 +753,11 @@ export interface GQLVehicleTypeResolver<TParent = GQLVehicle> {
   serviceID?: VehicleToServiceIDResolver<TParent>;
   name?: VehicleToNameResolver<TParent>;
   maximumLevel?: VehicleToMaximumLevelResolver<TParent>;
-  schedule?: VehicleToScheduleResolver<TParent>;
   providerData?: VehicleToProviderDataResolver<TParent>;
   geoLocation?: VehicleToGeoLocationResolver<TParent>;
   locationID?: VehicleToLocationIDResolver<TParent>;
   location?: VehicleToLocationResolver<TParent>;
+  schedule?: VehicleToScheduleResolver<TParent>;
   locationSettings?: VehicleToLocationSettingsResolver<TParent>;
   batteryLevel?: VehicleToBatteryLevelResolver<TParent>;
   odometer?: VehicleToOdometerResolver<TParent>;
@@ -806,10 +794,6 @@ export interface VehicleToMaximumLevelResolver<TParent = GQLVehicle, TResult = n
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface VehicleToScheduleResolver<TParent = GQLVehicle, TResult = Array<GQLSchedule>> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
 export interface VehicleToProviderDataResolver<TParent = GQLVehicle, TResult = GQLJSONObject> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
@@ -823,6 +807,10 @@ export interface VehicleToLocationIDResolver<TParent = GQLVehicle, TResult = str
 }
 
 export interface VehicleToLocationResolver<TParent = GQLVehicle, TResult = GQLLocation | null> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface VehicleToScheduleResolver<TParent = GQLVehicle, TResult = Array<GQLSchedule>> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
@@ -883,16 +871,26 @@ export interface VehicleToUpdatedResolver<TParent = GQLVehicle, TResult = GQLDat
 }
 
 export interface GQLScheduleTypeResolver<TParent = GQLSchedule> {
+  id?: ScheduleToIdResolver<TParent>;
+  vehicleID?: ScheduleToVehicleIDResolver<TParent>;
   type?: ScheduleToTypeResolver<TParent>;
   level?: ScheduleToLevelResolver<TParent>;
   time?: ScheduleToTimeResolver<TParent>;
 }
 
-export interface ScheduleToTypeResolver<TParent = GQLSchedule, TResult = GQLSchduleType> {
+export interface ScheduleToIdResolver<TParent = GQLSchedule, TResult = number> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface ScheduleToLevelResolver<TParent = GQLSchedule, TResult = number> {
+export interface ScheduleToVehicleIDResolver<TParent = GQLSchedule, TResult = string> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface ScheduleToTypeResolver<TParent = GQLSchedule, TResult = GQLScheduleType> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface ScheduleToLevelResolver<TParent = GQLSchedule, TResult = number | null> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
@@ -941,7 +939,8 @@ export interface GQLMutationTypeResolver<TParent = undefined> {
   _updatePrice?: MutationTo_updatePriceResolver<TParent>;
   removeVehicle?: MutationToRemoveVehicleResolver<TParent>;
   updateVehicle?: MutationToUpdateVehicleResolver<TParent>;
-  replaceVehicleSchedule?: MutationToReplaceVehicleScheduleResolver<TParent>;
+  removeSchedule?: MutationToRemoveScheduleResolver<TParent>;
+  updateSchedule?: MutationToUpdateScheduleResolver<TParent>;
 }
 
 export interface MutationToLoginWithPasswordArgs {
@@ -1053,13 +1052,23 @@ export interface MutationToUpdateVehicleResolver<TParent = undefined, TResult = 
   (parent: TParent, args: MutationToUpdateVehicleArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface MutationToReplaceVehicleScheduleArgs {
-  newSchedule: Array<GQLScheduleInput>;
-  oldSchedule: Array<GQLScheduleInput>;
-  id: string;
+export interface MutationToRemoveScheduleArgs {
+  vehicleID: string;
+  id: number;
 }
-export interface MutationToReplaceVehicleScheduleResolver<TParent = undefined, TResult = Array<GQLSchedule>> {
-  (parent: TParent, args: MutationToReplaceVehicleScheduleArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+export interface MutationToRemoveScheduleResolver<TParent = undefined, TResult = boolean> {
+  (parent: TParent, args: MutationToRemoveScheduleArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface MutationToUpdateScheduleArgs {
+  time?: GQLDateTime;
+  level?: number;
+  type: GQLScheduleType;
+  vehicleID: string;
+  id?: number;
+}
+export interface MutationToUpdateScheduleResolver<TParent = undefined, TResult = Array<GQLSchedule>> {
+  (parent: TParent, args: MutationToUpdateScheduleArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
 export interface GQLSubscriptionTypeResolver<TParent = undefined> {

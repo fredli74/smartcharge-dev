@@ -110,10 +110,10 @@ import equal from "fast-deep-equal";
 import {
   GQLVehicle,
   GQLLocation,
-  GQLVehicleLocationSetting,
-  GQLUpdateVehicleInput
+  GQLVehicleLocationSetting
 } from "@shared/sc-schema";
 import { DefaultVehicleLocationSettings } from "@shared/sc-utils";
+import { UpdateVehicleParams } from "@shared/sc-client";
 
 @Component({
   components: { EditVehicleLocationSettings, RemoveDialog }
@@ -214,7 +214,7 @@ export default class EditVehicle extends Vue {
     this.debounceTimer = setTimeout(async () => {
       const form: any = this.$refs.form;
       if (form.validate && form.validate()) {
-        const update: GQLUpdateVehicleInput = {
+        const update: UpdateVehicleParams = {
           id: this.vehicle.id,
           providerData: {}
         };
