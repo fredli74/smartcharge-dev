@@ -79,6 +79,8 @@ import { gql } from "apollo-server-core";
 import config from "@shared/smartcharge-config";
 import auth from "./plugins/auth0";
 
+import "vue-datetime/dist/vue-datetime.css";
+
 declare var COMMIT_HASH: string;
 
 interface AlertMessage {
@@ -172,7 +174,7 @@ export default class App extends Vue {
 }
 </script>
 
-<style>
+<style lang="scss">
 .autosize {
   font-size: calc(16px + 1vw);
 }
@@ -229,5 +231,17 @@ a#homelink {
 }
 .v-icon.mdi-menu-down {
   cursor: pointer;
+}
+
+.vdatetime-popup__header {
+  background: #1976d2; /* Todo, use primary if I figure out how  =)  */
+}
+.vdatetime-popup.vdatetime-static {
+  position: relative;
+  top: unset;
+  left: unset;
+  transform: unset;
+  width: unset;
+  max-width: unset;
 }
 </style>
