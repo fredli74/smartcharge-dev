@@ -56,7 +56,7 @@
             >
             </v-slider> </v-col
         ></v-row>
-        <v-row class="mt-n3" justify="space-around">
+        <v-row class="mt-n3" align="center" justify="space-around">
           <v-col v-if="!showDate" cols="auto">
             <v-menu
               ref="scheduleMenu"
@@ -79,6 +79,7 @@
                 :min-datetime="nowLocal.plus({ minutes: 1 })"
                 :max-datetime="nowLocal.plus({ months: 6 }).endOf(`month`)"
                 :auto="true"
+                :phrases="{ cancel: `CANCEL`, ok: `OK` }"
                 @confirm="
                   refreshKey++;
                   $refs.scheduleMenu.isActive = false;
@@ -94,7 +95,7 @@
           </v-col>
           <template v-else>
             <v-spacer></v-spacer>
-            <v-col cols="3">
+            <v-col cols="auto">
               <v-menu
                 ref="dateMenu"
                 :close-on-content-click="false"
@@ -102,12 +103,9 @@
                 min-width="290px"
               >
                 <template v-slot:activator="{ on }">
-                  <v-text-field
-                    v-model="pickerDate"
-                    class="datetime-picker-menu"
-                    readonly
-                    v-on="on"
-                  ></v-text-field>
+                  <v-btn depressed v-on="on"
+                    ><v-icon left>mdi-calendar</v-icon>{{ pickerDate }}
+                  </v-btn>
                 </template>
                 <datetime-popup
                   :key="refreshKey"
@@ -118,6 +116,7 @@
                   :min-datetime="nowLocal.plus({ minutes: 1 })"
                   :max-datetime="nowLocal.plus({ months: 6 }).endOf(`month`)"
                   :auto="true"
+                  :phrases="{ cancel: `CANCEL`, ok: `SAVE` }"
                   @confirm="
                     refreshKey++;
                     $refs.dateMenu.isActive = false;
@@ -131,22 +130,18 @@
                 </datetime-popup>
               </v-menu>
             </v-col>
-            <v-col cols="2">
+            <v-col cols="auto">
               <v-menu
                 ref="timeMenu"
                 :close-on-content-click="false"
-                :return-value.sync="chargeDateTime"
                 top
                 min-width="290px"
               >
                 <template v-slot:activator="{ on }">
-                  <v-text-field
-                    v-model="pickerTime"
-                    class="datetime-picker-menu"
-                    readonly
-                    @click="scrollFix"
-                    v-on="on"
-                  ></v-text-field>
+                  <v-btn depressed @click="scrollFix" v-on="on"
+                    ><v-icon left class="mt-1">mdi-clock-end</v-icon
+                    >{{ pickerTime }}</v-btn
+                  >
                 </template>
                 <datetime-popup
                   :key="refreshKey"
@@ -158,6 +153,7 @@
                   :min-datetime="nowLocal.plus({ minutes: 1 })"
                   :max-datetime="nowLocal.plus({ months: 6 }).endOf(`month`)"
                   :auto="true"
+                  :phrases="{ cancel: `CANCEL`, ok: `SAVE` }"
                   @confirm="
                     refreshKey++;
                     $refs.timeMenu.isActive = false;
@@ -177,10 +173,9 @@
                 <template v-slot:activator="{ on }">
                   <v-hover v-slot:default="{ hover }">
                     <v-btn
-                      class="mt-3"
                       fab
                       small
-                      icon
+                      depressed
                       :color="hover ? `error` : ``"
                       v-on="on"
                       @click="removeSchedule"
@@ -216,7 +211,7 @@ import { GQLVehicle, GQLScheduleType, GQLSchedule } from "@shared/sc-schema";
 import apollo from "@app/plugins/apollo";
 
 import { DateTime } from "luxon";
-import { relativeTime, dateCeil } from "@shared/utils";
+import { relativeTime } from "@shared/utils";
 import { scheduleMap, getVehicleLocationSettings } from "@shared/sc-utils";
 import { DatetimePopup } from "vue-datetime";
 
@@ -298,11 +293,8 @@ export default class VehicleCharge extends Vue {
     this.showDate = true;
     const was = this.chargeDate;
     if (datetime < DateTime.utc()) {
-      this.chargeDate = dateCeil(
-        DateTime.utc()
-          .plus({ minutes: 5 })
-          .toJSDate(),
-        10
+      this.chargeDate = new Date(
+        Math.ceil((Date.now() + 5 * 60e3) / 60e4) * 60e4
       ).toISOString();
     } else {
       this.chargeDate = datetime.toJSDate().toISOString();
@@ -343,20 +335,20 @@ export default class VehicleCharge extends Vue {
     const map = scheduleMap(v.schedule);
     const manual = map[GQLScheduleType.Manual];
     const settings = getVehicleLocationSettings(v);
+    const ai = map[GQLScheduleType.AI];
+    const guidedTime =
+      Math.ceil(
+        (ai && ai.time
+          ? new Date(ai && ai.time).getTime()
+          : Date.now() + 12 * 60 * 60e3) / 60e4
+      ) * 60e4;
 
     return {
       directLevel: settings.directLevel,
       chargeControl: !manual ? 1 : manual.level ? 2 : 0,
       chargeLevel: (manual && manual.level) || this.vehicle.maximumLevel,
       showDate: !!(manual && manual.time),
-      chargeDate:
-        (manual && manual.time) ||
-        dateCeil(
-          DateTime.utc()
-            .plus({ hours: 12 })
-            .toJSDate(),
-          10
-        ).toISOString(),
+      chargeDate: (manual && manual.time) || new Date(guidedTime).toISOString(),
       map
     };
   }
@@ -408,32 +400,20 @@ export default class VehicleCharge extends Vue {
     }
   }
 
-  relTime(dt: DateTime) {
-    const rt = relativeTime(dt.toJSDate());
-    return rt.date + " - " + rt.time;
-  }
-
-  debounceTimer?: any;
   async chargeControl_onChange() {
-    console.debug("chargeControl_onChange");
+    // console.debug("chargeControl_onChange");
     this.chargeControlChanged();
   }
   async chargeLevel_onEnd() {
-    console.debug("chargeLevel_onEnd");
+    // console.debug("chargeLevel_onEnd");
     this.chargeControlChanged();
   }
   async chargeLevel_onClick() {
-    console.debug("chargeLevel_onClick");
-    this.chargeControlChanged();
-  }
-  async chargeDate_onInput() {
-    console.debug("chargeDate_onInput");
-  }
-  async chargeDate_onConfirm() {
-    console.debug("chargeDate_onConfirm");
+    // console.debug("chargeLevel_onClick");
     this.chargeControlChanged();
   }
 
+  debounceTimer?: any;
   async chargeControlChanged() {
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
@@ -492,25 +472,14 @@ export default class VehicleCharge extends Vue {
 .selected-charge {
   font-weight: bolder !important;
 }
-#chargeDate {
-  font-size: 17px;
-  input {
-    text-align: right;
-  }
-}
-.full-screen-height {
-  max-height: calc(100vh - 25px);
-}
 .datetime-picker-menu {
   input {
     cursor: pointer;
     text-align: center;
   }
-  .v-input__prepend-outer {
-    margin-right: 4px !important;
-  }
   .v-input__prepend-outer .v-icon {
-    font-size: 20px;
+    margin-top: 3px;
+    font-size: 28px;
   }
 }
 </style>

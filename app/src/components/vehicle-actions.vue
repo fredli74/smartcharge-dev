@@ -86,17 +86,20 @@
             depressed
             fab
             :small="smallButton"
-            :dark="Boolean(manualChargeColor)"
-            :outlined="!Boolean(manualChargeColor)"
-            :color="manualChargeColor"
-            :disabled="!Boolean(vehicle.isConnected)"
+            :dark="manualChargeState.dark"
+            :outlined="manualChargeState.outlined"
+            :color="manualChargeState.color"
+            :disabled="!Boolean(vehicle.locationID)"
             @click="chargeClick()"
-            ><v-icon :large="!smallButton">mdi-lightning-bolt</v-icon></v-btn
+            ><v-icon :large="!smallButton">{{
+              !vehicle.isConnected && vehicle.locationID
+                ? "mdi-power-plug-off"
+                : "mdi-lightning-bolt"
+            }}</v-icon></v-btn
           >
         </div>
       </template>
-      <span v-if="Boolean(vehicle.isConnected)">Charge Control</span>
-      <span v-else>Not connected</span>
+      <span>{{ manualChargeState.tooltip }}</span>
     </v-tooltip>
     <v-tooltip top>
       <template v-slot:activator="{ on }">
@@ -104,29 +107,20 @@
           depressed
           fab
           :small="smallButton"
-          :outlined="!Boolean(vehicle.tripSchedule)"
-          :color="Boolean(vehicle.tripSchedule) ? 'success darken-1' : ''"
+          :outlined="!hasSchedule"
+          :color="
+            hasSchedule
+              ? vehicle.isConnected
+                ? 'success darken-1'
+                : 'warning'
+              : ''
+          "
           v-on="on"
-          @click="tripClick()"
+          @click="scheduleClick()"
           ><v-icon :large="!smallButton">mdi-calendar-clock</v-icon></v-btn
         >
       </template>
-      <span>Trip</span>
-    </v-tooltip>
-    <v-tooltip v-if="false" top>
-      <template v-slot:activator="{ on }">
-        <v-btn
-          depressed
-          fab
-          :small="smallButton"
-          :outlined="!Boolean(vehicle.pausedUntil)"
-          :color="Boolean(vehicle.pausedUntil) ? 'warning' : ''"
-          v-on="on"
-          @click="pauseClick()"
-          ><v-icon :large="!smallButton">mdi-pause</v-icon></v-btn
-        >
-      </template>
-      <span>Pause Smart Charging</span>
+      <span>Schedule</span>
     </v-tooltip>
   </v-card-actions>
 </template>
@@ -138,18 +132,17 @@ import { AgentAction } from "@providers/provider-agent";
 import apollo from "@app/plugins/apollo";
 import { delay } from "@shared/utils";
 import { VueConstructor } from "vue";
-import VehicleSettings from "./vehicle-settings.vue";
 import eventBus, { BusEvent } from "@app/plugins/event-bus";
 import deepmerge from "deepmerge";
 import VehicleCharge from "./vehicle-charge.vue";
-import VehicleTrip from "./vehicle-trip.vue";
+import VehicleSchedule from "./vehicle-schedule.vue";
 import { GQLAction, GQLVehicle, GQLScheduleType } from "@shared/sc-schema";
 import { scheduleMap } from "@shared/sc-utils";
 
 @Component({
   components: {
     VehicleCharge,
-    VehicleTrip
+    VehicleSchedule
   },
   apollo: {
     $subscribe: {
@@ -219,9 +212,7 @@ export default class VehicleActions extends Vue {
       chargePopup: false
     };
   }
-  mounted() {
-    // this.chargeClick();
-  }
+  mounted() {}
   onResize() {
     this.smallButton = window.innerWidth > 600 && window.innerWidth < 960;
   }
@@ -232,18 +223,51 @@ export default class VehicleActions extends Vue {
         this.vehicle!.status.toLowerCase() === "sleeping")
     );
   }
+  get hasSchedule() {
+    for (const s of this.vehicle.schedule) {
+      if (s.level && s.time && s.type === GQLScheduleType.Trip) {
+        return true;
+      }
+    }
+    return false;
+  }
 
-  get manualChargeColor() {
+  get manualChargeState() {
     const schedule = scheduleMap(this.vehicle.schedule);
     const manual = schedule[GQLScheduleType.Manual];
     if (manual) {
       if (manual.level) {
-        return "success darken-1";
+        return {
+          outlined: false,
+          dark: true,
+          color: this.vehicle.isConnected ? "success darken-1" : "warning",
+          tooltip: "Manual charge"
+        };
       } else {
-        return "red accent-4";
+        return {
+          outlined: false,
+          dark: true,
+          color: "red accent-4",
+
+          tooltip: "No charge"
+        };
       }
+    } else if (!this.vehicle.isConnected && this.vehicle.locationID) {
+      return {
+        outlined: true,
+        dark: false,
+        color: "grey darken-3",
+
+        tooltip: "Not connected"
+      };
     }
-    return undefined;
+    return {
+      outlined: true,
+      dark: false,
+      color: undefined,
+
+      tooltip: "Charge Control"
+    };
   }
 
   async refreshClick() {
@@ -284,10 +308,10 @@ export default class VehicleActions extends Vue {
     }
   }
 
-  tripClick() {
+  scheduleClick() {
     this.dialogShow = true;
-    this.dialogTitle = "Trip";
-    this.dialogContent = VehicleTrip;
+    this.dialogTitle = "Schedule";
+    this.dialogContent = VehicleSchedule;
     return true;
   }
   chargeClick() {
@@ -296,16 +320,13 @@ export default class VehicleActions extends Vue {
     this.dialogContent = VehicleCharge;
     return true;
   }
-  settingsClick() {
-    this.dialogShow = true;
-    this.dialogTitle = "Settings";
-    this.dialogContent = VehicleSettings;
-    return true;
-  }
 
   saveTimer?: any;
   unsavedData?: any = {};
   queueSave(delay: number, data: any) {
+    if (data) {
+      throw "NOT USED ANYMORE?";
+    }
     console.debug("Queue:", data);
     this.unsavedData = deepmerge(this.unsavedData, data);
     this.changed = true;

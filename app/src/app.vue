@@ -244,4 +244,20 @@ a#homelink {
   width: unset;
   max-width: unset;
 }
+.vdatetime-time-picker__item:hover,
+.vdatetime-month-picker__item:hover,
+.vdatetime-year-picker__item:hover {
+  font-size: 20px !important;
+}
+.vdatetime-time-picker__item--selected:hover,
+.vdatetime-month-picker__item--selected:hover,
+.vdatetime-year-picker__item--selected:hover {
+  font-size: 32px !important;
+}
+.vdatetime-time-picker__item--selected {
+  background: #d3e5f7;
+}
+.pointer input {
+  cursor: pointer;
+}
 </style>

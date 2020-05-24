@@ -245,11 +245,6 @@ export async function asyncFilter<T>(
   return array.filter((_v, index) => results[index]);
 }
 
-export function dateCeil(time: Date, resolution: number): Date {
-  return new Date(
-    Math.ceil(time.getTime() / (resolution * 60e3)) * (resolution * 60e3)
-  );
-}
 export function relativeTime(when: Date): { date: string; time: string } {
   const nowLocal = DateTime.local();
   const thenLocal = DateTime.fromJSDate(when).toLocal();

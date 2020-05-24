@@ -78,12 +78,9 @@
 import { Component, Vue, Prop } from "vue-property-decorator";
 import deepmerge from "deepmerge";
 import apollo from "@app/plugins/apollo";
-import {
-  GQLVehicle,
-  GQLVehicleLocationSetting,
-  GQLUpdateVehicleInput
-} from "@shared/sc-schema";
+import { GQLVehicle, GQLVehicleLocationSetting } from "@shared/sc-schema";
 import { SmartChargeGoal } from "@shared/sc-types";
+import { UpdateVehicleParams } from "../../../shared/sc-client";
 
 @Component({})
 export default class EditVehicle extends Vue {
@@ -163,7 +160,7 @@ export default class EditVehicle extends Vue {
       const form: any = this.$refs.form;
       if (form.validate && form.validate()) {
         const goal = this.settings.goal as any;
-        const update: GQLUpdateVehicleInput = {
+        const update: UpdateVehicleParams = {
           id: this.vehicle.id,
           locationSettings: [
             {

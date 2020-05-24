@@ -103,6 +103,7 @@
     "vue-template-compiler": "^2.6.11",
     "vue-visible": "^1.0.2",
     "vuetify": "^2.2.28",
-    "vuetify-loader": "^1.4.3"
+    "vuetify-loader": "^1.4.3",
+    "weekstart": "^1.0.1"
   }
 }
