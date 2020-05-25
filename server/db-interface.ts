@@ -306,9 +306,8 @@ export class DBInterface {
     ts: Date,
     price: number
   ): Promise<DBPriceData> {
-    // TODO: remove fakecode and price_code
     const result = await this.pg.one(
-      `INSERT INTO price_data(price_list_uuid, ts, price) VALUES($1, $2, $3, $4) ` +
+      `INSERT INTO price_data(price_list_uuid, ts, price) VALUES($1, $2, $3) ` +
         `ON CONFLICT (price_list_uuid,ts) DO UPDATE SET price=EXCLUDED.price RETURNING *;`,
       [price_list_uuid, ts, price * 1e5]
     );

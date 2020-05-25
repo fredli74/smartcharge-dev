@@ -98,7 +98,7 @@ type Mutation {
   newPriceList(id: ID, isPublic: Boolean = false, name: String!): PriceList!
   updatePriceList(input: UpdatePriceListInput!): PriceList!
   updateLocation(input: UpdateLocationInput!): Location!
-  removeLocation(confirm: String!, id: String!): Boolean!
+  removeLocation(confirm: String!, id: ID!): Boolean!
   providerMutate(
     input: JSONObject!
 
