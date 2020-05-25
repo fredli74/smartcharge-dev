@@ -15,7 +15,8 @@ import {
   DBTrip,
   DBConnected,
   DBLocationStats,
-  DBStatsMap
+  DBStatsMap,
+  DBSchedule
 } from "./db-schema";
 import {
   LogLevel,
@@ -398,10 +399,7 @@ export class Logic {
         );
 
         if (connection.location_uuid !== null) {
-          await this.createNewStats(
-            connection.vehicle_uuid,
-            connection.location_uuid
-          );
+          await this.createNewStats(vehicle, connection.location_uuid);
         }
       }
     }
@@ -550,7 +548,7 @@ export class Logic {
   }
 
   public async createNewStats(
-    vehicle_uuid: string,
+    vehicle: DBVehicle,
     location_uuid: string
   ): Promise<DBLocationStats | null> {
     const level_charge_time: number | null = (
@@ -558,7 +556,7 @@ export class Logic {
         `SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY duration) as seconds
             FROM charge a JOIN charge_curve b ON (a.charge_id = b.charge_id)
             WHERE a.vehicle_uuid = $1 AND location_uuid = $2`,
-        [vehicle_uuid, location_uuid]
+        [vehicle.vehicle_uuid, location_uuid]
       )
     ).seconds;
 
@@ -643,7 +641,7 @@ export class Logic {
         JOIN week_avg ON (day = date_trunc('day', hour))
       )
       SELECT * FROM connection_map ORDER BY connected_id,hour;`,
-        [vehicle_uuid, location_uuid]
+        [vehicle.vehicle_uuid, location_uuid]
       );
       for (const h of history) {
         if (
@@ -671,13 +669,12 @@ export class Logic {
 
     if (historyMap.length > 0) {
       // Charge simulation
-      const charge_levels: {
-        minimum_charge: number;
-        maximum_charge: number;
-      } = await this.db.pg.one(
-        `SELECT minimum_charge, maximum_charge FROM vehicle WHERE vehicle_uuid = $1`,
-        [vehicle_uuid]
-      );
+      const locationSettings =
+        vehicle.location_settings[location_uuid] ||
+        DBInterface.DefaultVehicleLocationSettings();
+
+      const minimum_charge = locationSettings.directLevel;
+      const maximum_charge = vehicle.maximum_charge;
 
       const thresholdList = historyMap
         .reduce(
@@ -685,7 +682,7 @@ export class Logic {
           [] as number[]
         )
         .filter((v, i, a) => a.indexOf(v) === i)
-        .sort((a, b) => Number(a) - Number(b));
+        .sort((a, b) => Number(b) - Number(a));
 
       const needsum = historyMap.reduce((p, c) => p + c.needed, 0);
       const needavg = needsum / historyMap.length;
@@ -702,10 +699,7 @@ export class Logic {
             lvl = historyMap[i].start_level;
           } else {
             lvl -= historyMap[i - 1].needed;
-            if (
-              lvl < historyMap[i].start_level &&
-              lvl < charge_levels.minimum_charge / 2
-            ) {
+            if (lvl < historyMap[i].start_level && lvl < minimum_charge / 2) {
               // half of minimum charge is where I draw the line
               lvl = -1;
               break;
@@ -714,20 +708,20 @@ export class Logic {
           let hours = [...historyMap[i].hours];
           neededLevel = Math.min(
             100,
-            charge_levels.minimum_charge +
+            minimum_charge +
               (historyMap[i].needed > 0 ? historyMap[i].needed * 1.1 : needavg)
           );
 
           let smartCharging = false;
 
           while (hours.length > 0) {
-            if (lvl >= charge_levels.minimum_charge && !smartCharging) {
+            if (lvl >= minimum_charge && !smartCharging) {
               hours = hours.sort((a, b) => a.threshold - b.threshold);
               smartCharging = true;
             }
             const h = hours.shift()!;
             const charge = Math.max(
-              h.threshold <= t ? charge_levels.maximum_charge - lvl : 0,
+              h.threshold <= t ? maximum_charge - lvl : 0,
               lvl < neededLevel ? neededLevel - lvl : 0
             );
             if (charge > 0) {
@@ -746,17 +740,20 @@ export class Logic {
           }
         }
         const f = totalCost / totalCharged;
-        if (lvl > charge_levels.minimum_charge + needavg && f < bestCost) {
+        if (lvl > minimum_charge + needavg && f < bestCost * 0.95) {
           bestCost = f;
           threshold = t;
-          log(LogLevel.Trace, `Cost simulation ${vehicle_uuid} t=${t} => ${f}`);
+          log(
+            LogLevel.Trace,
+            `Cost simulation ${vehicle.vehicle_uuid} t=${t} => ${f}`
+          );
         }
       }
     }
     return this.db.pg.one(
       `INSERT INTO location_stats($[this:name]) VALUES ($[this:csv]) RETURNING *;`,
       {
-        vehicle_uuid: vehicle_uuid,
+        vehicle_uuid: vehicle.vehicle_uuid,
         location_uuid: location_uuid,
         price_data_ts: avg_prices.price_data_ts,
         level_charge_time: Math.round(level_charge_time),
@@ -768,19 +765,19 @@ export class Logic {
   }
 
   public async currentStats(
-    vehicle_uuid: string,
+    vehicle: DBVehicle,
     location_uuid: string
   ): Promise<DBLocationStats | null> {
     const stats = await this.db.pg.oneOrNone(
       `SELECT s.*, s.price_data_ts = (SELECT MAX(ts) FROM price_data p JOIN location l ON (l.price_list_uuid = p.price_list_uuid) 
       WHERE l.location_uuid = s.location_uuid) as fresh
       FROM location_stats s WHERE vehicle_uuid=$1 AND location_uuid=$2 ORDER BY stats_id DESC LIMIT 1`,
-      [vehicle_uuid, location_uuid]
+      [vehicle.vehicle_uuid, location_uuid]
     );
     if (stats && stats.fresh) {
       return stats;
     } else {
-      return this.createNewStats(vehicle_uuid, location_uuid);
+      return this.createNewStats(vehicle, location_uuid);
     }
   }
 
@@ -941,7 +938,7 @@ export class Logic {
 
     const timeNeeded = await this.chargeDuration(
       vehicle.vehicle_uuid,
-      vehicle.location_uuid!,
+      vehicle.location_uuid,
       vehicle.level,
       batteryLevel
     );
@@ -1024,7 +1021,7 @@ export class Logic {
     const minimum_charge = locationSettings.directLevel;
 
     // Cleanup schedule remove all entries 1 hour after the end time
-    const schedule = await this.db.pg.manyOrNone(
+    const schedule: DBSchedule[] = await this.db.pg.manyOrNone(
       `DELETE FROM schedule WHERE vehicle_uuid = $1 AND schedule_ts + interval '1 hour' < NOW();
       SELECT * FROM schedule WHERE vehicle_uuid = $1;`,
       [vehicle.vehicle_uuid]
@@ -1032,9 +1029,9 @@ export class Logic {
 
     // Reduce the array to a map with only the first upcoming event of each type
     const scheduleMap = schedule
-      .sort((a, b) => compareStartTimes(a.time, b.time))
+      .sort((a, b) => compareStartTimes(a.schedule_ts, b.schedule_ts))
       .reduce((map, obj) => {
-        if (map[obj.type] === undefined) map[obj.type] = obj;
+        if (map[obj.schedule_type] === undefined) map[obj.schedule_type] = obj;
         return map;
       }, {} as Record<string, Schedule>);
     const manual = scheduleMap[ScheduleType.Manual];

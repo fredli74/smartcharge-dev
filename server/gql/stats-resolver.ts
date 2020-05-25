@@ -93,7 +93,7 @@ export class StatsResolver {
       maximumLevel: vehicle.maximum_charge
     } as ChartData);
 
-    const stats = await context.logic.currentStats(vehicle_uuid, location_uuid);
+    const stats = await context.logic.currentStats(vehicle, location_uuid);
     if (
       stats &&
       stats.weekly_avg7_price &&
