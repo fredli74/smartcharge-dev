@@ -313,8 +313,6 @@ export class TeslaAgent extends AbstractAgent {
   }
 
   private async poll(job: TeslaAgentJob, subject: TeslaSubject): Promise<void> {
-    if (subject.vehicleUUID !== "0e02c557-38e1-90b0-a2e7-879fff5f29db") return;
-
     try {
       const now = Date.now();
 
