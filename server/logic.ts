@@ -781,6 +781,10 @@ export class Logic {
     }
   }
 
+  /**
+   * Estimated charge duration
+   * @returns duration (ms)
+   */
   private async chargeDuration(
     vehicleUUID: string,
     locationUUID: string | null,
@@ -1040,7 +1044,7 @@ export class Logic {
     let plan: ChargePlan[] = [];
     let smartStatus = "";
 
-    if (manual && manual.level === 0) {
+    if (manual && !manual.level) {
       // Manually stopped charging
       log(LogLevel.Trace, `Smart charging disabled until next connection`);
       smartStatus = `Smart charging disabled until next plug in`;
@@ -1076,40 +1080,20 @@ export class Logic {
             : `Connect charger to charge to `) + `${minimum_charge}%`;
       }
 
-      if (manual) {
-        if (manual.time) {
-          disconnectTime = manual.time!.getTime();
-          const p = await this.generateChargePlan(
+      if (manual && (!vehicle.location_uuid || !manual.schedule_ts)) {
+        assert(manual.level);
+        log(LogLevel.Trace, `Manual charging directly to ${manual.level}%`);
+        plan.push(
+          await this.ChargePlanEntry(
             vehicle,
             manual.level,
             ChargeType.Manual,
-            "manual charge",
-            disconnectTime
-          );
-          plan.push(...p);
-          log(
-            LogLevel.Trace,
-            `Manual charging directly to ${
-              manual.level
-            }% before ${manual.time.toISOString()}`
-          );
-        } else {
-          plan.push(
-            await this.ChargePlanEntry(
-              vehicle,
-              manual.level,
-              ChargeType.Manual,
-              `manual charge`
-            )
-          );
-          log(LogLevel.Trace, `Manual charging directly to ${manual.level}%`);
-        }
+            `manual charge`
+          )
+        );
         smartStatus = smartStatus || `Manual charging to ${manual.level}%`;
       } else if (vehicle.location_uuid) {
-        stats = await this.currentStats(
-          vehicle.vehicle_uuid,
-          vehicle.location_uuid
-        );
+        stats = await this.currentStats(vehicle, vehicle.location_uuid);
         log(LogLevel.Trace, `stats: ${JSON.stringify(stats)}`);
 
         // Check charge calibration
@@ -1134,7 +1118,48 @@ export class Logic {
           smartStatus = smartStatus || `Charge calibration needed at current location`;
         } else {*/
 
-        if (vehicle.level <= vehicle.maximum_charge) {
+        // Handle scheduled manual charges
+        if (manual) {
+          assert(manual.level !== null);
+          assert(manual.schedule_ts !== null);
+
+          const timeNeeded = await this.chargeDuration(
+            vehicle.vehicle_uuid,
+            vehicle.location_uuid,
+            vehicle.level,
+            manual.level
+          );
+          const manualTargetTime = manual.schedule_ts.getTime();
+          const bingoTime = manualTargetTime - timeNeeded;
+          // ignore manual charges that are outside of known price range
+          if (!stats || bingoTime < stats.price_data_ts.getTime()) {
+            log(
+              LogLevel.Trace,
+              `Manual charge to ${
+                manual.level
+              }% before ${manual.schedule_ts.toISOString()}`
+            );
+
+            disconnectTime = manualTargetTime;
+            const p = await this.generateChargePlan(
+              vehicle,
+              manual.level,
+              ChargeType.Manual,
+              "manual charge",
+              disconnectTime
+            );
+            plan.push(...p);
+          } else {
+            log(
+              LogLevel.Trace,
+              `Manual charge to ${
+                manual.level
+              }% postponed because ${manual.schedule_ts.toISOString()} if outside price_data range`
+            );
+          }
+          smartStatus =
+            smartStatus || `Manual charge to ${manual.level}% scheduled`;
+        } else if (vehicle.level <= vehicle.maximum_charge) {
           let learning = false;
 
           if (!stats || !stats.level_charge_time) {
@@ -1310,12 +1335,24 @@ export class Logic {
       }
 
       // Trip charging
-      if (trip && trip.time) {
-        debugger; // check trip, it was a ScheduleToJS
-        const departure = trip.time!.getTime();
+      if (trip && trip.level && trip.schedule_ts) {
+        const timeNeeded = await this.chargeDuration(
+          vehicle.vehicle_uuid,
+          vehicle.location_uuid,
+          vehicle.level,
+          trip.level
+        );
+        const departure = trip.schedule_ts.getTime();
+        const bingoTime = departure - timeNeeded;
+        // ignore trips that are outside of known price range
+        if (!stats || bingoTime < stats.price_data_ts.getTime()) {
+          log(
+            LogLevel.Trace,
+            `Trip charge to ${
+              trip.level
+            }% before ${trip.schedule_ts.toISOString()}`
+          );
 
-        if (now > departure - 36 * 3600e3) {
-          // ignore trips that are more than 36 hours away
           const departLevel = trip.level;
           const prepareLevel = Math.max(
             vehicle.level,
@@ -1360,11 +1397,19 @@ export class Logic {
                 )})`;
             }
           }
+        } else {
+          log(
+            LogLevel.Trace,
+            `Trip charge to ${
+              trip.level
+            }% postponed because ${trip.schedule_ts.toISOString()} if outside price_data range`
+          );
         }
       }
 
       // Low price fill charging
       if (
+        !manual &&
         stats &&
         stats.weekly_avg7_price &&
         stats.weekly_avg21_price &&
