@@ -237,9 +237,7 @@ export default class ChargeChart extends Vue {
       fullUpdate: false
     };
   }
-  mounted() {
-    console.debug("mounted");
-  }
+  mounted() {}
 
   timer?: any;
   created() {

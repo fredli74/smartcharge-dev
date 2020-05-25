@@ -73,7 +73,7 @@
                 :key="refreshKey"
                 class="vdatetime-static"
                 type="datetime"
-                :datetime="chargeDateTime"
+                :datetime="pickerDateTime"
                 :minute-step="10"
                 :week-start="1"
                 :min-datetime="nowLocal.plus({ minutes: 1 })"
@@ -110,7 +110,7 @@
                   :key="refreshKey"
                   class="vdatetime-static"
                   type="date"
-                  :datetime="chargeDateTime"
+                  :datetime="pickerDateTime"
                   :week-start="1"
                   :min-datetime="nowLocal.plus({ minutes: 1 })"
                   :max-datetime="nowLocal.plus({ months: 6 }).endOf(`month`)"
@@ -147,7 +147,7 @@
                   ref="timePicker"
                   type="time"
                   class="vdatetime-static"
-                  :datetime="chargeDateTime"
+                  :datetime="pickerDateTime"
                   :minute-step="10"
                   :min-datetime="nowLocal.plus({ minutes: 1 })"
                   :max-datetime="nowLocal.plus({ months: 6 }).endOf(`month`)"
@@ -168,24 +168,16 @@
             </v-col>
 
             <v-col cols="auto">
-              <v-menu top left offset-y nudge-top="10">
-                <template v-slot:activator="{ on }">
-                  <v-hover v-slot:default="{ hover }">
-                    <v-btn
-                      fab
-                      small
-                      depressed
-                      :color="hover ? `error` : ``"
-                      v-on="on"
-                      ><v-icon>mdi-calendar-remove-outline</v-icon></v-btn
-                    ></v-hover
-                  ></template
-                >
-                <v-btn depressed color="error" @click="removeSchedule"
-                  ><v-icon medium left>mdi-trash-can-outline</v-icon
-                  >Remove</v-btn
-                >
-              </v-menu>
+              <v-hover v-slot:default="{ hover }">
+                <v-btn
+                  fab
+                  small
+                  depressed
+                  :color="hover ? `error` : ``"
+                  @click="removeSchedule"
+                  ><v-icon>mdi-calendar-remove-outline</v-icon></v-btn
+                ></v-hover
+              >
             </v-col>
           </template>
         </v-row>
@@ -222,11 +214,12 @@ export default class VehicleCharge extends Vue {
   saving!: boolean;
   chargeControl!: number;
   chargeLevel!: number;
-  showDate!: boolean;
-  chargeDate!: string;
+  chargeDate!: string | null;
   scheduleMap!: Record<string, GQLSchedule>;
   directLevel!: number;
   smartText!: string;
+  defaultTimestamp!: number;
+  pickerDateTime!: DateTime;
   minDate!: string;
   maxDate!: string;
 
@@ -256,10 +249,11 @@ export default class VehicleCharge extends Vue {
       saving: undefined,
       chargeControl: 1,
       chargeLevel: undefined,
-      showDate: undefined,
       chargeDate: undefined,
       directLevel: undefined,
       smartText: undefined,
+      defaultTimestamp: undefined,
+      pickerDateTime: undefined,
       minDate: this.minDate,
       maxDate: this.maxDate
     };
@@ -281,38 +275,19 @@ export default class VehicleCharge extends Vue {
     return DateTime.local();
   }
 
-  get chargeDateTime(): DateTime {
-    console.debug("chargeDateTime getter");
-    return DateTime.fromISO(this.chargeDate).toLocal();
-  }
-  set chargeDateTime(val: DateTime) {
-    console.debug(`chargeDateTime setter ${typeof val}:${val}`);
-  }
-
-  confirmDateTime(datetime: DateTime) {
-    this.showDate = true;
-    const was = this.chargeDate;
-    if (datetime < DateTime.utc()) {
-      this.chargeDate = new Date(
-        Math.ceil((Date.now() + 5 * 60e3) / 60e4) * 60e4
-      ).toISOString();
-    } else {
-      this.chargeDate = datetime.toJSDate().toISOString();
-    }
-    if (this.chargeDate !== was) {
-      this.chargeControlChanged();
-    }
+  get showDate(): boolean {
+    return Boolean(this.chargeDate);
   }
   get pickerDate(): any {
-    const rt = relativeTime(new Date(this.chargeDate));
+    const rt = relativeTime(this.pickerDateTime.toJSDate());
     return rt.date;
   }
   get pickerTime(): any {
-    const rt = relativeTime(new Date(this.chargeDate));
+    const rt = relativeTime(this.pickerDateTime.toJSDate());
     return rt.time;
   }
   removeSchedule() {
-    this.showDate = false;
+    this.chargeDate = null;
     this.chargeControlChanged();
   }
 
@@ -326,37 +301,29 @@ export default class VehicleCharge extends Vue {
       .toISO();
   }
 
-  onChangeShowDate() {
-    console.debug("onChangeShowDate");
-    this.chargeControlChanged();
-  }
-
-  stateToControllers(v: GQLVehicle): any {
-    const map = scheduleMap(v.schedule);
+  @Watch("vehicle", { deep: false, immediate: true })
+  loadData() {
+    // Create state
+    const map = scheduleMap(this.vehicle.schedule);
     const manual = map[GQLScheduleType.Manual];
-    const settings = getVehicleLocationSettings(v);
+    const settings = getVehicleLocationSettings(this.vehicle);
+    const state = {
+      directLevel: settings.directLevel,
+      chargeControl: !manual ? 1 : manual.level ? 2 : 0,
+      chargeLevel: (manual && manual.level) || this.vehicle.maximumLevel,
+      chargeDate: manual && manual.time
+    };
+
+    // Make AI time default for the date time picker
     const ai = map[GQLScheduleType.AI];
-    const guidedTime =
+    this.defaultTimestamp =
       Math.ceil(
         (ai && ai.time
           ? new Date(ai && ai.time).getTime()
           : Date.now() + 12 * 60 * 60e3) / 60e4
       ) * 60e4;
 
-    return {
-      directLevel: settings.directLevel,
-      chargeControl: !manual ? 1 : manual.level ? 2 : 0,
-      chargeLevel: (manual && manual.level) || this.vehicle.maximumLevel,
-      showDate: !!(manual && manual.time),
-      chargeDate: (manual && manual.time) || new Date(guidedTime).toISOString(),
-      map
-    };
-  }
-
-  @Watch("vehicle", { deep: false, immediate: true })
-  loadData() {
-    const state = this.stateToControllers(this.vehicle);
-
+    // Update controllers if data was changed
     if (state.directLevel !== this.loadedState.directLevel) {
       this.directLevel = state.directLevel;
     }
@@ -365,9 +332,6 @@ export default class VehicleCharge extends Vue {
     }
     if (state.chargeLevel !== this.loadedState.chargeLevel) {
       this.chargeLevel = state.chargeLevel;
-    }
-    if (state.showDate !== this.loadedState.showDate) {
-      this.showDate = state.showDate;
     }
     if (state.chargeDate !== this.loadedState.chargeDate) {
       this.chargeDate = state.chargeDate;
@@ -384,7 +348,6 @@ export default class VehicleCharge extends Vue {
     }
     if (this.chargeControl === 1) {
       // SMART
-      const ai = state.map[GQLScheduleType.AI];
       if (ai && ai.time) {
         const rt = relativeTime(new Date(ai.time));
         this.smartText = `Charging to ${ai.level}% before ${rt.time} ${rt.date}`;
@@ -393,7 +356,6 @@ export default class VehicleCharge extends Vue {
       }
     }
     if (this.chargeControl === 2) {
-      const manual = state.map[GQLScheduleType.Manual];
       // START
       if (manual && manual.time) {
         const rt = relativeTime(new Date(manual.time));
@@ -401,6 +363,28 @@ export default class VehicleCharge extends Vue {
       } else {
         this.smartText = `Direct charging to ${this.chargeLevel}%`;
       }
+    }
+  }
+
+  @Watch("chargeDate", { immediate: true })
+  onChargeDate() {
+    this.pickerDateTime = this.chargeDate
+      ? DateTime.fromISO(this.chargeDate).toLocal()
+      : DateTime.fromMillis(this.defaultTimestamp);
+  }
+
+  confirmDateTime(datetime: DateTime) {
+    let setDate;
+    if (datetime < DateTime.utc()) {
+      setDate = new Date(
+        Math.ceil((Date.now() + 5 * 60e3) / 60e4) * 60e4
+      ).toISOString();
+    } else {
+      setDate = datetime.toJSDate().toISOString();
+    }
+    if (setDate !== this.chargeDate) {
+      this.chargeDate = setDate;
+      this.chargeControlChanged();
     }
   }
 
@@ -463,7 +447,7 @@ export default class VehicleCharge extends Vue {
             this.vehicle.id,
             GQLScheduleType.Manual,
             this.chargeLevel,
-            this.showDate ? new Date(this.chargeDate) : null
+            (this.chargeDate && new Date(this.chargeDate)) || null
           );
           this.saving = false;
           break;
