@@ -2,15 +2,15 @@
   ><div>
     <v-list-item class="my-2">
       <v-row align="center" justify="space-between" no-gutters>
-        <v-col cols="1" sm="3" class="grey--text text--darken-2">
+        <v-col cols="6" sm="3" order="0" class="grey--text text--darken-2">
           <v-icon large class="mr-1" color="grey-darken-2" left>{{
             scheduleIcon
           }}</v-icon>
-          <div class="inline-middle d-none d-sm-inline-flex">
+          <div class="inline-middle">
             {{ schedule.type }}
           </div>
         </v-col>
-        <v-col cols="6" sm="5">
+        <v-col cols="6" sm="5" class="" order="2">
           <v-menu
             v-model="timeMenu"
             :close-on-content-click="false"
@@ -45,7 +45,12 @@
             </datetime-popup
           ></v-menu>
         </v-col>
-        <v-col v-visible="schedule.level" cols="3" sm="3">
+        <v-col
+          cols="6"
+          :sm="newSchedule ? '4' : '3'"
+          class="text-right text-sm-left"
+          order="3"
+        >
           <v-menu
             ref="levelMenu"
             v-model="levelMenu"
@@ -92,9 +97,15 @@
             </v-card>
           </v-menu></v-col
         >
-
-        <v-col v-if="!newSchedule" cols="auto">
-          <v-tooltip top>
+        <v-col
+          v-if="!newSchedule"
+          cols="6"
+          sm="1"
+          order="1"
+          order-sm="4"
+          class="text-right"
+        >
+          <v-menu top left offset-y nudge-top="10">
             <template v-slot:activator="{ on }">
               <v-hover v-slot:default="{ hover }">
                 <v-btn
@@ -102,27 +113,28 @@
                   fab
                   small
                   depressed
-                  :color="hover ? `error` : ``"
+                  :color="hover ? `error` : `transparent`"
                   v-on="on"
-                  @click="removeSchedule"
-                  ><v-icon>mdi-calendar-remove</v-icon></v-btn
+                  ><v-icon>mdi-calendar-remove-outline</v-icon></v-btn
                 ></v-hover
-              >
-            </template>
-            <span>Remove schedule</span>
-          </v-tooltip>
+              ></template
+            >
+            <v-btn depressed color="error" @click="removeSchedule"
+              ><v-icon medium left>mdi-trash-can-outline</v-icon>Remove</v-btn
+            >
+          </v-menu>
         </v-col>
 
-        <v-col v-if="newSchedule" cols="12">
-          <v-card-actions>
+        <v-col v-if="newSchedule" cols="6" sm="12" order="1" order-sm="12">
+          <v-card-actions class="px-0 py-2">
             <v-spacer></v-spacer>
             <v-btn text @click="$emit(`cancel`)">Cancel</v-btn>
             <v-btn :loading="isSaving" color="primary" text @click="addSchedule"
               >Add</v-btn
             >
-          </v-card-actions>
-        </v-col></v-row
-      >
+            <v-spacer class="d-none d-sm-flex"></v-spacer>
+          </v-card-actions> </v-col
+      ></v-row>
     </v-list-item>
     <v-progress-linear
       v-if="isSaving"

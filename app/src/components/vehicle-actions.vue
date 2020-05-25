@@ -25,7 +25,7 @@
       </v-card>
     </v-dialog>
 
-    <v-tooltip v-if="!isSleeping" top>
+    <v-tooltip v-if="!isSleeping" top :disabled="disableTooltips">
       <template v-slot:activator="{ on }">
         <v-btn
           depressed
@@ -42,7 +42,7 @@
       </template>
       <span>Update</span>
     </v-tooltip>
-    <v-tooltip v-else top>
+    <v-tooltip v-else top :disabled="disableTooltips">
       <template v-slot:activator="{ on }">
         <v-btn
           depressed
@@ -59,7 +59,7 @@
       </template>
       <span>Wake Up</span>
     </v-tooltip>
-    <v-tooltip top>
+    <v-tooltip top :disabled="disableTooltips">
       <template v-slot:activator="{ on }">
         <v-btn
           depressed
@@ -79,7 +79,7 @@
       <span>Climate Control</span>
     </v-tooltip>
 
-    <v-tooltip top>
+    <v-tooltip top :disabled="disableTooltips">
       <template v-slot:activator="{ on }">
         <div v-on="on">
           <v-btn
@@ -101,7 +101,7 @@
       </template>
       <span>{{ manualChargeState.tooltip }}</span>
     </v-tooltip>
-    <v-tooltip top>
+    <v-tooltip top :disabled="disableTooltips">
       <template v-slot:activator="{ on }">
         <v-btn
           depressed
@@ -319,6 +319,9 @@ export default class VehicleActions extends Vue {
     this.dialogTitle = "Charge control";
     this.dialogContent = VehicleCharge;
     return true;
+  }
+  get disableTooltips(): boolean {
+    return this.dialogShow;
   }
 
   saveTimer?: any;

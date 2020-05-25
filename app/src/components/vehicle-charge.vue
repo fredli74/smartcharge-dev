@@ -56,7 +56,7 @@
             >
             </v-slider> </v-col
         ></v-row>
-        <v-row class="mt-n3" align="center" justify="space-around">
+        <v-row class="mt-n3" align="center" justify="center">
           <v-col v-if="!showDate" cols="auto">
             <v-menu
               ref="scheduleMenu"
@@ -94,7 +94,6 @@
             </v-menu>
           </v-col>
           <template v-else>
-            <v-spacer></v-spacer>
             <v-col cols="auto">
               <v-menu
                 ref="dateMenu"
@@ -169,7 +168,7 @@
             </v-col>
 
             <v-col cols="auto">
-              <v-tooltip top>
+              <v-menu top left offset-y nudge-top="10">
                 <template v-slot:activator="{ on }">
                   <v-hover v-slot:default="{ hover }">
                     <v-btn
@@ -178,15 +177,16 @@
                       depressed
                       :color="hover ? `error` : ``"
                       v-on="on"
-                      @click="removeSchedule"
-                      ><v-icon>mdi-calendar-remove</v-icon></v-btn
+                      ><v-icon>mdi-calendar-remove-outline</v-icon></v-btn
                     ></v-hover
-                  >
-                </template>
-                <span>Remove schedule</span>
-              </v-tooltip>
+                  ></template
+                >
+                <v-btn depressed color="error" @click="removeSchedule"
+                  ><v-icon medium left>mdi-trash-can-outline</v-icon
+                  >Remove</v-btn
+                >
+              </v-menu>
             </v-col>
-            <v-spacer></v-spacer>
           </template>
         </v-row>
       </template>
@@ -376,7 +376,11 @@ export default class VehicleCharge extends Vue {
 
     if (this.chargeControl === 0) {
       // STOP
-      this.smartText = `Charging is disabled until next time you plug in`;
+      if (this.vehicle.isConnected) {
+        this.smartText = `Charging is disabled until you plug in next time`;
+      } else {
+        this.smartText = `Charging is disabled next time you plug in`;
+      }
     }
     if (this.chargeControl === 1) {
       // SMART

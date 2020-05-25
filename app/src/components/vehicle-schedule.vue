@@ -4,7 +4,7 @@
       <ScheduleItem
         v-if="newSchedule"
         key="new"
-        class="new-schedule"
+        class="new-schedule pb-2 pb-sm-0 pt-sm-3"
         :schedule="newSchedule"
         :vehicle="vehicle"
         :new-schedule="true"
@@ -110,7 +110,6 @@ export default class VehicleSchedule extends Vue {
 </script>
 <style>
 .new-schedule {
-  padding-top: 20px;
   border: 2px dashed #bdaf00;
 }
 </style>
