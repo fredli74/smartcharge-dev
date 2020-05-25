@@ -22,6 +22,7 @@
   "dependencies": {
     "@babel/runtime": "^7.9.6",
     "apollo-boost": "^0.4.8",
+    "apollo-client": "2.6.8",
     "apollo-link-context": "^1.0.20",
     "apollo-link-ws": "^1.0.20",
     "apollo-server-express": "^2.13.1",
@@ -75,7 +76,6 @@
     "@vue/eslint-config-prettier": "^6.0.0",
     "@vue/eslint-config-typescript": "^5.0.2",
     "apexcharts": "^3.11.2",
-    "apollo-client": "2.6.8",
     "auth0-js": "^9.13.2",
     "babel-eslint": "^10.1.0",
     "babel-plugin-module-resolver": "^4.0.0",
