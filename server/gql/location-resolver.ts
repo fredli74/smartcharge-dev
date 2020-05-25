@@ -5,7 +5,7 @@
  * @license MIT (MIT)
  */
 
-import { Resolver, Query, Ctx, Arg, Mutation } from "type-graphql";
+import { Resolver, Query, Ctx, Arg, Mutation, ID } from "type-graphql";
 import { IContext, accountFilter } from "@server/gql/api";
 import { UpdateLocationInput, Location } from "./location-type";
 import { makePublicID, LogLevel, log } from "@shared/utils";
@@ -61,7 +61,7 @@ export class LocationResolver {
 
   @Mutation(_returns => Boolean)
   async removeLocation(
-    @Arg("id") id: string,
+    @Arg("id", _type => ID) id: string,
     @Arg("confirm") confirm: string,
     @Ctx() context: IContext
   ): Promise<Boolean> {

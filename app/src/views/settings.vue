@@ -19,7 +19,10 @@
               >
                 ({{ location.id }})
               </div>
-              <EditLocation :location="location"></EditLocation>
+              <EditLocation
+                :location="location"
+                @refresh="$apollo.queries.locations.refetch()"
+              ></EditLocation>
             </v-expansion-panel-content>
           </v-expansion-panel>
         </v-expansion-panels>
@@ -55,6 +58,7 @@
               <EditVehicle
                 :vehicle="vehicle"
                 :locations="locations"
+                @refresh="$apollo.queries.vehicles.refetch()"
               ></EditVehicle>
             </v-expansion-panel-content>
           </v-expansion-panel>

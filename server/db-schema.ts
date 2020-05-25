@@ -363,7 +363,7 @@ export abstract class DBChargeCurrent {
   powers!: number[]; // array of power (W) readings
   outside_deci_temperatures!: number[]; // array of temperature readings (deci-celsius)
 }
-// TODO: these fields should be NOT NULL, but we have a sloppt INSERT WHERE NOT EXISTS in logic.ts
+// TODO: these fields should be NOT NULL, but we have a sloppy INSERT WHERE NOT EXISTS in logic.ts
 const DBChargeCurrent_TSQL = `CREATE TABLE scserver.charge_current
     (
         charge_id integer NOT NULL,

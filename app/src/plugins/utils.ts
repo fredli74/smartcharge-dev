@@ -1,6 +1,7 @@
 import equal from "fast-deep-equal";
 
 /* TODO REMOVE */
+/*
 export function diff(objFrom: any, objTo: any, deep?: boolean): any {
   if (typeof objTo === "object" && !Array.isArray(objTo)) {
     const result: any = {};
@@ -22,3 +23,4 @@ export function diff(objFrom: any, objTo: any, deep?: boolean): any {
   }
   return objTo;
 }
+*/

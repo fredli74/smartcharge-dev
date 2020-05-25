@@ -241,7 +241,6 @@ export default class VehicleCharge extends Vue {
   }
 
   mounted() {
-    // TODO: move auto_port control to a provider specific option?
   }
   data() {
     return {

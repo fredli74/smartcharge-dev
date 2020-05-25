@@ -99,6 +99,7 @@ export default class EditLocation extends Vue {
 
   async doConfirm(code: string) {
     await apollo.removeLocation(this.location.id, code);
+    this.$emit("refresh");
   }
 
   get name(): string {

@@ -160,6 +160,7 @@ export default class EditVehicle extends Vue {
 
   async doConfirm(code: string) {
     await apollo.removeVehicle(this.vehicle.id, code);
+    this.$emit("refresh");
   }
 
   get name(): string {

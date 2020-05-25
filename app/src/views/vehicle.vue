@@ -183,6 +183,7 @@ import { vehicleFragment } from "@shared/sc-client";
 
       update(data) {
         // TODO REMOVE
+        /*
         if (data.vehicle && data.vehicle.pausedUntil) {
           const when = new Date(data.vehicle.pausedUntil).getTime();
           const now = Date.now();
@@ -197,7 +198,7 @@ import { vehicleFragment } from "@shared/sc-client";
           if (when + 3600e3 <= now) {
             data.vehicle.tripSchedule = null;
           }
-        }
+        }*/
         this.updateFreshness(data.vehicle);
         return data.vehicle;
       },
