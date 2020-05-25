@@ -307,11 +307,10 @@ export class DBInterface {
     price: number
   ): Promise<DBPriceData> {
     // TODO: remove fakecode and price_code
-    const fakecode = price_list_uuid.substr(0, 30);
     const result = await this.pg.one(
-      `INSERT INTO price_data(price_list_uuid, ts, price, price_code ) VALUES($1, $2, $3, $4) ` +
-        `ON CONFLICT (price_code,ts) DO UPDATE SET price=EXCLUDED.price RETURNING *;`,
-      [price_list_uuid, ts, price * 1e5, fakecode]
+      `INSERT INTO price_data(price_list_uuid, ts, price) VALUES($1, $2, $3, $4) ` +
+        `ON CONFLICT (price_list_uuid,ts) DO UPDATE SET price=EXCLUDED.price RETURNING *;`,
+      [price_list_uuid, ts, price * 1e5]
     );
     return result;
   }

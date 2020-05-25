@@ -55,7 +55,7 @@
 import { Component, Vue, Prop } from "vue-property-decorator";
 import apollo from "@app/plugins/apollo";
 import { ProviderVuePage } from "@providers/provider-app";
-import provider, { NordpoolProviderData } from "..";
+import { NordpoolProviderData } from "..";
 import { GQLLocation } from "@shared/sc-schema";
 
 interface NordpoolArea {
@@ -104,9 +104,13 @@ export default class NordpoolVue extends Vue {
 
   async loadAreas() {
     this.area.loading = true;
-    this.nordpoolAreas = ((await apollo.providerQuery(provider.name, {
-      query: "areas"
-    })) as NordpoolArea[]).sort((a, b) => (a.area > b.area ? 1 : -1));
+    // TEMPORARY UGLY FIX
+    this.nordpoolAreas = [
+      { price_code: "b5291a49-7403-59d1-a4af-61f8565d1ab2", area: "EU.SE1" },
+      { price_code: "6f720a38-ed10-5cb2-b3c5-2027698e8793", area: "EU.SE2" },
+      { price_code: "502fcd0a-4019-5f77-adba-781444fec4b7", area: "EU.SE3" },
+      { price_code: "7548e6d7-257d-551f-a44e-fe99f33bf8ba", area: "EU.SE4" }
+    ];
     this.area.loading = false;
   }
   async loadNames() {
