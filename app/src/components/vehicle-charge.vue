@@ -240,8 +240,7 @@ export default class VehicleCharge extends Vue {
     }
   }
 
-  mounted() {
-  }
+  mounted() {}
   data() {
     return {
       refreshKey: 0,

@@ -203,7 +203,7 @@ export function makePublicID(id: string, len?: number): string {
   return md5("public+" + id).substr(0, len || 8);
 }
 
-export type OpenDate = Date | null | string | undefined;
+export type OpenDate = Date | null | number | string | undefined;
 
 // Functions for comparing start and stop times that can be a Date or null
 export function numericStartTime(nstart: OpenDate): number {
@@ -211,6 +211,8 @@ export function numericStartTime(nstart: OpenDate): number {
     ? nstart.getTime()
     : typeof nstart === "string"
     ? new Date(nstart).getTime()
+    : typeof nstart === "number"
+    ? nstart
     : -Infinity;
 }
 export function numericStopTime(nstop: OpenDate): number {
@@ -218,6 +220,8 @@ export function numericStopTime(nstop: OpenDate): number {
     ? nstop.getTime()
     : typeof nstop === "string"
     ? new Date(nstop).getTime()
+    : typeof nstop === "number"
+    ? nstop
     : Infinity;
 }
 export function compareStartTimes(a: OpenDate, b: OpenDate): number {
@@ -269,4 +273,9 @@ export function relativeTime(when: Date): { date: string; time: string } {
     datestr = thenLocal.toFormat("DD");
   }
   return { date: datestr, time: thenLocal.toFormat("HH:mm") };
+}
+
+export function capitalize(s: string): string {
+  if (typeof s !== "string") return "";
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }

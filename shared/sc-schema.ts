@@ -121,6 +121,7 @@ export interface GQLChargePlan {
 }
 
 export enum GQLChargeType {
+  Disable = 'Disable',
   Calibrate = 'Calibrate',
   Minimum = 'Minimum',
   Manual = 'Manual',

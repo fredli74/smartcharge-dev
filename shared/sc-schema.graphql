@@ -35,6 +35,7 @@ type ChargePlan {
 }
 
 enum ChargeType {
+  Disable
   Calibrate
   Minimum
   Manual

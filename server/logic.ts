@@ -22,11 +22,11 @@ import {
   LogLevel,
   log,
   arrayMean,
-  prettyTime,
   compareStartStopTimes,
   numericStartTime,
   numericStopTime,
-  compareStartTimes
+  compareStartTimes,
+  capitalize
 } from "@shared/utils";
 import {
   UpdateVehicleDataInput,
@@ -36,9 +36,14 @@ import {
 import { SmartChargeGoal, ChargeType, ScheduleType } from "@shared/sc-types";
 import {
   MIN_STATS_PERIOD,
-  TRIP_TOPUP_MARGIN
+  SCHEDULE_TOPUP_MARGIN
 } from "@shared/smartcharge-defines";
 import { plainToClass } from "class-transformer";
+
+type ChargeTarget = {
+  ts: number | null;
+  level: number;
+};
 
 export class Logic {
   constructor(private db: DBInterface) {}
@@ -804,13 +809,14 @@ export class Logic {
 
   private static cleanupPlan(plan: ChargePlan[]): ChargePlan[] {
     const chargePrio = {
-      [ChargeType.Calibrate]: 0,
-      [ChargeType.Minimum]: 1,
-      [ChargeType.Manual]: 2,
-      [ChargeType.Trip]: 3,
-      [ChargeType.Routine]: 4,
-      [ChargeType.Prefered]: 5,
-      [ChargeType.Fill]: 6
+      [ChargeType.Disable]: 0,
+      [ChargeType.Calibrate]: 1,
+      [ChargeType.Minimum]: 2,
+      [ChargeType.Manual]: 3,
+      [ChargeType.Trip]: 4,
+      [ChargeType.Routine]: 5,
+      [ChargeType.Prefered]: 6,
+      [ChargeType.Fill]: 7
     };
     plan.sort(
       (a, b) =>
@@ -933,9 +939,6 @@ export class Logic {
     before?: number,
     maxPrice?: number
   ): Promise<ChargePlan[]> {
-    assert(vehicle.location_uuid !== undefined);
-    assert(vehicle.location_uuid !== null);
-
     const now = Date.now();
 
     let plan: ChargePlan[] = [];
@@ -954,10 +957,13 @@ export class Logic {
       const priceMap: {
         ts: Date;
         price: number;
-      }[] = await this.db.pg.manyOrNone(
-        `SELECT ts, price FROM price_data p JOIN location l ON (l.price_list_uuid = p.price_list_uuid) WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' AND ts < $2 ORDER BY price`,
-        [vehicle.location_uuid, new Date(before)]
-      );
+      }[] =
+        (vehicle.location_uuid &&
+          (await this.db.pg.manyOrNone(
+            `SELECT ts, price FROM price_data p JOIN location l ON (l.price_list_uuid = p.price_list_uuid) WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' AND ts < $2 ORDER BY price`,
+            [vehicle.location_uuid, new Date(before)]
+          ))) ||
+        [];
 
       if (priceMap.length > 0) {
         let timeLeft = timeNeeded;
@@ -997,14 +1003,118 @@ export class Logic {
 
   private async updateAIschedule(
     vehicle_uuid: string,
-    before: Date | null,
+    before_ts: number | null,
     level: number | null
   ): Promise<null> {
-    return this.db.pg.none(
-      `WITH upsert AS (UPDATE schedule SET schedule_ts=$3, level=$4 WHERE vehicle_uuid=$1 AND schedule_type = $2 RETURNING *)
+    if (before_ts && level) {
+      return this.db.pg.none(
+        `WITH upsert AS (UPDATE schedule SET schedule_ts=$3, level=$4 WHERE vehicle_uuid=$1 AND schedule_type = $2 RETURNING *)
       INSERT INTO schedule(vehicle_uuid, schedule_type, schedule_ts, level) SELECT $1, $2, $3, $4 WHERE NOT EXISTS (SELECT * FROM upsert);`,
-      [vehicle_uuid, ScheduleType.AI, before, level]
+        [vehicle_uuid, ScheduleType.AI, new Date(before_ts), level]
+      );
+    } else {
+      return this.db.pg.none(
+        `DELETE FROM schedule WHERE vehicle_uuid=$1 AND schedule_type=$2`,
+        [vehicle_uuid, ScheduleType.AI]
+      );
+    }
+  }
+
+  private async generateAIschedule(
+    vehicle: DBVehicle
+  ): Promise<{ ts: number; level: number } | null> {
+    /*
+     ****** ANALYSE AND THINK ABOUT IT!  ******
+     */
+
+    const locationSettings =
+      (vehicle.location_uuid &&
+        vehicle.location_settings[vehicle.location_uuid]) ||
+      DBInterface.DefaultVehicleLocationSettings();
+    const minimum_charge = locationSettings.directLevel;
+
+    const guess: {
+      charge: number;
+      before: number;
+    } = await this.db.pg.one(
+      `WITH connections AS (
+                -- all connections for specific vehicle_uuid and location_uuid
+                SELECT connected_id, start_ts, end_ts, connected, end_ts-start_ts as duration, end_level-start_level as charged,
+                  end_level-(SELECT start_level FROM connected B WHERE B.vehicle_uuid = A.vehicle_uuid AND B.connected_id > A.connected_id ORDER BY connected_id LIMIT 1) as used
+                FROM connected A WHERE vehicle_uuid = $1 AND location_uuid = $2
+
+              ), ref_time AS ( 
+                -- latest connection time as base reference, or current time if not connected or 24h have passed
+                SELECT COALESCE((SELECT MAX(start_ts) FROM connections WHERE connected AND start_ts > NOW() - interval '1 day'), NOW()) AS start_ts,
+                  -- also setup not_before if owner has guided the AI that a disconnect will not happen before a specific time
+                  GREATEST(NOW(), $3) as not_before_ts 
+                  
+              ), similar_connections AS ( 
+                -- find similar connections in previous data
+                SELECT end_ts - series_offset as target_ts,
+                  (SELECT not_before_ts FROM ref_time)::date + (end_ts - series_offset)::time as remapped_target_ts, *
+                FROM ( 
+                  -- create a series looking back at the same week day for the past 58 weeks
+                  SELECT series as series_start_ts, series - (SELECT start_ts FROM ref_time) AS series_offset, (SELECT not_before_ts FROM ref_time)+(series-(SELECT start_ts FROM ref_time)) AS series_not_before_ts
+                  FROM generate_series((SELECT start_ts FROM ref_time) - interval '58 weeks',(SELECT start_ts FROM ref_time) - interval '1 week', interval '1 week') as series
+                ) as s INNER JOIN LATERAL ( 
+                  -- join together with the connection that had the closest end_ts
+                  SELECT * FROM connections
+                  WHERE end_ts > series_not_before_ts
+                    AND end_ts < series_not_before_ts + interval '1 week'
+                    AND end_ts > series_start_ts+(duration/2)
+                    -- only include sessions where the used amount is in the 25th percentile (this was added so that if you just disconnect to move your vehicle, it won't use that one)
+                    AND used >= (select percentile_cont(0.25) WITHIN GROUP (ORDER BY used) FROM connections)
+                    -- and where the charge amount was at least half of the 25th percentile (this was added to filter out connections where nothing was charged)
+                    AND charged > (select percentile_cont(0.25) WITHIN GROUP (ORDER BY charged) FROM connections WHERE charged > 0)/2
+                  ORDER BY end_ts LIMIT 1
+                ) as c ON true
+                -- limit to only past 8 weeks of data that we could find
+                ORDER BY 1 DESC LIMIT 8 
+              ), segmented AS ( 
+                -- segment the list into four partitions
+                SELECT
+                  -- roll disconnection times forward 24 hours if we would not have sufficient time to charge
+                  CASE WHEN GREATEST((SELECT not_before_ts FROM ref_time), (SELECT start_ts FROM ref_time)+(duration/2)) >= remapped_target_ts
+                    THEN remapped_target_ts + interval '1 day' ELSE remapped_target_ts 
+                  END as before, NTILE(4) OVER (ORDER BY target_ts), *
+                FROM similar_connections
+              )
+              SELECT 
+                GREATEST( 
+                  -- compare how much was used after these charges to the mean average and go with the greatest number
+                  (SELECT AVG(used) FROM connections WHERE end_ts > current_date - interval '1 week'),
+                  (SELECT percentile_cont(0.6) WITHIN GROUP (ORDER BY used) as used FROM segmented)
+                ) as charge, extract(epoch from before) as before
+                FROM segmented
+                -- pick the last row in the first partition (not really 25th percentile, but somewhat like it)
+                WHERE ntile = 1 ORDER BY before LIMIT 1;
+                
+                -- we now have a guessed disconnect time and and average usage
+              `,
+      [
+        vehicle.vehicle_uuid,
+        vehicle.location_uuid,
+        null /*scheduleMap[ScheduleType.Guide] &&
+                  scheduleMap[ScheduleType.Guide].time*/
+      ]
     );
+
+    if (!guess.before || !guess.charge) {
+      // missing data to guess
+      log(LogLevel.Debug, `Missing data for smart charging.`);
+      return null;
+    } else {
+      const minimumLevel = Math.min(
+        vehicle.maximum_charge,
+        Math.round(minimum_charge + guess.charge + 5) // add 5% to avoid spiraling down
+      );
+      const before = guess.before * 1e3; // epoch to ms
+      return {
+        ts: before,
+        level: minimumLevel
+      };
+    }
   }
 
   private async refreshVehicleChargePlan(vehicle: DBVehicle) {
@@ -1046,14 +1156,32 @@ export class Logic {
 
     if (manual && !manual.level) {
       // Manually stopped charging
+      plan = [
+        {
+          chargeStart: null,
+          chargeStop: null,
+          chargeType: ChargeType.Disable,
+          level: 0,
+          comment: `charging disabled`
+        }
+      ];
       log(LogLevel.Trace, `Smart charging disabled until next connection`);
       smartStatus = `Smart charging disabled until next plug in`;
+    } else if (manual && !manual.schedule_ts) {
+      assert(manual.level);
+      log(LogLevel.Trace, `Manual charging directly to ${manual.level}%`);
+      plan.push(
+        await this.ChargePlanEntry(
+          vehicle,
+          manual.level,
+          ChargeType.Manual,
+          `manual charge`
+        )
+      );
+      smartStatus = smartStatus || `Manual charging to ${manual.level}%`;
     } else {
-      let disconnectTime: number = 0;
-      let stats: DBLocationStats | null = null;
-
+      // Find and keep emergency charge if we had one
       if (vehicle.charge_plan) {
-        // Find and keep emergency charge if we had one
         plan = plainToClass(
           ChargePlan,
           vehicle.charge_plan as ChargePlan[]
@@ -1063,8 +1191,8 @@ export class Logic {
         });
       }
 
+      // Emergency charge up to minimum level
       if (vehicle.level < minimum_charge) {
-        // Emergency charge up to minimum level
         plan = [
           await this.ChargePlanEntry(
             vehicle,
@@ -1080,355 +1208,261 @@ export class Logic {
             : `Connect charger to charge to `) + `${minimum_charge}%`;
       }
 
-      if (manual && (!vehicle.location_uuid || !manual.schedule_ts)) {
-        assert(manual.level);
-        log(LogLevel.Trace, `Manual charging directly to ${manual.level}%`);
-        plan.push(
-          await this.ChargePlanEntry(
-            vehicle,
-            manual.level,
-            ChargeType.Manual,
-            `manual charge`
-          )
+      // Support routine for adding a charge
+      let disconnectTime: number = 0;
+
+      const addCharge = async (
+        chargeType: ChargeType,
+        level: number,
+        before_ts: number,
+        comment: string
+      ) => {
+        log(
+          LogLevel.Trace,
+          `${capitalize(chargeType)} charge to ${level}%` +
+            (before_ts < 10e13
+              ? ` before ${new Date(before_ts).toISOString()}`
+              : ``)
         );
-        smartStatus = smartStatus || `Manual charging to ${manual.level}%`;
-      } else if (vehicle.location_uuid) {
-        stats = await this.currentStats(vehicle, vehicle.location_uuid);
-        log(LogLevel.Trace, `stats: ${JSON.stringify(stats)}`);
 
-        // Check charge calibration
-        // TODO: remake charge calibration, use stats if found, and vehicle reported estimate if not
-        /*const maxLevel = (
-          await this.db.pg.one(
-            `SELECT MAX(level) as max_level FROM charge a JOIN charge_curve b ON(a.charge_id = b.charge_id)
-              WHERE a.vehicle_uuid = $1 AND a.location_uuid = $2;`,
-            [vehicle.vehicle_uuid, vehicle.location_uuid]
-          )
-        ).max_level;
-        if (vehicle.level < vehicle.maximum_charge && (maxLevel || 0) < 100) {
-          plan = [
-            {
-              chargeStart: null,
-              chargeStop: null,
-              level: 100,
-              chargeType: ChargeType.Calibrate,
-              comment: "Charge calibration"
-            }
-          ];
-          smartStatus = smartStatus || `Charge calibration needed at current location`;
-        } else {*/
+        const departLevel = level;
+        const prepareLevel = Math.max(
+          vehicle.level,
+          Math.min(departLevel, vehicle.maximum_charge)
+        );
 
-        // Handle scheduled manual charges
-        if (manual) {
-          assert(manual.level !== null);
-          assert(manual.schedule_ts !== null);
-
-          const timeNeeded = await this.chargeDuration(
-            vehicle.vehicle_uuid,
-            vehicle.location_uuid,
-            vehicle.level,
-            manual.level
-          );
-          const manualTargetTime = manual.schedule_ts.getTime();
-          const bingoTime = manualTargetTime - timeNeeded;
-          // ignore manual charges that are outside of known price range
-          if (!stats || bingoTime < stats.price_data_ts.getTime()) {
-            log(
-              LogLevel.Trace,
-              `Manual charge to ${
-                manual.level
-              }% before ${manual.schedule_ts.toISOString()}`
-            );
-
-            disconnectTime = manualTargetTime;
-            const p = await this.generateChargePlan(
-              vehicle,
-              manual.level,
-              ChargeType.Manual,
-              "manual charge",
-              disconnectTime
-            );
-            plan.push(...p);
-          } else {
-            log(
-              LogLevel.Trace,
-              `Manual charge to ${
-                manual.level
-              }% postponed because ${manual.schedule_ts.toISOString()} if outside price_data range`
-            );
-          }
-          smartStatus =
-            smartStatus || `Manual charge to ${manual.level}% scheduled`;
-        } else if (vehicle.level <= vehicle.maximum_charge) {
-          let learning = false;
-
-          if (!stats || !stats.level_charge_time) {
-            // Disable smart charging because without threshold and averages it can not make a good decision
-            log(LogLevel.Debug, `Missing stats for smart charging.`);
-            learning = true;
-          } else {
-            /*
-             ****** ANALYSE AND THINK ABOUT IT!  ******
-             */
-
-            const guess: {
-              charge: number;
-              before: number;
-            } = await this.db.pg.one(
-              `WITH connections AS (
-                  -- all connections for specific vehicle_uuid and location_uuid
-                  SELECT connected_id, start_ts, end_ts, connected, end_ts-start_ts as duration, end_level-start_level as charged,
-                    end_level-(SELECT start_level FROM connected B WHERE B.vehicle_uuid = A.vehicle_uuid AND B.connected_id > A.connected_id ORDER BY connected_id LIMIT 1) as used
-                  FROM connected A WHERE vehicle_uuid = $1 AND location_uuid = $2
-
-                ), ref_time AS ( 
-                  -- latest connection time as base reference, or current time if not connected or 24h have passed
-                  SELECT COALESCE((SELECT MAX(start_ts) FROM connections WHERE connected AND start_ts > NOW() - interval '1 day'), NOW()) AS start_ts,
-                    -- also setup not_before if owner has guided the AI that a disconnect will not happen before a specific time
-                    GREATEST(NOW(), $3) as not_before_ts 
-                    
-                ), similar_connections AS ( 
-                  -- find similar connections in previous data
-                  SELECT end_ts - series_offset as target_ts,
-                    (SELECT not_before_ts FROM ref_time)::date + (end_ts - series_offset)::time as remapped_target_ts, *
-                  FROM ( 
-                    -- create a series looking back at the same week day for the past 58 weeks
-                    SELECT series as series_start_ts, series - (SELECT start_ts FROM ref_time) AS series_offset, (SELECT not_before_ts FROM ref_time)+(series-(SELECT start_ts FROM ref_time)) AS series_not_before_ts
-                    FROM generate_series((SELECT start_ts FROM ref_time) - interval '58 weeks',(SELECT start_ts FROM ref_time) - interval '1 week', interval '1 week') as series
-                  ) as s INNER JOIN LATERAL ( 
-                    -- join together with the connection that had the closest end_ts
-                    SELECT * FROM connections
-                    WHERE end_ts > series_not_before_ts
-                      AND end_ts < series_not_before_ts + interval '1 week'
-                      AND end_ts > series_start_ts+(duration/2)
-                      -- only include sessions where the used amount is in the 25th percentile (this was added so that if you just disconnect to move your vehicle, it won't use that one)
-                      AND used >= (select percentile_cont(0.25) WITHIN GROUP (ORDER BY used) FROM connections)
-                      -- and where the charge amount was at least half of the 25th percentile (this was added to filter out connections where nothing was charged)
-                      AND charged > (select percentile_cont(0.25) WITHIN GROUP (ORDER BY charged) FROM connections WHERE charged > 0)/2
-                    ORDER BY end_ts LIMIT 1
-                  ) as c ON true
-                  -- limit to only past 8 weeks of data that we could find
-                  ORDER BY 1 DESC LIMIT 8 
-                ), segmented AS ( 
-                  -- segment the list into four partitions
-                  SELECT
-                    -- roll disconnection times forward 24 hours if we would not have sufficient time to charge
-                    CASE WHEN GREATEST((SELECT not_before_ts FROM ref_time), (SELECT start_ts FROM ref_time)+(duration/2)) >= remapped_target_ts
-                      THEN remapped_target_ts + interval '1 day' ELSE remapped_target_ts 
-                    END as before, NTILE(4) OVER (ORDER BY target_ts), *
-                  FROM similar_connections
-                )
-                SELECT 
-                  GREATEST( 
-                    -- compare how much was used after these charges to the mean average and go with the greatest number
-                    (SELECT AVG(used) FROM connections WHERE end_ts > current_date - interval '1 week'),
-                    (SELECT percentile_cont(0.6) WITHIN GROUP (ORDER BY used) as used FROM segmented)
-                  ) as charge, extract(epoch from before) as before
-                  FROM segmented
-                  -- pick the last row in the first partition (not really 25th percentile, but somewhat like it)
-                  WHERE ntile = 1 ORDER BY before LIMIT 1;
-                  
-                  -- we now have a guessed disconnect time and and average usage
-                `,
-              [
+        const topupTime =
+          departLevel > prepareLevel
+            ? await this.chargeDuration(
                 vehicle.vehicle_uuid,
                 vehicle.location_uuid,
-                null /*scheduleMap[ScheduleType.Guide] &&
-                    scheduleMap[ScheduleType.Guide].time*/
-              ]
-            );
-
-            if (!guess.before || !guess.charge) {
-              // missing data to guess
-              log(LogLevel.Debug, `Missing data for smart charging.`);
-              learning = true;
-            } else {
-              const minimumLevel = Math.min(
-                vehicle.maximum_charge,
-                Math.round(minimum_charge + guess.charge + 5) // add 5% to avoid spiraling down
-              );
-              const neededCharge = minimumLevel - vehicle.level;
-              const before = guess.before * 1e3; // epoch to ms
-              disconnectTime = before;
-
-              this.updateAIschedule(
-                vehicle.vehicle_uuid,
-                new Date(before),
-                minimumLevel
-              );
-
-              smartStatus =
-                smartStatus ||
-                `Predicting battery level ${minimumLevel}% (${
-                  neededCharge > 0 ? Math.round(neededCharge) + "%" : "no"
-                } charge) is needed before ${new Date(before).toISOString()}`;
-              log(
-                LogLevel.Debug,
-                `Current level: ${
-                  vehicle.level
-                }, predicting ${minimumLevel}% (${minimum_charge}+${
-                  guess.charge
-                }) is needed before ${new Date(before).toISOString()}`
-              );
-
-              // Routine charging
-              const p = await this.generateChargePlan(
-                vehicle,
-                minimumLevel,
-                ChargeType.Routine,
-                "routine charge",
-                before
-              );
-              plan.push(...p);
-
-              // locations settings charging
-              {
-                const goal =
-                  (locationSettings && locationSettings.goal) ||
-                  SmartChargeGoal.Balanced;
-                let goalLevel =
-                  goal === SmartChargeGoal.Full
-                    ? vehicle.maximum_charge
-                    : goal === SmartChargeGoal.Low
-                    ? 0
-                    : Math.min(
-                        vehicle.maximum_charge,
-                        Math.max(
-                          minimumLevel,
-                          parseInt(goal) ||
-                            Math.round(
-                              minimumLevel +
-                                (vehicle.maximum_charge - minimumLevel) / 2
-                            )
-                        )
-                      );
-
-                if (goalLevel > minimumLevel) {
-                  const p = await this.generateChargePlan(
-                    vehicle,
-                    goalLevel,
-                    ChargeType.Prefered,
-                    `charge setting`,
-                    before
-                  );
-                  plan.push(...p);
-                }
-              }
-            }
-          }
-
-          if (learning) {
-            plan.push({
-              chargeStart: null,
-              chargeStop: null,
-              level: vehicle.maximum_charge,
-              chargeType: ChargeType.Fill,
-              comment: `learning`
-            }); // run free
-
-            this.updateAIschedule(vehicle.vehicle_uuid, null, null);
-
-            smartStatus =
-              smartStatus || `Smart charging disabled (still learning)`;
-          }
-        }
-      }
-
-      // Trip charging
-      if (trip && trip.level && trip.schedule_ts) {
-        const timeNeeded = await this.chargeDuration(
-          vehicle.vehicle_uuid,
-          vehicle.location_uuid,
-          vehicle.level,
-          trip.level
-        );
-        const departure = trip.schedule_ts.getTime();
-        const bingoTime = departure - timeNeeded;
-        // ignore trips that are outside of known price range
-        if (!stats || bingoTime < stats.price_data_ts.getTime()) {
-          log(
-            LogLevel.Trace,
-            `Trip charge to ${
-              trip.level
-            }% before ${trip.schedule_ts.toISOString()}`
-          );
-
-          const departLevel = trip.level;
-          const prepareLevel = Math.max(
-            vehicle.level,
-            Math.min(departLevel, vehicle.maximum_charge)
-          );
-          const topupTime =
-            departLevel > prepareLevel
-              ? await this.chargeDuration(
-                  vehicle.vehicle_uuid,
-                  vehicle.location_uuid,
-                  prepareLevel,
-                  departLevel
-                )
-              : 0;
-          const topupStart = departure - TRIP_TOPUP_MARGIN - topupTime;
-          disconnectTime = Math.max(disconnectTime, topupStart);
-
-          const p = await this.generateChargePlan(
-            vehicle,
-            prepareLevel,
-            ChargeType.Trip,
-            `upcoming trip`,
-            topupStart
-          );
-          plan.push(...p);
-
-          if (topupTime > 0) {
-            plan.push({
-              chargeStart: new Date(topupStart),
-              chargeStop: null,
-              level: departLevel,
-              chargeType: ChargeType.Trip,
-              comment: `topping up before trip`
-            });
-            if (now >= topupStart) {
-              smartStatus =
-                (vehicle.connected
-                  ? `Trip charging `
-                  : `Connect charger to charge `) +
-                `from ${prepareLevel}% to ${departLevel}% (est. ${prettyTime(
-                  topupTime / 1e3
-                )})`;
-            }
-          }
-        } else {
-          log(
-            LogLevel.Trace,
-            `Trip charge to ${
-              trip.level
-            }% postponed because ${trip.schedule_ts.toISOString()} if outside price_data range`
-          );
-        }
-      }
-
-      // Low price fill charging
-      if (
-        !manual &&
-        stats &&
-        stats.weekly_avg7_price &&
-        stats.weekly_avg21_price &&
-        stats.threshold
-      ) {
-        const averagePrice =
-          stats.weekly_avg7_price +
-          (stats.weekly_avg7_price - stats.weekly_avg21_price) / 2;
-        const thresholdPrice = (averagePrice * stats.threshold) / 100;
+                prepareLevel,
+                departLevel
+              )
+            : 0;
+        const topupStart = before_ts - SCHEDULE_TOPUP_MARGIN - topupTime;
+        assert(!disconnectTime || disconnectTime === topupStart); // we only call it once
+        disconnectTime = topupStart;
 
         const p = await this.generateChargePlan(
           vehicle,
-          vehicle.maximum_charge,
-          ChargeType.Fill,
-          "low price",
-          disconnectTime,
-          thresholdPrice
+          prepareLevel,
+          chargeType,
+          comment,
+          topupStart
         );
         plan.push(...p);
+
+        if (topupStart && topupTime > 0) {
+          plan.push({
+            chargeStart: new Date(topupStart),
+            chargeStop: null,
+            level: departLevel,
+            chargeType,
+            comment: `topping up`
+          });
+          if (now >= topupStart) {
+            smartStatus =
+              (vehicle.connected
+                ? `${chargeType} charging `
+                : `Connect charger to charge `) + `to ${departLevel}%`;
+          }
+        }
+        smartStatus =
+          smartStatus ||
+          `${capitalize(chargeType)} charge to ${level}% scheduled`;
+      };
+
+      // Manual schedule blocks everything
+      if (manual) {
+        assert(manual.level);
+        assert(manual.schedule_ts);
+        await addCharge(
+          ChargeType.Manual,
+          manual.level,
+          manual.schedule_ts.getTime(),
+          `manual charge`
+        );
+      } else {
+        let stats: DBLocationStats | null = null;
+        const ai = {
+          charge: false,
+          learning: false,
+          level: null,
+          ts: null
+        } as {
+          charge: boolean;
+          learning: boolean;
+          level: number | null;
+          ts: number | null;
+        };
+
+        if (vehicle.location_uuid) {
+          stats = await this.currentStats(vehicle, vehicle.location_uuid);
+          log(LogLevel.Trace, `stats: ${JSON.stringify(stats)}`);
+
+          {
+            /****
+          // Check charge calibration
+          // TODO: remake charge calibration, use stats if found, and vehicle reported estimate if not
+          const maxLevel = (
+            await this.db.pg.one(
+              `SELECT MAX(level) as max_level FROM charge a JOIN charge_curve b ON(a.charge_id = b.charge_id)
+                WHERE a.vehicle_uuid = $1 AND a.location_uuid = $2;`,
+              [vehicle.vehicle_uuid, vehicle.location_uuid]
+            )
+          ).max_level;
+          if (vehicle.level < vehicle.maximum_charge && (maxLevel || 0) < 100) {
+            plan = [
+              {
+                chargeStart: null,
+                chargeStop: null,
+                level: 100,
+                chargeType: ChargeType.Calibrate,
+                comment: "Charge calibration"
+              }
+            ];
+            smartStatus = smartStatus || `Charge calibration needed at current location`;
+          } else {***/
+          }
+
+          if (vehicle.level <= vehicle.maximum_charge) {
+            // Generate an AI schedule
+            ai.charge = true;
+            const schedule = stats && (await this.generateAIschedule(vehicle));
+            if (schedule) {
+              ai.level = schedule.level;
+              ai.ts = schedule.ts;
+            } else {
+              // Disable smart charging because without threshold and averages it can not make a good decision
+              log(LogLevel.Debug, `Missing stats for smart charging.`);
+              smartStatus =
+                smartStatus || `Smart charging disabled (still learning)`;
+              ai.learning = true;
+            }
+          }
+        }
+
+        // Do we have an upcoming trip?
+        if (trip) {
+          assert(trip.level);
+          assert(trip.schedule_ts);
+          const tripTimeNeeded =
+            (trip &&
+              trip.level &&
+              (await this.chargeDuration(
+                vehicle.vehicle_uuid,
+                vehicle.location_uuid,
+                vehicle.level,
+                trip.level
+              ))) ||
+            0;
+          const tripBingo =
+            numericStopTime(trip && trip.schedule_ts) - tripTimeNeeded;
+          // ignore it if the charge start deadline (bingo) is beyond our price data
+          // or if it's more than 36h away (this currently dont happen because we do not load price data that far)
+          if (
+            tripBingo < now + 36 * 60 * 60e3 &&
+            (!stats || tripBingo < stats.price_data_ts.getTime())
+          ) {
+            await addCharge(
+              ChargeType.Trip,
+              Math.max(ai.level || 0, trip.level),
+              trip.schedule_ts.getTime(),
+              `upcoming trip`
+            );
+            ai.charge = false; // remove AI charge
+          }
+        }
+
+        if (ai.charge) {
+          if (ai.learning) {
+            addCharge(
+              ChargeType.Fill,
+              vehicle.maximum_charge,
+              disconnectTime,
+              `learning`
+            );
+          } else {
+            assert(ai.level);
+            assert(ai.ts);
+            const neededCharge = ai.level - vehicle.level;
+            const before = new Date(ai.ts);
+            smartStatus =
+              smartStatus ||
+              `Predicting battery level ${ai.level}% (${
+                neededCharge > 0 ? Math.round(neededCharge) + "%" : "no"
+              } charge) is needed before ${before.toISOString()}`;
+            log(
+              LogLevel.Debug,
+              `Current level: ${vehicle.level}, predicting ${
+                ai.level
+              }% (${minimum_charge}+${neededCharge -
+                minimum_charge}) is needed before ${before.toISOString()}`
+            );
+            await addCharge(
+              ChargeType.Routine,
+              ai.level,
+              ai.ts,
+              `routine charge`
+            );
+
+            // locations settings charging
+            {
+              const goal =
+                (locationSettings && locationSettings.goal) ||
+                SmartChargeGoal.Balanced;
+              let goalLevel =
+                goal === SmartChargeGoal.Full
+                  ? vehicle.maximum_charge
+                  : goal === SmartChargeGoal.Low
+                  ? 0
+                  : Math.min(
+                      vehicle.maximum_charge,
+                      Math.max(
+                        ai.level,
+                        parseInt(goal) ||
+                          Math.round(
+                            ai.level + (vehicle.maximum_charge - ai.level) / 2
+                          )
+                      )
+                    );
+
+              if (goalLevel > ai.level) {
+                await addCharge(
+                  ChargeType.Prefered,
+                  goalLevel,
+                  ai.ts,
+                  `charge setting`
+                );
+              }
+            }
+          }
+        }
+
+        // Low price fill charging
+        if (
+          stats &&
+          stats.weekly_avg7_price &&
+          stats.weekly_avg21_price &&
+          stats.threshold
+        ) {
+          const averagePrice =
+            stats.weekly_avg7_price +
+            (stats.weekly_avg7_price - stats.weekly_avg21_price) / 2;
+          const thresholdPrice = (averagePrice * stats.threshold) / 100;
+
+          const p = await this.generateChargePlan(
+            vehicle,
+            vehicle.maximum_charge,
+            ChargeType.Fill,
+            "low price",
+            disconnectTime,
+            thresholdPrice
+          );
+          plan.push(...p);
+        }
+        this.updateAIschedule(vehicle.vehicle_uuid, ai.ts, ai.level);
       }
     }
 
