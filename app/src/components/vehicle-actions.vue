@@ -89,7 +89,6 @@
             :dark="manualChargeState.dark"
             :outlined="manualChargeState.outlined"
             :color="manualChargeState.color"
-            :disabled="!Boolean(vehicle.locationID)"
             @click="chargeClick()"
             ><v-icon :large="!smallButton">{{
               !vehicle.isConnected && vehicle.locationID
