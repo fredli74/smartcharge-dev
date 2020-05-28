@@ -43,6 +43,12 @@ import {
 import { scheduleMap } from "@shared/sc-utils";
 
 type PollState = "polling" | "tired" | "offline" | "asleep";
+enum ChargeControl {
+  Starting,
+  Started,
+  Stopping,
+  Stopped
+}
 
 interface TeslaSubject {
   teslaID: string;
@@ -56,6 +62,7 @@ interface TeslaSubject {
   debugSleep?: any; // TODO: remove?
   chargeLimit?: number; // remember it because we can't poll it if asleep
   chargeEnabled?: boolean; // remember it because we can't poll it if asleep
+  chargeControl?: ChargeControl; // keep track of last charge command to enable user charge control overrides
   portOpen?: boolean; // is charge port open
   parked?: number; // are we parked
   triedOpen?: number; // timestamp when we tried to open the port
@@ -627,6 +634,21 @@ export class TeslaAgent extends AbstractAgent {
 
       // Command logic
       if (subject.data.isConnected) {
+        // are we charging or not
+        if (
+          subject.chargeEnabled &&
+          (subject.chargeControl === undefined ||
+            subject.chargeControl === ChargeControl.Starting)
+        ) {
+          subject.chargeControl = ChargeControl.Started;
+        } else if (
+          !subject.chargeEnabled &&
+          (subject.chargeControl === undefined ||
+            subject.chargeControl === ChargeControl.Stopping)
+        ) {
+          subject.chargeControl = ChargeControl.Stopped;
+        }
+
         // do we have a charge plan
         let shouldCharge: GQLChargePlan | undefined = undefined;
         let disableCharge: boolean = false;
@@ -654,7 +676,12 @@ export class TeslaAgent extends AbstractAgent {
           subject.data.chargingTo !== null &&
           subject.data.batteryLevel < subject.data.chargingTo // keep it running if we're above or on target
         ) {
-          if (
+          if (subject.chargeControl === ChargeControl.Stopped) {
+            log(
+              LogLevel.Trace,
+              `${subject.teslaID} charge stop of ${subject.data.name} overridden by user interaction`
+            );
+          } else if (
             (subject.data.locationID !== null || disableCharge) &&
             (await this.vehicleInteraction(job, subject, false))
           ) {
@@ -664,11 +691,17 @@ export class TeslaAgent extends AbstractAgent {
               `${subject.teslaID} stop charging ${subject.data.name}`
             );
             teslaAPI.chargeStop(subject.teslaID, job.serviceData.token);
+            subject.chargeControl = ChargeControl.Stopping;
             this.stayOnline(subject);
           }
         } else if (shouldCharge !== undefined) {
           if (subject.chargeEnabled !== true) {
-            if (
+            if (subject.chargeControl === ChargeControl.Started) {
+              log(
+                LogLevel.Trace,
+                `${subject.teslaID} charge start of ${subject.data.name} overridden by user interaction`
+              );
+            } else if (
               subject.data.batteryLevel < shouldCharge.level &&
               (await this.vehicleInteraction(job, subject, true))
             ) {
@@ -680,7 +713,7 @@ export class TeslaAgent extends AbstractAgent {
                 subject.teslaID,
                 job.serviceData.token
               );
-
+              subject.chargeControl = ChargeControl.Starting;
               this.stayOnline(subject);
             }
           } else {
@@ -740,6 +773,7 @@ export class TeslaAgent extends AbstractAgent {
           }
         }
       } else {
+        subject.chargeControl = undefined;
         if (
           subject.data.locationID !== null &&
           subject.data.providerData.auto_port &&
