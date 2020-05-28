@@ -3,12 +3,46 @@
     <v-card xs12 sm10 md8 :loading="$apollo.loading">
       <v-card-title><span class="headline">Settings</span></v-card-title>
       <v-spacer></v-spacer>
-      <v-card-subtitle class="subtitle-1">Locations</v-card-subtitle>
+      <v-card-subtitle class="subtitle-1">Vehicles</v-card-subtitle>
       <v-card-text class="pb-0">
-        <div v-if="false">
+        <div v-if="$apollo.queries.vehicles.loading">
           <v-progress-linear indeterminate color="primary"></v-progress-linear>
         </div>
-        <v-expansion-panels>
+        <v-expansion-panels v-else :value="vehicles.length > 1 ? undefined : 0">
+          <v-expansion-panel v-for="vehicle in vehicles" :key="vehicle.id">
+            <v-expansion-panel-header>{{
+              vehicle.name
+            }}</v-expansion-panel-header>
+            <v-expansion-panel-content>
+              <div
+                class="font-light overline caption mr-4 mt-n5 secondary--text text--lighten-2"
+              >
+                ({{ vehicle.id }})
+              </div>
+              <EditVehicle
+                :vehicle="vehicle"
+                :locations="locations"
+                @refresh="$apollo.queries.vehicles.refetch()"
+              ></EditVehicle>
+            </v-expansion-panel-content>
+          </v-expansion-panel>
+        </v-expansion-panels>
+      </v-card-text>
+      <v-card-actions>
+        <v-btn class="ma-2" outlined color="primary" to="/add/vehicle">
+          <v-icon left>mdi-plus</v-icon>add vehicle
+        </v-btn>
+      </v-card-actions>
+      <v-spacer></v-spacer>
+      <v-card-subtitle class="subtitle-1">Locations</v-card-subtitle>
+      <v-card-text class="pb-0">
+        <div v-if="$apollo.queries.locations.loading">
+          <v-progress-linear indeterminate color="primary"></v-progress-linear>
+        </div>
+        <v-expansion-panels
+          v-else
+          :value="locations.length > 1 ? undefined : 0"
+        >
           <v-expansion-panel v-for="location in locations" :key="location.id">
             <v-expansion-panel-header>{{
               location.name
@@ -36,37 +70,6 @@
           to="/add/location"
         >
           <v-icon left>mdi-plus</v-icon>add location
-        </v-btn>
-      </v-card-actions>
-      <v-spacer></v-spacer>
-      <v-card-subtitle class="subtitle-1">Vehicles</v-card-subtitle>
-      <v-card-text class="pb-0">
-        <div v-if="$apollo.queries.vehicles.loading">
-          <v-progress-linear indeterminate color="primary"></v-progress-linear>
-        </div>
-        <v-expansion-panels>
-          <v-expansion-panel v-for="vehicle in vehicles" :key="vehicle.id">
-            <v-expansion-panel-header>{{
-              vehicle.name
-            }}</v-expansion-panel-header>
-            <v-expansion-panel-content>
-              <div
-                class="font-light overline caption mr-4 mt-n5 secondary--text text--lighten-2"
-              >
-                ({{ vehicle.id }})
-              </div>
-              <EditVehicle
-                :vehicle="vehicle"
-                :locations="locations"
-                @refresh="$apollo.queries.vehicles.refetch()"
-              ></EditVehicle>
-            </v-expansion-panel-content>
-          </v-expansion-panel>
-        </v-expansion-panels>
-      </v-card-text>
-      <v-card-actions>
-        <v-btn class="ma-2" outlined color="primary" to="/add/vehicle">
-          <v-icon left>mdi-plus</v-icon>add vehicle
         </v-btn>
       </v-card-actions>
       <v-spacer></v-spacer>
