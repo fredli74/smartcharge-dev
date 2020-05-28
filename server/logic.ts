@@ -1165,8 +1165,8 @@ export class Logic {
           comment: `charging disabled`
         }
       ];
-      log(LogLevel.Trace, `Smart charging disabled until next connection`);
-      smartStatus = `Smart charging disabled until next plug in`;
+      log(LogLevel.Trace, `Charging disabled until next connection`);
+      smartStatus = `Charging disabled until next plug in`;
     } else if (manual && !manual.schedule_ts) {
       assert(manual.level);
       log(LogLevel.Trace, `Manual charging directly to ${manual.level}%`);
