@@ -71,7 +71,12 @@ export class DBInterface {
     const pg = pgp(DB_OPTIONS);
     this.pg = pg({
       connectionString: config.DATABASE_URL,
-      ssl: config.DATABASE_SSL === "true"
+      ssl:
+        config.DATABASE_SSL === "true"
+          ? {
+              rejectUnauthorized: false
+            }
+          : false
     });
   }
   public async init(): Promise<void> {
