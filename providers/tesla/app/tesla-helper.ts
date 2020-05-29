@@ -15,7 +15,7 @@ export function vehicleImage(vehicle: GQLVehicle, sideView?: boolean): string {
     options = vehicle.providerData.option_codes;
   }
   let model = "m3";
-  let view = `STUD_${sideView ? "SIDE" : "3QTR"}`;
+  const view = `STUD_${sideView ? "SIDE" : "3QTR"}`;
   switch (vehicle.providerData.car_type) {
     case "models":
     case "models2":

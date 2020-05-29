@@ -39,7 +39,7 @@ async function jwkVerify(idToken: string): Promise<any> {
         });
       },
       { audience: config.AUTH0_CLIENT_ID, issuer: AUTH0_DOMAIN_URL },
-      (err: VerifyErrors, decoded: object | string) => {
+      (err: VerifyErrors | null, decoded: object | undefined) => {
         if (err) {
           reject(err);
         } else {

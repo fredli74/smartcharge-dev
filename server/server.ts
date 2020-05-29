@@ -38,25 +38,26 @@ program
   .option("-p, --port <port>", "port to listen to")
   .option("-i, --ip <ip>", "ip to listen to")
   .action(async function() {
-    async function authorize(
-      auth: string | undefined
-    ): Promise<DBAccount | undefined> {
-      try {
-        const cred = auth && auth.match(/Bearer (.{64})/i);
-        if (cred) {
-          return await db.lookupAccount(cred[1]);
-        }
-      } catch (error) {
-        throw new AuthenticationError("Authorization failed");
-      }
-    }
-    const db = new DBInterface();
-    await db.init();
-
-    const logic = new Logic(db);
-    await logic.init();
-
     try {
+      const db = new DBInterface();
+      await db.init();
+
+      const logic = new Logic(db);
+      await logic.init();
+
+      const authorize = async (
+        auth: string | undefined
+      ): Promise<DBAccount | undefined> => {
+        try {
+          const cred = auth && auth.match(/Bearer (.{64})/i);
+          if (cred) {
+            return await db.lookupAccount(cred[1]);
+          }
+        } catch (error) {
+          throw new AuthenticationError("Authorization failed");
+        }
+      };
+
       // Setup express server
       const app = express();
 
