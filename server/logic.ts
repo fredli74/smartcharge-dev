@@ -941,7 +941,7 @@ export class Logic {
   ): Promise<ChargePlan[]> {
     const now = Date.now();
 
-    let plan: ChargePlan[] = [];
+    const plan: ChargePlan[] = [];
 
     const timeNeeded = await this.chargeDuration(
       vehicle.vehicle_uuid,
@@ -1225,52 +1225,57 @@ export class Logic {
               : ``)
         );
 
-        const departLevel = level;
-        const prepareLevel = Math.max(
-          vehicle.level,
-          Math.min(departLevel, vehicle.maximum_charge)
-        );
+        if (level > vehicle.level) {
+          const maxLevel = Math.min(level, vehicle.maximum_charge);
+          const topupTime =
+            level > maxLevel
+              ? await this.chargeDuration(
+                  vehicle.vehicle_uuid,
+                  vehicle.location_uuid,
+                  maxLevel,
+                  level
+                )
+              : 0;
+          const topupStart = before_ts - SCHEDULE_TOPUP_MARGIN - topupTime;
+          assert(!disconnectTime || disconnectTime === topupStart); // we only call it once
+          disconnectTime = topupStart;
 
-        const topupTime =
-          departLevel > prepareLevel
-            ? await this.chargeDuration(
-                vehicle.vehicle_uuid,
-                vehicle.location_uuid,
-                prepareLevel,
-                departLevel
-              )
-            : 0;
-        const topupStart = before_ts - SCHEDULE_TOPUP_MARGIN - topupTime;
-        assert(!disconnectTime || disconnectTime === topupStart); // we only call it once
-        disconnectTime = topupStart;
-
-        const p = await this.generateChargePlan(
-          vehicle,
-          prepareLevel,
-          chargeType,
-          comment,
-          topupStart
-        );
-        plan.push(...p);
-
-        if (topupStart && topupTime > 0) {
-          plan.push({
-            chargeStart: new Date(topupStart),
-            chargeStop: null,
-            level: departLevel,
-            chargeType,
-            comment: `topping up`
-          });
-          if (now >= topupStart) {
-            smartStatus =
-              (vehicle.connected
-                ? `${chargeType} charging `
-                : `Connect charger to charge `) + `to ${departLevel}%`;
+          if (maxLevel > vehicle.level) {
+            const p = await this.generateChargePlan(
+              vehicle,
+              maxLevel,
+              chargeType,
+              comment,
+              topupStart
+            );
+            plan.push(...p);
           }
+
+          if (level > vehicle.level && topupStart && topupTime > 0) {
+            plan.push({
+              chargeStart: new Date(topupStart),
+              chargeStop: null,
+              level: level,
+              chargeType,
+              comment: `topping up`
+            });
+            if (now >= topupStart) {
+              smartStatus =
+                (vehicle.connected
+                  ? `${chargeType} charging `
+                  : `Connect charger to charge `) + `to ${level}%`;
+            }
+          }
+
+          smartStatus =
+            smartStatus ||
+            `${capitalize(chargeType)} charge to ${level}% scheduled`;
+        } else {
+          log(
+            LogLevel.Trace,
+            `${level} <= ${vehicle.level}, no ${chargeType} charge plan added for ${comment}`
+          );
         }
-        smartStatus =
-          smartStatus ||
-          `${capitalize(chargeType)} charge to ${level}% scheduled`;
       };
 
       // Manual schedule blocks everything
@@ -1375,94 +1380,96 @@ export class Logic {
           }
         }
 
-        if (ai.charge) {
-          if (ai.learning) {
-            addCharge(
-              ChargeType.Fill,
-              vehicle.maximum_charge,
-              disconnectTime,
-              `learning`
-            );
-          } else {
-            assert(ai.level);
-            assert(ai.ts);
-            const neededCharge = ai.level - vehicle.level;
-            const before = new Date(ai.ts);
-            smartStatus =
-              smartStatus ||
-              `Predicting battery level ${ai.level}% (${
-                neededCharge > 0 ? Math.round(neededCharge) + "%" : "no"
-              } charge) is needed before ${before.toISOString()}`;
-            log(
-              LogLevel.Debug,
-              `Current level: ${vehicle.level}, predicting ${
-                ai.level
-              }% (${minimum_charge}+${neededCharge -
-                minimum_charge}) is needed before ${before.toISOString()}`
-            );
-            await addCharge(
-              ChargeType.Routine,
-              ai.level,
-              ai.ts,
-              `routine charge`
-            );
+        if (vehicle.level < vehicle.maximum_charge) {
+          if (ai.charge) {
+            if (ai.learning) {
+              addCharge(
+                ChargeType.Fill,
+                vehicle.maximum_charge,
+                disconnectTime,
+                `learning`
+              );
+            } else {
+              assert(ai.level);
+              assert(ai.ts);
+              const neededCharge = ai.level - vehicle.level;
+              const before = new Date(ai.ts);
+              smartStatus =
+                smartStatus ||
+                `Predicting battery level ${ai.level}% (${
+                  neededCharge > 0 ? Math.round(neededCharge) + "%" : "no"
+                } charge) is needed before ${before.toISOString()}`;
+              log(
+                LogLevel.Debug,
+                `Current level: ${vehicle.level}, predicting ${
+                  ai.level
+                }% (${minimum_charge}+${neededCharge -
+                  minimum_charge}) is needed before ${before.toISOString()}`
+              );
+              await addCharge(
+                ChargeType.Routine,
+                ai.level,
+                ai.ts,
+                `routine charge`
+              );
 
-            // locations settings charging
-            {
-              const goal =
-                (locationSettings && locationSettings.goal) ||
-                SmartChargeGoal.Balanced;
-              let goalLevel =
-                goal === SmartChargeGoal.Full
-                  ? vehicle.maximum_charge
-                  : goal === SmartChargeGoal.Low
-                  ? 0
-                  : Math.min(
-                      vehicle.maximum_charge,
-                      Math.max(
-                        ai.level,
-                        parseInt(goal) ||
-                          Math.round(
-                            ai.level + (vehicle.maximum_charge - ai.level) / 2
-                          )
-                      )
-                    );
+              // locations settings charging
+              {
+                const goal =
+                  (locationSettings && locationSettings.goal) ||
+                  SmartChargeGoal.Balanced;
+                const goalLevel =
+                  goal === SmartChargeGoal.Full
+                    ? vehicle.maximum_charge
+                    : goal === SmartChargeGoal.Low
+                    ? 0
+                    : Math.min(
+                        vehicle.maximum_charge,
+                        Math.max(
+                          ai.level,
+                          parseInt(goal) ||
+                            Math.round(
+                              ai.level + (vehicle.maximum_charge - ai.level) / 2
+                            )
+                        )
+                      );
 
-              if (goalLevel > ai.level) {
-                await addCharge(
-                  ChargeType.Prefered,
-                  goalLevel,
-                  ai.ts,
-                  `charge setting`
-                );
+                if (goalLevel > ai.level) {
+                  await addCharge(
+                    ChargeType.Prefered,
+                    goalLevel,
+                    ai.ts,
+                    `charge setting`
+                  );
+                }
               }
             }
           }
-        }
 
-        // Low price fill charging
-        if (
-          stats &&
-          stats.weekly_avg7_price &&
-          stats.weekly_avg21_price &&
-          stats.threshold
-        ) {
-          const averagePrice =
-            stats.weekly_avg7_price +
-            (stats.weekly_avg7_price - stats.weekly_avg21_price) / 2;
-          const thresholdPrice = (averagePrice * stats.threshold) / 100;
+          // Low price fill charging
+          if (
+            stats &&
+            stats.weekly_avg7_price &&
+            stats.weekly_avg21_price &&
+            stats.threshold
+          ) {
+            const averagePrice =
+              stats.weekly_avg7_price +
+              (stats.weekly_avg7_price - stats.weekly_avg21_price) / 2;
+            const thresholdPrice = (averagePrice * stats.threshold) / 100;
 
-          const p = await this.generateChargePlan(
-            vehicle,
-            vehicle.maximum_charge,
-            ChargeType.Fill,
-            "low price",
-            disconnectTime,
-            thresholdPrice
-          );
-          plan.push(...p);
+            const p = await this.generateChargePlan(
+              vehicle,
+              vehicle.maximum_charge,
+              ChargeType.Fill,
+              "low price",
+              disconnectTime,
+              thresholdPrice
+            );
+            plan.push(...p);
+          }
+          this.updateAIschedule(vehicle.vehicle_uuid, ai.ts, ai.level);
         }
-        this.updateAIschedule(vehicle.vehicle_uuid, ai.ts, ai.level);
       }
     }
 
