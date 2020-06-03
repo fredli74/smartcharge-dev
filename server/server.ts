@@ -84,7 +84,7 @@ program
         .use(compression())
         .use((req, res, next) => {
           // simple console logging
-          let s = `${req.ip} ${req.method} ${req.originalUrl}`;
+          const s = `${req.ip} ${req.method} ${req.originalUrl}`;
           let rawBody = "";
           req.on("data", chunk => (rawBody += chunk));
           req.on("end", () =>

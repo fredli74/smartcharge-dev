@@ -32,7 +32,7 @@ import {
   Schedule
 } from "./gql/vehicle-type";
 
-export const DB_OPTIONS = {};
+export const DB_OPTIONS: pgp.IInitOptions = {};
 
 const SMARTCHARGE_NAMESPACE = uuidv5("account.smartcharge.dev", uuidv5.DNS);
 export function makeAccountUUID(subject: string, domain: string): string {
@@ -71,6 +71,7 @@ export class DBInterface {
     const pg = pgp(DB_OPTIONS);
     this.pg = pg({
       connectionString: config.DATABASE_URL,
+      max: config.DATABASE_CONNECTIONS || 10,
       ssl:
         config.DATABASE_SSL === "true"
           ? {
