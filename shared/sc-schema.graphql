@@ -10,11 +10,11 @@ type Account {
 }
 
 type Action {
-  actionID: Int!
-  serviceID: ID!
-  providerName: String!
   action: String!
+  actionID: Int!
   data: JSONObject!
+  providerName: String!
+  serviceID: ID!
 }
 
 enum ChargeConnection {
@@ -23,40 +23,39 @@ enum ChargeConnection {
 }
 
 type ChargePlan {
-  chargeType: ChargeType!
-
   """time to start or null for now"""
   chargeStart: DateTime
 
   """time to end or null for never"""
   chargeStop: DateTime
-  level: Int!
+  chargeType: ChargeType!
   comment: String!
+  level: Int!
 }
 
 enum ChargeType {
-  Disable
   Calibrate
-  Minimum
-  Manual
-  Trip
-  Routine
-  Prefered
+  Disable
   Fill
+  Manual
+  Minimum
+  Prefered
+  Routine
+  Trip
 }
 
 type ChartData {
-  locationID: ID!
-  locationName: String!
-  vehicleID: ID!
   batteryLevel: Int!
-  levelChargeTime: Int
-  thresholdPrice: Int
   chargeCurve: JSONObject!
-  prices: [PriceData!]!
   chargePlan: [ChargePlan!]
   directLevel: Int!
+  levelChargeTime: Int
+  locationID: ID!
+  locationName: String!
   maximumLevel: Int!
+  prices: [PriceData!]!
+  thresholdPrice: Int
+  vehicleID: ID!
 }
 
 """
@@ -80,91 +79,90 @@ The `JSONObject` scalar type represents JSON objects as specified by [ECMA-404](
 scalar JSONObject
 
 type Location {
-  id: ID!
-  ownerID: ID!
-  name: String!
-  geoLocation: GeoLocation!
-
   """Radius in meters"""
   geoFenceRadius: Int
-  serviceID: ID
-  providerData: JSONObject
-  priceListID: String
+  geoLocation: GeoLocation!
+  id: ID!
+  name: String!
+  ownerID: ID!
   priceList: PriceList
+  priceListID: String
+  providerData: JSONObject
+  serviceID: ID
 }
 
 type Mutation {
-  loginWithPassword(password: String!): Account!
+  _chargeCalibration(
+    """duration (seconds)"""
+    duration: Int
+    level: Int
+
+    """current power use (kW)"""
+    powerUse: Float
+    vehicleID: ID!
+  ): Int
+  _updatePrice(input: UpdatePriceInput!): Boolean!
+  _updateVehicleData(input: UpdateVehicleDataInput!): Boolean!
+  _vehicleDebug(input: VehicleDebugInput!): Boolean!
   loginWithIDToken(idToken: String!): Account!
+  loginWithPassword(password: String!): Account!
   newPriceList(id: ID, isPublic: Boolean = false, name: String!): PriceList!
-  updatePriceList(input: UpdatePriceListInput!): PriceList!
-  updateLocation(input: UpdateLocationInput!): Location!
-  removeLocation(confirm: String!, id: ID!): Boolean!
+  performAction(action: String!, actionID: Int, data: JSONObject, serviceID: ID!): JSONObject!
   providerMutate(
     input: JSONObject!
 
     """Provider name"""
     name: String!
   ): JSONObject!
-  performAction(data: JSONObject, action: String!, serviceID: ID!, actionID: Int): JSONObject!
-  _updateVehicleData(input: UpdateVehicleDataInput!): Boolean!
-  _vehicleDebug(input: VehicleDebugInput!): Boolean!
-  _chargeCalibration(
-    """current power use (kW)"""
-    powerUse: Float
-
-    """duration (seconds)"""
-    duration: Int
-    level: Int
-    vehicleID: ID!
-  ): Int
-  _updatePrice(input: UpdatePriceInput!): Boolean!
+  removeLocation(confirm: String!, id: ID!): Boolean!
+  removeSchedule(id: Int!, vehicleID: ID!): Boolean!
   removeVehicle(confirm: String!, id: ID!): Boolean!
+  updateLocation(input: UpdateLocationInput!): Location!
+  updatePriceList(input: UpdatePriceListInput!): PriceList!
+  updateSchedule(id: Int, level: Int, time: DateTime, type: ScheduleType!, vehicleID: ID!): [Schedule!]!
   updateVehicle(input: UpdateVehicleInput!): Vehicle!
-  removeSchedule(vehicleID: ID!, id: Int!): Boolean!
-  updateSchedule(time: DateTime, level: Int, type: ScheduleType!, vehicleID: ID!, id: Int): [Schedule!]!
 }
 
 type PriceData {
-  """Price tariff start time"""
-  startAt: DateTime!
-
   """Price in currency per kWh (5 decimal precision)"""
   price: Float!
+
+  """Price tariff start time"""
+  startAt: DateTime!
 }
 
 input PriceDataInput {
-  """Price tariff start time"""
-  startAt: DateTime!
-
   """Price in currency per kWh (5 decimal precision)"""
   price: Float!
+
+  """Price tariff start time"""
+  startAt: DateTime!
 }
 
 type PriceList {
   id: ID!
-  ownerID: ID!
-  name: String!
   isPublic: Boolean!
+  name: String!
+  ownerID: ID!
 }
 
 type Query {
+  _serviceProviders(accept: [String!]!): [ServiceProvider!]!
   account: Account!
-  priceLists: [PriceList!]!
-  priceList(id: String!): PriceList!
-  locations: [Location!]!
+  chartData(locationID: String!, vehicleID: String!): ChartData!
   location(id: String!): Location!
+  locations: [Location!]!
+  priceList(id: String!): PriceList!
+  priceLists: [PriceList!]!
   providerQuery(
     input: JSONObject!
 
     """Provider name"""
     name: String!
   ): JSONObject!
-  _serviceProviders(accept: [String!]!): [ServiceProvider!]!
-  chartData(locationID: String!, vehicleID: String!): ChartData!
-  vehicles: [Vehicle!]!
-  vehicle(id: String!): Vehicle!
   test: ResolverTest!
+  vehicle(id: String!): Vehicle!
+  vehicles: [Vehicle!]!
 }
 
 type ResolverTest {
@@ -173,43 +171,42 @@ type ResolverTest {
 
 type Schedule {
   id: Int!
-  vehicleID: ID!
-  type: ScheduleType!
   level: Int
   time: DateTime
+  type: ScheduleType!
+  vehicleID: ID!
 }
 
 enum ScheduleType {
   AI
-  Suggestion
-  Manual
   Disable
+  Manual
+  Suggestion
   Trip
 }
 
 type ServiceProvider {
   ownerID: ID!
   providerName: String!
-  serviceID: ID!
   serviceData: JSONObject!
+  serviceID: ID!
 }
 
 type Subscription {
+  actionSubscription(providerName: String, serviceID: ID): Action!
   pingSubscription: Int!
-  actionSubscription(serviceID: ID, providerName: String): Action!
   vehicleSubscription(id: String!): Vehicle!
 }
 
 input UpdateLocationInput {
-  id: ID!
-  name: String
-  geoLocation: GeoLocationInput
-
   """Radius in meters"""
   geoFenceRadius: Int
+  geoLocation: GeoLocationInput
+  id: ID!
+  name: String
   priceListID: ID
-  serviceID: ID
   providerData: JSONObject
+  serviceID: ID
 }
 
 input UpdatePriceInput {
@@ -219,16 +216,34 @@ input UpdatePriceInput {
 
 input UpdatePriceListInput {
   id: ID!
-  name: String!
   isPublic: Boolean!
+  name: String!
 }
 
 input UpdateVehicleDataInput {
-  id: ID!
-  geoLocation: GeoLocationInput!
-
   """battery level (%)"""
   batteryLevel: Int!
+
+  """charging to level (%)"""
+  chargingTo: Int
+
+  """is climate control on"""
+  climateControl: Boolean!
+
+  """charge connection"""
+  connectedCharger: ChargeConnection
+
+  """charge added (kWh)"""
+  energyAdded: Float
+
+  """estimated time to complete charge (minutes)"""
+  estimatedTimeLeft: Int
+  geoLocation: GeoLocationInput!
+  id: ID!
+
+  """inside temperature (celcius)"""
+  insideTemperature: Float
+  isDriving: Boolean!
 
   """odometer (meters)"""
   odometer: Int!
@@ -236,115 +251,95 @@ input UpdateVehicleDataInput {
   """outside temperature (celcius)"""
   outsideTemperature: Float
 
-  """inside temperature (celcius)"""
-  insideTemperature: Float
-
-  """is climate control on"""
-  climateControl: Boolean!
-  isDriving: Boolean!
-
-  """charge connection"""
-  connectedCharger: ChargeConnection
-
-  """charging to level (%)"""
-  chargingTo: Int
-
-  """estimated time to complete charge (minutes)"""
-  estimatedTimeLeft: Int
-
   """current power use (kW)"""
   powerUse: Float
-
-  """charge added (kWh)"""
-  energyAdded: Float
 }
 
 input UpdateVehicleInput {
   id: ID!
-  name: String
-  maximumLevel: Int
   locationSettings: [VehicleLocationSettingInput!]
-  status: String
-  serviceID: ID
+  maximumLevel: Int
+  name: String
   providerData: JSONObject
+  serviceID: ID
+  status: String
 }
 
 type Vehicle {
-  id: ID!
-  ownerID: ID!
-  serviceID: ID
-  name: String!
+  """battery level (%)"""
+  batteryLevel: Int!
 
-  """maximum level to charge to unless a trip is scheduled (%)"""
-  maximumLevel: Int!
-  providerData: JSONObject!
+  """charge plan"""
+  chargePlan: [ChargePlan!]
+
+  """charging to level (%)"""
+  chargingTo: Int
+
+  """is climate control on"""
+  climateControl: Boolean!
+
+  """estimated time to complete charge (minutes)"""
+  estimatedTimeLeft: Int
   geoLocation: GeoLocation
+  id: ID!
 
-  """known location id"""
-  locationID: ID
+  """inside temperature (celcius)"""
+  insideTemperature: Float!
+
+  """is a charger connected"""
+  isConnected: Boolean!
+  isDriving: Boolean!
 
   """known location"""
   location: Location
 
-  """schedule"""
-  schedule: [Schedule!]!
+  """known location id"""
+  locationID: ID
 
   """location settings"""
   locationSettings: [VehicleLocationSetting!]!
 
-  """battery level (%)"""
-  batteryLevel: Int!
+  """maximum level to charge to unless a trip is scheduled (%)"""
+  maximumLevel: Int!
+  name: String!
 
   """odometer (meters)"""
   odometer: Int!
 
   """outside temperature (celcius)"""
   outsideTemperature: Float!
+  ownerID: ID!
+  providerData: JSONObject!
 
-  """inside temperature (celcius)"""
-  insideTemperature: Float!
-
-  """is climate control on"""
-  climateControl: Boolean!
-
-  """is a charger connected"""
-  isConnected: Boolean!
-
-  """charging to level (%)"""
-  chargingTo: Int
-
-  """estimated time to complete charge (minutes)"""
-  estimatedTimeLeft: Int
-  isDriving: Boolean!
-  status: String!
+  """schedule"""
+  schedule: [Schedule!]!
+  serviceID: ID
   smartStatus: String!
-
-  """charge plan"""
-  chargePlan: [ChargePlan!]
+  status: String!
   updated: DateTime!
 }
 
 input VehicleDebugInput {
-  id: ID!
-  timestamp: DateTime!
   category: String!
   data: JSONObject!
+  id: ID!
+  timestamp: DateTime!
 }
 
 type VehicleLocationSetting {
-  """location id"""
-  locationID: ID!
-
   """Minimum battery level to reach directly (%)"""
   directLevel: Int!
   goal: String!
+
+  """location id"""
+  locationID: ID!
 }
 
 input VehicleLocationSettingInput {
-  """location id"""
-  locationID: ID!
-
   """Minimum battery level to reach directly (%)"""
   directLevel: Int!
   goal: String!
+
+  """location id"""
+  locationID: ID!
 }
