@@ -139,9 +139,9 @@ import { RawLocation } from "vue-router";
 import moment from "moment";
 import config from "@shared/smartcharge-config";
 import { makePublicID } from "@shared/utils";
-import { GQLVehicle, GQLLocation } from "@shared/sc-schema";
+import { GQLVehicle } from "@shared/sc-schema";
 import { getVehicleLocationSettings } from "@shared/sc-utils";
-import { vehicleFragment } from "@shared/sc-client";
+import { vehicleFragment, GQLLocationFragment } from "@shared/sc-client";
 
 @Component({
   components: { VehicleActions, RelativeTime, ChargeChart },
@@ -214,8 +214,8 @@ import { vehicleFragment } from "@shared/sc-client";
 export default class VehicleVue extends Vue {
   loading!: boolean;
   vehicle?: GQLVehicle;
-  location?: GQLLocation;
-  locations!: GQLLocation[];
+  location?: GQLLocationFragment;
+  locations!: GQLLocationFragment[];
   prettyStatus!: string;
   freshInfo!: boolean;
 
