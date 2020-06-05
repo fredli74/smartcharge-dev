@@ -7,7 +7,7 @@
 
 export const DB_VERSION = `1.0-beta`;
 
-type PlainObject = Record<string, any>;
+export type PlainObject = Record<string, any>;
 
 export abstract class DBAccount {
   account_uuid!: string; // account uuid

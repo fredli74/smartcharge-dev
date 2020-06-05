@@ -48,8 +48,8 @@ function queryWhere(where: string[]): string {
   return "";
 }
 function queryHelper(fields: any[]): [any[], string[]] {
-  let values: any[] = [];
-  let where: string[] = [];
+  const values: any[] = [];
+  const where: string[] = [];
   for (const f of fields) {
     if (Array.isArray(f)) {
       values.push(f[0]);
@@ -106,7 +106,7 @@ export class DBInterface {
 
   public maintainanceWorker() {
     let nextCleanup = 0;
-    let orphanServices: { [service_uuid: string]: boolean } = {};
+    const orphanServices: { [service_uuid: string]: boolean } = {};
 
     setInterval(async () => {
       const now = Date.now();
@@ -531,12 +531,12 @@ export class DBInterface {
     }
     assert(current !== undefined && current !== null);
 
-    let curve: ChargeCurve = {};
+    const curve: ChargeCurve = {};
     for (let level = 0; level <= 100; ++level) {
       while (dbCurve.length > 0 && level >= dbCurve[0].level) {
         current = dbCurve.shift()!.seconds;
       }
-      curve[level] = current;
+      curve[level] = parseFloat(current);
     }
     return curve;
   }

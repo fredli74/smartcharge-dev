@@ -80,7 +80,7 @@ import deepmerge from "deepmerge";
 import apollo from "@app/plugins/apollo";
 import { GQLVehicle, GQLVehicleLocationSetting } from "@shared/sc-schema";
 import { SmartChargeGoal } from "@shared/sc-types";
-import { UpdateVehicleParams } from "../../../shared/sc-client";
+import { UpdateVehicleParams } from "@shared/sc-client";
 
 @Component({})
 export default class EditVehicle extends Vue {

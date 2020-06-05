@@ -49,12 +49,12 @@ type ChartData {
   chargeCurve: JSONObject!
   chargePlan: [ChargePlan!]
   directLevel: Int!
-  levelChargeTime: Int
-  locationID: ID!
-  locationName: String!
+  eventList: [EventList!]!
+  locationID: ID
   maximumLevel: Int!
-  prices: [PriceData!]!
-  thresholdPrice: Int
+  prices: [PriceData!]
+  stateMap: [StateMap!]!
+  thresholdPrice: Float
   vehicleID: ID!
 }
 
@@ -62,6 +62,19 @@ type ChartData {
 The javascript `Date` as string. Type represents date and time as the ISO Date string.
 """
 scalar DateTime
+
+type EventList {
+  data: JSONObject
+  end: DateTime!
+  eventType: EventType!
+  start: DateTime!
+}
+
+enum EventType {
+  Charge
+  Sleep
+  Trip
+}
 
 type GeoLocation {
   latitude: Float!
@@ -149,7 +162,7 @@ type PriceList {
 type Query {
   _serviceProviders(accept: [String!]!): [ServiceProvider!]!
   account: Account!
-  chartData(locationID: String!, vehicleID: String!): ChartData!
+  chartData(from: DateTime!, locationID: String, period: Int = 60, vehicleID: String!): ChartData!
   location(id: String!): Location!
   locations: [Location!]!
   priceList(id: String!): PriceList!
@@ -190,6 +203,19 @@ type ServiceProvider {
   providerName: String!
   serviceData: JSONObject!
   serviceID: ID!
+}
+
+type StateMap {
+  chargeCost: Float!
+  chargeCostSaved: Float!
+  chargedEnergy: Float!
+  chargedSeconds: Int!
+  drivenMeters: Int!
+  drivenSeconds: Int!
+  maximumLevel: Int!
+  minimumLevel: Int!
+  period: Int!
+  start: DateTime!
 }
 
 type Subscription {

@@ -95,8 +95,16 @@
           </div>
         </v-flex>
       </v-layout>
-      <v-layout row align-center>
-        <v-flex v-if="vehicleConnectedAtUnknownLocation" sm12>
+      <v-row
+        style="-webkit-touch-callout: none; -webkit-user-select: none; -khtml-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none;"
+      >
+        <v-col class="body-2">
+          {{ replaceISOtime(vehicle.smartStatus) }}
+        </v-col>
+      </v-row>
+
+      <v-row v-if="vehicleConnectedAtUnknownLocation" justify="space-around">
+        <v-col>
           <p class="mt-5">
             Vehicle connected at location whithout smart charging.
           </p>
@@ -105,20 +113,15 @@
               <v-btn text small color="primary">add location</v-btn>
             </router-link>
           </v-card-actions>
-        </v-flex>
-        <template v-else>
-          <v-flex sm12 class="body-2">
-            {{ replaceISOtime(vehicle.smartStatus) }}
-          </v-flex>
-          <v-flex sm12>
-            <chargeChart
-              v-if="vehicle && location"
-              :vehicle="vehicle"
-              :location="location"
-            ></chargeChart>
-          </v-flex>
-        </template>
-      </v-layout>
+        </v-col>
+      </v-row>
+      <v-row
+        ><v-col>
+          <VehicleCharts
+            v-if="vehicle"
+            :vehicle="vehicle"
+          ></VehicleCharts> </v-col
+      ></v-row>
     </v-container>
   </v-flex>
 </template>
@@ -130,7 +133,7 @@ import { Component, Vue, Watch } from "vue-property-decorator";
 import { gql } from "apollo-boost";
 import providers from "@providers/provider-apps";
 import RelativeTime from "@app/components/relative-time.vue";
-import ChargeChart from "@app/components/charge-chart.vue";
+import VehicleCharts from "@app/components/vehicle-charts.vue";
 import VehicleActions from "@app/components/vehicle-actions.vue";
 import { geoDistance } from "@shared/utils";
 import apollo from "@app/plugins/apollo";
@@ -144,7 +147,7 @@ import { getVehicleLocationSettings } from "@shared/sc-utils";
 import { vehicleFragment, GQLLocationFragment } from "@shared/sc-client";
 
 @Component({
-  components: { VehicleActions, RelativeTime, ChargeChart },
+  components: { VehicleActions, RelativeTime, VehicleCharts },
   apollo: {
     vehicle: {
       query: gql`
@@ -290,7 +293,7 @@ export default class VehicleVue extends Vue {
       this.vehicle !== undefined &&
       this.vehicle.isConnected &&
       this.vehicle.geoLocation !== null &&
-      this.vehicle.location === null
+      this.vehicle.locationID === null
     );
   }
   get addLocationURL(): RawLocation {
