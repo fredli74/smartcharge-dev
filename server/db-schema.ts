@@ -474,7 +474,7 @@ export abstract class DBSetting {
 const DBSetting_TSQL = `CREATE TABLE scserver.setting
     (
         key character varying(32) NOT NULL,
-        value json,
+        value jsonb,
         CONSTRAINT setting_pkey PRIMARY KEY (key)
     );
     INSERT INTO setting(key,value) VALUES('version', '"${DB_VERSION}"');`;
