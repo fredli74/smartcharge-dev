@@ -447,7 +447,7 @@ export abstract class DBStatsMap {
   charge_cost!: number; // total cost of energy charged
   charge_cost_saved!: number; // estimated cost savings
 }
-const DBStatsMap_TSQL = `CREATE TABLE scserver.stats_map
+const DBStatsMap_TSQL = `CREATE TABLE scserver.state_map
     (
         vehicle_uuid uuid NOT NULL,
         period integer NOT NULL,
@@ -460,8 +460,8 @@ const DBStatsMap_TSQL = `CREATE TABLE scserver.stats_map
         charge_energy integer NOT NULL,
         charge_cost integer NOT NULL,
         charge_cost_saved integer NOT NULL,
-        CONSTRAINT stats_map_pkey PRIMARY KEY(vehicle_uuid,period,stats_ts),
-        CONSTRAINT stats_map_fkey FOREIGN KEY (vehicle_uuid)
+        CONSTRAINT state_map_pkey PRIMARY KEY(vehicle_uuid,period,stats_ts),
+        CONSTRAINT state_map_fkey FOREIGN KEY (vehicle_uuid)
             REFERENCES vehicle (vehicle_uuid) MATCH SIMPLE
             ON UPDATE RESTRICT
             ON DELETE CASCADE

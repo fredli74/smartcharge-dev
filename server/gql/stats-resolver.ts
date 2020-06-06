@@ -118,7 +118,7 @@ export class StatsResolver {
     );
 
     const stateMap = (await context.db.pg.manyOrNone(
-      `SELECT * FROM stats_map
+      `SELECT * FROM state_map
       WHERE vehicle_uuid = $1 AND stats_ts >= $2 AND period = $3
       ORDER BY stats_ts`,
       [vehicle_uuid, from, period]

@@ -133,13 +133,13 @@ export class DBInterface {
           }
         }
 
-        // Cleanup old stats_map entries
+        // Cleanup old state_map entries
         {
           // TODO: adjust these when I know what we're doing with them
           await this.pg.none(
-            `DELETE FROM stats_map WHERE period < 60 AND stats_ts < date_trunc('day', NOW() - interval '2 days');
-             DELETE FROM stats_map WHERE period < 1440 AND stats_ts < date_trunc('week', NOW() - interval '8 weeks');
-             DELETE FROM stats_map WHERE stats_ts < date_trunc('year', NOW() - interval '200 years');`
+            `DELETE FROM state_map WHERE period < 60 AND stats_ts < date_trunc('day', NOW() - interval '8 days');
+             DELETE FROM state_map WHERE period < 1440 AND stats_ts < date_trunc('week', NOW() - interval '8 weeks');
+             DELETE FROM state_map WHERE stats_ts < date_trunc('year', NOW() - interval '200 years');`
           );
         }
 
@@ -592,7 +592,7 @@ export class DBInterface {
 
   public async removeVehicle(vehicle_uuid: string): Promise<void> {
     await this.pg.none(
-      `DELETE FROM stats_map WHERE vehicle_uuid = $1;
+      `DELETE FROM state_map WHERE vehicle_uuid = $1;
       DELETE FROM location_stats WHERE vehicle_uuid = $1;
       DELETE FROM charge_curve WHERE vehicle_uuid = $1;
       DELETE FROM charge_current USING charge WHERE charge_current.charge_id = charge.charge_id AND charge.vehicle_uuid = $1;

@@ -522,16 +522,16 @@ export class Logic {
 
   public async updateStatsMap(data: DBStatsMap, period: number) {
     return this.db.pg.one(
-      `INSERT INTO stats_map($[this:name]) VALUES ($[this:csv])
+      `INSERT INTO state_map($[this:name]) VALUES ($[this:csv])
           ON CONFLICT(vehicle_uuid, period, stats_ts) DO UPDATE SET
-              minimum_level=LEAST(stats_map.minimum_level, EXCLUDED.minimum_level),
-              maximum_level=GREATEST(stats_map.maximum_level, EXCLUDED.maximum_level),
-              driven_seconds=stats_map.driven_seconds + EXCLUDED.driven_seconds,
-              driven_meters=stats_map.driven_meters + EXCLUDED.driven_meters,
-              charged_seconds=stats_map.charged_seconds + EXCLUDED.charged_seconds,
-              charge_energy=stats_map.charge_energy + EXCLUDED.charge_energy,
-              charge_cost=stats_map.charge_cost + EXCLUDED.charge_cost,
-              charge_cost_saved=stats_map.charge_cost_saved + EXCLUDED.charge_cost_saved
+              minimum_level=LEAST(state_map.minimum_level, EXCLUDED.minimum_level),
+              maximum_level=GREATEST(state_map.maximum_level, EXCLUDED.maximum_level),
+              driven_seconds=state_map.driven_seconds + EXCLUDED.driven_seconds,
+              driven_meters=state_map.driven_meters + EXCLUDED.driven_meters,
+              charged_seconds=state_map.charged_seconds + EXCLUDED.charged_seconds,
+              charge_energy=state_map.charge_energy + EXCLUDED.charge_energy,
+              charge_cost=state_map.charge_cost + EXCLUDED.charge_cost,
+              charge_cost_saved=state_map.charge_cost_saved + EXCLUDED.charge_cost_saved
           RETURNING *;`,
       {
         vehicle_uuid: data.vehicle_uuid,
