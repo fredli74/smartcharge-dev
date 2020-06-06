@@ -189,8 +189,8 @@ export default class eventchart extends Vue {
     this.timer = setInterval(() => {
       if (this.fullUpdate) {
         console.log("timerInterval, full update");
-        // DO WE NEED IT?
-        {
+        // TODO DO WE NEED IT?
+        /*{
           const timechart = (this.$refs.timechart as any) as ApexCharts;
           const s = this.timeseries;
           //console.debug(s);
@@ -202,7 +202,7 @@ export default class eventchart extends Vue {
           const s = this.eventseries;
           eventchart && eventchart.updateOptions(this.eventoptions);
           eventchart && eventchart.updateSeries(s);
-        }
+        }*/
         this.fullUpdate = false;
       }
       this.annotate(); // Move the timeline
