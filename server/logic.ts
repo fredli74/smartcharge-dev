@@ -960,7 +960,7 @@ export class Logic {
       }[] =
         (vehicle.location_uuid &&
           (await this.db.pg.manyOrNone(
-            `SELECT ts, price FROM price_data p JOIN location l ON (l.price_list_uuid = p.price_list_uuid) WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' AND ts < $2 ORDER BY price`,
+            `SELECT ts, price FROM price_data p JOIN location l ON (l.price_list_uuid = p.price_list_uuid) WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' AND ts < $2 ORDER BY price, ts`,
             [vehicle.location_uuid, new Date(before)]
           ))) ||
         [];

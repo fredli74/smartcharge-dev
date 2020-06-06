@@ -249,10 +249,10 @@ export class TeslaAgent extends AbstractAgent {
   // Check token and refresh through server provider API
   public async maintainToken(job: TeslaAgentJob) {
     // API Token check and update
-    let token = job.serviceData.token as IRestToken;
+    const token = job.serviceData.token as IRestToken;
     if (RestClient.tokenExpired(token)) {
       // Token has expired, run it through server
-      let token = job.serviceData.token as IRestToken;
+      const token = job.serviceData.token as IRestToken;
       const newToken = await this.scClient.providerMutate("tesla", {
         mutation: TeslaProviderMutates.RefreshToken,
         token
