@@ -115,11 +115,25 @@
           </v-card-actions>
         </v-col>
       </v-row>
-      <v-row
-        ><v-col class="pl-0">
+      <v-row class="px-0 mt-4 mb-n8">
+        <v-col v-if="location" class="body-1"
+          >Price per kWh when charging at {{ location.name }}</v-col
+        >
+        <v-col v-else class="body-1">No price data</v-col>
+      </v-row>
+      <v-row class="pt-0">
+        <v-col class="pl-0 pt-0">
           <VehicleCharts
-            v-if="vehicle"
+            v-if="vehicle && location"
+            :key="'with-location'"
             :vehicle="vehicle"
+            :location_id="location.id"
+          ></VehicleCharts>
+          <VehicleCharts
+            v-if="vehicle && location === undefined"
+            :key="'without-location'"
+            :vehicle="vehicle"
+            :location_id="null"
           ></VehicleCharts> </v-col
       ></v-row>
     </v-container>
@@ -314,6 +328,8 @@ export default class VehicleVue extends Vue {
     let prefix = "";
     let suffix = "";
 
+    this.location = undefined;
+
     if (val.isConnected && !val.chargingTo) {
       prefix = "Connected and";
     }
@@ -323,29 +339,35 @@ export default class VehicleVue extends Vue {
       assert(this.location !== undefined);
 
       suffix = `${val.isDriving ? "near" : "@"} ${this.location!.name}`;
-    } else if (val.geoLocation) {
-      this.location = undefined;
-      // Find closest location
-      if (this.locations && this.locations.length > 0) {
-        let closest = Number.POSITIVE_INFINITY;
-        for (const l of this.locations) {
-          const dist =
-            geoDistance(
-              val.geoLocation.latitude,
-              val.geoLocation.longitude,
-              l.geoLocation.latitude,
-              l.geoLocation.longitude
-            ) / 1e3;
-          if (dist < closest) {
-            closest = dist;
-            if (dist < 1) {
-              suffix = "near";
-            } else {
-              suffix = Number(dist.toFixed(1)).toString() + " km from";
-            }
-            suffix += " " + l.name;
-          }
+    }
+
+    if (
+      !this.location &&
+      !val.isConnected &&
+      val.geoLocation &&
+      this.locations
+    ) {
+      let closest = Number.POSITIVE_INFINITY;
+      for (const l of this.locations) {
+        const dist =
+          geoDistance(
+            val.geoLocation.latitude,
+            val.geoLocation.longitude,
+            l.geoLocation.latitude,
+            l.geoLocation.longitude
+          ) / 1e3;
+        if (dist < closest) {
+          closest = dist;
+          this.location = l;
         }
+      }
+      if (this.location) {
+        if (closest < 1) {
+          suffix = "near";
+        } else {
+          suffix = Number(closest.toFixed(1)).toString() + " km from";
+        }
+        suffix += " " + this.location.name;
       }
     }
 

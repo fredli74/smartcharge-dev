@@ -152,7 +152,7 @@ const Color = {
           from: this.defaultMinX,
           to: this.defaultMaxX,
           period: 60,
-          locationID: this.vehicle.locationID
+          locationID: this.location_id || null
         };
       },
       deep: true,
@@ -167,6 +167,7 @@ const Color = {
 })
 export default class eventchart extends Vue {
   @Prop({ type: Object, required: true }) readonly vehicle!: GQLVehicle;
+  @Prop({ type: String }) readonly location_id!: string | undefined;
   chartData?: GQLChartData;
   chartReady: boolean = false;
   minPrice?: number | undefined;
@@ -187,17 +188,25 @@ export default class eventchart extends Vue {
   created() {
     this.timer = setInterval(() => {
       if (this.fullUpdate) {
-        const timechart = (this.$refs.timechart as any) as ApexCharts;
-        const s = this.timeseries;
-        console.debug(s);
-        timechart && timechart.updateSeries(s);
-        const eventchart = (this.$refs.eventchart as any) as ApexCharts;
-        eventchart && eventchart.updateSeries(this.eventseries);
-
+        console.log("timerInterval, full update");
+        // DO WE NEED IT?
+        {
+          const timechart = (this.$refs.timechart as any) as ApexCharts;
+          const s = this.timeseries;
+          //console.debug(s);
+          timechart && timechart.updateOptions(this.timeoptions);
+          timechart && timechart.updateSeries(s);
+        }
+        {
+          const eventchart = (this.$refs.eventchart as any) as ApexCharts;
+          const s = this.eventseries;
+          eventchart && eventchart.updateOptions(this.eventoptions);
+          eventchart && eventchart.updateSeries(s);
+        }
         this.fullUpdate = false;
       }
       this.annotate(); // Move the timeline
-    }, 5e3); // 30e3
+    }, 30e3);
   }
   beforeDestroy() {
     if (this.timer) {
@@ -238,6 +247,9 @@ export default class eventchart extends Vue {
 
   chartAnnotations: any[] = [];
   annotate() {
+    const showPrices = Boolean(this.chartData && this.chartData.prices);
+    log(LogLevel.Trace, `annotate(${showPrices})`);
+
     if (!(this.chartReady && this.chartData)) return;
 
     const timechart = (this.$refs.timechart as any) as ApexCharts;
@@ -250,7 +262,7 @@ export default class eventchart extends Vue {
     timechart.clearAnnotations();
 
     // Annotate level axis
-    if (this.showPriceCurve && this.minLevel !== undefined) {
+    if (showPrices && this.minLevel !== undefined) {
       const min = levelPrecision(this.minLevel); //Math.floor(this.minLevel / 10) * 10;
       if (min > 0) {
         timechart.addYaxisAnnotation({
@@ -280,7 +292,7 @@ export default class eventchart extends Vue {
         });
       }
     }
-    if (this.showPriceCurve && this.maxLevel !== undefined) {
+    if (showPrices && this.maxLevel !== undefined) {
       const max = levelPrecision(this.maxLevel); //Math.ceil(this.maxLevel / 10) * 10;
       if (max < 100) {
         timechart.addYaxisAnnotation({
@@ -349,7 +361,7 @@ export default class eventchart extends Vue {
     }
 
     if (
-      this.showPriceCurve &&
+      showPrices &&
       this.minPrice !== undefined &&
       this.maxPrice !== undefined
     ) {
@@ -474,15 +486,10 @@ export default class eventchart extends Vue {
   chartStart: number = this.defaultMinX;
   chartStop: number = this.defaultMaxX;
   discreteMarkers: any = [];
-  get showPriceCurve(): boolean {
-    return Boolean(
-      this.chartData &&
-        this.chartData.prices &&
-        this.chartData.prices.length > 1
-    );
-  }
   get timeseries() {
-    log(LogLevel.Trace, `timeseries()`);
+    const showPrices = Boolean(this.chartData && this.chartData.prices);
+    log(LogLevel.Trace, `timeseries(${showPrices})`);
+
     const now = Date.now();
 
     this.chartStart = this.defaultMinX;
@@ -499,7 +506,7 @@ export default class eventchart extends Vue {
      *  Fill price data
      ***/
     let priceData: any = [];
-    if (this.showPriceCurve) {
+    if (showPrices) {
       priceData = this.chartData.prices!.map(p => {
         const price = scalePrice(p.price);
         return [new Date(p.startAt).getTime(), price];
@@ -649,7 +656,7 @@ export default class eventchart extends Vue {
     };
     for (let i = 0; i < timeLine.length; ++i) {
       const ts = timeLine[i];
-      if (this.showPriceCurve) {
+      if (showPrices) {
         if (i >= priceData.length) {
           priceData.push([ts, null]);
         } else if (priceData[i][0] > ts) {
@@ -714,16 +721,18 @@ export default class eventchart extends Vue {
 
     series.push({ name: "level", type: "area", data: levelData });
     series.push({ name: "predicted", type: "area", data: predictData });
-    if (this.showPriceCurve) {
+    if (showPrices) {
       series.push({ name: "price", type: "area", data: priceData });
     }
     return series;
   }
 
   get timeoptions() {
-    log(LogLevel.Trace, `timeoptions()`);
+    const showPrices = Boolean(this.chartData && this.chartData.prices);
+    log(LogLevel.Trace, `timeoptions(${showPrices})`);
+
     const yaxisPrice = {
-      show: this.showPriceCurve,
+      show: showPrices,
       opposite: false,
       axisBorder: {
         show: true,
@@ -822,7 +831,7 @@ export default class eventchart extends Vue {
           show: true
         }
       },
-      yaxis: this.showPriceCurve
+      yaxis: showPrices
         ? [yaxisLevelHidden, yaxisLevelHidden, yaxisPrice]
         : [yaxisLevel, yaxisLevelHidden],
       stroke: {
