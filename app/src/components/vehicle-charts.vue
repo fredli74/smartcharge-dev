@@ -1,5 +1,5 @@
 <template>
-  <v-container fluid>
+  <v-container class="pl-0" fluid>
     <v-row justify="space-around">
       <v-col cols="12" class="pa-0 ma-0">
         <apex
@@ -26,8 +26,12 @@
         ></apex
       ></v-col>
     </v-row>
-    <v-row v-if="$apollo.queries.chartData.loading" justify="space-around">
-      <v-col>
+    <v-row
+      v-if="$apollo.queries.chartData.loading"
+      class="pl-8"
+      justify="space-around"
+    >
+      <v-col cols="10">
         <v-progress-linear indeterminate color="primary"></v-progress-linear>
       </v-col>
     </v-row>
@@ -721,8 +725,8 @@ export default class eventchart extends Vue {
         offsetX: -1
       },
       labels: {
-        minWidth: 50,
-        maxWidth: 50,
+        minWidth: 55,
+        maxWidth: 55,
         style: {
           colors: Color.priceText
         }
@@ -756,11 +760,13 @@ export default class eventchart extends Vue {
       max: 100,
       axisBorder: {
         show: true,
-        color: Color.level
+        color: Color.level,
+        offsetX: -1
       },
       labels: {
-        minWidth: 50,
-        maxWidth: 50,
+        minWidth: 55,
+        maxWidth: 55,
+
         style: { fontWeight: 600, colors: Color.level },
         formatter: function(val: number, _index: number) {
           return val.toFixed(0) + "%";
@@ -1000,8 +1006,8 @@ export default class eventchart extends Vue {
         min: this.chartStart,
         max: this.chartStop,
         labels: {
-          minWidth: 50,
-          maxWidth: 50
+          minWidth: 55,
+          maxWidth: 55
         }
       },
       tooltip: {

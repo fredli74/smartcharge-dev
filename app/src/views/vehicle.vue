@@ -116,7 +116,7 @@
         </v-col>
       </v-row>
       <v-row
-        ><v-col>
+        ><v-col class="pl-0">
           <VehicleCharts
             v-if="vehicle"
             :vehicle="vehicle"
