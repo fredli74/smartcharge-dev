@@ -954,7 +954,11 @@ export default class eventchart extends Vue {
             break;
           case GQLEventType.Sleep:
             this.eventLookup[2].push(e);
-            sleepData.push({ x: "event", y: [start, end], data: e.data });
+            sleepData.push({
+              x: "event",
+              y: [start, e.data.active ? Date.now() : end],
+              data: e.data
+            });
             break;
         }
       });
