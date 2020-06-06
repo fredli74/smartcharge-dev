@@ -59,6 +59,12 @@ import {
 } from "@shared/sc-schema";
 import { DateTime } from "luxon";
 
+function pricePrecision(input: number): number {
+  return Math.round(input * 10) / 10;
+}
+function levelPrecision(input: number): number {
+  return Math.round(input);
+}
 function scalePrice(input: number): number {
   return Math.round(input * 1e3) / 10;
 }
@@ -245,7 +251,7 @@ export default class eventchart extends Vue {
 
     // Annotate level axis
     if (this.showPriceCurve && this.minLevel !== undefined) {
-      const min = this.minLevel; //Math.floor(this.minLevel / 10) * 10;
+      const min = levelPrecision(this.minLevel); //Math.floor(this.minLevel / 10) * 10;
       if (min > 0) {
         timechart.addYaxisAnnotation({
           y: min,
@@ -275,7 +281,7 @@ export default class eventchart extends Vue {
       }
     }
     if (this.showPriceCurve && this.maxLevel !== undefined) {
-      const max = this.maxLevel; //Math.ceil(this.maxLevel / 10) * 10;
+      const max = levelPrecision(this.maxLevel); //Math.ceil(this.maxLevel / 10) * 10;
       if (max < 100) {
         timechart.addYaxisAnnotation({
           y: max,
@@ -510,17 +516,16 @@ export default class eventchart extends Vue {
      *  Fill past battery level
      ***/
     let levelData: any = [];
-    let eventList = (this.chartData.eventList || [])
-      .filter(f => f.eventType !== GQLEventType.Sleep)
-      .slice();
+    let eventList = (this.chartData.eventList || []).slice();
     if (this.chartData.stateMap && this.chartData.stateMap.length > 1) {
       levelData = this.chartData.stateMap
         .filter(f => {
           // filter away everything colliding with eventList info
           for (const e of eventList) {
             if (
-              numericStartTime(e.start) <= numericStartTime(f.start) + 3600e3 &&
-              numericStartTime(e.end) >= numericStartTime(f.start)
+              numericStartTime(e.start) - 15 * 60e3 <=
+                numericStartTime(f.start) + 60 * 60e3 &&
+              numericStartTime(e.end) + 15 * 60e3 >= numericStartTime(f.start)
             ) {
               return false;
             }
@@ -534,6 +539,7 @@ export default class eventchart extends Vue {
       levelData.push([now, this.vehicle.batteryLevel]);
     }
     for (const e of eventList) {
+      if (e.eventType === GQLEventType.Sleep) continue;
       levelData.push([numericStartTime(e.start), e.data.startLevel]);
       levelData.push([numericStartTime(e.end), e.data.endLevel]);
     }
@@ -639,7 +645,7 @@ export default class eventchart extends Vue {
       let v = i > 0 ? data[i - 1][1] : null;
       if (v === null) return v;
       const w = (ts - data[i - 1][0]) / (data[i][0] - data[i - 1][0]);
-      return Math.round(v * (1 - w) + data[i][1] * w);
+      return v * (1 - w) + data[i][1] * w;
     };
     for (let i = 0; i < timeLine.length; ++i) {
       const ts = timeLine[i];
@@ -724,6 +730,7 @@ export default class eventchart extends Vue {
         color: Color.price,
         offsetX: -1
       },
+      decimalsInFloat: 1,
       labels: {
         minWidth: 55,
         maxWidth: 55,
@@ -763,13 +770,14 @@ export default class eventchart extends Vue {
         color: Color.level,
         offsetX: -1
       },
+      decimalsInFloat: 0,
       labels: {
         minWidth: 55,
         maxWidth: 55,
 
         style: { fontWeight: 600, colors: Color.level },
         formatter: function(val: number, _index: number) {
-          return val.toFixed(0) + "%";
+          return `${levelPrecision(val)}%`;
         }
       }
     };
@@ -893,14 +901,14 @@ export default class eventchart extends Vue {
               return null;
             }
             if (seriesIndex === 0) {
-              return `${value}%`;
+              return `${levelPrecision(value)}%`;
             } else if (seriesIndex === 1) {
-              return `&thickapprox; ${value}%`;
+              return `&thickapprox; ${levelPrecision(value)}%`;
             } else if (
               seriesIndex === 2 &&
               dataPointIndex < series[0].length - 1
             ) {
-              return `${value} öre`;
+              return `${pricePrecision(value)} öre`;
             } else {
               return null;
             }
@@ -995,10 +1003,7 @@ export default class eventchart extends Vue {
         max: this.chartStop,
         labels: { datetimeUTC: false, format: "" },
         tooltip: {
-          enabled: true,
-          formatter: (value: number) => {
-            return timeOnly(new Date(value));
-          }
+          enabled: false
         }
       },
       yaxis: {
