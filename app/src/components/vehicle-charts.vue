@@ -886,15 +886,17 @@ export default class eventchart extends Vue {
               // remove predicted tooltip on current time
               return null;
             }
-
             if (seriesIndex === 0) {
-              if (dataPointIndex < series[0].length - 1) {
-                return value + " öre";
-              } else {
-                return "unknown";
-              }
+              return `${value}%`;
+            } else if (seriesIndex === 1) {
+              return `&thickapprox; ${value}%`;
+            } else if (
+              seriesIndex === 2 &&
+              dataPointIndex < series[0].length - 1
+            ) {
+              return `${value} öre`;
             } else {
-              return value + "(FIX!)";
+              return null;
             }
           }
         }
