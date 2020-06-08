@@ -523,32 +523,49 @@ export default class eventchart extends Vue {
      *  Fill past battery level
      ***/
     let levelData: any = [];
-    let eventList = (this.chartData.eventList || []).slice();
+    let eventList = (this.chartData.eventList || []).map(e => ({
+      eventType: e.eventType,
+      start_ts: numericStartTime(e.start),
+      end_ts: numericStopTime(e.end),
+      start_level: e.data.startLevel,
+      end_level: e.data.endLevel
+    }));
+
     if (this.chartData.stateMap && this.chartData.stateMap.length > 1) {
+      const margin = 15 * 60e3;
       levelData = this.chartData.stateMap
-        .filter(f => {
-          // filter away everything colliding with eventList info
+        .map(p => {
+          let level: number | null = Math.floor(
+            (p.minimumLevel + p.maximumLevel) / 2
+          );
+          const ts = numericStartTime(p.start);
+          const te = ts + 60 * 60e3;
           for (const e of eventList) {
-            if (
-              numericStartTime(e.start) - 15 * 60e3 <=
-                numericStartTime(f.start) + 60 * 60e3 &&
-              numericStartTime(e.end) + 15 * 60e3 >= numericStartTime(f.start)
-            ) {
-              return false;
+            if (te < e.start_ts || ts > e.end_ts + margin) continue; // not even close to this event
+            if (ts >= e.start_ts && te <= e.end_ts) {
+              // Inside event
+              level =
+                e.eventType === GQLEventType.Sleep
+                  ? null // no data during sleep
+                  : e.eventType === GQLEventType.Charge
+                  ? p.minimumLevel // during charge, the start of the time block is where level is least
+                  : p.maximumLevel; // during trips, the start of the time block is where level is most
+            } else {
+              level = null;
             }
           }
-          return true;
+          return [ts, level];
         })
-        .map(p => {
-          const level = Math.floor((p.minimumLevel + p.maximumLevel) / 2);
-          return [numericStartTime(p.start), level];
-        });
+        .filter(f => f[1] !== null);
       levelData.push([now, this.vehicle.batteryLevel]);
     }
     for (const e of eventList) {
-      if (e.eventType === GQLEventType.Sleep) continue;
-      levelData.push([numericStartTime(e.start), e.data.startLevel]);
-      levelData.push([numericStartTime(e.end), e.data.endLevel]);
+      if (e.start_level !== undefined) {
+        levelData.push([e.start_ts, e.start_level]);
+      }
+      if (e.end_level !== undefined) {
+        levelData.push([e.end_ts, e.end_level]);
+      }
     }
 
     /***
