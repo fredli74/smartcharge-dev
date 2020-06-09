@@ -921,9 +921,9 @@ export default class eventchart extends Vue {
             if (
               seriesIndex === 1 &&
               dataPointIndex > 0 &&
-              series[seriesIndex][dataPointIndex - 1] === null
+              series[0][dataPointIndex]
             ) {
-              // remove predicted tooltip on current time
+              // remove predicted tooltip on current time (if series 0 has data at this point)
               return null;
             }
             if (seriesIndex === 0) {
