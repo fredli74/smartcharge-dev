@@ -38,7 +38,7 @@
     "eventemitter3": "^4.0.4",
     "express": "^4.17.1",
     "graphql": "^15.1.0",
-    "graphql-type-json": "^0.3.1",
+    "graphql-type-json": "^0.3.2",
     "jsonwebtoken": "^8.5.1",
     "jwks-rsa": "^1.8.0",
     "luxon": "^1.24.1",
