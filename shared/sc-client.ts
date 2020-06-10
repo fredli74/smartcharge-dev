@@ -301,6 +301,15 @@ export class SCClient extends ApolloClient<any> {
     const result = await this.query({ query });
     return result.data.vehicles;
   }
+  public async getVehicleLimit(): Promise<number | null> {
+    const query = gql`
+      query GetVehicleLimit {
+        vehicleLimit
+      }
+    `;
+    const result = await this.query({ query });
+    return result.data.vehicleLimit;
+  }
   public async updateVehicle(input: UpdateVehicleParams): Promise<boolean> {
     const mutation = gql`
       mutation UpdateVehicle($input: UpdateVehicleInput!) {

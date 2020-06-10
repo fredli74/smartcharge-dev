@@ -58,6 +58,13 @@ export class VehicleResolver {
       await context.db.getVehicle(accountFilter(context.accountUUID), id)
     );
   }
+  @Query(_returns => Int, { nullable: true })
+  async vehicleLimit(@Ctx() context: IContext): Promise<number> {
+    const limit = await context.db.pg.oneOrNone(
+      `SELECT value::int - (SELECT COUNT(*) FROM vehicle) as limit FROM setting WHERE key = 'vehicleLimit';`
+    );
+    return (limit && limit.limit) || null;
+  }
 
   @Subscription(_returns => Vehicle, {
     // TODO: convert this into a subscribe: using apolloPubSub
