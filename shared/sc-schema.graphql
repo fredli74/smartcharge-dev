@@ -175,6 +175,7 @@ type Query {
   ): JSONObject!
   test: ResolverTest!
   vehicle(id: String!): Vehicle!
+  vehicleLimit: Int
   vehicles: [Vehicle!]!
 }
 

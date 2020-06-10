@@ -23,6 +23,7 @@ export interface GQLQuery {
   chartData: GQLChartData;
   vehicles: Array<GQLVehicle>;
   vehicle: GQLVehicle;
+  vehicleLimit: number | null;
   test: GQLResolverTest;
 }
 
@@ -485,6 +486,7 @@ export interface GQLQueryTypeResolver<TParent = undefined> {
   chartData?: QueryToChartDataResolver<TParent>;
   vehicles?: QueryToVehiclesResolver<TParent>;
   vehicle?: QueryToVehicleResolver<TParent>;
+  vehicleLimit?: QueryToVehicleLimitResolver<TParent>;
   test?: QueryToTestResolver<TParent>;
 }
 
@@ -548,6 +550,10 @@ export interface QueryToVehicleArgs {
 }
 export interface QueryToVehicleResolver<TParent = undefined, TResult = GQLVehicle> {
   (parent: TParent, args: QueryToVehicleArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface QueryToVehicleLimitResolver<TParent = undefined, TResult = number | null> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
 export interface QueryToTestResolver<TParent = undefined, TResult = GQLResolverTest> {
