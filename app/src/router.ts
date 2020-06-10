@@ -26,7 +26,7 @@ const router = new Router({
     {
       path: "/about",
       name: "about",
-      meta: { root: true },
+      meta: { root: true, fullpage: true },
       component: About
     },
     {
