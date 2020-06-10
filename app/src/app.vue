@@ -1,5 +1,5 @@
 <template>
-  <v-app>
+  <v-app :class="`page-${$route.name} ${$route.meta.class}`">
     <v-app-bar id="app-bar" app flat color="secondary" dark>
       <v-btn
         v-if="authorized"
@@ -48,7 +48,10 @@
       >
     </v-app-bar>
     <v-content id="app-content">
-      <v-container fluid>
+      <template v-if="$route.meta.fullpage"
+        ><router-view></router-view
+      ></template>
+      <v-container v-else fluid>
         <v-layout row justify-space-around>
           <v-flex xs12 class="px-4">
             <v-alert v-model="error.show" dismissible type="error" prominent>{{
@@ -64,10 +67,6 @@
         </v-layout>
       </v-container>
     </v-content>
-
-    <v-footer app>
-      <!-- -->
-    </v-footer>
   </v-app>
 </template>
 
