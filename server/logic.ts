@@ -968,7 +968,7 @@ export class Logic {
       if (priceMap.length > 0) {
         let timeLeft = timeNeeded;
         for (const price of priceMap) {
-          if (timeLeft <= 0) break;
+          if (timeLeft < 1) break;
           if (maxPrice && price.price > maxPrice) break;
 
           const ts = price.ts.getTime();
