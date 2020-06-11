@@ -20,7 +20,7 @@ const server: IProviderServer = {
   mutation: async (data: any, context: IContext) => {
     switch (data.mutation) {
       case "newLocation": {
-        return context.db.newLocation(
+        const location = context.db.newLocation(
           context.accountUUID,
           data.name,
           data.latitude * 1e6,
@@ -32,6 +32,8 @@ const server: IProviderServer = {
             ...data.provider_data
           } as NordpoolProviderData*/
         );
+        await context.logic.refreshChargePlan(undefined, context.accountUUID);
+        return location;
       }
       default:
         throw new Error(
