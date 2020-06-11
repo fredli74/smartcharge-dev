@@ -1383,11 +1383,13 @@ export class Logic {
         if (vehicle.level < vehicle.maximum_charge) {
           if (ai.charge) {
             if (ai.learning) {
-              addCharge(
-                ChargeType.Fill,
-                vehicle.maximum_charge,
-                disconnectTime,
-                `learning`
+              plan.push(
+                await this.ChargePlanEntry(
+                  vehicle,
+                  vehicle.maximum_charge,
+                  ChargeType.Fill,
+                  `learning`
+                )
               );
             } else {
               assert(ai.level);
