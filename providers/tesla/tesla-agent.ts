@@ -124,6 +124,7 @@ export class TeslaAgent extends AbstractAgent {
         option_codes.push("MI02"); // force nose cone
         defaults = {
           exterior_color: "PPSW",
+          passive_spoiler: "X019",
           roof_color: "RFP2",
           wheel_type: "WTAS"
         };
@@ -132,6 +133,7 @@ export class TeslaAgent extends AbstractAgent {
         option_codes.push("MI03"); // force facelift
         defaults = {
           exterior_color: "PPSW",
+          passive_spoiler: "X019",
           roof_color: "RFFG",
           wheel_type: "WTDS"
         };
@@ -139,6 +141,7 @@ export class TeslaAgent extends AbstractAgent {
       case "modelx":
         defaults = {
           exterior_color: "PPSW",
+          passive_spoiler: "X021",
           roof_color: "RFPX",
           wheel_type: "WT20"
         };
@@ -212,7 +215,7 @@ export class TeslaAgent extends AbstractAgent {
 
     option_codes.push(
       optionTranslate("spoiler_type", {
-        Passive: "X019", // X021",
+        Passive: defaults.passive_spoiler, // "X019" | "X021",
         // "SLR1"
         None: null
       })
