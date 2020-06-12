@@ -643,13 +643,13 @@ export class TeslaAgent extends AbstractAgent {
       if (subject.data.isConnected) {
         // are we charging or not
         if (
-          subject.chargeEnabled &&
+          subject.chargeEnabled === true &&
           (subject.chargeControl === undefined ||
             subject.chargeControl === ChargeControl.Starting)
         ) {
           subject.chargeControl = ChargeControl.Started;
         } else if (
-          !subject.chargeEnabled &&
+          subject.chargeEnabled === false &&
           (subject.chargeControl === undefined ||
             subject.chargeControl === ChargeControl.Stopping)
         ) {
@@ -678,7 +678,8 @@ export class TeslaAgent extends AbstractAgent {
         // Work-around for the strange trickle charge behavior
         // added for Model S in 2020.16.2.1 upgrade
         const workaroundForceStop =
-          RegExp(/models/).test(subject.data.providerData.car_type) &&
+          (subject.data.providerData.car_type === "models" ||
+            subject.data.providerData.car_type === "models2") &&
           subject.online &&
           subject.chargeEnabled === true &&
           (!shouldCharge || subject.data.batteryLevel >= shouldCharge.level);
