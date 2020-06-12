@@ -121,8 +121,15 @@ export class TeslaAgent extends AbstractAgent {
 
     switch (config.car_type) {
       case "models":
+        option_codes.push("MI02"); // force nose cone
+        defaults = {
+          exterior_color: "PPSW",
+          roof_color: "RFP2",
+          wheel_type: "WTAS"
+        };
+        break;
       case "models2":
-        option_codes.push(config.car_type === "models2" ? "MI03" : "MI01");
+        option_codes.push("MI03"); // force facelift
         defaults = {
           exterior_color: "PPSW",
           roof_color: "RFFG",
