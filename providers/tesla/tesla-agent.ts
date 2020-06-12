@@ -186,7 +186,8 @@ export class TeslaAgent extends AbstractAgent {
         RedMulticoat: "PPMR",
         Pearl: "PPSW",
         PearlWhite: "PPSW",
-        SilverMetallic: "PMSS"
+        SilverMetallic: "PMSS",
+        Blue: "PMMB"
       })
     );
 
@@ -194,8 +195,6 @@ export class TeslaAgent extends AbstractAgent {
       optionTranslate("roof_color", {
         Glass: defaults.roof_color,
         None: defaults.roof_color
-        // TODO: Add more information
-        // Glass: "RF3G" (default)
       })
     );
 
@@ -203,16 +202,17 @@ export class TeslaAgent extends AbstractAgent {
       optionTranslate("wheel_type", {
         Pinwheel18: "W38B",
         Stiletto19: "W39B",
+        Stiletto20: "W32B",
         Slipstream19Carbon: "WTDS",
+        // AeroTurbine19: "",
+        Turbine19: "WTTB",
         Turbine22Dark: "WTUT"
-        // TODO: Add more information
-        // 20" Sport Wheels: "W32B"
       })
     );
 
     option_codes.push(
       optionTranslate("spoiler_type", {
-        Passive: "X021",
+        Passive: "X019", // X021",
         // "SLR1"
         None: null
       })
