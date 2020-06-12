@@ -207,7 +207,8 @@ export class TeslaAgent extends AbstractAgent {
         Stiletto19: "W39B",
         Stiletto20: "W32B",
         Slipstream19Carbon: "WTDS",
-        // AeroTurbine19: "",
+        AeroTurbine19: "WTAS",
+        AeroTurbine20: "WT20",
         Turbine19: "WTTB",
         Turbine22Dark: "WTUT"
       })
