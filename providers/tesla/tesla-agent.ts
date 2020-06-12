@@ -682,6 +682,7 @@ export class TeslaAgent extends AbstractAgent {
             subject.data.providerData.car_type === "models2") &&
           subject.online &&
           subject.chargeEnabled === true &&
+          subject.data.chargingTo !== null &&
           (!shouldCharge || subject.data.batteryLevel >= shouldCharge.level);
 
         // are we following the plan
