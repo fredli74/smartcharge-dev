@@ -1036,7 +1036,7 @@ export class Logic {
     const guess: {
       charge: number;
       before: number;
-    } = await this.db.pg.one(
+    } | null = await this.db.pg.oneOrNone(
       `WITH connections AS (
                 -- all connections for specific vehicle_uuid and location_uuid
                 SELECT connected_id, start_ts, end_ts, connected, end_ts-start_ts as duration, end_level-start_level as charged,
@@ -1100,7 +1100,7 @@ export class Logic {
       ]
     );
 
-    if (!guess.before || !guess.charge) {
+    if (!guess || !guess.before || !guess.charge) {
       // missing data to guess
       log(LogLevel.Debug, `Missing data for smart charging.`);
       return null;
