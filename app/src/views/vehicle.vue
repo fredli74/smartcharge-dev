@@ -48,7 +48,7 @@
                 <span>Report incorrect image</span>
               </v-tooltip>
             </v-flex>
-            <v-flex sm12 grow class="">
+            <v-flex sm12 grow class="" style="z-index:2">
               <div v-if="freshInfo" id="temperatures" style="margin:0 auto">
                 <div>
                   <v-icon>mdi-weather-partly-cloudy</v-icon
@@ -349,6 +349,8 @@ export default class VehicleVue extends Vue {
     ) {
       let closest = Number.POSITIVE_INFINITY;
       for (const l of this.locations) {
+        if (l.ownerID !== val.ownerID) continue;
+
         const dist =
           geoDistance(
             val.geoLocation.latitude,
