@@ -835,8 +835,35 @@ export default class eventchart extends Vue {
         type: "datetime",
         min: this.chartStart,
         max: this.chartStop,
+        tickAmount: Math.round((this.chartStop - this.chartStart) / 3600e3),
         labels: {
-          datetimeUTC: false
+          rotate: 0,
+
+          datetimeUTC: true,
+          formatter: (_value: any, timestamp: any, _index: any) => {
+            const chart: any = this.$refs.timechart;
+            if (chart) {
+              let skip = 1;
+              const w = chart && chart.$el && chart.$el.clientWidth;
+              if (w) {
+                const ticks = Math.round(
+                  (this.chartStop - this.chartStart) / 3600e3
+                );
+                for (let space = w / ticks; space < 50; ) {
+                  skip++;
+                  space = w / Math.floor(ticks / skip);
+                }
+              }
+              const hour = new Date(timestamp).getHours();
+              if (hour === 0) {
+                return DateTime.fromMillis(timestamp).toFormat("dd MMM");
+              }
+              if (hour % skip > 0) {
+                return "";
+              }
+            }
+            return DateTime.fromMillis(timestamp).toFormat("HH:mm");
+          }
         },
         tooltip: {
           enabled: true,
@@ -1031,7 +1058,8 @@ export default class eventchart extends Vue {
         type: "datetime",
         min: this.chartStart,
         max: this.chartStop,
-        labels: { datetimeUTC: false, format: "" },
+        tickAmount: Math.round((this.chartStop - this.chartStart) / 3600e3),
+        labels: { datetimeUTC: true, format: "" },
         tooltip: {
           enabled: false
         }
