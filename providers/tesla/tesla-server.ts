@@ -47,7 +47,7 @@ async function validToken(
     `UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $2) WHERE service_data @> $1 RETURNING *;`,
     [
       { token: { refresh_token: oldRefreshToken } },
-      { token: newToken, invalid_token: null }
+      { updated: Date.now(), token: newToken, invalid_token: null }
     ]
   );
   for (const s of dblist) {
@@ -74,7 +74,7 @@ async function invalidToken(db: DBInterface, token: IRestToken) {
           access_token: token.access_token
         }
       },
-      { invalid_token: true }
+      { updated: Date.now(), invalid_token: true }
     ]
   );
   log(LogLevel.Trace, dblist);
@@ -148,8 +148,14 @@ const server: IProviderServer = {
                     // Wrong service_uuid in database
                     vehicle.service_uuid = l.service_uuid;
                     await context.db.pg.none(
-                      `UPDATE vehicle SET service_uuid=$1, provider_data = provider_data - 'invalid_token' WHERE vehicle_uuid=$2;`,
-                      [vehicle.service_uuid, vehicle.vehicle_uuid]
+                      `UPDATE vehicle SET service_uuid=$1, provider_data = provider_data - 'invalid_token' WHERE vehicle_uuid=$2;
+                      UPDATE service_provider SET service_data = jsonb_merge(service_data, $3) WHERE service_uuid=$1;`,
+                      [
+                        vehicle.service_uuid,
+                        vehicle.vehicle_uuid,
+                        { updated: Date.now() }
+                        // TODO: updated should be a DB field instead
+                      ]
                     );
                     log(
                       LogLevel.Info,
