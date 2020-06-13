@@ -12,7 +12,7 @@ import { log, LogLevel } from "@shared/utils";
 import { IProviderServer } from "@providers/provider-server";
 import { TeslaNewListEntry } from "./app/tesla-helper";
 import config from "./tesla-config";
-import { DBVehicle, DBServiceProvider } from "@server/db-schema";
+import { DBServiceProvider } from "@server/db-schema";
 import { strict as assert } from "assert";
 
 // Check token and refresh through direct database update
@@ -186,25 +186,21 @@ const server: IProviderServer = {
       }
       case TeslaProviderMutates.NewVehicle: {
         const input = data.input as TeslaNewListEntry;
-        let vehicle: DBVehicle | null = await context.db.pg.oneOrNone(
-          `SELECT * FROM vehicle WHERE provider_data->>'provider' = 'tesla' AND provider_data->>'tesla_id' = $1;`,
-          [input.id]
+        log(
+          LogLevel.Trace,
+          `TeslaProviderMutates.NewVehicle(${JSON.stringify(input)})`
         );
-        if (vehicle) {
-          // Move ownership
-          await context.db.pg.none(
-            `UPDATE vehicle SET account_uuid=$2, service_uuid=$3 WHERE vehicle_uuid = $1;`,
-            [vehicle.vehicle_uuid, context.accountUUID, input.service_uuid]
-          );
-        } else {
-          vehicle = await context.db.newVehicle(
-            context.accountUUID,
-            input.name,
-            config.DEFAULT_MAXIMUM_LEVEL,
-            input.service_uuid,
-            { provider: "tesla", vin: input.vin } as TeslaProviderData
-          );
-        }
+        const vehicle = await context.db.newVehicle(
+          context.accountUUID,
+          input.name,
+          config.DEFAULT_MAXIMUM_LEVEL,
+          input.service_uuid,
+          { provider: "tesla", vin: input.vin } as TeslaProviderData
+        );
+        log(
+          LogLevel.Trace,
+          `context.db.newVehicle returned ${JSON.stringify(vehicle)})`
+        );
         await context.db.pg.none(
           `UPDATE service_provider SET service_data = jsonb_merge(service_data, $1)
             WHERE service_uuid=$2;`,
