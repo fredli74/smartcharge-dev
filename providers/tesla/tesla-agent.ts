@@ -687,7 +687,8 @@ export class TeslaAgent extends AbstractAgent {
         // added for Model S in 2020.16.2.1 upgrade
         const workaroundForceStop =
           (subject.data.providerData.car_type === "models" ||
-            subject.data.providerData.car_type === "models2") &&
+            subject.data.providerData.car_type === "models2" ||
+            subject.data.providerData.car_type === "modelx") &&
           subject.online &&
           subject.chargeEnabled === true &&
           subject.data.chargingTo !== null &&
