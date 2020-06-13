@@ -965,6 +965,11 @@ export class TeslaAgent extends AbstractAgent {
             LogLevel.Debug,
             `Service ${job.serviceID} mapping VIN ${v.vin} -> ID ${v.id_s} -> UUID ${v.vehicle_uuid}`
           );
+        } else {
+          log(
+            LogLevel.Debug,
+            `Service ${job.serviceID} ignoring VIN ${v.vin} -> ID ${v.id_s} -> UUID ${v.vehicle_uuid}`
+          );
         }
       }
       job.mapped = Date.now();
