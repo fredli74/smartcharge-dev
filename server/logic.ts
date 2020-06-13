@@ -1450,6 +1450,7 @@ export class Logic {
 
           // Low price fill charging
           if (
+            !ai.learning &&
             stats &&
             stats.weekly_avg7_price &&
             stats.weekly_avg21_price &&
