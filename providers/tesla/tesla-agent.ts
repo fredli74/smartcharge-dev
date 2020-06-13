@@ -55,6 +55,7 @@ interface TeslaSubject {
   vehicleUUID: string;
   data?: GQLVehicle;
   online: boolean;
+  pollerror: number | undefined;
   pollstate: PollState | undefined;
   statestart: number;
   status: string;
@@ -364,6 +365,7 @@ export class TeslaAgent extends AbstractAgent {
           });
         }
 
+        subject.pollerror = undefined;
         subject.chargeLimit = data.charge_state.charge_limit_soc;
         subject.chargeEnabled =
           data.charge_state.charging_state !== "Stopped" &&
@@ -574,7 +576,9 @@ export class TeslaAgent extends AbstractAgent {
                 `${subject.teslaID} ${data.display_name} is ${data.state} (${subject.pollstate} -> polling)`
               );
               this.stayOnline(subject);
-              this.adjustInterval(job, 0); // Woke up, poll right away
+              if (!subject.pollerror) {
+                this.adjustInterval(job, 0); // Woke up, poll right away
+              }
               return;
             }
             break;
@@ -877,6 +881,10 @@ export class TeslaAgent extends AbstractAgent {
         const s = logFormat(LogLevel.Error, err);
         fs.writeFileSync(config.AGENT_TRACE_FILENAME, `${s}\n`, { flag: "as" });
       }
+
+      subject.pollerror = err.code;
+      this.adjustInterval(job, 60); // avoid spam polling an interface that is down
+
       // this.changePollstate(subject, "offline");
       // this.adjustInterval(job, 10); // Try again
 
@@ -948,6 +956,7 @@ export class TeslaAgent extends AbstractAgent {
             vehicleUUID: v.vehicle_uuid,
             teslaID: v.id_s,
             online: false,
+            pollerror: undefined,
             pollstate: undefined,
             statestart: Date.now(),
             status: ""
