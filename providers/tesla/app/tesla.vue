@@ -37,7 +37,7 @@ import { TeslaNewListEntry } from "./tesla-helper";
 import TeslaTokenVue from "./components/tesla-token.vue";
 import TeslaNewVehicleList from "./components/tesla-new-list.vue";
 import { ProviderVuePage } from "@providers/provider-app";
-import provider, { TeslaProviderQueries } from "..";
+import provider, { TeslaProviderQueries, TeslaProviderMutates } from "..";
 
 @Component({
   components: {
@@ -116,8 +116,8 @@ export default class TeslaVue extends Vue {
 
   async selectVehicle(vehicle: TeslaNewListEntry) {
     this.loading = true;
-    await apollo.providerMutate("tesla", {
-      mutation: "newVehicle",
+    await apollo.providerMutate(provider.name, {
+      mutation: TeslaProviderMutates.NewVehicle,
       input: vehicle
     });
     this.loading = false;
