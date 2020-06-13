@@ -26,7 +26,7 @@ export function vehicleImage(
       if (dark) {
         // There is no view with dark background
         sideView = true;
-      } else {
+      } else if (!sideView) {
         // Force white background for legacy model images
         background = 2;
       }
