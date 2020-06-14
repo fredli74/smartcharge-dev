@@ -206,7 +206,7 @@ export class TeslaAgent extends AbstractAgent {
       optionTranslate("wheel_type", {
         Pinwheel18: "W38B",
         Stiletto19: "W39B",
-        Stiletto20: "W32B",
+        Stiletto20: "W39B", // "W32B" - does not exist in side view
         Slipstream19Carbon: "WTDS",
         AeroTurbine19: "WTAS",
         AeroTurbine20: "WT20",
