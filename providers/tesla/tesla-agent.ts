@@ -191,7 +191,8 @@ export class TeslaAgent extends AbstractAgent {
         Pearl: "PPSW",
         PearlWhite: "PPSW",
         SilverMetallic: "PMSS",
-        Blue: "PMMB"
+        Blue: "PMMB",
+        Black: "PBSB"
       })
     );
 
@@ -211,7 +212,8 @@ export class TeslaAgent extends AbstractAgent {
         AeroTurbine19: "WTAS",
         AeroTurbine20: "WT20",
         Turbine19: "WTTB",
-        Turbine22Dark: "WTUT"
+        Turbine22Dark: "WTUT",
+        Charcoal21: "WTSP"
       })
     );
 
