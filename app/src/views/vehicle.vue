@@ -417,7 +417,7 @@ export default class VehicleVue extends Vue {
   font-weight: bold;
 }
 .chargezone {
-  animation: stream 0.25s infinite linear;
+  animation: stream-ltr 0.25s infinite linear;
   border-top: 4px dotted;
   bottom: 0;
   opacity: 0.5;
