@@ -33,7 +33,7 @@
     "connect-history-api-fallback": "^1.6.0",
     "core-js": "^3.6.5",
     "cors": "^2.8.5",
-    "cross-fetch": "^3.0.4",
+    "cross-fetch": "^3.0.5",
     "dotenv": "^8.2.0",
     "eventemitter3": "^4.0.4",
     "express": "^4.17.1",
