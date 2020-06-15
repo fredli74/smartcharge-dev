@@ -65,7 +65,7 @@
         <v-flex v-if="vehicle !== undefined" sm6 xs12 class="mb-5">
           <VehicleActions :vehicle="vehicle"></VehicleActions>
         </v-flex>
-        <v-flex sm6 xs12 class="mb-5">
+        <v-flex sm6 xs12 class="mb-5" style="z-index:2">
           <div v-if="vehicle.chargingTo" class="mt-n5 caption">
             Charging to {{ vehicle.chargingTo }}%
             <RelativeTime
