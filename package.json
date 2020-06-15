@@ -101,7 +101,7 @@
     "vue-cli-plugin-vuetify": "^2.0.5",
     "vue-ctk-date-time-picker": "^2.4.0",
     "vue-property-decorator": "^8.5.0",
-    "vue-router": "^3.3.2",
+    "vue-router": "^3.3.4",
     "vue-template-compiler": "^2.6.11",
     "vue-visible": "^1.0.2",
     "vuetify": "^2.3.0",
