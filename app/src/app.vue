@@ -47,7 +47,7 @@
         sign in</v-btn
       >
     </v-app-bar>
-    <v-content id="app-content">
+    <v-main id="app-content">
       <template v-if="$route.meta.fullpage"
         ><router-view></router-view
       ></template>
@@ -66,7 +66,7 @@
           <router-view></router-view>
         </v-layout>
       </v-container>
-    </v-content>
+    </v-main>
   </v-app>
 </template>
 
