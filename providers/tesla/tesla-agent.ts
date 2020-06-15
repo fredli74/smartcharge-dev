@@ -334,6 +334,8 @@ export class TeslaAgent extends AbstractAgent {
   }
 
   private async poll(job: TeslaAgentJob, subject: TeslaSubject): Promise<void> {
+    let chargeState: string = "";
+
     try {
       const now = Date.now();
 
@@ -369,6 +371,7 @@ export class TeslaAgent extends AbstractAgent {
 
         subject.pollerror = undefined;
         subject.chargeLimit = data.charge_state.charge_limit_soc;
+        chargeState = data.charge_state.charging_state;
         subject.chargeEnabled =
           data.charge_state.charging_state !== "Stopped" &&
           (data.charge_state.charge_enable_request ||
@@ -691,9 +694,7 @@ export class TeslaAgent extends AbstractAgent {
           (subject.data.providerData.car_type === "models" ||
             subject.data.providerData.car_type === "models2" ||
             subject.data.providerData.car_type === "modelx") &&
-          subject.online &&
-          subject.chargeEnabled === true &&
-          subject.data.chargingTo !== null &&
+          chargeState === "Complete" &&
           (!shouldCharge || subject.data.batteryLevel >= shouldCharge.level);
 
         // are we following the plan
@@ -721,7 +722,11 @@ export class TeslaAgent extends AbstractAgent {
             );
             teslaAPI.chargeStop(subject.teslaID, job.serviceData.token);
             subject.chargeControl = ChargeControl.Stopping;
-            this.stayOnline(subject);
+            if (workaroundForceStop) {
+              // Do not keep awake if we're trying to force stop (because the api command often fails)
+            } else {
+              this.stayOnline(subject);
+            }
           }
         } else if (shouldCharge !== undefined) {
           if (subject.chargeEnabled !== true) {
