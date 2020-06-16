@@ -304,7 +304,8 @@ export class TeslaAgent extends AbstractAgent {
   private async vehicleInteraction(
     job: TeslaAgentJob,
     subject: TeslaSubject,
-    wakeup: boolean
+    wakeup: boolean,
+    userInteraction: boolean
   ): Promise<boolean> {
     if (job.serviceData.invalid_token) return false; // provider requires a valid token
     if (!subject.online && !wakeup) return false; // offline and we should not wake it up
@@ -326,10 +327,12 @@ export class TeslaAgent extends AbstractAgent {
     }
     if (subject.online) {
       this.stayOnline(subject);
-      this.adjustInterval(job, 0); // poll directly after an interaction
+      if (userInteraction) {
+        this.adjustInterval(job, 0); // poll directly after an interaction
+      }
       return true;
     }
-    this.adjustInterval(job, 5); // poll more often after an interaction
+    this.adjustInterval(job, 10); // poll more often after an interaction
     return false;
   }
 
@@ -727,7 +730,7 @@ export class TeslaAgent extends AbstractAgent {
             );
           } else if (
             (subject.data.locationID !== null || disableCharge) &&
-            (await this.vehicleInteraction(job, subject, false))
+            (await this.vehicleInteraction(job, subject, false, false))
           ) {
             // known location or force disable
             log(
@@ -747,7 +750,7 @@ export class TeslaAgent extends AbstractAgent {
               );
             } else if (
               subject.data.batteryLevel < shouldCharge.level &&
-              (await this.vehicleInteraction(job, subject, true))
+              (await this.vehicleInteraction(job, subject, true, false))
             ) {
               log(
                 LogLevel.Info,
@@ -801,7 +804,7 @@ export class TeslaAgent extends AbstractAgent {
                   (shouldCharge.chargeType === GQLChargeType.Manual ||
                     subject.data.locationID !== null)))
             ) {
-              if (await this.vehicleInteraction(job, subject, true)) {
+              if (await this.vehicleInteraction(job, subject, true, false)) {
                 log(
                   LogLevel.Info,
                   `${subject.teslaID} setting charge limit for ${subject.data.name} to ${chargeto}%`
@@ -835,7 +838,7 @@ export class TeslaAgent extends AbstractAgent {
             !subject.portOpen &&
             subject.triedOpen === undefined
           ) {
-            if (await this.vehicleInteraction(job, subject, false)) {
+            if (await this.vehicleInteraction(job, subject, false, false)) {
               // if port is closed and we did not try to open it yet
               await teslaAPI.openChargePort(
                 subject.teslaID,
@@ -848,7 +851,7 @@ export class TeslaAgent extends AbstractAgent {
             subject.portOpen &&
             subject.triedOpen !== undefined
           ) {
-            if (await this.vehicleInteraction(job, subject, false)) {
+            if (await this.vehicleInteraction(job, subject, false, false)) {
               await teslaAPI.closeChargePort(
                 subject.teslaID,
                 job.serviceData.token
@@ -1004,7 +1007,7 @@ export class TeslaAgent extends AbstractAgent {
   ): Promise<any> {
     for (const subject of Object.values(job.state)) {
       if (subject.vehicleUUID === action.data.id) {
-        return this.vehicleInteraction(job, subject, true);
+        return this.vehicleInteraction(job, subject, true, true);
       }
     }
   }
@@ -1016,7 +1019,8 @@ export class TeslaAgent extends AbstractAgent {
 
     for (const subject of Object.values(job.state)) {
       if (subject.vehicleUUID === action.data.id) {
-        if (!(await this.vehicleInteraction(job, subject, true))) return false; // Not ready for interaction
+        if (!(await this.vehicleInteraction(job, subject, true, true)))
+          return false; // Not ready for interaction
         if (subject.data && subject.data.climateControl === action.data.enable)
           return true; // Already correct
 
