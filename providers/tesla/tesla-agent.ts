@@ -736,11 +736,7 @@ export class TeslaAgent extends AbstractAgent {
             );
             teslaAPI.chargeStop(subject.teslaID, job.serviceData.token);
             subject.chargeControl = ChargeControl.Stopping;
-            if (workaroundForceStop) {
-              // Do not keep awake if we're trying to force stop (because the api command often fails)
-            } else {
-              this.stayOnline(subject);
-            }
+            this.stayOnline(subject);
           }
         } else if (shouldCharge !== undefined) {
           if (subject.chargeEnabled !== true) {
