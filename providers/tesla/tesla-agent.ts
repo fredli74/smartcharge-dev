@@ -334,8 +334,6 @@ export class TeslaAgent extends AbstractAgent {
   }
 
   private async poll(job: TeslaAgentJob, subject: TeslaSubject): Promise<void> {
-    let chargeState: string = "";
-
     try {
       const now = Date.now();
 
@@ -369,9 +367,33 @@ export class TeslaAgent extends AbstractAgent {
           });
         }
 
+        // Work-around for the strange trickle charge behavior
+        // added for Model S in 2020.16.2.1 upgrade
+        if (
+          (subject.data.providerData.car_type === "models" ||
+            subject.data.providerData.car_type === "models2" ||
+            subject.data.providerData.car_type === "modelx") &&
+          data.charge_state.charging_state === "Complete" &&
+          data.charge_state.charge_enable_request
+        ) {
+          if (subject.chargeControl === ChargeControl.Stopped) {
+            log(
+              LogLevel.Trace,
+              `${subject.teslaID} trickle-charge fix stop of ${subject.data.name} overridden by user interaction`
+            );
+          } else {
+            // known location or force disable
+            log(
+              LogLevel.Info,
+              `${subject.teslaID} trickle-charge fix stop charging ${subject.data.name}`
+            );
+            teslaAPI.chargeStop(subject.teslaID, job.serviceData.token);
+            subject.chargeControl = ChargeControl.Stopping;
+          }
+        }
+
         subject.pollerror = undefined;
         subject.chargeLimit = data.charge_state.charge_limit_soc;
-        chargeState = data.charge_state.charging_state;
         subject.chargeEnabled =
           data.charge_state.charging_state !== "Stopped" &&
           (data.charge_state.charge_enable_request ||
@@ -580,8 +602,10 @@ export class TeslaAgent extends AbstractAgent {
                 LogLevel.Info,
                 `${subject.teslaID} ${data.display_name} is ${data.state} (${subject.pollstate} -> polling)`
               );
-              this.stayOnline(subject);
-              if (!subject.pollerror) {
+              if (subject.pollerror) {
+                this.changePollstate(subject, "polling"); // Active polling
+              } else {
+                this.stayOnline(subject);
                 this.adjustInterval(job, 0); // Woke up, poll right away
               }
               return;
@@ -688,23 +712,13 @@ export class TeslaAgent extends AbstractAgent {
           }
         }
 
-        // Work-around for the strange trickle charge behavior
-        // added for Model S in 2020.16.2.1 upgrade
-        const workaroundForceStop =
-          (subject.data.providerData.car_type === "models" ||
-            subject.data.providerData.car_type === "models2" ||
-            subject.data.providerData.car_type === "modelx") &&
-          chargeState === "Complete" &&
-          (!shouldCharge || subject.data.batteryLevel >= shouldCharge.level);
-
         // are we following the plan
         if (
-          workaroundForceStop ||
-          (shouldCharge === undefined &&
-            subject.online &&
-            subject.chargeEnabled === true &&
-            subject.data.chargingTo !== null &&
-            subject.data.batteryLevel < subject.data.chargingTo) // keep it running if we're above or on target
+          shouldCharge === undefined &&
+          subject.online &&
+          subject.chargeEnabled === true &&
+          subject.data.chargingTo !== null &&
+          subject.data.batteryLevel < subject.data.chargingTo // keep it running if we're above or on target
         ) {
           if (subject.chargeControl === ChargeControl.Stopped) {
             log(
