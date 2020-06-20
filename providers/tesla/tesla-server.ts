@@ -138,12 +138,13 @@ const server: IProviderServer = {
               for (const l of list) {
                 const teslaID = l.id_s;
                 const vin = l.vin;
+
+                mapped[vin] = mapped[vin] || s.service_uuid;
+                l.service_uuid = mapped[vin];
+
                 const vehicle = controlled[vin];
                 if (vehicle) {
-                  mapped[vin] = mapped[vin] || s.service_uuid;
-                  l.service_uuid = mapped[vin];
                   l.vehicle_uuid = vehicle.vehicle_uuid;
-
                   if (vehicle.service_uuid !== l.service_uuid) {
                     // Wrong service_uuid in database
                     vehicle.service_uuid = l.service_uuid;
