@@ -43,7 +43,7 @@
     "jwks-rsa": "^1.8.0",
     "luxon": "^1.24.1",
     "md5": "^2.2.1",
-    "pg-promise": "^10.5.6",
+    "pg-promise": "^10.5.7",
     "reflect-metadata": "^0.1.13",
     "type-graphql": "^1.0.0-rc.2",
     "uuid": "^8.1.0",
