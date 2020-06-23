@@ -91,7 +91,7 @@
     "moment": "^2.27.0",
     "patch-package": "^6.2.2",
     "register-service-worker": "^1.7.1",
-    "sass": "^1.26.8",
+    "sass": "^1.26.9",
     "sass-loader": "^8.0.2",
     "typescript": "^3.9.3",
     "vue-apexcharts": "^1.5.3",
