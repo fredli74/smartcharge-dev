@@ -46,7 +46,7 @@
     "pg-promise": "^10.5.7",
     "reflect-metadata": "^0.1.13",
     "type-graphql": "^1.0.0-rc.2",
-    "uuid": "^8.1.0",
+    "uuid": "^8.2.0",
     "vue": "^2.6.11",
     "vue-datetime": "^1.0.0-beta.13",
     "ws": "^7.3.0"
