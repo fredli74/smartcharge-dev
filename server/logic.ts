@@ -562,9 +562,13 @@ export class Logic {
   ): Promise<DBLocationStats | null> {
     const level_charge_time: number | null = (
       await this.db.pg.oneOrNone(
-        `SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY duration) as seconds
-            FROM charge a JOIN charge_curve b ON (a.charge_id = b.charge_id)
-            WHERE a.vehicle_uuid = $1 AND location_uuid = $2`,
+        `WITH curves AS (
+          SELECT duration FROM charge a JOIN charge_curve b ON (a.charge_id = b.charge_id)
+          WHERE a.vehicle_uuid = $1 AND location_uuid = $2
+          ORDER BY start_ts desc, level desc
+          LIMIT 100
+        )
+        SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY duration) as seconds FROM curves`,
         [vehicle.vehicle_uuid, location_uuid]
       )
     ).seconds;
