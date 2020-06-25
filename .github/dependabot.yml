@@ -11,5 +11,5 @@ updates:
     target-branch: "dependabot"
     open-pull-requests-limit: 15
     schedule:
-      interval: "daily"
+      interval: "weekly"
       
