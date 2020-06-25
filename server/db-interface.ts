@@ -508,9 +508,13 @@ export class DBInterface {
     const dbCurve =
       (location_uuid &&
         (await this.pg.manyOrNone(
-          `SELECT level, percentile_cont(0.5) WITHIN GROUP(ORDER BY duration) AS seconds
-            FROM charge a JOIN charge_curve b ON(a.charge_id = b.charge_id)
-            WHERE a.vehicle_uuid = $1 AND a.location_uuid = $2 GROUP BY level ORDER BY level;`,
+          `WITH curves AS (
+            SELECT level, duration FROM charge a JOIN charge_curve b ON (a.charge_id = b.charge_id)
+            WHERE a.vehicle_uuid = $1 AND location_uuid = $2
+            ORDER BY start_ts desc, level desc LIMIT 100
+          )
+          SELECT level, percentile_cont(0.5) WITHIN GROUP (ORDER BY duration) AS seconds
+          FROM curves GROUP BY level ORDER BY level`,
           [vehicle_uuid, location_uuid]
         ))) ||
       [];
