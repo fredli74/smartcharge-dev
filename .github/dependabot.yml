@@ -11,5 +11,5 @@ updates:
     target-branch: "develop"
     open-pull-requests-limit: 10
     schedule:
-      interval: "daily"
+      interval: "weekly"
       
