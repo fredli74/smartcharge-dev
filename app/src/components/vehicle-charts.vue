@@ -413,7 +413,7 @@ export default class eventchart extends Vue {
       // Annotate threshold price
       if (this.chartData.thresholdPrice) {
         const t = scalePrice(this.chartData.thresholdPrice);
-        if (t >= this.minPrice && t <= this.maxPrice) {
+        if (t >= this.minPriceX && t <= this.maxPriceX) {
           timechart.addYaxisAnnotation({
             y: t,
             yAxisIndex: 2,
@@ -481,6 +481,22 @@ export default class eventchart extends Vue {
       .minus({ hours: 24 })
       .startOf("hour")
       .toMillis();
+  }
+
+  get minPriceX(): number {
+    if (this.minPrice !== undefined && this.maxPrice !== undefined) {
+      return Math.max(
+        this.minPrice >= 0 ? 0 : -Infinity,
+        this.minPrice - (this.maxPrice - this.minPrice) * 0.05
+      );
+    }
+    return 0;
+  }
+  get maxPriceX(): number {
+    if (this.minPrice !== undefined && this.maxPrice !== undefined) {
+      return Math.ceil(this.maxPrice + (this.maxPrice - this.minPrice) * 0.05);
+    }
+    return 0;
   }
 
   chartStart: number = this.defaultMinX;
@@ -765,22 +781,8 @@ export default class eventchart extends Vue {
         }
       },
       tickAmount: 5,
-      min: (min: number) => {
-        if (this.minPrice !== undefined && this.maxPrice !== undefined) {
-          const v = Math.floor(
-            this.minPrice - (this.maxPrice - this.minPrice) * 0.05
-          );
-          return this.minPrice >= 0 ? Math.max(0, v) : v;
-        } else {
-          return Math.floor(min);
-        }
-      },
-      max: (max: number) =>
-        Math.ceil(
-          this.minPrice !== undefined && this.maxPrice !== undefined
-            ? this.maxPrice + (this.maxPrice - this.minPrice) * 0.05
-            : max
-        )
+      min: (min: number) => this.minPriceX || Math.floor(min),
+      max: (max: number) => this.maxPriceX || Math.ceil(max)
     };
     const yaxisLevelHidden = {
       show: false,
