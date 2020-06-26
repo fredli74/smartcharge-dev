@@ -53,7 +53,7 @@ export default class PriceChart extends Mixins(Line) {
   }
 }
 
-declare var Chart: any;
+declare const Chart: any;
 
 Chart.Tooltip.positioners.topcorner = function(
   elements: any,
