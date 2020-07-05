@@ -53,7 +53,7 @@
   },
   "devDependencies": {
     "@babel/cli": "^7.10.3",
-    "@babel/core": "^7.10.3",
+    "@babel/core": "^7.10.4",
     "@babel/preset-typescript": "^7.10.1",
     "@mdi/font": "^5.3.45",
     "@types/auth0-js": "^9.13.2",
