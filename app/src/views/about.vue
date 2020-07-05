@@ -27,7 +27,7 @@
                 <span>Smart Charge</span>d EV
               </h1>
               <p class="font-weight-light">
-                Charge your EV during off-peak hours to save money while load
+                Charge your EV during off-peak hours and save money while load
                 balancing the grid.
               </p>
               <v-alert
