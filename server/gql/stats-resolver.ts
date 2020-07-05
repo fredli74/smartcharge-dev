@@ -86,7 +86,7 @@ export class ChartData {
   locationID!: string | null;
   @Field(_type => Float, { nullable: true })
   thresholdPrice!: number | null;
-  @Field(_type => PriceData, { nullable: true })
+  @Field(_type => [PriceData], { nullable: true })
   prices!: PriceData[] | null;
   @Field(_type => [ChargePlan], { nullable: true })
   chargePlan!: ChargePlan[] | null;
