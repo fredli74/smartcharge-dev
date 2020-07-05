@@ -93,7 +93,7 @@
     "register-service-worker": "^1.7.1",
     "sass": "^1.26.9",
     "sass-loader": "^8.0.2",
-    "typescript": "^3.9.3",
+    "typescript": "^3.9.6",
     "vue-apexcharts": "^1.5.3",
     "vue-apollo": "^3.0.3",
     "vue-chartjs": "^3.5.0",
