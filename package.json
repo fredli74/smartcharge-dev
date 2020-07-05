@@ -6,18 +6,18 @@
     "node": "12.7.x"
   },
   "scripts": {
+    "lint": "vue-cli-service lint",
     "serve": "vue-cli-service serve",
     "build": "npm run build:server && npm run build:app",
-    "lint": "vue-cli-service lint",
     "_babel": "npx babel --extensions \".ts\" --copy-files --verbose --ignore **/node_modules --config-file=./babel.config.js",
     "_babel:providers": "npm run _babel -- providers --out-dir dist/providers",
     "_babel:shared": "npm run _babel -- shared --out-dir dist/shared",
     "_babel:server": "npm run _babel -- server --out-dir dist/server",
+    "_create:schema": "node dist/server/gql/build-schema-files.js",
+    "build:server": "npm run _babel:shared && npm run _babel:providers && npm run _babel:server && npm run _create:schema",
+    "build:app": "vue-cli-service build",
     "start:worker": "node dist/server/agency.js -d INTERNAL_SERVICE_TOKEN http://localhost:3000",
     "start:server": "node dist/server/server.js",
-    "build:schema": "npm run build:server && node dist/server/gql/build-schema-files.js",
-    "build:server": "npm run _babel:shared && npm run _babel:providers && npm run _babel:server",
-    "build:app": "vue-cli-service build",
     "prepare": "patch-package"
   },
   "dependencies": {
