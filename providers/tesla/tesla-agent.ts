@@ -206,6 +206,7 @@ export class TeslaAgent extends AbstractAgent {
     option_codes.push(
       optionTranslate("wheel_type", {
         Pinwheel18: "W38B",
+        Pinwheel18CapKit: "W32D", // Performance wheels place holder until we can find the correct ones
         Stiletto19: "W39B",
         Stiletto20: "W39B", // "W32B" - does not exist in side view
         Slipstream19Carbon: "WTDS",
