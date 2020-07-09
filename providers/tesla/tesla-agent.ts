@@ -208,7 +208,7 @@ export class TeslaAgent extends AbstractAgent {
         Pinwheel18: "W38B",
         Pinwheel18CapKit: "W32D", // Performance wheels place holder until we can find the correct ones
         Stiletto19: "W39B",
-        Stiletto20: "W39B", // "W32B" - does not exist in side view
+        Stiletto20: "W32B",
         Slipstream19Carbon: "WTDS",
         AeroTurbine19: "WTAS",
         AeroTurbine20: "WT20",

@@ -40,6 +40,17 @@ export function vehicleImage(
     case "modely":
       model = "my";
       break;
+    case "model3":
+      model = "m3";
+      if (sideView) {
+        // W32 does not exist in side view
+        for (let i = 0; i < options.length; ++i) {
+          if (options[i] === "W32B" || options[i] === "W32D") {
+            options[i] = "W39B";
+          }
+        }
+      }
+      break;
   }
   const view = `STUD_${sideView ? "SIDE" : "3QTR"}`;
   const optionString = options.join(",");
