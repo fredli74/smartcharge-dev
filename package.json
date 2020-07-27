@@ -104,7 +104,7 @@
     "vue-template-compiler": "^2.6.11",
     "vue-visible": "^1.0.2",
     "vuetify": "^2.3.3",
-    "vuetify-loader": "^1.5.0",
+    "vuetify-loader": "^1.6.0",
     "weekstart": "^1.0.1"
   }
 }
