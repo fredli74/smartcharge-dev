@@ -55,7 +55,7 @@
     "@babel/cli": "^7.10.4",
     "@babel/core": "^7.10.4",
     "@babel/preset-typescript": "^7.10.4",
-    "@mdi/font": "^5.3.45",
+    "@mdi/font": "^5.4.55",
     "@types/auth0-js": "^9.13.4",
     "@types/chart.js": "^2.9.22",
     "@types/compression": "^1.7.0",
