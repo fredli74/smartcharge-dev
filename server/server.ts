@@ -18,6 +18,7 @@ import http from "http";
 import express from "express";
 import cors from "cors";
 import compression from "compression";
+import rateLimit from "express-rate-limit";
 import path from "path";
 import { log, LogLevel } from "@shared/utils";
 import gqlSchema, { IContext } from "./gql/api";
@@ -81,6 +82,13 @@ program
       // Setup middlewares
       app
         .use(cors())
+        .use(
+          rateLimit({
+            windowMs: 15 * 60e3, // 15 min
+            max: 255,
+            skipSuccessfulRequests: true
+          })
+        )
         .use(compression())
         .use((req, res, next) => {
           // simple console logging
