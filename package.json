@@ -37,7 +37,7 @@
     "dotenv": "^8.2.0",
     "eventemitter3": "^4.0.4",
     "express": "^4.17.1",
-    "graphql": "^15.2.0",
+    "graphql": "^15.3.0",
     "graphql-type-json": "^0.3.2",
     "jsonwebtoken": "^8.5.1",
     "jwks-rsa": "^1.8.1",
