@@ -1216,6 +1216,13 @@ export class Logic {
             : `Connect charger to charge to `) + `${minimum_charge}%`;
       }
 
+      let stats: DBLocationStats | null = null;
+      if (vehicle.location_uuid) {
+        stats = await this.currentStats(vehicle, vehicle.location_uuid);
+        log(LogLevel.Trace, `stats: ${JSON.stringify(stats)}`);
+      }
+
+
       // Support routine for adding a charge
       let disconnectTime: number = 0;
 
@@ -1234,7 +1241,37 @@ export class Logic {
         );
 
         if (level > vehicle.level) {
-          const maxLevel = Math.min(level, vehicle.maximum_charge);
+          let maxLevel = Math.min(level, vehicle.maximum_charge);
+          if (stats) {
+            const price_data_ts = numericStopTime(stats.price_data_ts);
+            if (before_ts > price_data_ts) {
+              const fullTimeNeeded = await this.chargeDuration(
+                vehicle.vehicle_uuid,
+                vehicle.location_uuid,
+                vehicle.level,
+                level
+              );
+              const startDeadline = before_ts - fullTimeNeeded * 1.5;
+              log(LogLevel.Trace, `charge time ${Math.round(fullTimeNeeded/60e3)} min, deadline ${new Date(startDeadline).toISOString()}`);
+
+              if (startDeadline > price_data_ts) {
+                log(LogLevel.Trace, `deadline beyond price data, just stupid charge`);
+                maxLevel = vehicle.level;
+              } else {
+                maxLevel = Math.floor(
+                  vehicle.level +
+                  ((maxLevel - vehicle.level) *
+                  (price_data_ts - startDeadline)) /
+                  (fullTimeNeeded * 1.5)
+                );
+                log(LogLevel.Trace, `split charge, ${maxLevel} before ${new Date(price_data_ts).toISOString()}`);
+              }
+            }
+          } else {
+            log(LogLevel.Trace, `no stats for current location, just stupid charge`);
+            maxLevel = vehicle.level;
+          }
+
           const topupTime =
             level > maxLevel
               ? await this.chargeDuration(
@@ -1265,7 +1302,7 @@ export class Logic {
               chargeStop: null,
               level: level,
               chargeType,
-              comment: `topping up`
+              comment: (level > vehicle.maximum_charge ? `topping up` : comment)
             });
             if (now >= topupStart) {
               smartStatus =
@@ -1297,7 +1334,6 @@ export class Logic {
           `manual charge`
         );
       } else {
-        let stats: DBLocationStats | null = null;
         const ai = {
           charge: false,
           learning: false,
@@ -1311,9 +1347,6 @@ export class Logic {
         };
 
         if (vehicle.location_uuid) {
-          stats = await this.currentStats(vehicle, vehicle.location_uuid);
-          log(LogLevel.Trace, `stats: ${JSON.stringify(stats)}`);
-
           {
             /****
           // Check charge calibration
@@ -1360,41 +1393,12 @@ export class Logic {
         if (trip) {
           assert(trip.level);
           assert(trip.schedule_ts);
-          let chargeLevel = trip.level;
+          const tripLevel = Math.max(ai.level || 0, trip.level);
 
-          // Split charge if target is beyond our time frame
-          if (
-            stats &&
-            numericStopTime(trip.schedule_ts) >
-              numericStopTime(stats.price_data_ts)
-          ) {
-            const tripTimeNeeded = await this.chargeDuration(
-              vehicle.vehicle_uuid,
-              vehicle.location_uuid,
-              vehicle.level,
-              chargeLevel
-            );
-
-            const tripBingo =
-              numericStopTime(trip.schedule_ts) - tripTimeNeeded * 1.5;
-            if (tripBingo > numericStopTime(trip.schedule_ts)) {
-              // Ignore it if it's beyond our price data
-              chargeLevel = 0;
-            } else {
-              // split the charge before/after price_data_ts
-              chargeLevel = Math.floor(
-                vehicle.level +
-                  ((chargeLevel - vehicle.level) *
-                    (numericStopTime(stats.price_data_ts) - tripBingo)) /
-                    (tripTimeNeeded * 1.5)
-              );
-            }
-          }
-
-          if (chargeLevel > vehicle.level) {
+          if (tripLevel > vehicle.level) {
             await addCharge(
               ChargeType.Trip,
-              Math.max(ai.level || 0, chargeLevel),
+              tripLevel,
               trip.schedule_ts.getTime(),
               `upcoming trip`
             );
