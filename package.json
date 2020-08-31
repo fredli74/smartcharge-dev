@@ -26,7 +26,7 @@
     "apollo-client": "^2.6.10",
     "apollo-link-context": "^1.0.20",
     "apollo-link-ws": "^1.0.20",
-    "apollo-server-express": "^2.14.2",
+    "apollo-server-express": "^2.14.3",
     "class-transformer": "^0.2.3",
     "commander": "^5.1.0",
     "compression": "^1.7.4",
@@ -67,8 +67,8 @@
     "@types/md5": "^2.2.0",
     "@types/uuid": "^8.0.0",
     "@types/vue-datetime": "^1.0.0",
-    "@typescript-eslint/eslint-plugin": "^3.0.2",
-    "@typescript-eslint/parser": "^3.1.0",
+    "@typescript-eslint/eslint-plugin": "^3.2.0",
+    "@typescript-eslint/parser": "^3.2.0",
     "@vue/cli-plugin-babel": "^4.4.1",
     "@vue/cli-plugin-eslint": "^4.4.1",
     "@vue/cli-plugin-pwa": "^4.4.1",
@@ -104,7 +104,7 @@
     "vue-router": "^3.3.2",
     "vue-template-compiler": "^2.6.11",
     "vue-visible": "^1.0.2",
-    "vuetify": "^2.2.30",
+    "vuetify": "^2.2.33",
     "vuetify-loader": "^1.4.4",
     "weekstart": "^1.0.1"
   }
