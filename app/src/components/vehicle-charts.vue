@@ -150,7 +150,7 @@ const Color = {
         return {
           vehicleID: this.vehicle && this.vehicle.id,
           from: this.defaultMinX,
-          to: this.defaultMaxX,
+          // to: this.defaultMaxX,
           period: 60,
           locationID: this.location_id || null
         };
@@ -203,6 +203,8 @@ export default class eventchart extends Vue {
           eventchart && eventchart.updateOptions(this.eventoptions);
           eventchart && eventchart.updateSeries(s);
         }*/
+        const eventchart = (this.$refs.eventchart as any) as ApexCharts;
+        eventchart && eventchart.updateOptions(this.eventoptions);
         this.fullUpdate = false;
       }
       this.annotate(); // Move the timeline
