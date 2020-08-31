@@ -1360,27 +1360,41 @@ export class Logic {
         if (trip) {
           assert(trip.level);
           assert(trip.schedule_ts);
-          const tripTimeNeeded =
-            (trip &&
-              trip.level &&
-              (await this.chargeDuration(
-                vehicle.vehicle_uuid,
-                vehicle.location_uuid,
-                vehicle.level,
-                trip.level
-              ))) ||
-            0;
-          const tripBingo =
-            numericStopTime(trip && trip.schedule_ts) - tripTimeNeeded;
-          // ignore it if the charge start deadline (bingo) is beyond our price data
-          // or if it's more than 36h away (this currently dont happen because we do not load price data that far)
+          let chargeLevel = trip.level;
+
+          // Split charge if target is beyond our time frame
           if (
-            tripBingo < now + 36 * 60 * 60e3 &&
-            (!stats || tripBingo < stats.price_data_ts.getTime())
+            stats &&
+            numericStopTime(trip.schedule_ts) >
+              numericStopTime(stats.price_data_ts)
           ) {
+            const tripTimeNeeded = await this.chargeDuration(
+              vehicle.vehicle_uuid,
+              vehicle.location_uuid,
+              vehicle.level,
+              chargeLevel
+            );
+
+            const tripBingo =
+              numericStopTime(trip.schedule_ts) - tripTimeNeeded * 1.5;
+            if (tripBingo > numericStopTime(trip.schedule_ts)) {
+              // Ignore it if it's beyond our price data
+              chargeLevel = 0;
+            } else {
+              // split the charge before/after price_data_ts
+              chargeLevel = Math.floor(
+                vehicle.level +
+                  ((chargeLevel - vehicle.level) *
+                    (numericStopTime(stats.price_data_ts) - tripBingo)) /
+                    (tripTimeNeeded * 1.5)
+              );
+            }
+          }
+
+          if (chargeLevel > vehicle.level) {
             await addCharge(
               ChargeType.Trip,
-              Math.max(ai.level || 0, trip.level),
+              Math.max(ai.level || 0, chargeLevel),
               trip.schedule_ts.getTime(),
               `upcoming trip`
             );
