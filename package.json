@@ -28,7 +28,7 @@
     "apollo-link-ws": "^1.0.20",
     "apollo-server-express": "^2.16.1",
     "class-transformer": "^0.2.3",
-    "commander": "^5.1.0",
+    "commander": "^6.0.0",
     "compression": "^1.7.4",
     "connect-history-api-fallback": "^1.6.0",
     "core-js": "^3.6.5",
