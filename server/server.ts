@@ -174,7 +174,7 @@ program
         res
           .status(404)
           .send(
-            `<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'><title>Error 404</title></head><body><pre>You're lost, there is no ${req.url} here!</pre></body></html>`
+            `<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'><title>Error 404</title></head><body><pre>You're lost.</pre></body></html>`
           );
       });
 
