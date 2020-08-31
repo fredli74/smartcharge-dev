@@ -26,7 +26,7 @@
     "apollo-client": "^2.6.10",
     "apollo-link-context": "^1.0.20",
     "apollo-link-ws": "^1.0.20",
-    "apollo-server-express": "^2.16.1",
+    "apollo-server-express": "^2.17.0",
     "class-transformer": "^0.2.3",
     "commander": "^6.0.0",
     "compression": "^1.7.4",
