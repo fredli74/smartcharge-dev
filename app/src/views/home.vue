@@ -79,6 +79,7 @@ import { GQLVehicle } from "@shared/sc-schema";
             odometer
             batteryLevel
             status
+            serviceID
             providerData
           }
         }
@@ -105,7 +106,7 @@ export default class Home extends Vue {
   }
 
   vehicleDisabled(vehicle: GQLVehicle): string | undefined {
-    if (vehicle.providerData.invalid_token) {
+    if (vehicle.providerData.invalid_token || !vehicle.serviceID) {
       return "invalid provider token, please add again";
     }
     if (vehicle.odometer === 0 || vehicle.status === "") {

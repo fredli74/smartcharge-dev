@@ -1,5 +1,5 @@
 <template>
-  <v-app>
+  <v-app :class="`page-${$route.name} ${$route.meta.class}`">
     <v-app-bar id="app-bar" app flat color="secondary" dark>
       <v-btn
         v-if="authorized"
@@ -47,8 +47,11 @@
         sign in</v-btn
       >
     </v-app-bar>
-    <v-content id="app-content">
-      <v-container fluid>
+    <v-main id="app-content">
+      <template v-if="$route.meta.fullpage"
+        ><router-view></router-view
+      ></template>
+      <v-container v-else fluid>
         <v-layout row justify-space-around>
           <v-flex xs12 class="px-4">
             <v-alert v-model="error.show" dismissible type="error" prominent>{{
@@ -63,11 +66,7 @@
           <router-view></router-view>
         </v-layout>
       </v-container>
-    </v-content>
-
-    <v-footer app>
-      <!-- -->
-    </v-footer>
+    </v-main>
   </v-app>
 </template>
 
@@ -175,17 +174,12 @@ export default class App extends Vue {
 </script>
 
 <style lang="scss">
+body {
+  -webkit-touch-callout: none !important;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+}
 .autosize {
   font-size: calc(16px + 1vw);
-}
-body * {
-  -webkit-touch-callout: none; /* iOS Safari */
-  -webkit-user-select: none; /* Safari */
-  -khtml-user-select: none; /* Konqueror HTML */
-  -moz-user-select: none; /* Firefox */
-  -ms-user-select: none; /* Internet Explorer/Edge */
-  user-select: none; /* Non-prefixed version, currently supported by Chrome and Opera */
-  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
 }
 input,
 textarea {

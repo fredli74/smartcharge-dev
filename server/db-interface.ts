@@ -32,7 +32,7 @@ import {
   Schedule
 } from "./gql/vehicle-type";
 
-export const DB_OPTIONS = {};
+export const DB_OPTIONS: pgp.IInitOptions = {};
 
 const SMARTCHARGE_NAMESPACE = uuidv5("account.smartcharge.dev", uuidv5.DNS);
 export function makeAccountUUID(subject: string, domain: string): string {
@@ -48,8 +48,8 @@ function queryWhere(where: string[]): string {
   return "";
 }
 function queryHelper(fields: any[]): [any[], string[]] {
-  let values: any[] = [];
-  let where: string[] = [];
+  const values: any[] = [];
+  const where: string[] = [];
   for (const f of fields) {
     if (Array.isArray(f)) {
       values.push(f[0]);
@@ -71,6 +71,7 @@ export class DBInterface {
     const pg = pgp(DB_OPTIONS);
     this.pg = pg({
       connectionString: config.DATABASE_URL,
+      max: config.DATABASE_CONNECTIONS || 10,
       ssl:
         config.DATABASE_SSL === "true"
           ? {
@@ -105,7 +106,7 @@ export class DBInterface {
 
   public maintainanceWorker() {
     let nextCleanup = 0;
-    let orphanServices: { [service_uuid: string]: boolean } = {};
+    const orphanServices: { [service_uuid: string]: boolean } = {};
 
     setInterval(async () => {
       const now = Date.now();
@@ -132,13 +133,13 @@ export class DBInterface {
           }
         }
 
-        // Cleanup old stats_map entries
+        // Cleanup old state_map entries
         {
           // TODO: adjust these when I know what we're doing with them
           await this.pg.none(
-            `DELETE FROM stats_map WHERE period < 60 AND stats_ts < date_trunc('day', NOW() - interval '2 days');
-             DELETE FROM stats_map WHERE period < 1440 AND stats_ts < date_trunc('week', NOW() - interval '8 weeks');
-             DELETE FROM stats_map WHERE stats_ts < date_trunc('year', NOW() - interval '200 years');`
+            `DELETE FROM state_map WHERE period < 60 AND stats_ts < date_trunc('day', NOW() - interval '8 days');
+             DELETE FROM state_map WHERE period < 1440 AND stats_ts < date_trunc('week', NOW() - interval '8 weeks');
+             DELETE FROM state_map WHERE stats_ts < date_trunc('year', NOW() - interval '200 years');`
           );
         }
 
@@ -507,9 +508,13 @@ export class DBInterface {
     const dbCurve =
       (location_uuid &&
         (await this.pg.manyOrNone(
-          `SELECT level, percentile_cont(0.5) WITHIN GROUP(ORDER BY duration) AS seconds
-            FROM charge a JOIN charge_curve b ON(a.charge_id = b.charge_id)
-            WHERE a.vehicle_uuid = $1 AND a.location_uuid = $2 GROUP BY level ORDER BY level;`,
+          `WITH curves AS (
+            SELECT level, duration FROM charge a JOIN charge_curve b ON (a.charge_id = b.charge_id)
+            WHERE a.vehicle_uuid = $1 AND location_uuid = $2
+            ORDER BY start_ts desc, level desc LIMIT 100
+          )
+          SELECT level, percentile_cont(0.5) WITHIN GROUP (ORDER BY duration) AS seconds
+          FROM curves GROUP BY level ORDER BY level`,
           [vehicle_uuid, location_uuid]
         ))) ||
       [];
@@ -530,12 +535,12 @@ export class DBInterface {
     }
     assert(current !== undefined && current !== null);
 
-    let curve: ChargeCurve = {};
+    const curve: ChargeCurve = {};
     for (let level = 0; level <= 100; ++level) {
       while (dbCurve.length > 0 && level >= dbCurve[0].level) {
         current = dbCurve.shift()!.seconds;
       }
-      curve[level] = current;
+      curve[level] = parseFloat(current);
     }
     return curve;
   }
@@ -591,7 +596,7 @@ export class DBInterface {
 
   public async removeVehicle(vehicle_uuid: string): Promise<void> {
     await this.pg.none(
-      `DELETE FROM stats_map WHERE vehicle_uuid = $1;
+      `DELETE FROM state_map WHERE vehicle_uuid = $1;
       DELETE FROM location_stats WHERE vehicle_uuid = $1;
       DELETE FROM charge_curve WHERE vehicle_uuid = $1;
       DELETE FROM charge_current USING charge WHERE charge_current.charge_id = charge.charge_id AND charge.vehicle_uuid = $1;

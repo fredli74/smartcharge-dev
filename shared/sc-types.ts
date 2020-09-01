@@ -5,6 +5,13 @@
  * @license MIT (MIT)
  */
 
+export enum EventType {
+  Sleep = "sleep",
+  // Idle = "idle",
+  Charge = "charge",
+  Trip = "trip"
+}
+
 export enum SmartChargeGoal {
   Low = "low",
   Balanced = "balanced",

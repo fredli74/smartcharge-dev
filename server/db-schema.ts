@@ -7,7 +7,7 @@
 
 export const DB_VERSION = `1.0-beta`;
 
-type PlainObject = Record<string, any>;
+export type PlainObject = Record<string, any>;
 
 export abstract class DBAccount {
   account_uuid!: string; // account uuid
@@ -447,7 +447,7 @@ export abstract class DBStatsMap {
   charge_cost!: number; // total cost of energy charged
   charge_cost_saved!: number; // estimated cost savings
 }
-const DBStatsMap_TSQL = `CREATE TABLE scserver.stats_map
+const DBStatsMap_TSQL = `CREATE TABLE scserver.state_map
     (
         vehicle_uuid uuid NOT NULL,
         period integer NOT NULL,
@@ -460,8 +460,8 @@ const DBStatsMap_TSQL = `CREATE TABLE scserver.stats_map
         charge_energy integer NOT NULL,
         charge_cost integer NOT NULL,
         charge_cost_saved integer NOT NULL,
-        CONSTRAINT stats_map_pkey PRIMARY KEY(vehicle_uuid,period,stats_ts),
-        CONSTRAINT stats_map_fkey FOREIGN KEY (vehicle_uuid)
+        CONSTRAINT state_map_pkey PRIMARY KEY(vehicle_uuid,period,stats_ts),
+        CONSTRAINT state_map_fkey FOREIGN KEY (vehicle_uuid)
             REFERENCES vehicle (vehicle_uuid) MATCH SIMPLE
             ON UPDATE RESTRICT
             ON DELETE CASCADE
@@ -474,7 +474,7 @@ export abstract class DBSetting {
 const DBSetting_TSQL = `CREATE TABLE scserver.setting
     (
         key character varying(32) NOT NULL,
-        value json,
+        value jsonb,
         CONSTRAINT setting_pkey PRIMARY KEY (key)
     );
     INSERT INTO setting(key,value) VALUES('version', '"${DB_VERSION}"');`;

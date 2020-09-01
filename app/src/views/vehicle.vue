@@ -48,7 +48,7 @@
                 <span>Report incorrect image</span>
               </v-tooltip>
             </v-flex>
-            <v-flex sm12 grow class="">
+            <v-flex sm12 grow class="" style="z-index:2">
               <div v-if="freshInfo" id="temperatures" style="margin:0 auto">
                 <div>
                   <v-icon>mdi-weather-partly-cloudy</v-icon
@@ -65,7 +65,7 @@
         <v-flex v-if="vehicle !== undefined" sm6 xs12 class="mb-5">
           <VehicleActions :vehicle="vehicle"></VehicleActions>
         </v-flex>
-        <v-flex sm6 xs12 class="mb-5">
+        <v-flex sm6 xs12 class="mb-5" style="z-index:2">
           <div v-if="vehicle.chargingTo" class="mt-n5 caption">
             Charging to {{ vehicle.chargingTo }}%
             <RelativeTime
@@ -95,8 +95,16 @@
           </div>
         </v-flex>
       </v-layout>
-      <v-layout row align-center>
-        <v-flex v-if="vehicleConnectedAtUnknownLocation" sm12>
+      <v-row
+        style="-webkit-touch-callout: none; -webkit-user-select: none; -khtml-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none;"
+      >
+        <v-col class="body-2">
+          {{ replaceISOtime(vehicle.smartStatus) }}
+        </v-col>
+      </v-row>
+
+      <v-row v-if="vehicleConnectedAtUnknownLocation" justify="space-around">
+        <v-col>
           <p class="mt-5">
             Vehicle connected at location whithout smart charging.
           </p>
@@ -105,20 +113,29 @@
               <v-btn text small color="primary">add location</v-btn>
             </router-link>
           </v-card-actions>
-        </v-flex>
-        <template v-else>
-          <v-flex sm12 class="body-2">
-            {{ replaceISOtime(vehicle.smartStatus) }}
-          </v-flex>
-          <v-flex sm12>
-            <chargeChart
-              v-if="vehicle && location"
-              :vehicle="vehicle"
-              :location="location"
-            ></chargeChart>
-          </v-flex>
-        </template>
-      </v-layout>
+        </v-col>
+      </v-row>
+      <v-row class="px-0 mt-4 mb-n8">
+        <v-col v-if="location" class="body-1"
+          >Price per kWh when charging at {{ location.name }}</v-col
+        >
+        <v-col v-else class="body-1">No price data</v-col>
+      </v-row>
+      <v-row class="pt-0">
+        <v-col class="pl-0 pt-0">
+          <VehicleCharts
+            v-if="vehicle && location"
+            :key="'with-location'"
+            :vehicle="vehicle"
+            :location_id="location.id"
+          ></VehicleCharts>
+          <VehicleCharts
+            v-if="vehicle && location === undefined"
+            :key="'without-location'"
+            :vehicle="vehicle"
+            :location_id="null"
+          ></VehicleCharts> </v-col
+      ></v-row>
     </v-container>
   </v-flex>
 </template>
@@ -130,7 +147,7 @@ import { Component, Vue, Watch } from "vue-property-decorator";
 import { gql } from "apollo-boost";
 import providers from "@providers/provider-apps";
 import RelativeTime from "@app/components/relative-time.vue";
-import ChargeChart from "@app/components/charge-chart.vue";
+import VehicleCharts from "@app/components/vehicle-charts.vue";
 import VehicleActions from "@app/components/vehicle-actions.vue";
 import { geoDistance } from "@shared/utils";
 import apollo from "@app/plugins/apollo";
@@ -139,12 +156,12 @@ import { RawLocation } from "vue-router";
 import moment from "moment";
 import config from "@shared/smartcharge-config";
 import { makePublicID } from "@shared/utils";
-import { GQLVehicle, GQLLocation } from "@shared/sc-schema";
+import { GQLVehicle } from "@shared/sc-schema";
 import { getVehicleLocationSettings } from "@shared/sc-utils";
-import { vehicleFragment } from "@shared/sc-client";
+import { vehicleFragment, GQLLocationFragment } from "@shared/sc-client";
 
 @Component({
-  components: { VehicleActions, RelativeTime, ChargeChart },
+  components: { VehicleActions, RelativeTime, VehicleCharts },
   apollo: {
     vehicle: {
       query: gql`
@@ -214,8 +231,8 @@ import { vehicleFragment } from "@shared/sc-client";
 export default class VehicleVue extends Vue {
   loading!: boolean;
   vehicle?: GQLVehicle;
-  location?: GQLLocation;
-  locations!: GQLLocation[];
+  location?: GQLLocationFragment;
+  locations!: GQLLocationFragment[];
   prettyStatus!: string;
   freshInfo!: boolean;
 
@@ -290,7 +307,7 @@ export default class VehicleVue extends Vue {
       this.vehicle !== undefined &&
       this.vehicle.isConnected &&
       this.vehicle.geoLocation !== null &&
-      this.vehicle.location === null
+      this.vehicle.locationID === null
     );
   }
   get addLocationURL(): RawLocation {
@@ -311,6 +328,8 @@ export default class VehicleVue extends Vue {
     let prefix = "";
     let suffix = "";
 
+    this.location = undefined;
+
     if (val.isConnected && !val.chargingTo) {
       prefix = "Connected and";
     }
@@ -320,29 +339,37 @@ export default class VehicleVue extends Vue {
       assert(this.location !== undefined);
 
       suffix = `${val.isDriving ? "near" : "@"} ${this.location!.name}`;
-    } else if (val.geoLocation) {
-      this.location = undefined;
-      // Find closest location
-      if (this.locations && this.locations.length > 0) {
-        let closest = Number.POSITIVE_INFINITY;
-        for (const l of this.locations) {
-          const dist =
-            geoDistance(
-              val.geoLocation.latitude,
-              val.geoLocation.longitude,
-              l.geoLocation.latitude,
-              l.geoLocation.longitude
-            ) / 1e3;
-          if (dist < closest) {
-            closest = dist;
-            if (dist < 1) {
-              suffix = "near";
-            } else {
-              suffix = Number(dist.toFixed(1)).toString() + " km from";
-            }
-            suffix += " " + l.name;
-          }
+    }
+
+    if (
+      !this.location &&
+      !val.isConnected &&
+      val.geoLocation &&
+      this.locations
+    ) {
+      let closest = Number.POSITIVE_INFINITY;
+      for (const l of this.locations) {
+        if (l.ownerID !== val.ownerID) continue;
+
+        const dist =
+          geoDistance(
+            val.geoLocation.latitude,
+            val.geoLocation.longitude,
+            l.geoLocation.latitude,
+            l.geoLocation.longitude
+          ) / 1e3;
+        if (dist < closest) {
+          closest = dist;
+          this.location = l;
         }
+      }
+      if (this.location) {
+        if (closest < 1) {
+          suffix = "near";
+        } else {
+          suffix = Number(closest.toFixed(1)).toString() + " km from";
+        }
+        suffix += " " + this.location.name;
       }
     }
 
@@ -390,7 +417,7 @@ export default class VehicleVue extends Vue {
   font-weight: bold;
 }
 .chargezone {
-  animation: stream 0.25s infinite linear;
+  animation: stream-ltr 0.25s infinite linear;
   border-top: 4px dotted;
   bottom: 0;
   opacity: 0.5;

@@ -23,6 +23,7 @@ export interface GQLQuery {
   chartData: GQLChartData;
   vehicles: Array<GQLVehicle>;
   vehicle: GQLVehicle;
+  vehicleLimit: number | null;
   test: GQLResolverTest;
 }
 
@@ -73,17 +74,17 @@ export interface GQLServiceProvider {
 }
 
 export interface GQLChartData {
-  locationID: string;
-  locationName: string;
   vehicleID: string;
   batteryLevel: number;
-  levelChargeTime: number | null;
-  thresholdPrice: number | null;
   chargeCurve: GQLJSONObject;
-  prices: Array<GQLPriceData>;
-  chargePlan: Array<GQLChargePlan> | null;
   directLevel: number;
   maximumLevel: number;
+  locationID: string | null;
+  thresholdPrice: number | null;
+  prices: Array<GQLPriceData> | null;
+  chargePlan: Array<GQLChargePlan> | null;
+  stateMap: Array<GQLStateMap>;
+  eventList: Array<GQLEventList>;
 }
 
 export interface GQLPriceData {
@@ -129,6 +130,32 @@ export enum GQLChargeType {
   Routine = 'Routine',
   Prefered = 'Prefered',
   Fill = 'Fill'
+}
+
+export interface GQLStateMap {
+  start: GQLDateTime;
+  period: number;
+  minimumLevel: number;
+  maximumLevel: number;
+  drivenSeconds: number;
+  drivenMeters: number;
+  chargedSeconds: number;
+  chargedEnergy: number;
+  chargeCost: number;
+  chargeCostSaved: number;
+}
+
+export interface GQLEventList {
+  eventType: GQLEventType;
+  start: GQLDateTime;
+  end: GQLDateTime;
+  data: GQLJSONObject | null;
+}
+
+export enum GQLEventType {
+  Sleep = 'Sleep',
+  Charge = 'Charge',
+  Trip = 'Trip'
 }
 
 export interface GQLVehicle {
@@ -438,6 +465,8 @@ export interface GQLResolver {
   PriceData?: GQLPriceDataTypeResolver;
   DateTime?: GraphQLScalarType;
   ChargePlan?: GQLChargePlanTypeResolver;
+  StateMap?: GQLStateMapTypeResolver;
+  EventList?: GQLEventListTypeResolver;
   Vehicle?: GQLVehicleTypeResolver;
   Schedule?: GQLScheduleTypeResolver;
   VehicleLocationSetting?: GQLVehicleLocationSettingTypeResolver;
@@ -457,6 +486,7 @@ export interface GQLQueryTypeResolver<TParent = undefined> {
   chartData?: QueryToChartDataResolver<TParent>;
   vehicles?: QueryToVehiclesResolver<TParent>;
   vehicle?: QueryToVehicleResolver<TParent>;
+  vehicleLimit?: QueryToVehicleLimitResolver<TParent>;
   test?: QueryToTestResolver<TParent>;
 }
 
@@ -502,7 +532,9 @@ export interface QueryTo_serviceProvidersResolver<TParent = undefined, TResult =
 }
 
 export interface QueryToChartDataArgs {
-  locationID: string;
+  locationID?: string;
+  period?: number;
+  from: GQLDateTime;
   vehicleID: string;
 }
 export interface QueryToChartDataResolver<TParent = undefined, TResult = GQLChartData> {
@@ -518,6 +550,10 @@ export interface QueryToVehicleArgs {
 }
 export interface QueryToVehicleResolver<TParent = undefined, TResult = GQLVehicle> {
   (parent: TParent, args: QueryToVehicleArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface QueryToVehicleLimitResolver<TParent = undefined, TResult = number | null> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
 export interface QueryToTestResolver<TParent = undefined, TResult = GQLResolverTest> {
@@ -650,25 +686,17 @@ export interface ServiceProviderToServiceDataResolver<TParent = GQLServiceProvid
 }
 
 export interface GQLChartDataTypeResolver<TParent = GQLChartData> {
-  locationID?: ChartDataToLocationIDResolver<TParent>;
-  locationName?: ChartDataToLocationNameResolver<TParent>;
   vehicleID?: ChartDataToVehicleIDResolver<TParent>;
   batteryLevel?: ChartDataToBatteryLevelResolver<TParent>;
-  levelChargeTime?: ChartDataToLevelChargeTimeResolver<TParent>;
-  thresholdPrice?: ChartDataToThresholdPriceResolver<TParent>;
   chargeCurve?: ChartDataToChargeCurveResolver<TParent>;
-  prices?: ChartDataToPricesResolver<TParent>;
-  chargePlan?: ChartDataToChargePlanResolver<TParent>;
   directLevel?: ChartDataToDirectLevelResolver<TParent>;
   maximumLevel?: ChartDataToMaximumLevelResolver<TParent>;
-}
-
-export interface ChartDataToLocationIDResolver<TParent = GQLChartData, TResult = string> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface ChartDataToLocationNameResolver<TParent = GQLChartData, TResult = string> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+  locationID?: ChartDataToLocationIDResolver<TParent>;
+  thresholdPrice?: ChartDataToThresholdPriceResolver<TParent>;
+  prices?: ChartDataToPricesResolver<TParent>;
+  chargePlan?: ChartDataToChargePlanResolver<TParent>;
+  stateMap?: ChartDataToStateMapResolver<TParent>;
+  eventList?: ChartDataToEventListResolver<TParent>;
 }
 
 export interface ChartDataToVehicleIDResolver<TParent = GQLChartData, TResult = string> {
@@ -679,23 +707,7 @@ export interface ChartDataToBatteryLevelResolver<TParent = GQLChartData, TResult
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface ChartDataToLevelChargeTimeResolver<TParent = GQLChartData, TResult = number | null> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface ChartDataToThresholdPriceResolver<TParent = GQLChartData, TResult = number | null> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
 export interface ChartDataToChargeCurveResolver<TParent = GQLChartData, TResult = GQLJSONObject> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface ChartDataToPricesResolver<TParent = GQLChartData, TResult = Array<GQLPriceData>> {
-  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface ChartDataToChargePlanResolver<TParent = GQLChartData, TResult = Array<GQLChargePlan> | null> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
@@ -704,6 +716,30 @@ export interface ChartDataToDirectLevelResolver<TParent = GQLChartData, TResult 
 }
 
 export interface ChartDataToMaximumLevelResolver<TParent = GQLChartData, TResult = number> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface ChartDataToLocationIDResolver<TParent = GQLChartData, TResult = string | null> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface ChartDataToThresholdPriceResolver<TParent = GQLChartData, TResult = number | null> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface ChartDataToPricesResolver<TParent = GQLChartData, TResult = Array<GQLPriceData> | null> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface ChartDataToChargePlanResolver<TParent = GQLChartData, TResult = Array<GQLChargePlan> | null> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface ChartDataToStateMapResolver<TParent = GQLChartData, TResult = Array<GQLStateMap>> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface ChartDataToEventListResolver<TParent = GQLChartData, TResult = Array<GQLEventList>> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
@@ -745,6 +781,82 @@ export interface ChargePlanToLevelResolver<TParent = GQLChargePlan, TResult = nu
 }
 
 export interface ChargePlanToCommentResolver<TParent = GQLChargePlan, TResult = string> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface GQLStateMapTypeResolver<TParent = GQLStateMap> {
+  start?: StateMapToStartResolver<TParent>;
+  period?: StateMapToPeriodResolver<TParent>;
+  minimumLevel?: StateMapToMinimumLevelResolver<TParent>;
+  maximumLevel?: StateMapToMaximumLevelResolver<TParent>;
+  drivenSeconds?: StateMapToDrivenSecondsResolver<TParent>;
+  drivenMeters?: StateMapToDrivenMetersResolver<TParent>;
+  chargedSeconds?: StateMapToChargedSecondsResolver<TParent>;
+  chargedEnergy?: StateMapToChargedEnergyResolver<TParent>;
+  chargeCost?: StateMapToChargeCostResolver<TParent>;
+  chargeCostSaved?: StateMapToChargeCostSavedResolver<TParent>;
+}
+
+export interface StateMapToStartResolver<TParent = GQLStateMap, TResult = GQLDateTime> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface StateMapToPeriodResolver<TParent = GQLStateMap, TResult = number> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface StateMapToMinimumLevelResolver<TParent = GQLStateMap, TResult = number> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface StateMapToMaximumLevelResolver<TParent = GQLStateMap, TResult = number> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface StateMapToDrivenSecondsResolver<TParent = GQLStateMap, TResult = number> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface StateMapToDrivenMetersResolver<TParent = GQLStateMap, TResult = number> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface StateMapToChargedSecondsResolver<TParent = GQLStateMap, TResult = number> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface StateMapToChargedEnergyResolver<TParent = GQLStateMap, TResult = number> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface StateMapToChargeCostResolver<TParent = GQLStateMap, TResult = number> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface StateMapToChargeCostSavedResolver<TParent = GQLStateMap, TResult = number> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface GQLEventListTypeResolver<TParent = GQLEventList> {
+  eventType?: EventListToEventTypeResolver<TParent>;
+  start?: EventListToStartResolver<TParent>;
+  end?: EventListToEndResolver<TParent>;
+  data?: EventListToDataResolver<TParent>;
+}
+
+export interface EventListToEventTypeResolver<TParent = GQLEventList, TResult = GQLEventType> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface EventListToStartResolver<TParent = GQLEventList, TResult = GQLDateTime> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface EventListToEndResolver<TParent = GQLEventList, TResult = GQLDateTime> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface EventListToDataResolver<TParent = GQLEventList, TResult = GQLJSONObject | null> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 

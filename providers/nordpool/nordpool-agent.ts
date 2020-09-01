@@ -53,7 +53,8 @@ export class NordpoolAgent extends AbstractAgent {
         zone: "Europe/Oslo"
       }).toISO();
       for (const col of row.Columns) {
-        const price = parseFloat(col.Value.replace(/,/g, ".")) / 1e3;
+        const price =
+          parseFloat(col.Value.replace(/ /g, "").replace(/,/g, ".")) / 1e3;
         if (!isNaN(price)) {
           if (!areas[col.Name]) {
             if (this.areaIDmap[col.Name] === undefined) {

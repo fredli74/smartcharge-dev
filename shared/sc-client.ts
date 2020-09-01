@@ -44,6 +44,17 @@ export type UpdateLocationParams = Pick<GQLUpdateLocationInput, "id"> &
   Partial<GQLUpdateLocationInput>;
 export type UpdateVehicleParams = Pick<GQLUpdateVehicleInput, "id"> &
   Partial<GQLUpdateVehicleInput>;
+export type GQLLocationFragment = Pick<
+  GQLLocation,
+  | "id"
+  | "ownerID"
+  | "name"
+  | "geoLocation"
+  | "geoFenceRadius"
+  | "serviceID"
+  | "providerData"
+  | "priceListID"
+>;
 export const locationFragment = `
 id
 ownerID
@@ -55,12 +66,8 @@ geoLocation {
 geoFenceRadius
 serviceID
 providerData
-priceList {
-  id
-  ownerID
-  name
-  isPublic
-}`;
+priceListID
+`;
 export const vehicleFragment = `
 id
 ownerID
@@ -241,7 +248,7 @@ export class SCClient extends ApolloClient<any> {
     }
   }
 
-  public async getLocation(locationUUID: string): Promise<GQLLocation> {
+  public async getLocation(locationUUID: string): Promise<GQLLocationFragment> {
     // TODO: should be more flexible, returning just the fields you want into an <any> response instead
     const query = gql`query GetLocation($id: String!) { location(id: $id) { ${locationFragment} } }`;
     const result = await this.query({
@@ -250,7 +257,7 @@ export class SCClient extends ApolloClient<any> {
     });
     return result.data.location;
   }
-  public async getLocations(): Promise<GQLLocation[]> {
+  public async getLocations(): Promise<GQLLocationFragment[]> {
     const query = gql`query GetLocations { locations { ${locationFragment} } }`;
     const result = await this.query({ query });
     return result.data.locations as GQLLocation[];
@@ -293,6 +300,15 @@ export class SCClient extends ApolloClient<any> {
     const query = gql`query GetVehicles { vehicles { ${vehicleFragment} } }`;
     const result = await this.query({ query });
     return result.data.vehicles;
+  }
+  public async getVehicleLimit(): Promise<number | null> {
+    const query = gql`
+      query GetVehicleLimit {
+        vehicleLimit
+      }
+    `;
+    const result = await this.query({ query });
+    return result.data.vehicleLimit;
   }
   public async updateVehicle(input: UpdateVehicleParams): Promise<boolean> {
     const mutation = gql`

@@ -55,6 +55,7 @@ interface TeslaSubject {
   vehicleUUID: string;
   data?: GQLVehicle;
   online: boolean;
+  pollerror: number | undefined;
   pollstate: PollState | undefined;
   statestart: number;
   status: string;
@@ -121,10 +122,19 @@ export class TeslaAgent extends AbstractAgent {
 
     switch (config.car_type) {
       case "models":
-      case "models2":
-        option_codes.push(config.car_type === "models2" ? "MI03" : "MI01");
+        option_codes.push("MI02"); // force nose cone
         defaults = {
           exterior_color: "PPSW",
+          passive_spoiler: "X019",
+          roof_color: "RFP2",
+          wheel_type: "WTAS"
+        };
+        break;
+      case "models2":
+        option_codes.push("MI03"); // force facelift
+        defaults = {
+          exterior_color: "PPSW",
+          passive_spoiler: "X019",
           roof_color: "RFFG",
           wheel_type: "WTDS"
         };
@@ -132,6 +142,7 @@ export class TeslaAgent extends AbstractAgent {
       case "modelx":
         defaults = {
           exterior_color: "PPSW",
+          passive_spoiler: "X021",
           roof_color: "RFPX",
           wheel_type: "WT20"
         };
@@ -179,7 +190,9 @@ export class TeslaAgent extends AbstractAgent {
         RedMulticoat: "PPMR",
         Pearl: "PPSW",
         PearlWhite: "PPSW",
-        SilverMetallic: "PMSS"
+        SilverMetallic: "PMSS",
+        Blue: "PMMB",
+        Black: "PBSB"
       })
     );
 
@@ -187,25 +200,27 @@ export class TeslaAgent extends AbstractAgent {
       optionTranslate("roof_color", {
         Glass: defaults.roof_color,
         None: defaults.roof_color
-        // TODO: Add more information
-        // Glass: "RF3G" (default)
       })
     );
 
     option_codes.push(
       optionTranslate("wheel_type", {
         Pinwheel18: "W38B",
+        Pinwheel18CapKit: "W32D", // Performance wheels place holder until we can find the correct ones
         Stiletto19: "W39B",
+        Stiletto20: "W32B",
         Slipstream19Carbon: "WTDS",
-        Turbine22Dark: "WTUT"
-        // TODO: Add more information
-        // 20" Sport Wheels: "W32B"
+        AeroTurbine19: "WTAS",
+        AeroTurbine20: "WT20",
+        Turbine19: "WTTB",
+        Turbine22Dark: "WTUT",
+        Charcoal21: "WTSP"
       })
     );
 
     option_codes.push(
       optionTranslate("spoiler_type", {
-        Passive: "X021",
+        Passive: defaults.passive_spoiler, // "X019" | "X021",
         // "SLR1"
         None: null
       })
@@ -249,10 +264,10 @@ export class TeslaAgent extends AbstractAgent {
   // Check token and refresh through server provider API
   public async maintainToken(job: TeslaAgentJob) {
     // API Token check and update
-    let token = job.serviceData.token as IRestToken;
+    const token = job.serviceData.token as IRestToken;
     if (RestClient.tokenExpired(token)) {
       // Token has expired, run it through server
-      let token = job.serviceData.token as IRestToken;
+      const token = job.serviceData.token as IRestToken;
       const newToken = await this.scClient.providerMutate("tesla", {
         mutation: TeslaProviderMutates.RefreshToken,
         token
@@ -290,7 +305,8 @@ export class TeslaAgent extends AbstractAgent {
   private async vehicleInteraction(
     job: TeslaAgentJob,
     subject: TeslaSubject,
-    wakeup: boolean
+    wakeup: boolean,
+    userInteraction: boolean
   ): Promise<boolean> {
     if (job.serviceData.invalid_token) return false; // provider requires a valid token
     if (!subject.online && !wakeup) return false; // offline and we should not wake it up
@@ -312,10 +328,12 @@ export class TeslaAgent extends AbstractAgent {
     }
     if (subject.online) {
       this.stayOnline(subject);
-      this.adjustInterval(job, 0); // poll directly after an interaction
+      if (userInteraction) {
+        this.adjustInterval(job, 0); // poll directly after an interaction
+      }
       return true;
     }
-    this.adjustInterval(job, 5); // poll more often after an interaction
+    this.adjustInterval(job, 10); // poll more often after an interaction
     return false;
   }
 
@@ -353,6 +371,32 @@ export class TeslaAgent extends AbstractAgent {
           });
         }
 
+        // Work-around for the strange trickle charge behavior
+        // added for Model S in 2020.16.2.1 upgrade
+        if (
+          (subject.data.providerData.car_type === "models" ||
+            subject.data.providerData.car_type === "models2" ||
+            subject.data.providerData.car_type === "modelx") &&
+          data.charge_state.charging_state === "Complete" &&
+          data.charge_state.charge_enable_request
+        ) {
+          if (subject.chargeControl === ChargeControl.Stopped) {
+            log(
+              LogLevel.Trace,
+              `${subject.teslaID} trickle-charge fix stop of ${subject.data.name} overridden by user interaction`
+            );
+          } else {
+            // known location or force disable
+            log(
+              LogLevel.Info,
+              `${subject.teslaID} trickle-charge fix stop charging ${subject.data.name}`
+            );
+            teslaAPI.chargeStop(subject.teslaID, job.serviceData.token);
+            subject.chargeControl = ChargeControl.Stopping;
+          }
+        }
+
+        subject.pollerror = undefined;
         subject.chargeLimit = data.charge_state.charge_limit_soc;
         subject.chargeEnabled =
           data.charge_state.charging_state !== "Stopped" &&
@@ -562,8 +606,12 @@ export class TeslaAgent extends AbstractAgent {
                 LogLevel.Info,
                 `${subject.teslaID} ${data.display_name} is ${data.state} (${subject.pollstate} -> polling)`
               );
-              this.stayOnline(subject);
-              this.adjustInterval(job, 0); // Woke up, poll right away
+              if (subject.pollerror) {
+                this.changePollstate(subject, "polling"); // Active polling
+              } else {
+                this.stayOnline(subject);
+                this.adjustInterval(job, 0); // Woke up, poll right away
+              }
               return;
             }
             break;
@@ -636,13 +684,13 @@ export class TeslaAgent extends AbstractAgent {
       if (subject.data.isConnected) {
         // are we charging or not
         if (
-          subject.chargeEnabled &&
+          subject.chargeEnabled === true &&
           (subject.chargeControl === undefined ||
             subject.chargeControl === ChargeControl.Starting)
         ) {
           subject.chargeControl = ChargeControl.Started;
         } else if (
-          !subject.chargeEnabled &&
+          subject.chargeEnabled === false &&
           (subject.chargeControl === undefined ||
             subject.chargeControl === ChargeControl.Stopping)
         ) {
@@ -683,7 +731,7 @@ export class TeslaAgent extends AbstractAgent {
             );
           } else if (
             (subject.data.locationID !== null || disableCharge) &&
-            (await this.vehicleInteraction(job, subject, false))
+            (await this.vehicleInteraction(job, subject, false, false))
           ) {
             // known location or force disable
             log(
@@ -703,7 +751,7 @@ export class TeslaAgent extends AbstractAgent {
               );
             } else if (
               subject.data.batteryLevel < shouldCharge.level &&
-              (await this.vehicleInteraction(job, subject, true))
+              (await this.vehicleInteraction(job, subject, true, false))
             ) {
               log(
                 LogLevel.Info,
@@ -757,7 +805,7 @@ export class TeslaAgent extends AbstractAgent {
                   (shouldCharge.chargeType === GQLChargeType.Manual ||
                     subject.data.locationID !== null)))
             ) {
-              if (await this.vehicleInteraction(job, subject, true)) {
+              if (await this.vehicleInteraction(job, subject, true, false)) {
                 log(
                   LogLevel.Info,
                   `${subject.teslaID} setting charge limit for ${subject.data.name} to ${chargeto}%`
@@ -791,7 +839,7 @@ export class TeslaAgent extends AbstractAgent {
             !subject.portOpen &&
             subject.triedOpen === undefined
           ) {
-            if (await this.vehicleInteraction(job, subject, false)) {
+            if (await this.vehicleInteraction(job, subject, false, false)) {
               // if port is closed and we did not try to open it yet
               await teslaAPI.openChargePort(
                 subject.teslaID,
@@ -804,7 +852,7 @@ export class TeslaAgent extends AbstractAgent {
             subject.portOpen &&
             subject.triedOpen !== undefined
           ) {
-            if (await this.vehicleInteraction(job, subject, false)) {
+            if (await this.vehicleInteraction(job, subject, false, false)) {
               await teslaAPI.closeChargePort(
                 subject.teslaID,
                 job.serviceData.token
@@ -855,6 +903,10 @@ export class TeslaAgent extends AbstractAgent {
         const s = logFormat(LogLevel.Error, err);
         fs.writeFileSync(config.AGENT_TRACE_FILENAME, `${s}\n`, { flag: "as" });
       }
+
+      subject.pollerror = err.code;
+      this.adjustInterval(job, 60); // avoid spam polling an interface that is down
+
       // this.changePollstate(subject, "offline");
       // this.adjustInterval(job, 10); // Try again
 
@@ -926,6 +978,7 @@ export class TeslaAgent extends AbstractAgent {
             vehicleUUID: v.vehicle_uuid,
             teslaID: v.id_s,
             online: false,
+            pollerror: undefined,
             pollstate: undefined,
             statestart: Date.now(),
             status: ""
@@ -933,6 +986,11 @@ export class TeslaAgent extends AbstractAgent {
           log(
             LogLevel.Debug,
             `Service ${job.serviceID} mapping VIN ${v.vin} -> ID ${v.id_s} -> UUID ${v.vehicle_uuid}`
+          );
+        } else {
+          log(
+            LogLevel.Debug,
+            `Service ${job.serviceID} ignoring VIN ${v.vin} -> ID ${v.id_s} -> UUID ${v.vehicle_uuid}`
           );
         }
       }
@@ -950,7 +1008,7 @@ export class TeslaAgent extends AbstractAgent {
   ): Promise<any> {
     for (const subject of Object.values(job.state)) {
       if (subject.vehicleUUID === action.data.id) {
-        return this.vehicleInteraction(job, subject, true);
+        return this.vehicleInteraction(job, subject, true, true);
       }
     }
   }
@@ -962,7 +1020,8 @@ export class TeslaAgent extends AbstractAgent {
 
     for (const subject of Object.values(job.state)) {
       if (subject.vehicleUUID === action.data.id) {
-        if (!(await this.vehicleInteraction(job, subject, true))) return false; // Not ready for interaction
+        if (!(await this.vehicleInteraction(job, subject, true, true)))
+          return false; // Not ready for interaction
         if (subject.data && subject.data.climateControl === action.data.enable)
           return true; // Already correct
 

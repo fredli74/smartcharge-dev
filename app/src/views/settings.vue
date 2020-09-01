@@ -151,16 +151,6 @@ export default class Home extends Vue {
     // this.loading = false;
   }
 
-  vehicleDisabled(vehicle: GQLVehicle): string | undefined {
-    if (vehicle.providerData.invalid_token) {
-      return "invalid provider token, please add again";
-    }
-    if (vehicle.odometer === 0 || vehicle.status === "") {
-      return "not polled yet, make sure it is online";
-    }
-    return undefined;
-  }
-
   vehiclePicture(vehicle: GQLVehicle) {
     if (vehicle.providerData && vehicle.providerData.unknown_image) {
       return require("../assets/unknown_vehicle.png");

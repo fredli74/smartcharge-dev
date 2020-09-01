@@ -6,7 +6,14 @@
  */
 
 import "reflect-metadata";
-import { Field, ObjectType, Int, ID } from "type-graphql";
+import {
+  Field,
+  ObjectType,
+  Int,
+  ID,
+  Float,
+  registerEnumType
+} from "type-graphql";
 import { GraphQLJSONObject } from "graphql-type-json";
 import { ChargePlan } from "./vehicle-type";
 import { Arg, Resolver, Query, Ctx } from "type-graphql";
@@ -14,31 +21,79 @@ import { IContext, accountFilter } from "./api";
 import { plainToClass } from "class-transformer";
 import { PriceData } from "./price-type";
 import { DBInterface } from "@server/db-interface";
+import {
+  PlainObject,
+  DBPriceData,
+  DBStatsMap,
+  DBSleep,
+  DBCharge,
+  DBTrip
+} from "@server/db-schema";
+import { EventType } from "@shared/sc-types";
+
+registerEnumType(EventType, { name: "EventType" });
+
+@ObjectType()
+export class EventList {
+  @Field(_type => EventType)
+  eventType!: EventType;
+  @Field(_type => Date)
+  start!: Date;
+  @Field(_type => Date)
+  end!: Date;
+  @Field(_type => GraphQLJSONObject, { nullable: true })
+  data!: PlainObject | null;
+}
+
+@ObjectType()
+export class StateMap {
+  @Field(_type => Date)
+  start!: Date;
+  @Field(_type => Int)
+  period!: number;
+
+  @Field(_type => Int)
+  minimumLevel!: number;
+  @Field(_type => Int)
+  maximumLevel!: number;
+  @Field(_type => Int)
+  drivenSeconds!: number;
+  @Field(_type => Int)
+  drivenMeters!: number;
+  @Field(_type => Int)
+  chargedSeconds!: number;
+  @Field(_type => Float)
+  chargedEnergy!: number;
+  @Field(_type => Float)
+  chargeCost!: number;
+  @Field(_type => Float)
+  chargeCostSaved!: number;
+}
 
 @ObjectType()
 export class ChartData {
   @Field(_type => ID)
-  locationID!: string;
-  @Field(_type => String)
-  locationName!: string;
-  @Field(_type => ID)
   vehicleID!: string;
   @Field(_type => Int)
   batteryLevel!: number;
-  @Field(_type => Int, { nullable: true })
-  levelChargeTime!: number | null;
-  @Field(_type => Int, { nullable: true })
-  thresholdPrice!: number | null;
   @Field(_type => GraphQLJSONObject)
   chargeCurve!: any;
-  @Field(_type => PriceData)
-  prices!: PriceData[];
-  @Field(_type => [ChargePlan], { nullable: true })
-  chargePlan!: ChargePlan[] | null;
   @Field(_type => Int)
   directLevel!: number;
   @Field(_type => Int)
   maximumLevel!: number;
+  @Field(_type => ID, { nullable: true })
+  locationID!: string | null;
+  @Field(_type => Float, { nullable: true })
+  thresholdPrice!: number | null;
+  @Field(_type => [PriceData], { nullable: true })
+  prices!: PriceData[] | null;
+  @Field(_type => [ChargePlan], { nullable: true })
+  chargePlan!: ChargePlan[] | null;
+  @Field(_type => [StateMap])
+  stateMap!: StateMap[];
+  @Field(_type => [EventList])
+  eventList!: EventList[];
 }
 
 @Resolver()
@@ -46,7 +101,10 @@ export class StatsResolver {
   @Query(_returns => ChartData)
   async chartData(
     @Arg("vehicleID") vehicle_uuid: string,
-    @Arg("locationID") location_uuid: string,
+    @Arg("from", _type => Date) from: Date,
+    @Arg("period", _type => Int, { nullable: true, defaultValue: 60 })
+    period: number,
+    @Arg("locationID", { nullable: true }) location_uuid: string | null,
     @Ctx() context: IContext
   ): Promise<ChartData> {
     const vehicle = await context.db.getVehicle(
@@ -54,32 +112,71 @@ export class StatsResolver {
       vehicle_uuid
     );
 
-    const location = await context.db.getLocation(
-      accountFilter(context.accountUUID),
+    const chargecurve = await context.db.getChargeCurve(
+      vehicle_uuid,
       location_uuid
     );
 
-    const chargecurve = await context.db.getChargeCurve(
-      vehicle && vehicle.vehicle_uuid,
-      location && location.location_uuid
-    );
+    const stateMap = (await context.db.pg.manyOrNone(
+      `SELECT * FROM state_map
+      WHERE vehicle_uuid = $1 AND stats_ts >= $2 AND period = $3
+      ORDER BY stats_ts`,
+      [vehicle_uuid, from, period]
+    )) as DBStatsMap[];
 
-    const priceData = await context.db.getChartPriceData(location_uuid, 48);
+    const eventList: EventList[] = [];
+    ((await context.db.pg.manyOrNone(
+      `SELECT * FROM sleep WHERE vehicle_uuid = $1 AND end_ts >= $2`,
+      [vehicle_uuid, from]
+    )) as DBSleep[]).forEach(f => {
+      eventList.push({
+        eventType: EventType.Sleep,
+        start: f.start_ts,
+        end: f.end_ts,
+        data: { active: f.active }
+      });
+    });
+    ((await context.db.pg.manyOrNone(
+      `SELECT * FROM charge WHERE vehicle_uuid = $1 AND end_ts >= $2`,
+      [vehicle_uuid, from]
+    )) as DBCharge[]).forEach(f => {
+      eventList.push({
+        eventType: EventType.Charge,
+        start: f.start_ts,
+        end: f.end_ts,
+        data: {
+          startLevel: f.start_level,
+          endLevel: f.end_level,
+          charger: f.type,
+          addedLevel: f.end_level - f.start_level,
+          addedEnergy: (f.end_added - f.start_added) / 60e3,
+          energyUsed: f.energy_used / 60e3
+        }
+      });
+    });
+    ((await context.db.pg.manyOrNone(
+      `SELECT * FROM trip WHERE vehicle_uuid = $1 AND end_ts >= $2`,
+      [vehicle_uuid, from]
+    )) as DBTrip[]).forEach(f => {
+      eventList.push({
+        eventType: EventType.Trip,
+        start: f.start_ts,
+        end: f.end_ts,
+        data: {
+          startLevel: f.start_level,
+          endLevel: f.end_level,
+          distance: f.distance
+        }
+      });
+    });
 
     const chartData: ChartData = plainToClass(ChartData, {
-      locationID: location.location_uuid,
-      locationName: location.name,
+      locationID: location_uuid,
       vehicleID: vehicle.vehicle_uuid,
       batteryLevel: vehicle.level,
       thresholdPrice: null,
-      levelChargeTime: null,
       chargeCurve: chargecurve,
-      prices: priceData.map(f =>
-        plainToClass(PriceData, {
-          startAt: f.ts,
-          price: f.price
-        } as PriceData)
-      ),
+      prices: null,
       chargePlan:
         (vehicle.charge_plan &&
           (vehicle.charge_plan as ChargePlan[]).map(f =>
@@ -87,27 +184,56 @@ export class StatsResolver {
           )) ||
         null,
       directLevel: (
-        vehicle.location_settings[location_uuid] ||
-        DBInterface.DefaultVehicleLocationSettings(location_uuid)
+        (location_uuid && vehicle.location_settings[location_uuid]) ||
+        DBInterface.DefaultVehicleLocationSettings()
       ).directLevel,
-      maximumLevel: vehicle.maximum_charge
+      maximumLevel: vehicle.maximum_charge,
+      stateMap: stateMap.map(f =>
+        plainToClass(StateMap, {
+          start: f.stats_ts,
+          period: f.period,
+          minimumLevel: f.minimum_level,
+          maximumLevel: f.maximum_level,
+          drivenSeconds: f.driven_seconds,
+          drivenMeters: f.driven_meters,
+          chargedSeconds: f.charged_seconds,
+          chargedEnergy: f.charge_energy / 60e3,
+          chargeCost: f.charge_cost / 1e5,
+          chargeCostSaved: f.charge_cost_saved / 1e5
+        } as StateMap)
+      ),
+      eventList: eventList.sort((a, b) => a.end.getTime() - b.end.getTime())
     } as ChartData);
 
-    const stats = await context.logic.currentStats(vehicle, location_uuid);
-    if (
-      stats &&
-      stats.weekly_avg7_price &&
-      stats.weekly_avg21_price &&
-      stats.threshold
-    ) {
-      const averagePrice =
-        stats.weekly_avg7_price +
-        (stats.weekly_avg7_price - stats.weekly_avg21_price) / 2;
-
-      chartData.thresholdPrice = Math.trunc(
-        (averagePrice * stats.threshold) / 100
+    if (location_uuid) {
+      const priceData = (await context.db.pg.manyOrNone(
+        `SELECT p.* FROM price_data p JOIN location l ON (l.price_list_uuid = p.price_list_uuid)
+     WHERE location_uuid = $1 AND ts >= $2
+     ORDER BY ts;`,
+        [location_uuid, from]
+      )) as DBPriceData[];
+      chartData.prices = priceData.map(
+        f =>
+          plainToClass(PriceData, {
+            startAt: f.ts,
+            price: f.price / 1e5
+          } as PriceData) || null
       );
-      chartData.levelChargeTime = stats.level_charge_time;
+
+      const stats = await context.logic.currentStats(vehicle, location_uuid);
+      if (
+        stats &&
+        stats.weekly_avg7_price &&
+        stats.weekly_avg21_price &&
+        stats.threshold
+      ) {
+        const averagePrice =
+          stats.weekly_avg7_price +
+          (stats.weekly_avg7_price - stats.weekly_avg21_price) / 2;
+
+        chartData.thresholdPrice =
+          Math.trunc((averagePrice * stats.threshold) / 100) / 1e5;
+      }
     }
 
     return chartData;

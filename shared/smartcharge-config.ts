@@ -10,6 +10,7 @@ import { DEFAULT_PORT } from "./smartcharge-defines";
 const config = {
   DATABASE_URL: "postgres://scserver:scserverpass@localhost:5432/smartcharge",
   DATABASE_SSL: "false",
+  DATABASE_CONNECTIONS: 10,
   PUBLIC_URL: "",
   SERVER_IP: "0.0.0.0",
   SERVER_PORT: `${DEFAULT_PORT}`,

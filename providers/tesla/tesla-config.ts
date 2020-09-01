@@ -5,7 +5,7 @@ const config = {
 
   TIME_BEFORE_TIRED: 20 * 60e3, // stay online 20 min after a drive or charge
   TIME_BEING_TIRED: 30 * 60e3, // try counting sheep for 30 minutes
-  TRIP_HVAC_ON_WINDOW: 10 * 60e3, // turn HVAC on 10 minutes before trip start
+  TRIP_HVAC_ON_WINDOW: 15 * 60e3, // turn HVAC on 15 minutes before trip start
   TRIP_HVAC_ON_DURATION: 20 * 60e3, // turn HVAC off 20 minutes after scheduled trip start
 
   DEFAULT_MINIMUM_LEVEL: 30,

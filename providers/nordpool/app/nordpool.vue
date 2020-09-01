@@ -56,7 +56,7 @@ import { Component, Vue, Prop } from "vue-property-decorator";
 import apollo from "@app/plugins/apollo";
 import { ProviderVuePage } from "@providers/provider-app";
 import { NordpoolProviderData } from "..";
-import { GQLLocation } from "@shared/sc-schema";
+import { GQLLocationFragment } from "@shared/sc-client";
 
 interface NordpoolArea {
   price_code: string;
@@ -78,7 +78,7 @@ export default class NordpoolVue extends Vue {
   name!: InputState;
   button!: InputState;
   nordpoolAreas!: NordpoolArea[];
-  knownLocations!: GQLLocation[];
+  knownLocations!: GQLLocationFragment[];
 
   // HOOKS
   data() {

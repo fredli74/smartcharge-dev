@@ -12,7 +12,7 @@ import { log, LogLevel } from "@shared/utils";
 import { IProviderServer } from "@providers/provider-server";
 import { TeslaNewListEntry } from "./app/tesla-helper";
 import config from "./tesla-config";
-import { DBVehicle, DBServiceProvider } from "@server/db-schema";
+import { DBServiceProvider } from "@server/db-schema";
 import { strict as assert } from "assert";
 
 // Check token and refresh through direct database update
@@ -47,7 +47,7 @@ async function validToken(
     `UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $2) WHERE service_data @> $1 RETURNING *;`,
     [
       { token: { refresh_token: oldRefreshToken } },
-      { token: newToken, invalid_token: null }
+      { updated: Date.now(), token: newToken, invalid_token: null }
     ]
   );
   for (const s of dblist) {
@@ -74,7 +74,7 @@ async function invalidToken(db: DBInterface, token: IRestToken) {
           access_token: token.access_token
         }
       },
-      { invalid_token: true }
+      { updated: Date.now(), invalid_token: true }
     ]
   );
   log(LogLevel.Trace, dblist);
@@ -138,18 +138,25 @@ const server: IProviderServer = {
               for (const l of list) {
                 const teslaID = l.id_s;
                 const vin = l.vin;
+
+                mapped[vin] = mapped[vin] || s.service_uuid;
+                l.service_uuid = mapped[vin];
+
                 const vehicle = controlled[vin];
                 if (vehicle) {
-                  mapped[vin] = mapped[vin] || s.service_uuid;
-                  l.service_uuid = mapped[vin];
                   l.vehicle_uuid = vehicle.vehicle_uuid;
-
                   if (vehicle.service_uuid !== l.service_uuid) {
                     // Wrong service_uuid in database
                     vehicle.service_uuid = l.service_uuid;
                     await context.db.pg.none(
-                      `UPDATE vehicle SET service_uuid=$1, provider_data = provider_data - 'invalid_token' WHERE vehicle_uuid=$2;`,
-                      [vehicle.service_uuid, vehicle.vehicle_uuid]
+                      `UPDATE vehicle SET service_uuid=$1, provider_data = provider_data - 'invalid_token' WHERE vehicle_uuid=$2;
+                      UPDATE service_provider SET service_data = jsonb_merge(service_data, $3) WHERE service_uuid=$1;`,
+                      [
+                        vehicle.service_uuid,
+                        vehicle.vehicle_uuid,
+                        { updated: Date.now() }
+                        // TODO: updated should be a DB field instead
+                      ]
                     );
                     log(
                       LogLevel.Info,
@@ -186,25 +193,21 @@ const server: IProviderServer = {
       }
       case TeslaProviderMutates.NewVehicle: {
         const input = data.input as TeslaNewListEntry;
-        let vehicle: DBVehicle | null = await context.db.pg.oneOrNone(
-          `SELECT * FROM vehicle WHERE provider_data->>'provider' = 'tesla' AND provider_data->>'tesla_id' = $1;`,
-          [input.id]
+        log(
+          LogLevel.Trace,
+          `TeslaProviderMutates.NewVehicle(${JSON.stringify(input)})`
         );
-        if (vehicle) {
-          // Move ownership
-          await context.db.pg.none(
-            `UPDATE vehicle SET account_uuid=$2, service_uuid=$3 WHERE vehicle_uuid = $1;`,
-            [vehicle.vehicle_uuid, context.accountUUID, input.service_uuid]
-          );
-        } else {
-          vehicle = await context.db.newVehicle(
-            context.accountUUID,
-            input.name,
-            config.DEFAULT_MAXIMUM_LEVEL,
-            input.service_uuid,
-            { provider: "tesla", vin: input.vin } as TeslaProviderData
-          );
-        }
+        const vehicle = await context.db.newVehicle(
+          context.accountUUID,
+          input.name,
+          config.DEFAULT_MAXIMUM_LEVEL,
+          input.service_uuid,
+          { provider: "tesla", vin: input.vin } as TeslaProviderData
+        );
+        log(
+          LogLevel.Trace,
+          `context.db.newVehicle returned ${JSON.stringify(vehicle)})`
+        );
         await context.db.pg.none(
           `UPDATE service_provider SET service_data = jsonb_merge(service_data, $1)
             WHERE service_uuid=$2;`,
