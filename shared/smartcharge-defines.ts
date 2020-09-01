@@ -17,5 +17,5 @@ export const PROJECT_AGENT = `${PROJECT_NAME}/${PROJECT_VERSION} (+...)`;
 export const DEFAULT_LOCATION_RADIUS = 250; // Default geo fence radius in meters
 export const DEFAULT_DIRECTLEVEL = 15; // Default direct level if no setting for location
 
-export const SCHEDULE_TOPUP_MARGIN = 15 * 60e3; // 15 minutes before departure time
+export const SCHEDULE_TOPUP_MARGIN = 20 * 60e3; // 20 minutes before departure time
 export const MIN_STATS_PERIOD = 1 * 60e3; // 1 minute

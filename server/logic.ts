@@ -1222,7 +1222,6 @@ export class Logic {
         log(LogLevel.Trace, `stats: ${JSON.stringify(stats)}`);
       }
 
-
       // Support routine for adding a charge
       let disconnectTime: number = 0;
 
@@ -1252,23 +1251,39 @@ export class Logic {
                 level
               );
               const startDeadline = before_ts - fullTimeNeeded * 1.5;
-              log(LogLevel.Trace, `charge time ${Math.round(fullTimeNeeded/60e3)} min, deadline ${new Date(startDeadline).toISOString()}`);
+              log(
+                LogLevel.Trace,
+                `charge time ${Math.round(
+                  fullTimeNeeded / 60e3
+                )} min, deadline ${new Date(startDeadline).toISOString()}`
+              );
 
               if (startDeadline > price_data_ts) {
-                log(LogLevel.Trace, `deadline beyond price data, just stupid charge`);
+                log(
+                  LogLevel.Trace,
+                  `deadline beyond price data, just stupid charge`
+                );
                 maxLevel = vehicle.level;
               } else {
                 maxLevel = Math.floor(
                   vehicle.level +
-                  ((maxLevel - vehicle.level) *
-                  (price_data_ts - startDeadline)) /
-                  (fullTimeNeeded * 1.5)
+                    ((maxLevel - vehicle.level) *
+                      (price_data_ts - startDeadline)) /
+                      (fullTimeNeeded * 1.5)
                 );
-                log(LogLevel.Trace, `split charge, ${maxLevel} before ${new Date(price_data_ts).toISOString()}`);
+                log(
+                  LogLevel.Trace,
+                  `split charge, ${maxLevel} before ${new Date(
+                    price_data_ts
+                  ).toISOString()}`
+                );
               }
             }
           } else {
-            log(LogLevel.Trace, `no stats for current location, just stupid charge`);
+            log(
+              LogLevel.Trace,
+              `no stats for current location, just stupid charge`
+            );
             maxLevel = vehicle.level;
           }
 
@@ -1302,7 +1317,7 @@ export class Logic {
               chargeStop: null,
               level: level,
               chargeType,
-              comment: (level > vehicle.maximum_charge ? `topping up` : comment)
+              comment: level > vehicle.maximum_charge ? `topping up` : comment
             });
             if (now >= topupStart) {
               smartStatus =
