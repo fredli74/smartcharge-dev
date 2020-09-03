@@ -727,16 +727,26 @@ export default class eventchart extends Vue {
      *  Trim data to fit time bounds
      ***/
     const seriesTrim = (data: any[]) => {
+      let offset = 0;
       while (data.length > 0 && data[0][0] < this.chartStart) {
         data.shift();
+        offset--;
       }
       while (data.length > 0 && data[data.length - 1][0] > this.chartStop) {
         data.pop();
       }
+      return offset;
     };
     seriesTrim(priceData);
     seriesTrim(levelData);
-    seriesTrim(predictData);
+    const offset = seriesTrim(predictData);
+
+    // realign discrete markers in prediction curve
+    if (offset != 0) {
+      for (let i = 0; i < this.discreteMarkers.length; ++i) {
+        this.discreteMarkers[i].dataPointIndex += offset;
+      }
+    }
 
     /***
      *  Find max axis values
