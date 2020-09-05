@@ -204,6 +204,8 @@ export default class eventchart extends Vue {
           eventchart && eventchart.updateOptions(this.eventoptions);
           eventchart && eventchart.updateSeries(s);
         }*/
+        const timechart = (this.$refs.timechart as any) as ApexCharts;
+        timechart && timechart.updateOptions(this.timeoptions);
         const eventchart = (this.$refs.eventchart as any) as ApexCharts;
         eventchart && eventchart.updateOptions(this.eventoptions);
         this.fullUpdate = false;
