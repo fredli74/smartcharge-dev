@@ -40,6 +40,7 @@
 
 <script lang="ts">
 import { Component, Vue, Prop, Watch } from "vue-property-decorator";
+import ApexCharts from "apexcharts";
 import VueApexCharts from "vue-apexcharts";
 import { gql } from "apollo-boost";
 import {
