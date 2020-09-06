@@ -43,10 +43,10 @@
           persistent-hint
           hint="Open after parking if charge is needed"
           :loading="saving.auto_port"
-        ></v-switch
-      ></v-col>
-      <v-col cols="12" sm="auto" align-self-sm="center"
-        ><v-switch
+        ></v-switch>
+      </v-col>
+      <v-col cols="12" sm="auto" align-self-sm="center">
+        <v-switch
           v-model="auto_hvac"
           color="primary"
           inset
@@ -67,8 +67,7 @@
         :name="l.name"
         :settings="l.settings"
         :vehicle="vehicle"
-      >
-      </EditVehicleLocationSettings>
+      ></EditVehicleLocationSettings>
     </v-list>
     <v-divider></v-divider>
     <v-row class="mt-3" justify="space-between">
@@ -81,12 +80,13 @@
           inset
           label="Disable"
           :loading="saving.disabled"
-          ><template v-if="disabled" v-slot:label>
+        >
+          <template v-if="disabled" v-slot:label>
             <div class="deep-orange--text text--accent-4">
               Disabled information polling and charge control!
             </div>
-          </template></v-switch
-        >
+          </template>
+        </v-switch>
       </v-col>
       <v-spacer></v-spacer>
       <v-col cols="auto">

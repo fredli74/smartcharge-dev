@@ -8,12 +8,15 @@
       v-model="dialogShow"
       :fullscreen="$vuetify.breakpoint.xsOnly"
       max-width="600px"
-      ><v-card>
+    >
+      <v-card>
         <v-toolbar flat dark color="primary">
           <v-btn icon @click="dialogShow = false">
-            <v-icon>{{
-              $vuetify.breakpoint.xsOnly ? "mdi-chevron-left" : "mdi-close"
-            }}</v-icon>
+            <v-icon>
+              {{
+                $vuetify.breakpoint.xsOnly ? "mdi-chevron-left" : "mdi-close"
+              }}
+            </v-icon>
           </v-btn>
           <v-toolbar-title>{{ dialogTitle }}</v-toolbar-title>
         </v-toolbar>
@@ -32,13 +35,14 @@
           fab
           :small="smallButton"
           outlined
-          color=""
+          color
           :loading="refreshLoading"
           :disabled="!Boolean(vehicle.serviceID)"
           v-on="on"
           @click="refreshClick()"
-          ><v-icon :large="!smallButton">mdi-refresh</v-icon></v-btn
         >
+          <v-icon :large="!smallButton">mdi-refresh</v-icon>
+        </v-btn>
       </template>
       <span>Update</span>
     </v-tooltip>
@@ -49,13 +53,14 @@
           fab
           :small="smallButton"
           outlined
-          color=""
+          color
           :loading="refreshLoading"
           :disabled="!Boolean(vehicle.serviceID)"
           v-on="on"
           @click="refreshClick()"
-          ><v-icon :large="!smallButton">mdi-sleep-off</v-icon></v-btn
         >
+          <v-icon :large="!smallButton">mdi-sleep-off</v-icon>
+        </v-btn>
       </template>
       <span>Wake Up</span>
     </v-tooltip>
@@ -71,10 +76,11 @@
           :disabled="!Boolean(vehicle.serviceID)"
           v-on="on"
           @click="hvacClick()"
-          ><v-icon :large="!smallButton"
-            >mdi-fan{{ vehicle.climateControl ? "" : "-off" }}</v-icon
-          ></v-btn
         >
+          <v-icon :large="!smallButton"
+            >mdi-fan{{ vehicle.climateControl ? "" : "-off" }}</v-icon
+          >
+        </v-btn>
       </template>
       <span>Climate Control</span>
     </v-tooltip>
@@ -90,12 +96,15 @@
             :outlined="manualChargeState.outlined"
             :color="manualChargeState.color"
             @click="chargeClick()"
-            ><v-icon :large="!smallButton">{{
-              !vehicle.isConnected && vehicle.locationID
-                ? "mdi-power-plug-off"
-                : "mdi-lightning-bolt"
-            }}</v-icon></v-btn
           >
+            <v-icon :large="!smallButton">
+              {{
+                !vehicle.isConnected && vehicle.locationID
+                  ? "mdi-power-plug-off"
+                  : "mdi-lightning-bolt"
+              }}
+            </v-icon>
+          </v-btn>
         </div>
       </template>
       <span>{{ manualChargeState.tooltip }}</span>
@@ -116,8 +125,9 @@
           "
           v-on="on"
           @click="scheduleClick()"
-          ><v-icon :large="!smallButton">mdi-calendar-clock</v-icon></v-btn
         >
+          <v-icon :large="!smallButton">mdi-calendar-clock</v-icon>
+        </v-btn>
       </template>
       <span>Schedule</span>
     </v-tooltip>

@@ -23,8 +23,8 @@
           height="160px"
           :options="eventoptions"
           :series="eventseries"
-        ></apex
-      ></v-col>
+        ></apex>
+      </v-col>
     </v-row>
     <v-row
       v-if="$apollo.queries.chartData.loading"
