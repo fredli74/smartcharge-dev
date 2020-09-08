@@ -914,35 +914,6 @@ export class Logic {
     }
   }
 
-  private async ChargePlanEntry(
-    vehicle: DBVehicle,
-    level: number,
-    chargeType: ChargeType,
-    comment: string
-  ): Promise<ChargePlan> {
-    const timeNeeded = await this.chargeDuration(
-      vehicle.vehicle_uuid,
-      vehicle.location_uuid,
-      vehicle.level,
-      level
-    );
-    log(
-      LogLevel.Trace,
-      `ChargePlanEntry ${
-        vehicle.vehicle_uuid
-      }: ${chargeType} chargeNeeded:${level -
-        vehicle.level}%, timeNeeded: ${timeNeeded / 1e3}`
-    );
-
-    return {
-      chargeStart: null,
-      chargeStop: new Date(Date.now() + timeNeeded),
-      level,
-      chargeType,
-      comment
-    } as ChargePlan;
-  }
-
   private async updateAIschedule(
     vehicle_uuid: string,
     before_ts: number | null,
@@ -1068,7 +1039,7 @@ export class Logic {
 
     const now = Date.now();
 
-    // TODO: Check current vehicle.charge_plan and see if it needs to be recalculated
+    // TODO: Check current vehicle.charge_plan and see if it needs to be recalculated?
 
     const locationSettings =
       (vehicle.location_uuid &&
@@ -1263,7 +1234,7 @@ export class Logic {
               // duration takes before_ts into account
               const duration = Math.min(end, before_ts) - start;
               chargePlan.push({
-                chargeStart: new Date(start),
+                chargeStart: new Date(ts),
                 chargeStop: new Date(end),
                 level,
                 chargeType,
