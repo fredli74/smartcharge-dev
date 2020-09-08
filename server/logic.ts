@@ -1131,11 +1131,7 @@ export class Logic {
       };
 */
 
-      // Only adjust time if we did not have one, or if its close to the previous one
-      let fillBefore: number = priceAvailable;
-      const FillBefore = (t: number) =>
-        (fillBefore =
-          t < (fillBefore || Infinity) + 240 * 60e3 ? t : fillBefore);
+      let fillBefore: number = Infinity;
 
       const GeneratePlan = (
         chargeType: ChargeType,
@@ -1145,6 +1141,15 @@ export class Logic {
         maxPrice?: number
       ): boolean => {
         assert(before_ts === undefined || before_ts > now);
+
+        // Only adjust if it's earlier than 6h before the one we alread had in mind
+        if (
+          before_ts &&
+          before_ts < priceAvailable &&
+          before_ts + 360 * 60e3 < fillBefore
+        ) {
+          fillBefore = before_ts;
+        }
 
         // Do charge goal adjustments
         if (level > startLevel && before_ts !== undefined) {
@@ -1197,9 +1202,6 @@ export class Logic {
               comment: `topping up`
             });
 
-            // Cannot low-price fill while topping up
-            FillBefore(topupStart);
-
             // Adjust charge target to exclude topup range
             before_ts = topupStart;
             level = vehicle.maximum_charge;
@@ -1249,7 +1251,6 @@ export class Logic {
               );
             }
 
-            FillBefore(before_ts);
             smartStatus =
               smartStatus ||
               `${capitalize(chargeType)} charge to ${level}% scheduled`;
@@ -1343,22 +1344,19 @@ export class Logic {
         if (trip) {
           assert(trip.level);
           assert(trip.schedule_ts);
-          if (
-            GeneratePlan(
-              ChargeType.Trip,
-              `upcoming trip`,
-              trip.level,
-              trip.schedule_ts.getTime()
-            )
-          ) {
-            ai.charge = false; // remove AI charge
-          }
+          GeneratePlan(
+            ChargeType.Trip,
+            `upcoming trip`,
+            trip.level,
+            trip.schedule_ts.getTime()
+          );
         }
 
         if (startLevel < vehicle.maximum_charge) {
           if (ai.charge) {
             if (ai.learning) {
               GeneratePlan(ChargeType.Fill, `learning`, vehicle.maximum_charge);
+              fillBefore = 0;
             } else {
               assert(ai.level);
               assert(ai.ts);
@@ -1419,7 +1417,6 @@ export class Logic {
           // Low price fill charging
           if (
             fillBefore &&
-            !ai.learning &&
             stats &&
             stats.weekly_avg7_price &&
             stats.weekly_avg21_price &&
