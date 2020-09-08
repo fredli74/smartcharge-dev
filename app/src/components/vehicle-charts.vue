@@ -602,6 +602,7 @@ export default class eventchart extends Vue {
         // Simulate charging
         for (const c of this.chartData.chargePlan) {
           if (c.chargeType === GQLChargeType.Calibrate) continue; // TODO remove
+          if (level >= c.level) continue; // No need to charge
 
           // Calculate charge bounds
           const timeNeeded = this.chargeDuration(
