@@ -1320,7 +1320,7 @@ export class Logic {
         };
 
         if (vehicle.location_uuid) {
-          if (vehicle.level <= vehicle.maximum_charge) {
+          if (startLevel < vehicle.maximum_charge) {
             // Generate an AI schedule
             ai.charge = true;
             const schedule = stats && (await this.generateAIschedule(vehicle));
@@ -1355,7 +1355,7 @@ export class Logic {
           }
         }
 
-        if (vehicle.level < vehicle.maximum_charge) {
+        if (startLevel < vehicle.maximum_charge) {
           if (ai.charge) {
             if (ai.learning) {
               GeneratePlan(ChargeType.Fill, `learning`, vehicle.maximum_charge);
