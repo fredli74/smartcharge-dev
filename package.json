@@ -14,7 +14,7 @@
     "build:app": "vue-cli-service build",
     "build:server": "npm run _babel:shared && npm run _babel:providers && npm run _babel:server && npm run _create:schema",
     "prepare": "patch-package",
-    "start:server": "node --optimize_for_size --gc_interval=100 dist/server/server.js",
+    "start:server": "node dist/server/server.js",
     "start:worker": "node dist/server/agency.js -d INTERNAL_SERVICE_TOKEN http://localhost:3000"
   },
   "dependencies": {
