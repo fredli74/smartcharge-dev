@@ -1259,7 +1259,6 @@ export class Logic {
               LogLevel.Trace,
               `${capitalize(chargeType)} charge directly to ${level}%`
             );
-            assert(manual.level);
             chargePlan.push({
               chargeStart: null,
               chargeStop: new Date(Date.now() + timeNeeded),
