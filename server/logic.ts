@@ -1131,7 +1131,7 @@ export class Logic {
       };
 */
 
-      let fillBefore: number = Infinity;
+      let fillBefore: number = 10e13; // >200 years into the future;
 
       const GeneratePlan = (
         chargeType: ChargeType,
