@@ -1140,7 +1140,8 @@ export class Logic {
         before_ts?: number,
         maxPrice?: number
       ): boolean => {
-        assert(before_ts === undefined || before_ts > now);
+        // Adjust before_ts if it's passed already
+        before_ts = (before_ts || 0) <= now ? undefined : before_ts;
 
         // Only adjust if it's earlier than 6h before the one we alread had in mind
         if (
