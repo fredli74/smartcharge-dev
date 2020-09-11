@@ -479,7 +479,7 @@ export class TeslaAgent extends AbstractAgent {
           insomnia = true; // Can not sleep while driving
           this.adjustInterval(job, 10); // Poll more often when driving
         } else {
-          this.adjustInterval(job, 60);
+          this.adjustInterval(job, config.TESLA_POLL_INTERVAL);
           if (data.vehicle_state.is_user_present) {
             await this.setStatus(subject, "Idle (user present)");
             insomnia = true;
@@ -593,7 +593,7 @@ export class TeslaAgent extends AbstractAgent {
           `${subject.teslaID} list poll : ${JSON.stringify(data)}`
         );
 
-        this.adjustInterval(job, 60);
+        this.adjustInterval(job, config.TESLA_POLL_INTERVAL);
         switch (data.state) {
           case "online":
             if (
@@ -905,7 +905,7 @@ export class TeslaAgent extends AbstractAgent {
       }
 
       subject.pollerror = err.code;
-      this.adjustInterval(job, 60); // avoid spam polling an interface that is down
+      this.adjustInterval(job, config.TESLA_POLL_INTERVAL); // avoid spam polling an interface that is down
 
       // this.changePollstate(subject, "offline");
       // this.adjustInterval(job, 10); // Try again

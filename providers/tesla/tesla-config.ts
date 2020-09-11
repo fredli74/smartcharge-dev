@@ -8,6 +8,8 @@ const config = {
   TRIP_HVAC_ON_WINDOW: 15 * 60e3, // turn HVAC on 15 minutes before trip start
   TRIP_HVAC_ON_DURATION: 20 * 60e3, // turn HVAC off 20 minutes after scheduled trip start
 
+  TESLA_POLL_INTERVAL: 120,
+
   DEFAULT_MINIMUM_LEVEL: 30,
   DEFAULT_MAXIMUM_LEVEL: 90,
 
