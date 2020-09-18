@@ -39,11 +39,6 @@ import {
   SCHEDULE_TOPUP_MARGIN
 } from "@shared/smartcharge-defines";
 
-type ChargeTarget = {
-  ts: number | null;
-  level: number;
-};
-
 export class Logic {
   constructor(private db: DBInterface) {}
   public init() {}
@@ -1131,7 +1126,7 @@ export class Logic {
       };
 */
 
-      let fillBefore: number = 10e13; // >200 years into the future;
+      let fillBefore: number = priceAvailable;
 
       const GeneratePlan = (
         chargeType: ChargeType,
@@ -1147,7 +1142,7 @@ export class Logic {
         if (
           before_ts &&
           before_ts < priceAvailable &&
-          before_ts + 360 * 60e3 < fillBefore
+          (fillBefore === priceAvailable || before_ts + 360 * 60e3 < fillBefore)
         ) {
           fillBefore = before_ts;
         }
@@ -1356,7 +1351,7 @@ export class Logic {
           if (ai.charge) {
             if (ai.learning) {
               GeneratePlan(ChargeType.Fill, `learning`, vehicle.maximum_charge);
-              fillBefore = 0;
+              fillBefore = 0; // disable low-price filling
             } else {
               assert(ai.level);
               assert(ai.ts);
