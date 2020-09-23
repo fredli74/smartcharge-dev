@@ -74,7 +74,6 @@
 import { Component, Vue } from "vue-property-decorator";
 import apollo from "./plugins/apollo";
 import eventBus, { BusEvent } from "./plugins/event-bus";
-import { gql } from "apollo-server-core";
 import config from "@shared/smartcharge-config";
 import auth from "./plugins/auth0";
 
@@ -86,20 +85,7 @@ interface AlertMessage {
   show: boolean;
   message: string | undefined;
 }
-@Component({
-  components: {},
-  apollo: {
-    $subscribe: {
-      ping: {
-        query: gql`
-          subscription {
-            pingSubscription
-          }
-        `
-      }
-    }
-  }
-})
+@Component({})
 export default class App extends Vue {
   authorized!: boolean;
   warning!: AlertMessage;
