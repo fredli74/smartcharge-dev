@@ -61,6 +61,7 @@ interface TeslaSubject {
   status: string;
   keepAwake?: number; // last event where we wanted to stay awake
   debugSleep?: any; // TODO: remove?
+  climateEnabled?: boolean; // remember it because we can't poll it if asleep
   chargeLimit?: number; // remember it because we can't poll it if asleep
   chargeEnabled?: boolean; // remember it because we can't poll it if asleep
   chargeControl?: ChargeControl; // keep track of last charge command to enable user charge control overrides
@@ -398,6 +399,8 @@ export class TeslaAgent extends AbstractAgent {
 
         subject.pollerror = undefined;
         subject.chargeLimit = data.charge_state.charge_limit_soc;
+        subject.climateEnabled =
+          data.climate_state.remote_heater_control_enabled;
         subject.chargeEnabled =
           data.charge_state.charging_state !== "Stopped" &&
           (data.charge_state.charge_enable_request ||
@@ -870,7 +873,7 @@ export class TeslaAgent extends AbstractAgent {
           now < numericStopTime(trip.time) + config.TRIP_HVAC_ON_DURATION;
 
         if (on) {
-          if (subject.data.climateControl) {
+          if (subject.climateEnabled) {
             subject.hvacOn = subject.hvacOn || now;
           } else if (!subject.hvacOn) {
             log(
@@ -882,7 +885,7 @@ export class TeslaAgent extends AbstractAgent {
             } as any);
           }
         } else {
-          if (!subject.data.climateControl) {
+          if (!subject.climateEnabled) {
             subject.hvacOff = subject.hvacOff || now;
           } else if (!subject.hvacOff) {
             log(
@@ -1022,7 +1025,7 @@ export class TeslaAgent extends AbstractAgent {
       if (subject.vehicleUUID === action.data.id) {
         if (!(await this.vehicleInteraction(job, subject, true, true)))
           return false; // Not ready for interaction
-        if (subject.data && subject.data.climateControl === action.data.enable)
+        if (subject.data && subject.climateEnabled === action.data.enable)
           return true; // Already correct
 
         if (action.data.enable) {
