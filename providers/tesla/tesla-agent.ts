@@ -379,7 +379,7 @@ export class TeslaAgent extends AbstractAgent {
             subject.data.providerData.car_type === "models2" ||
             subject.data.providerData.car_type === "modelx") &&
           data.charge_state.charging_state === "Complete" &&
-          data.charge_state.charge_enable_request
+          data.charge_state.user_charge_enable_request !== false
         ) {
           if (subject.chargeControl === ChargeControl.Stopped) {
             log(
@@ -402,9 +402,7 @@ export class TeslaAgent extends AbstractAgent {
         subject.climateEnabled =
           data.climate_state.remote_heater_control_enabled;
         subject.chargeEnabled =
-          data.charge_state.charging_state !== "Stopped" &&
-          (data.charge_state.charge_enable_request ||
-            data.charge_state.charging_state === "Complete");
+          data.charge_state.user_charge_enable_request !== false;
         subject.portOpen = data.charge_state.charge_port_door_open;
         subject.online = true;
 
