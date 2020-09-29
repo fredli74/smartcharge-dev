@@ -13,21 +13,18 @@
         color="red"
       ></v-progress-linear>
 
-      <v-card-title class="headline"
-        ><v-icon class="mr-3" color="red" x-large>mdi-alert</v-icon>Are you
-        sure?</v-card-title
-      >
-      <v-card-text class="font-weight-bold"
-        >All information regarding this {{ label }} will be removed.
-        <span class="font-weight-black"
-          >This can not be undone!</span
-        ></v-card-text
-      >
-      <v-card-text
-        >To confirm, type the code
-        <span class="text-uppercase font-weight-black monospace">{{
-          publicID
-        }}</span>
+      <v-card-title class="headline">
+        <v-icon class="mr-3" color="red" x-large>mdi-alert</v-icon>Are you sure?
+      </v-card-title>
+      <v-card-text class="font-weight-bold">
+        All information regarding this {{ label }} will be removed.
+        <span class="font-weight-black">This can not be undone!</span>
+      </v-card-text>
+      <v-card-text>
+        To confirm, type the code
+        <span class="text-uppercase font-weight-black monospace">
+          {{ publicID }}
+        </span>
         in the text box.
       </v-card-text>
       <v-text-field

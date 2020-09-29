@@ -1,7 +1,9 @@
 <template>
-  <span :style="{ visibility: relativeShow ? 'visible' : 'hidden' }"
-    ><slot></slot>{{ relativeTime }}<slot name="suffix"></slot
-  ></span>
+  <span :style="{ visibility: relativeShow ? 'visible' : 'hidden' }">
+    <slot></slot>
+    {{ relativeTime }}
+    <slot name="suffix"></slot>
+  </span>
 </template>
 
 <script lang="ts">

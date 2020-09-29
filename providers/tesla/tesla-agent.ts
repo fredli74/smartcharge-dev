@@ -61,6 +61,7 @@ interface TeslaSubject {
   status: string;
   keepAwake?: number; // last event where we wanted to stay awake
   debugSleep?: any; // TODO: remove?
+  climateEnabled?: boolean; // remember it because we can't poll it if asleep
   chargeLimit?: number; // remember it because we can't poll it if asleep
   chargeEnabled?: boolean; // remember it because we can't poll it if asleep
   chargeControl?: ChargeControl; // keep track of last charge command to enable user charge control overrides
@@ -378,7 +379,7 @@ export class TeslaAgent extends AbstractAgent {
             subject.data.providerData.car_type === "models2" ||
             subject.data.providerData.car_type === "modelx") &&
           data.charge_state.charging_state === "Complete" &&
-          data.charge_state.charge_enable_request
+          data.charge_state.user_charge_enable_request !== false
         ) {
           if (subject.chargeControl === ChargeControl.Stopped) {
             log(
@@ -398,10 +399,10 @@ export class TeslaAgent extends AbstractAgent {
 
         subject.pollerror = undefined;
         subject.chargeLimit = data.charge_state.charge_limit_soc;
+        subject.climateEnabled =
+          data.climate_state.remote_heater_control_enabled;
         subject.chargeEnabled =
-          data.charge_state.charging_state !== "Stopped" &&
-          (data.charge_state.charge_enable_request ||
-            data.charge_state.charging_state === "Complete");
+          data.charge_state.user_charge_enable_request !== false;
         subject.portOpen = data.charge_state.charge_port_door_open;
         subject.online = true;
 
@@ -479,7 +480,7 @@ export class TeslaAgent extends AbstractAgent {
           insomnia = true; // Can not sleep while driving
           this.adjustInterval(job, 10); // Poll more often when driving
         } else {
-          this.adjustInterval(job, 60);
+          this.adjustInterval(job, config.TESLA_POLL_INTERVAL);
           if (data.vehicle_state.is_user_present) {
             await this.setStatus(subject, "Idle (user present)");
             insomnia = true;
@@ -593,7 +594,7 @@ export class TeslaAgent extends AbstractAgent {
           `${subject.teslaID} list poll : ${JSON.stringify(data)}`
         );
 
-        this.adjustInterval(job, 60);
+        this.adjustInterval(job, config.TESLA_POLL_INTERVAL);
         switch (data.state) {
           case "online":
             if (
@@ -870,7 +871,7 @@ export class TeslaAgent extends AbstractAgent {
           now < numericStopTime(trip.time) + config.TRIP_HVAC_ON_DURATION;
 
         if (on) {
-          if (subject.data.climateControl) {
+          if (subject.climateEnabled) {
             subject.hvacOn = subject.hvacOn || now;
           } else if (!subject.hvacOn) {
             log(
@@ -882,7 +883,7 @@ export class TeslaAgent extends AbstractAgent {
             } as any);
           }
         } else {
-          if (!subject.data.climateControl) {
+          if (!subject.climateEnabled) {
             subject.hvacOff = subject.hvacOff || now;
           } else if (!subject.hvacOff) {
             log(
@@ -905,7 +906,7 @@ export class TeslaAgent extends AbstractAgent {
       }
 
       subject.pollerror = err.code;
-      this.adjustInterval(job, 60); // avoid spam polling an interface that is down
+      this.adjustInterval(job, config.TESLA_POLL_INTERVAL); // avoid spam polling an interface that is down
 
       // this.changePollstate(subject, "offline");
       // this.adjustInterval(job, 10); // Try again
@@ -1022,7 +1023,7 @@ export class TeslaAgent extends AbstractAgent {
       if (subject.vehicleUUID === action.data.id) {
         if (!(await this.vehicleInteraction(job, subject, true, true)))
           return false; // Not ready for interaction
-        if (subject.data && subject.data.climateControl === action.data.enable)
+        if (subject.data && subject.climateEnabled === action.data.enable)
           return true; // Already correct
 
         if (action.data.enable) {

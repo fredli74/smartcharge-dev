@@ -150,12 +150,15 @@ program
           };
         },
         subscriptions: {
+          keepAlive: 20000,
           path: "/api/gql",
-          onConnect: async (connectionParams: any, _webSocket, _context) => {
+          onConnect: async (connectionParams: any, _webSocket, context) => {
             const account = await authorize(connectionParams.Authorization);
             log(
               LogLevel.Info,
-              `WS connection with ${JSON.stringify(connectionParams)}`
+              `WS ${context.request.connection.remoteAddress}:${
+                context.request.connection.remotePort
+              } Connected with ${JSON.stringify(connectionParams)}`
             );
             return <IContext>{
               db,
@@ -163,6 +166,12 @@ program
               accountUUID: (account && account.account_uuid) || undefined,
               account: account
             };
+          },
+          onDisconnect: (_websocket, context) => {
+            log(
+              LogLevel.Info,
+              `WS ${context.request.connection.remoteAddress}:${context.request.connection.remotePort} Disconnected`
+            );
           }
         }
       });

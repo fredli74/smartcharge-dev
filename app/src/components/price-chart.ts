@@ -13,7 +13,7 @@ export default class PriceChart extends Mixins(Line) {
   mounted() {
     this.addPlugin({
       id: "priceChartPlugin",
-      afterInit: function(chart: any) {
+      afterInit: function (chart: any) {
         // Default options
         chart.options.plugins.crosshair = chart.options.plugins.crosshair || {};
         chart.options.plugins.crosshair.snapping =
@@ -27,18 +27,14 @@ export default class PriceChart extends Mixins(Line) {
         chart.options.plugins.crosshair.line.dashPattern = chart.options.plugins
           .crosshair.line.dashPattern || [2, 2];
 
-        chart.crosshair = {
-          x: null,
-          y: null,
-          inside: false
-        };
+        chart.crosshair = { x: null, y: null, inside: false };
       },
-      afterEvent: function(chart: any, e: any) {
+      afterEvent: function (chart: any, e: any) {
         chart.crosshair.x = e.x;
         chart.crosshair.y = e.y;
         chart.draw();
       },
-      insideChart: function(chart: any, x?: number, y?: number) {
+      insideChart: function (chart: any, x?: number, y?: number) {
         return (
           (y === undefined ||
             (y >= chart.chartArea.top && y <= chart.chartArea.bottom)) &&
@@ -55,7 +51,7 @@ export default class PriceChart extends Mixins(Line) {
 
 declare const Chart: any;
 
-Chart.Tooltip.positioners.topcorner = function(
+Chart.Tooltip.positioners.topcorner = function (
   elements: any,
   _eventPosition: any
 ) {

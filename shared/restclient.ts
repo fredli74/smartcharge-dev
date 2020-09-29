@@ -7,6 +7,8 @@
 
 import * as https from "https";
 import * as http from "http";
+import * as https_proxy_agent from "https-proxy-agent";
+
 import { mergeURL } from "./utils";
 
 const DEFAULT_AGENT = `RestClient/1.0 (Node.js)`;
@@ -27,6 +29,7 @@ function time(): number {
 export interface Options {
   baseURL?: string;
   agent?: string;
+  proxy?: string;
   timeout?: number;
 }
 
@@ -46,6 +49,7 @@ export class RestClientError extends Error {
 export class RestClient {
   private httpAgent: http.Agent | undefined;
   private httpsAgent: https.Agent | undefined;
+  private httpsProxyAgent: https_proxy_agent.HttpsProxyAgent | undefined;
   constructor(private options: Options) {}
   private static parseTokenResponse(data: any): RestToken {
     if (typeof data.access_token !== "string")
@@ -84,7 +88,14 @@ export class RestClient {
   }
 
   private getAgent(secure: boolean): http.Agent | https.Agent {
-    if (secure) {
+    if (this.options.proxy) {
+      if (!this.httpsProxyAgent) {
+        this.httpsProxyAgent = new https_proxy_agent.HttpsProxyAgent(
+          this.options.proxy
+        );
+      }
+      return this.httpsProxyAgent;
+    } else if (secure) {
       if (!this.httpsAgent) {
         this.httpsAgent = new https.Agent({
           keepAlive: true,

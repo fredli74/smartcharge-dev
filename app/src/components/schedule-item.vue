@@ -1,26 +1,25 @@
-<template
-  ><div>
+<template>
+  <div>
     <v-list-item class="my-2">
       <v-row align="center" justify="space-between" no-gutters>
         <v-col cols="6" sm="3" order="0" class="grey--text text--darken-2">
           <v-icon large class="mr-1" color="grey-darken-2" left>{{
             scheduleIcon
           }}</v-icon>
-          <div class="inline-middle">
-            {{ schedule.type }}
-          </div>
+          <div class="inline-middle">{{ schedule.type }}</div>
         </v-col>
-        <v-col cols="6" sm="5" class="" order="2">
+        <v-col cols="6" sm="5" class order="2">
           <v-menu
             v-model="timeMenu"
             :close-on-content-click="false"
             top
             min-width="290px"
-            ><template v-slot:activator="{ on }">
-              <v-btn depressed class="px-3" v-on="on"
-                ><v-icon left class="mt-1">{{ timeIcon }}</v-icon
-                >{{ schedulePrettyDate }}</v-btn
-              >
+          >
+            <template v-slot:activator="{ on }">
+              <v-btn depressed class="px-3" v-on="on">
+                <v-icon left class="mt-1">{{ timeIcon }}</v-icon>
+                {{ schedulePrettyDate }}
+              </v-btn>
             </template>
             <datetime-popup
               :key="refreshKey"
@@ -41,9 +40,8 @@
                 refreshKey++;
                 timeMenu = false;
               "
-            >
-            </datetime-popup
-          ></v-menu>
+            ></datetime-popup>
+          </v-menu>
         </v-col>
         <v-col
           cols="6"
@@ -58,15 +56,16 @@
             :close-on-click="!capturing"
             :min-width="$vuetify.breakpoint.xsOnly ? `90vw` : `400px`"
             top
-            ><template v-slot:activator="{ on }">
-              <v-btn depressed class="px-2" v-on="on"
-                ><v-icon left>mdi-lightning-bolt</v-icon
-                >{{ schedule.level }}%</v-btn
-              >
+          >
+            <template v-slot:activator="{ on }">
+              <v-btn depressed class="px-2" v-on="on">
+                <v-icon left>mdi-lightning-bolt</v-icon>
+                {{ schedule.level }}%
+              </v-btn>
             </template>
             <v-card>
-              <v-row
-                ><v-col class="mx-4 mt-3 mb-n5">
+              <v-row>
+                <v-col class="mx-4 mt-3 mb-n5">
                   <v-slider
                     v-model="levelSlider"
                     class="pt-8"
@@ -85,9 +84,9 @@
                     "
                     @start="capturing = true"
                     @end="stopCapture"
-                  >
-                  </v-slider></v-col
-              ></v-row>
+                  ></v-slider>
+                </v-col>
+              </v-row>
               <v-card-actions>
                 <v-spacer></v-spacer>
 
@@ -95,8 +94,8 @@
                 <v-btn color="primary" text @click="setLevel">Ok</v-btn>
               </v-card-actions>
             </v-card>
-          </v-menu></v-col
-        >
+          </v-menu>
+        </v-col>
         <v-col
           v-if="!newSchedule"
           cols="6"
@@ -115,13 +114,14 @@
                   depressed
                   :color="hover ? `error` : `transparent`"
                   v-on="on"
-                  ><v-icon>mdi-calendar-remove-outline</v-icon></v-btn
-                ></v-hover
-              ></template
-            >
-            <v-btn depressed color="error" @click="removeSchedule"
-              ><v-icon medium left>mdi-trash-can-outline</v-icon>Remove</v-btn
-            >
+                >
+                  <v-icon>mdi-calendar-remove-outline</v-icon>
+                </v-btn>
+              </v-hover>
+            </template>
+            <v-btn depressed color="error" @click="removeSchedule">
+              <v-icon medium left>mdi-trash-can-outline</v-icon>Remove
+            </v-btn>
           </v-menu>
         </v-col>
 
@@ -133,8 +133,9 @@
               >Add</v-btn
             >
             <v-spacer class="d-none d-sm-flex"></v-spacer>
-          </v-card-actions> </v-col
-      ></v-row>
+          </v-card-actions>
+        </v-col>
+      </v-row>
     </v-list-item>
     <v-progress-linear
       v-if="isSaving"

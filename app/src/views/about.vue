@@ -189,7 +189,7 @@ export default class About extends Vue {
         {
           title: "Reminds you to connect",
           icon: "mdi-power-plug-outline",
-          text: `Automatically openens your charge port, if a charge is planned (optional feature).`
+          text: `Automatically opens your charge port, if a charge is planned (optional feature).`
         },
         {
           title: "Climate on",

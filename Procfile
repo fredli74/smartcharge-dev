@@ -1,2 +1,2 @@
-web: npm run start:server -- --port=$PORT
+web: node --max_old_space_size=460 --optimize_for_size --gc_interval=100 dist/server/server.js --port=$PORT
 worker: node dist/server/agency.js -d "$INTERNAL_SERVICE_TOKEN" "https://smartcharge-dev.herokuapp.com"

@@ -11,7 +11,7 @@
         ></v-text-field>
       </v-col>
       <v-spacer></v-spacer>
-      <v-col cols="auto" align-self="center"> </v-col>
+      <v-col cols="auto" align-self="center"></v-col>
     </v-row>
     <v-row>
       <v-col cols="12" md="9">
@@ -32,8 +32,9 @@
         icon
         :href="mapLink"
         target="_blank"
-        ><v-icon>mdi-map-marker</v-icon></v-btn
       >
+        <v-icon>mdi-map-marker</v-icon>
+      </v-btn>
       <v-spacer></v-spacer>
       <v-col cols="auto">
         <RemoveDialog

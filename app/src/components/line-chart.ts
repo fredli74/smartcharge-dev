@@ -8,7 +8,7 @@ import { ChartData, ChartOptions } from "chart.js";
 // but it was not maintained so I just quick and dirty pasted it together here
 const crosshair = {
   id: "crosshair",
-  afterInit: function(chart: any) {
+  afterInit: function (chart: any) {
     // Default options
     chart.options.plugins.crosshair = chart.options.plugins.crosshair || {};
     chart.options.plugins.crosshair.snapping =
@@ -22,18 +22,14 @@ const crosshair = {
     chart.options.plugins.crosshair.line.dashPattern = chart.options.plugins
       .crosshair.line.dashPattern || [2, 2];
 
-    chart.crosshair = {
-      x: null,
-      y: null,
-      inside: false
-    };
+    chart.crosshair = { x: null, y: null, inside: false };
   },
-  afterEvent: function(chart: any, e: any) {
+  afterEvent: function (chart: any, e: any) {
     chart.crosshair.x = e.x;
     chart.crosshair.y = e.y;
     chart.draw();
   },
-  insideChart: function(chart: any, x?: number, y?: number) {
+  insideChart: function (chart: any, x?: number, y?: number) {
     return (
       (y === undefined ||
         (y >= chart.chartArea.top && y <= chart.chartArea.bottom)) &&
@@ -41,7 +37,7 @@ const crosshair = {
         (x >= chart.chartArea.left && x <= chart.chartArea.right))
     );
   },
-  afterDraw: function(chart: any) {
+  afterDraw: function (chart: any) {
     chart.ctx.save();
 
     const isSnapping = chart.options.plugins.crosshair.snapping;
@@ -89,7 +85,7 @@ const crosshair = {
         const xValue = xScale.getValueForPixel(chart.crosshair.x);
 
         const data = dataset.data;
-        const index = data.findIndex(function(o: any) {
+        const index = data.findIndex(function (o: any) {
           return o.x >= xValue;
         });
         const prev = data[index - 1];
@@ -143,7 +139,7 @@ export default class LineChart extends Mixins(Line) {
 
 declare const Chart: any;
 
-Chart.Tooltip.positioners.topcorner = function(
+Chart.Tooltip.positioners.topcorner = function (
   elements: any,
   _eventPosition: any
 ) {

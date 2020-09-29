@@ -64,13 +64,13 @@
             label="hej"
             mandatory
           >
-            <v-btn small>Low Cost </v-btn>
-            <v-btn small>Balanced </v-btn>
-            <v-btn small>Full Charge </v-btn>
+            <v-btn small>Low Cost</v-btn>
+            <v-btn small>Balanced</v-btn>
+            <v-btn small>Full Charge</v-btn>
           </v-btn-toggle>
         </v-list-item-action>
-      </v-col></v-row
-    >
+      </v-col>
+    </v-row>
   </v-form>
 </template>
 

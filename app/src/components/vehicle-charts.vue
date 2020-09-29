@@ -23,8 +23,8 @@
           height="160px"
           :options="eventoptions"
           :series="eventseries"
-        ></apex
-      ></v-col>
+        ></apex>
+      </v-col>
     </v-row>
     <v-row
       v-if="$apollo.queries.chartData.loading"
@@ -40,6 +40,7 @@
 
 <script lang="ts">
 import { Component, Vue, Prop, Watch } from "vue-property-decorator";
+import ApexCharts from "apexcharts";
 import VueApexCharts from "vue-apexcharts";
 import { gql } from "apollo-boost";
 import {
@@ -203,6 +204,8 @@ export default class eventchart extends Vue {
           eventchart && eventchart.updateOptions(this.eventoptions);
           eventchart && eventchart.updateSeries(s);
         }*/
+        const timechart = (this.$refs.timechart as any) as ApexCharts;
+        timechart && timechart.updateOptions(this.timeoptions);
         const eventchart = (this.$refs.eventchart as any) as ApexCharts;
         eventchart && eventchart.updateOptions(this.eventoptions);
         this.fullUpdate = false;
@@ -599,6 +602,7 @@ export default class eventchart extends Vue {
         // Simulate charging
         for (const c of this.chartData.chargePlan) {
           if (c.chargeType === GQLChargeType.Calibrate) continue; // TODO remove
+          if (level >= c.level) continue; // No need to charge
 
           // Calculate charge bounds
           const timeNeeded = this.chargeDuration(
@@ -727,16 +731,26 @@ export default class eventchart extends Vue {
      *  Trim data to fit time bounds
      ***/
     const seriesTrim = (data: any[]) => {
+      let offset = 0;
       while (data.length > 0 && data[0][0] < this.chartStart) {
         data.shift();
+        offset--;
       }
       while (data.length > 0 && data[data.length - 1][0] > this.chartStop) {
         data.pop();
       }
+      return offset;
     };
     seriesTrim(priceData);
     seriesTrim(levelData);
-    seriesTrim(predictData);
+    const offset = seriesTrim(predictData);
+
+    // realign discrete markers in prediction curve
+    if (offset != 0) {
+      for (let i = 0; i < this.discreteMarkers.length; ++i) {
+        this.discreteMarkers[i].dataPointIndex += offset;
+      }
+    }
 
     /***
      *  Find max axis values
