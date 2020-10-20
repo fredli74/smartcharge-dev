@@ -402,7 +402,9 @@ export class TeslaAgent extends AbstractAgent {
         subject.climateEnabled =
           data.climate_state.remote_heater_control_enabled;
         subject.chargeEnabled =
-          data.charge_state.user_charge_enable_request !== false;
+          data.charge_state.user_charge_enable_request !== null
+            ? data.charge_state.user_charge_enable_request
+            : data.charge_state.charge_enable_request;
         subject.portOpen = data.charge_state.charge_port_door_open;
         subject.online = true;
 
