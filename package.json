@@ -42,7 +42,7 @@
     "jwks-rsa": "1.11.0",
     "luxon": "1.25.0",
     "md5": "2.3.0",
-    "pg-promise": "10.7.0",
+    "pg-promise": "10.7.1",
     "reflect-metadata": "0.1.13",
     "subscriptions-transport-ws": "0.9.16",
     "type-graphql": "1.1.0",
