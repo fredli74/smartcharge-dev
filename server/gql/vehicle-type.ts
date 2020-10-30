@@ -17,7 +17,8 @@ import {
   Resolver,
   FieldResolver,
   Root,
-  Ctx
+  Ctx,
+  GraphQLISODateTime
 } from "type-graphql";
 import { GraphQLJSONObject } from "graphql-type-json";
 import { GeoLocation, Location } from "./location-type";
@@ -66,13 +67,13 @@ export class ChargePlan {
   @Field(_type => ChargeType)
   chargeType!: ChargeType;
   @Type(() => Date)
-  @Field(_type => Date, {
+  @Field(_type => GraphQLISODateTime, {
     nullable: true,
     description: `time to start or null for now`
   })
   chargeStart!: Date | null;
   @Type(() => Date)
-  @Field(_type => Date, {
+  @Field(_type => GraphQLISODateTime, {
     nullable: true,
     description: `time to end or null for never`
   })
@@ -110,7 +111,7 @@ export class ScheduleTypeResolver {
   level(@Root() schedule: Schedule): number | null {
     return schedule.level;
   }
-  @FieldResolver(_returns => Date, { nullable: true })
+  @FieldResolver(_returns => GraphQLISODateTime, { nullable: true })
   time(@Root() schedule: Schedule): Date | null {
     return schedule.schedule_ts;
   }
@@ -277,7 +278,7 @@ export class VehicleTypeResolver {
       plainToClass(ChargePlan, f)
     );
   }
-  @FieldResolver(_returns => Date)
+  @FieldResolver(_returns => GraphQLISODateTime)
   updated(@Root() vehicle: Vehicle): Date {
     return vehicle.updated;
   }
@@ -356,7 +357,7 @@ export abstract class UpdateVehicleDataInput {
 export abstract class VehicleDebugInput {
   @Field(_type => ID)
   id!: string;
-  @Field(_type => Date)
+  @Field(_type => GraphQLISODateTime)
   timestamp!: Date;
   @Field(_type => String)
   category!: string;

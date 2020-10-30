@@ -12,7 +12,8 @@ import {
   Int,
   ID,
   Float,
-  registerEnumType
+  registerEnumType,
+  GraphQLISODateTime
 } from "type-graphql";
 import { GraphQLJSONObject } from "graphql-type-json";
 import { ChargePlan } from "./vehicle-type";
@@ -37,9 +38,9 @@ registerEnumType(EventType, { name: "EventType" });
 export class EventList {
   @Field(_type => EventType)
   eventType!: EventType;
-  @Field(_type => Date)
+  @Field(_type => GraphQLISODateTime)
   start!: Date;
-  @Field(_type => Date)
+  @Field(_type => GraphQLISODateTime)
   end!: Date;
   @Field(_type => GraphQLJSONObject, { nullable: true })
   data!: PlainObject | null;
@@ -47,7 +48,7 @@ export class EventList {
 
 @ObjectType()
 export class StateMap {
-  @Field(_type => Date)
+  @Field(_type => GraphQLISODateTime)
   start!: Date;
   @Field(_type => Int)
   period!: number;
@@ -101,7 +102,7 @@ export class StatsResolver {
   @Query(_returns => ChartData)
   async chartData(
     @Arg("vehicleID") vehicle_uuid: string,
-    @Arg("from", _type => Date) from: Date,
+    @Arg("from", _type => GraphQLISODateTime) from: Date,
     @Arg("period", _type => Int, { nullable: true, defaultValue: 60 })
     period: number,
     @Arg("locationID", { nullable: true }) location_uuid: string | null,

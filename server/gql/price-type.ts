@@ -14,7 +14,8 @@ import {
   FieldResolver,
   Root,
   Resolver,
-  Float
+  Float,
+  GraphQLISODateTime
 } from "type-graphql";
 import { DBPriceList } from "@server/db-schema";
 
@@ -54,7 +55,9 @@ export class UpdatePriceListInput {
 @ObjectType("PriceData")
 @InputType("PriceDataInput")
 export class PriceData {
-  @Field(_type => Date, { description: `Price tariff start time` })
+  @Field(_type => GraphQLISODateTime, {
+    description: `Price tariff start time`
+  })
   startAt!: Date;
   @Field(_type => Float, {
     description: `Price in currency per kWh (5 decimal precision)`
