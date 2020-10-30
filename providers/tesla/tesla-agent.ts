@@ -69,7 +69,7 @@ interface TeslaSubject {
   parked?: number; // are we parked
   triedOpen?: number; // timestamp when we tried to open the port
   hvacOn?: number; // timestamp when we tried to turn on hvac
-  hvacOff?: number; // timestamp when we tried to turn off hvac
+  hvacOverride?: number; // timestamp when user interacted with vehicle
   calibrating?: {
     next: number;
     level: number;
@@ -399,8 +399,8 @@ export class TeslaAgent extends AbstractAgent {
 
         subject.pollerror = undefined;
         subject.chargeLimit = data.charge_state.charge_limit_soc;
-        subject.climateEnabled =
-          data.climate_state.remote_heater_control_enabled;
+        subject.climateEnabled = data.climate_state.is_climate_on;
+        // data.climate_state.remote_heater_control_enabled;    found situations where this was true while climate was turned off
         subject.chargeEnabled =
           data.charge_state.user_charge_enable_request !== null
             ? data.charge_state.user_charge_enable_request
@@ -564,7 +564,7 @@ export class TeslaAgent extends AbstractAgent {
         }
 
         if (
-          subject.hvacOn &&
+          !subject.hvacOverride &&
           (data.climate_state.climate_keeper_mode !== "off" ||
             data.climate_state.smart_preconditioning ||
             data.drive_state.shift_state === "D" ||
@@ -578,7 +578,7 @@ export class TeslaAgent extends AbstractAgent {
             data.vehicle_state.rt > 0)
         ) {
           // User has interacted with the car so leave the hvac alone
-          subject.hvacOff = now;
+          subject.hvacOverride = now;
         }
       } else {
         // Poll vehicle list to avoid keeping it awake
@@ -866,16 +866,21 @@ export class TeslaAgent extends AbstractAgent {
         }
       }
       // Should we turn on hvac?
-      const trip = schedule[GQLScheduleType.Trip];
-      if (trip && subject.data.providerData.auto_hvac) {
-        const on =
+      if (subject.data.providerData.auto_hvac) {
+        const trip = schedule[GQLScheduleType.Trip];
+        const after =
+          !trip ||
+          now > numericStopTime(trip.time) + config.TRIP_HVAC_ON_DURATION;
+        const inWindow =
+          trip &&
           now >= numericStartTime(trip.time) - config.TRIP_HVAC_ON_WINDOW &&
-          now < numericStopTime(trip.time) + config.TRIP_HVAC_ON_DURATION;
+          !after;
 
-        if (on) {
+        if (inWindow && !subject.hvacOn && !subject.hvacOverride) {
+          // we're inside hvac window, we did not turn it on, and we were not told to leave it alone
           if (subject.climateEnabled) {
             subject.hvacOn = subject.hvacOn || now;
-          } else if (!subject.hvacOn) {
+          } else {
             log(
               LogLevel.Info,
               `${subject.teslaID} starting climate control on ${subject.data.name}`
@@ -884,22 +889,25 @@ export class TeslaAgent extends AbstractAgent {
               data: { id: subject.vehicleUUID, enable: true }
             } as any);
           }
-        } else {
-          if (!subject.climateEnabled) {
-            subject.hvacOff = subject.hvacOff || now;
-          } else if (!subject.hvacOff) {
-            log(
-              LogLevel.Info,
-              `${subject.teslaID} stopping climate control on ${subject.data.name}`
-            );
-            await this[AgentAction.ClimateControl](job, {
-              data: { id: subject.vehicleUUID, enable: false }
-            } as any);
-          }
+        } else if (
+          after &&
+          subject.hvacOn &&
+          subject.climateEnabled &&
+          !subject.hvacOverride
+        ) {
+          // we're after hvac window, we did turn it on, it's still on, and we were not told to leave it alone
+          log(
+            LogLevel.Info,
+            `${subject.teslaID} stopping climate control on ${subject.data.name}`
+          );
+          await this[AgentAction.ClimateControl](job, {
+            data: { id: subject.vehicleUUID, enable: false }
+          } as any);
+        } else if (!inWindow && !subject.climateEnabled) {
+          // we're outside of hvac window, hvac is turned off, reset state
+          delete subject.hvacOn;
+          delete subject.hvacOverride;
         }
-      } else {
-        delete subject.hvacOn;
-        delete subject.hvacOff;
       }
     } catch (err) {
       if (config.AGENT_SAVE_TO_TRACEFILE) {
