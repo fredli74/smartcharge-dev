@@ -94,7 +94,7 @@
     "patch-package": "6.2.2",
     "register-service-worker": "1.7.1",
     "sass": "1.28.0",
-    "sass-loader": "10.0.4",
+    "sass-loader": "10.0.5",
     "typescript": "4.0.5",
     "vue-apexcharts": "1.6.0",
     "vue-apollo": "3.0.5",
