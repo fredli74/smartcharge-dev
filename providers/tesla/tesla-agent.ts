@@ -767,59 +767,56 @@ export class TeslaAgent extends AbstractAgent {
               subject.chargeControl = ChargeControl.Starting;
               this.stayOnline(subject);
             }
-          } else {
-            let setLevel = shouldCharge!.level;
-            if (shouldCharge!.chargeType === GQLChargeType.Calibrate) {
-              if (!subject.calibrating) {
-                subject.calibrating = {
-                  level: Math.max(
-                    config.LOWEST_POSSIBLE_CHARGETO,
-                    subject.data.batteryLevel
-                  ),
-                  duration: 0,
-                  next: now + 30e3
-                };
-              }
-              if (subject.calibrating.level >= shouldCharge!.level) {
-                // done!
-                setLevel = 0;
-              } else {
-                setLevel = subject.calibrating.level + 1;
-                if (subject.chargeLimit !== setLevel) {
-                  subject.calibrating.next = Math.max(
-                    now + 15e3,
-                    subject.calibrating.next
-                  );
-                }
-              }
-            } else if (subject.calibrating) {
-              delete subject.calibrating;
+          }
+
+          let setLevel = shouldCharge!.level;
+          if (shouldCharge!.chargeType === GQLChargeType.Calibrate) {
+            if (!subject.calibrating) {
+              subject.calibrating = {
+                level: Math.max(
+                  config.LOWEST_POSSIBLE_CHARGETO,
+                  subject.data.batteryLevel
+                ),
+                duration: 0,
+                next: now + 30e3
+              };
             }
-
-            const chargeto = Math.max(
-              config.LOWEST_POSSIBLE_CHARGETO,
-              setLevel
-            ); // Minimum allowed charge for Tesla is 50
-
-            if (
-              subject.chargeLimit !== undefined && // Only controll if polled at least once
-              (subject.chargeLimit < chargeto ||
-                (subject.chargeLimit > chargeto &&
-                  (shouldCharge.chargeType === GQLChargeType.Manual ||
-                    subject.data.locationID !== null)))
-            ) {
-              if (await this.vehicleInteraction(job, subject, true, false)) {
-                log(
-                  LogLevel.Info,
-                  `${subject.teslaID} setting charge limit for ${subject.data.name} to ${chargeto}%`
+            if (subject.calibrating.level >= shouldCharge!.level) {
+              // done!
+              setLevel = 0;
+            } else {
+              setLevel = subject.calibrating.level + 1;
+              if (subject.chargeLimit !== setLevel) {
+                subject.calibrating.next = Math.max(
+                  now + 15e3,
+                  subject.calibrating.next
                 );
-                await teslaAPI.setChargeLimit(
-                  subject.teslaID,
-                  chargeto,
-                  job.serviceData.token
-                );
-                this.stayOnline(subject);
               }
+            }
+          } else if (subject.calibrating) {
+            delete subject.calibrating;
+          }
+
+          const chargeto = Math.max(config.LOWEST_POSSIBLE_CHARGETO, setLevel); // Minimum allowed charge for Tesla is 50
+
+          if (
+            subject.chargeLimit !== undefined && // Only controll if polled at least once
+            (subject.chargeLimit < chargeto ||
+              (subject.chargeLimit > chargeto &&
+                (shouldCharge.chargeType === GQLChargeType.Manual ||
+                  subject.data.locationID !== null)))
+          ) {
+            if (await this.vehicleInteraction(job, subject, true, false)) {
+              log(
+                LogLevel.Info,
+                `${subject.teslaID} setting charge limit for ${subject.data.name} to ${chargeto}%`
+              );
+              await teslaAPI.setChargeLimit(
+                subject.teslaID,
+                chargeto,
+                job.serviceData.token
+              );
+              this.stayOnline(subject);
             }
           }
         }
