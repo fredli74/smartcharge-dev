@@ -37,7 +37,7 @@ class AuthService extends EventEmitter {
         if (err) {
           reject(err);
         } else {
-          resolve(authResult && authResult.idToken);
+          resolve((authResult && authResult.idToken) || null);
         }
       });
     });
