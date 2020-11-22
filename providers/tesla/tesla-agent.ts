@@ -215,7 +215,8 @@ export class TeslaAgent extends AbstractAgent {
         AeroTurbine20: "WT20",
         Turbine19: "WTTB",
         Turbine22Dark: "WTUT",
-        Charcoal21: "WTSP"
+        Charcoal21: "WTSP",
+        Base19: "WT19" // does not work on facelift model s
       })
     );
 
