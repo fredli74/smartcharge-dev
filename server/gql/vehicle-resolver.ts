@@ -18,7 +18,8 @@ import {
   PubSubEngine,
   Root,
   Int,
-  ID
+  ID,
+  GraphQLISODateTime
 } from "type-graphql";
 import { IContext, accountFilter } from "./api";
 import { INTERNAL_SERVICE_UUID } from "@server/db-interface";
@@ -203,7 +204,7 @@ export class VehicleResolver {
     @Arg("type", _type => ScheduleType) type: ScheduleType,
     @Arg("level", _type => Int, { nullable: true })
     level: number | null,
-    @Arg("time", _type => Date, { nullable: true })
+    @Arg("time", _type => GraphQLISODateTime, { nullable: true })
     time: Date | null,
     @Ctx() context: IContext,
     @PubSub() pubSub: PubSubEngine

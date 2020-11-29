@@ -150,8 +150,8 @@ const Color = {
       variables() {
         return {
           vehicleID: this.vehicle && this.vehicle.id,
-          from: this.defaultMinX,
-          // to: this.defaultMaxX,
+          from: new Date(this.defaultMinX),
+          // to: new Date(this.defaultMaxX),
           period: 60,
           locationID: this.location_id || null
         };
