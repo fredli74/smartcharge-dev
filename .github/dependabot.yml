@@ -11,6 +11,5 @@ updates:
     target-branch: "dependencies"
     open-pull-requests-limit: 15
     schedule:
-      interval: "weekly"
-      day: "sunday"
+      interval: "daily"
       
