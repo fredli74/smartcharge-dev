@@ -43,9 +43,13 @@ export function vehicleImage(
     case "model3":
       model = "m3";
       if (sideView) {
-        // W32 does not exist in side view
         for (let i = 0; i < options.length; ++i) {
+          // W32 does not exist in side view
           if (options[i] === "W32B" || options[i] === "W32D") {
+            options[i] = "W39B";
+          }
+          // Refreshed stiletto only works in 3QTR view without black trim
+          if (options[i] === "W41B") {
             options[i] = "W39B";
           }
         }

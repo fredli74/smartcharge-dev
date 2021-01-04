@@ -161,8 +161,8 @@ export class TeslaAgent extends AbstractAgent {
 
     function optionTranslate(
       field: string,
-      a: { [name: string]: string | null }
-    ) {
+      a: { [name: string]: string[] | string | null }
+    ): string[] | string | null | undefined {
       const d = String(config[field]);
       if (d === "undefined") {
         log(
@@ -209,6 +209,7 @@ export class TeslaAgent extends AbstractAgent {
         Pinwheel18: "W38B",
         Pinwheel18CapKit: "W32D", // Performance wheels place holder until we can find the correct ones
         Stiletto19: "W39B",
+        StilettoRefresh19: "W41B",
         Stiletto20: "W32B",
         Slipstream19Carbon: "WTDS",
         AeroTurbine19: "WTAS",
@@ -228,10 +229,19 @@ export class TeslaAgent extends AbstractAgent {
       })
     );
 
+    if (typeof config.exterior_trim === "string") {
+      option_codes.push(
+        optionTranslate("exterior_trim", {
+          Chrome: null,
+          Black: ["MT315", "IPB0"]
+        })
+      );
+    }
+
     option_codes.push(
       optionTranslate("rhd", {
         true: "DRRH",
-        false: "DRLH"
+        false: null
       })
     );
 
@@ -243,14 +253,16 @@ export class TeslaAgent extends AbstractAgent {
       option_codes.push("X024"); // Performance Package
     }
 
-    option_codes = option_codes.filter(f => f !== undefined);
+    option_codes = option_codes
+      .flat(Infinity)
+      .filter(f => f !== undefined && f !== null);
 
     if (
       subject.data.providerData.car_type !== config.car_type ||
       Boolean(subject.data.providerData.unknown_image) !==
-        Boolean(unknown_image) ||
+      Boolean(unknown_image) ||
       JSON.stringify(subject.data.providerData.option_codes) !==
-        JSON.stringify(option_codes)
+      JSON.stringify(option_codes)
     ) {
       await this.scClient.updateVehicle({
         id: subject.vehicleUUID,
@@ -318,7 +330,7 @@ export class TeslaAgent extends AbstractAgent {
       log(
         LogLevel.Info,
         `${subject.teslaID} waking up ${(subject.data && subject.data.name) ||
-          subject.vehicleUUID}`
+        subject.vehicleUUID}`
       );
       const data = await teslaAPI.wakeUp(
         subject.teslaID,
@@ -419,12 +431,12 @@ export class TeslaAgent extends AbstractAgent {
         // the correct number should be 11 kW on 3 phases (3*16*230).
         const phases =
           data.charge_state.charger_actual_current > 0 &&
-          data.charge_state.charger_voltage > 1
+            data.charge_state.charger_voltage > 1
             ? Math.round(
-                (data.charge_state.charger_power * 1e3) /
-                  data.charge_state.charger_actual_current /
-                  data.charge_state.charger_voltage
-              )
+              (data.charge_state.charger_power * 1e3) /
+              data.charge_state.charger_actual_current /
+              data.charge_state.charger_voltage
+            )
             : 0;
         // const phases = data.charge_state.charger_phases;
 
@@ -433,8 +445,8 @@ export class TeslaAgent extends AbstractAgent {
           phases > 0 // we get 0 phases when DC charging because current is 0
             ? (data.charge_state.charger_actual_current * // amp
               phases * // * phases
-                data.charge_state.charger_voltage) /
-              1e3 // * voltage = watt / 1000 = kW
+              data.charge_state.charger_voltage) /
+            1e3 // * voltage = watt / 1000 = kW
             : data.charge_state.charger_power; // fallback to API reported power
 
         // Update info
@@ -456,8 +468,8 @@ export class TeslaAgent extends AbstractAgent {
           connectedCharger: data.charge_state.fast_charger_present
             ? GQLChargeConnection.DC // fast charger
             : data.charge_state.charging_state !== "Disconnected"
-            ? GQLChargeConnection.AC
-            : null, // any other charger or no charger
+              ? GQLChargeConnection.AC
+              : null, // any other charger or no charger
           chargingTo: chargingTo,
           estimatedTimeLeft: Math.round(
             data.charge_state.time_to_full_charge * 60
@@ -923,8 +935,7 @@ export class TeslaAgent extends AbstractAgent {
       if (err.code === 401) {
         log(
           LogLevel.Trace,
-          `${
-            subject.teslaID
+          `${subject.teslaID
           } tesla-agent polling error 401 for ${JSON.stringify(
             job.serviceData
           )}`
@@ -939,8 +950,7 @@ export class TeslaAgent extends AbstractAgent {
         } catch (err) {
           log(
             LogLevel.Error,
-            `${subject.teslaID} unable to refresh teslaAPI token for ${
-              subject.teslaID
+            `${subject.teslaID} unable to refresh teslaAPI token for ${subject.teslaID
             }: ${JSON.stringify(err)}`
           );
           job.serviceData.invalid_token = true; // client side update to match server
