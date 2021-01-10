@@ -80,7 +80,6 @@
 <script lang="ts">
 import { Component, Vue } from "vue-property-decorator";
 import { gql } from "apollo-boost";
-import providers from "@providers/provider-apps";
 import EditVehicle from "@app/components/edit-vehicle.vue";
 import EditLocation from "@app/components/edit-location.vue";
 import { GQLVehicle, GQLLocation } from "@shared/sc-schema";
@@ -141,32 +140,6 @@ export default class Home extends Vue {
 
   data() {
     return { loading: false, vehicles: undefined, locations: undefined };
-  }
-  async created() {
-    // this.locations = await apollo.getLocations();
-  }
-  async mounted() {
-    // this.loading = true;
-    // this.vehicles = await apollo.getVehicles();
-    // this.loading = false;
-  }
-
-  vehiclePicture(vehicle: GQLVehicle) {
-    if (vehicle.providerData && vehicle.providerData.unknown_image) {
-      return require("../assets/unknown_vehicle.png");
-    } else {
-      const provider = providers.find(
-        p => p.name === vehicle.providerData.provider
-      );
-      if (provider && provider.image) {
-        return provider.image(vehicle, true);
-      } else {
-        return "";
-      }
-    }
-  }
-  selectVehicle(vehicle: GQLVehicle) {
-    this.$router.push(`/vehicle/${vehicle.id}`);
   }
 }
 </script>

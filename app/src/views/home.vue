@@ -123,7 +123,7 @@ export default class Home extends Vue {
         p => p.name === vehicle.providerData.provider
       );
       if (provider && provider.image) {
-        return provider.image(vehicle, true);
+        return provider.image(vehicle, false);
       } else {
         return "";
       }
