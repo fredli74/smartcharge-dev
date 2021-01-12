@@ -19,7 +19,7 @@
       </v-toolbar-title>
       <v-spacer></v-spacer>
       <v-menu v-if="authorized" bottom left offset-y>
-        <template v-slot:activator="{ on }">
+        <template #activator="{ on }">
           <v-btn dark icon v-on="on">
             <v-icon>mdi-dots-vertical</v-icon>
           </v-btn>
@@ -170,6 +170,9 @@ body {
 input,
 textarea {
   -moz-user-select: text;
+}
+.v-list-item--link:before {
+  z-index: 1;
 }
 .v-list-item .v-list-item__title,
 .v-list-item .v-list-item__subtitle {
