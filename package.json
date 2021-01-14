@@ -84,7 +84,7 @@
     "babel-plugin-module-resolver": "4.1.0",
     "babel-plugin-transform-typescript-metadata": "0.3.1",
     "chart.js": "2.9.4",
-    "class-validator": "0.12.2",
+    "class-validator": "0.13.1",
     "deepmerge": "4.2.2",
     "eslint": "7.17.0",
     "eslint-plugin-prettier": "3.3.1",
