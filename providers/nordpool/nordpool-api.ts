@@ -5,26 +5,12 @@
  * @license MIT (MIT)
  */
 
-import { strict as assert } from "assert";
-
-import { RestClient, RestToken } from "@shared/restclient";
+import { RestClient } from "@shared/restclient";
 import config from "./nordpool-config";
 import provider from ".";
 import { PROJECT_AGENT } from "@shared/smartcharge-defines";
 
 export class NordpoolAPI extends RestClient {
-  public async getHomes(token: RestToken) {
-    assert(typeof token === "string");
-    assert((token as string).length === 64);
-    return this.post(
-      "",
-      {
-        query: `{ viewer { homes { id appNickname } } }`
-      },
-      token
-    );
-  }
-
   public async getPrices(page: number, currency: string) {
     // add &endDate=29-03-2020 if we need to poll historic data
     return this.get(

@@ -156,13 +156,13 @@ export function prettyTime(seconds: number): string {
 
 export function mergeURL(
   base: string | undefined,
-  relative: string | undefined
+  url: string | undefined
 ): string {
-  return !relative
+  return !url
     ? base || ""
-    : !base
-    ? relative
-    : base.replace(/\/+$/, "") + "/" + relative.replace(/^\/+/, "");
+    : !base || url.match(/^https?:\/\//)
+    ? url
+    : base.replace(/\/+$/, "") + "/" + url.replace(/^\/+/, "");
 }
 
 export function secondsToString(

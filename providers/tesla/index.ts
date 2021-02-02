@@ -1,5 +1,11 @@
 import { IProvider, ProviderType } from "..";
-import { IRestToken } from "@shared/restclient";
+
+// tesla API token
+export type TeslaToken = {
+  access_token: string;
+  refresh_token: string;
+  expires_at: number;
+};
 
 // client side info
 export interface TeslaProviderData {
@@ -14,7 +20,7 @@ export interface TeslaProviderData {
 
 // agent side info
 export interface TeslaServiceData {
-  token: IRestToken; // token for API authentication
+  token: TeslaToken; // token for API authentication
   updated?: number;
   invalid_token?: boolean;
 }

@@ -8,7 +8,6 @@
 
 import { strict as assert } from "assert";
 
-import { IRestToken, RestClient } from "@shared/restclient";
 import * as fs from "fs";
 import {
   log,
@@ -19,7 +18,7 @@ import {
 } from "@shared/utils";
 import { SCClient } from "@shared/sc-client";
 import config from "./tesla-config";
-import teslaAPI from "./tesla-api";
+import teslaAPI, { TeslaAPI } from "./tesla-api";
 import {
   AgentJob,
   AbstractAgent,
@@ -29,7 +28,8 @@ import {
 import provider, {
   TeslaServiceData,
   TeslaProviderMutates,
-  TeslaProviderQueries
+  TeslaProviderQueries,
+  TeslaToken
 } from ".";
 import {
   GQLVehicle,
@@ -278,10 +278,9 @@ export class TeslaAgent extends AbstractAgent {
   // Check token and refresh through server provider API
   public async maintainToken(job: TeslaAgentJob) {
     // API Token check and update
-    const token = job.serviceData.token as IRestToken;
-    if (RestClient.tokenExpired(token)) {
+    const token = job.serviceData.token as TeslaToken;
+    if (TeslaAPI.tokenExpired(token)) {
       // Token has expired, run it through server
-      const token = job.serviceData.token as IRestToken;
       const newToken = await this.scClient.providerMutate("tesla", {
         mutation: TeslaProviderMutates.RefreshToken,
         token
