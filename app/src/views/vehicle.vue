@@ -1,5 +1,5 @@
 <template>
-  <v-flex xs12 class="vehicle autosize">
+  <v-flex xs12 class="vehicle autosize mt-sm-n6">
     <div v-if="loading">
       <v-progress-linear indeterminate color="primary"></v-progress-linear>
     </div>
@@ -14,7 +14,7 @@
             :units="1"
             :time="new Date(vehicle.updated)"
             >Updated
-            <template v-slot:suffix>
+            <template #suffix>
               ago
             </template>
           </RelativeTime>
@@ -31,7 +31,7 @@
             <v-flex sm12 grow class="d-none d-sm-flex">
               <v-img id="vehicle-picture" :src="vehiclePicture" />
               <v-tooltip v-if="vehiclePictureUnknown" left>
-                <template v-slot:activator="{ on }">
+                <template #activator="{ on }">
                   <v-btn
                     class="mx-2"
                     absolute
@@ -73,7 +73,7 @@
               :hide-below="120"
               :units="2"
               :time="new Date(Date.now() + vehicle.estimatedTimeLeft * 60e3)"
-              >(est.<template v-slot:suffix>) </template>
+              >(est.<template #suffix>) </template>
             </RelativeTime>
           </div>
           <div class="batteryLevel mr-2">

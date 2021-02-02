@@ -14,7 +14,12 @@
         <v-container fluid grid-list-md>
           <v-layout align-center justify-space-around>
             <v-flex xs4 sm5>
-              <v-img max-height="100" contain :src="vehiclePicture(vehicle)" />
+              <v-img
+                max-height="100"
+                min-height="100"
+                contain
+                :src="vehiclePicture(vehicle)"
+              />
             </v-flex>
             <v-flex xs7 sm6>
               <v-list-item-content>

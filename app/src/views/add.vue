@@ -1,6 +1,6 @@
 <template>
-  <v-flex xs12 class="svga-limit">
-    <v-card v-if="!limited">
+  <v-flex xs12 sm10 md8 class="svga-limit">
+    <v-card v-if="!limited" tile>
       <v-list-item
         v-for="provider in providers"
         :key="provider.name"
@@ -33,7 +33,6 @@ export default class Add extends Vue {
   limited!: boolean;
   async mounted() {
     const limit = await apollo.getVehicleLimit();
-    console.debug(limit);
     this.limited = limit !== null && limit <= 0;
   }
   data() {
