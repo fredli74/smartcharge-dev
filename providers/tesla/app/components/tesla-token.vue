@@ -10,7 +10,6 @@
       label="Tesla refresh token"
       hint="Get it here"
       persistent-hint
-      maxlength="870"
       counter
       ><template #message="{ message, key }">
         <a
@@ -54,7 +53,7 @@ export default class TeslaTokenVue extends Vue {
   get properToken(): boolean {
     return (
       this.refresh_token_input !== undefined &&
-      this.refresh_token_input.match(/^\S{870}$/) !== null
+      this.refresh_token_input.match(/^\S{800}/) !== null
     );
   }
   async newToken() {
