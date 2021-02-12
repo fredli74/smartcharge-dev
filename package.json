@@ -99,7 +99,7 @@
     "sass-loader": "10.1.1",
     "typescript": "4.1.5",
     "vue-apexcharts": "1.6.0",
-    "vue-apollo": "3.0.5",
+    "vue-apollo": "3.0.7",
     "vue-chartjs": "3.5.1",
     "vue-class-component": "7.2.6",
     "vue-cli-plugin-vuetify": "2.1.0",
