@@ -199,6 +199,7 @@ export class TeslaAgent extends AbstractAgent {
 
     option_codes.push(
       optionTranslate("roof_color", {
+        RoofColorGlass: defaults.roof_color,
         Glass: defaults.roof_color,
         None: defaults.roof_color
       })
