@@ -198,8 +198,8 @@ program
       const httpServer = http.createServer(app);
       apiServer.installSubscriptionHandlers(httpServer);
 
-      const PORT = Number(program.port || config.SERVER_PORT);
-      const IP = Number(program.ip || config.SERVER_IP);
+      const PORT = Number(program.opts().port || config.SERVER_PORT);
+      const IP = Number(program.opts().ip || config.SERVER_IP);
 
       // Start server
       httpServer.listen(PORT, IP, () => {
