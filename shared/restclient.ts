@@ -12,19 +12,6 @@ import * as https_proxy_agent from "https-proxy-agent";
 import { mergeURL } from "./utils";
 
 const DEFAULT_AGENT = `RestClient/1.0 (Node.js)`;
-const TOKEN_EXPIRATION_WINDOW = 300;
-
-export type IRestToken = {
-  access_token: string;
-  token_type: string;
-  refresh_token?: string;
-  expires_at?: number;
-};
-export type RestToken = string | IRestToken;
-
-function time(): number {
-  return Math.floor(new Date().valueOf() / 1e3);
-}
 
 export interface Options {
   baseURL?: string;
@@ -50,42 +37,7 @@ export class RestClient {
   private httpAgent: http.Agent | undefined;
   private httpsAgent: https.Agent | undefined;
   private httpsProxyAgent: https_proxy_agent.HttpsProxyAgent | undefined;
-  constructor(private options: Options) {}
-  private static parseTokenResponse(data: any): RestToken {
-    if (typeof data.access_token !== "string")
-      throw new RestClientError(
-        `Error parsing invalid OAuth2.0 token response ${JSON.stringify(data)}`,
-        500
-      );
-    const token: RestToken = {
-      access_token: data.access_token,
-      token_type: data.token_type || "Bearer"
-    };
-    if (typeof data.refresh_token === "string") {
-      token.refresh_token = data.refresh_token;
-    }
-    const expires = Number.parseInt(data.expires_in);
-    if (Number.isInteger(expires)) {
-      token.expires_at = time() + expires - TOKEN_EXPIRATION_WINDOW;
-    }
-    return token;
-  }
-  public static tokenExpired(token: RestToken) {
-    return (
-      typeof token === "object" &&
-      token.expires_at !== undefined &&
-      token.expires_at <= time()
-    );
-  }
-  public async getToken(url: string, data?: any): Promise<RestToken> {
-    try {
-      const res = await this.request("POST", url, data);
-      return RestClient.parseTokenResponse(res.data);
-    } catch (e) {
-      console.debug(`RestClient.getToken error: ${e}`);
-      throw new RestClientError(e, 500);
-    }
-  }
+  constructor(private options: Options) { }
 
   private getAgent(secure: boolean): http.Agent | https.Agent {
     if (this.options.proxy) {
@@ -118,7 +70,7 @@ export class RestClient {
     method: string,
     relativeURL: string,
     data: any,
-    token?: RestToken
+    bearerToken?: string
   ): Promise<RestClientResponse> {
     const url = mergeURL(this.options.baseURL, relativeURL);
     const secure = /^https:/.test(url);
@@ -133,12 +85,8 @@ export class RestClient {
         "User-Agent": this.options.agent || DEFAULT_AGENT
       }
     };
-    if (typeof token === "string") {
-      opt.headers["Authorization"] = `Bearer ${token}`;
-    } else if (typeof token === "object" && token.access_token !== undefined) {
-      opt.headers["Authorization"] = `${token.token_type || "Bearer"} ${
-        token.access_token
-      }`;
+    if (typeof bearerToken === "string") {
+      opt.headers["Authorization"] = `Bearer ${bearerToken}`;
     }
     const postData = JSON.stringify(data);
     if (postData) {
@@ -146,9 +94,8 @@ export class RestClient {
     }
     return new Promise<RestClientResponse>((resolve, reject) => {
       const dispatchError = (e: any, code?: number) => {
-        const s = `RestClient request error: ${
-          typeof e === "string" ? e : JSON.stringify(e)
-        }`;
+        const s = `request error: ${typeof e === "string" ? e : JSON.stringify(e)
+          }`;
         reject(new RestClientError(s, code || 500));
       };
 
@@ -182,22 +129,22 @@ export class RestClient {
     });
   }
 
-  public async subscribe(url: string, data?: any, token?: RestToken) {
-    return (await this.request("SUBSCRIBE", url, data, token)).data;
+  public async subscribe(url: string, data?: any, bearerToken?: string) {
+    return (await this.request("SUBSCRIBE", url, data, bearerToken)).data;
   }
-  public async unsubscribe(url: string, data?: any, token?: RestToken) {
-    return (await this.request("UNSUBSCRIBE", url, data, token)).data;
+  public async unsubscribe(url: string, data?: any, bearerToken?: string) {
+    return (await this.request("UNSUBSCRIBE", url, data, bearerToken)).data;
   }
-  public async get(url: string, token?: RestToken) {
-    return (await this.request("GET", url, undefined, token)).data;
+  public async get(url: string, bearerToken?: string) {
+    return (await this.request("GET", url, undefined, bearerToken)).data;
   }
-  public async post(url: string, data?: any, token?: RestToken | string) {
-    return (await this.request("POST", url, data, token)).data;
+  public async post(url: string, data?: any, bearerToken?: string) {
+    return (await this.request("POST", url, data, bearerToken)).data;
   }
-  public async put(url: string, data?: any, token?: RestToken | string) {
-    return (await this.request("PUT", url, data, token)).data;
+  public async put(url: string, data?: any, bearerToken?: string) {
+    return (await this.request("PUT", url, data, bearerToken)).data;
   }
-  public async patch(url: string, data?: any, token?: RestToken | string) {
-    return (await this.request("PATCH", url, data, token)).data;
+  public async patch(url: string, data?: any, bearerToken?: string) {
+    return (await this.request("PATCH", url, data, bearerToken)).data;
   }
 }

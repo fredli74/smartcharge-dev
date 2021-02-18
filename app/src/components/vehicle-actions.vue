@@ -29,7 +29,7 @@
     </v-dialog>
 
     <v-tooltip v-if="!isSleeping" top :disabled="disableTooltips">
-      <template v-slot:activator="{ on }">
+      <template #activator="{ on }">
         <v-btn
           depressed
           fab
@@ -47,7 +47,7 @@
       <span>Update</span>
     </v-tooltip>
     <v-tooltip v-else top :disabled="disableTooltips">
-      <template v-slot:activator="{ on }">
+      <template #activator="{ on }">
         <v-btn
           depressed
           fab
@@ -65,7 +65,7 @@
       <span>Wake Up</span>
     </v-tooltip>
     <v-tooltip top :disabled="disableTooltips">
-      <template v-slot:activator="{ on }">
+      <template #activator="{ on }">
         <v-btn
           depressed
           fab
@@ -86,7 +86,7 @@
     </v-tooltip>
 
     <v-tooltip top :disabled="disableTooltips">
-      <template v-slot:activator="{ on }">
+      <template #activator="{ on }">
         <div v-on="on">
           <v-btn
             depressed
@@ -110,7 +110,7 @@
       <span>{{ manualChargeState.tooltip }}</span>
     </v-tooltip>
     <v-tooltip top :disabled="disableTooltips">
-      <template v-slot:activator="{ on }">
+      <template #activator="{ on }">
         <v-btn
           depressed
           fab
@@ -257,7 +257,6 @@ export default class VehicleActions extends Vue {
           outlined: false,
           dark: true,
           color: "red accent-4",
-
           tooltip: "No charge"
         };
       }
@@ -266,7 +265,6 @@ export default class VehicleActions extends Vue {
         outlined: true,
         dark: false,
         color: "grey darken-3",
-
         tooltip: "Not connected"
       };
     }

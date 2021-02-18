@@ -2,12 +2,12 @@ import { IContext, accountFilter } from "@server/gql/api";
 import provider, {
   TeslaProviderMutates,
   TeslaProviderQueries,
-  TeslaProviderData
+  TeslaProviderData,
+  TeslaToken
 } from "./index";
-import { IRestToken } from "@shared/restclient";
 import { ApolloError } from "apollo-server-express";
 import { DBInterface } from "@server/db-interface";
-import teslaAPI from "./tesla-api";
+import teslaAPI, { TeslaAPI } from "./tesla-api";
 import { log, LogLevel } from "@shared/utils";
 import { IProviderServer } from "@providers/provider-server";
 import { TeslaNewListEntry } from "./app/tesla-helper";
@@ -18,22 +18,24 @@ import { strict as assert } from "assert";
 // Check token and refresh through direct database update
 export async function maintainToken(
   db: DBInterface,
-  oldToken: IRestToken
-): Promise<IRestToken> {
-  log(LogLevel.Trace, `maintainToken ${JSON.stringify(oldToken)}`);
+  token: Partial<Omit<TeslaToken, "refresh_token">> &
+    Pick<TeslaToken, "refresh_token">
+): Promise<TeslaToken> {
+  log(LogLevel.Trace, `maintainToken ${JSON.stringify(token)}`);
   try {
-    const newToken = await teslaAPI.refreshToken(oldToken);
-    if (!newToken) {
-      return oldToken;
+    if (
+      token.access_token !== undefined &&
+      token.expires_at !== undefined &&
+      !TeslaAPI.tokenExpired(token as TeslaToken)
+    ) {
+      return token as TeslaToken;
     }
-    assert(oldToken.refresh_token !== undefined);
-    if (oldToken.refresh_token) {
-      validToken(db, oldToken.refresh_token, newToken);
-    }
+    const newToken = await teslaAPI.renewToken(token.refresh_token);
+    validToken(db, token.refresh_token, newToken);
     return newToken;
   } catch (err) {
     log(LogLevel.Error, err);
-    invalidToken(db, oldToken);
+    invalidToken(db, token);
     throw new ApolloError("Invalid token", "INVALID_TOKEN");
   }
 }
@@ -41,7 +43,7 @@ export async function maintainToken(
 async function validToken(
   db: DBInterface,
   oldRefreshToken: string,
-  newToken: IRestToken
+  newToken: TeslaToken
 ) {
   const dblist: DBServiceProvider[] = await db.pg.manyOrNone(
     `UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $2) WHERE service_data @> $1 RETURNING *;`,
@@ -57,11 +59,11 @@ async function validToken(
     );
     await db.pg.none(
       `UPDATE vehicle SET provider_data = jsonb_strip_nulls(provider_data || $2) WHERE service_uuid = $1;`,
-      [{ invalid_token: null }, s.service_uuid]
+      [s.service_uuid, { invalid_token: null }]
     );
   }
 }
-async function invalidToken(db: DBInterface, token: IRestToken) {
+async function invalidToken(db: DBInterface, token: Partial<TeslaToken>) {
   log(LogLevel.Trace, `Token ${JSON.stringify(token)} was invalid`);
   assert(token.refresh_token || token.access_token);
 
@@ -188,7 +190,9 @@ const server: IProviderServer = {
       case TeslaProviderMutates.RefreshToken: {
         return await maintainToken(
           context.db,
-          data.token ? data.token : { refresh_token: data.refresh_token }
+          data.token
+            ? (data.token as TeslaToken)
+            : { refresh_token: data.refresh_token }
         );
       }
       case TeslaProviderMutates.NewVehicle: {

@@ -145,7 +145,7 @@ program
         await agency.worker();
       } catch (err) {
         log(LogLevel.Error, err);
-        if (!program.daemon) {
+        if (!program.opts().daemon) {
           throw err;
         }
       }

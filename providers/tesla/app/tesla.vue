@@ -32,12 +32,15 @@
 <script lang="ts">
 import { Component, Vue, Prop } from "vue-property-decorator";
 import apollo from "@app/plugins/apollo";
-import { IRestToken } from "@shared/restclient";
 import { TeslaNewListEntry } from "./tesla-helper";
 import TeslaTokenVue from "./components/tesla-token.vue";
 import TeslaNewVehicleList from "./components/tesla-new-list.vue";
 import { ProviderVuePage } from "@providers/provider-app";
-import provider, { TeslaProviderQueries, TeslaProviderMutates } from "..";
+import provider, {
+  TeslaProviderQueries,
+  TeslaProviderMutates,
+  TeslaToken
+} from "..";
 
 @Component({
   components: {
@@ -77,7 +80,7 @@ export default class TeslaVue extends Vue {
   }
 
   // ACTIONS
-  async loadTeslaVehicles(newProvider?: IRestToken) {
+  async loadTeslaVehicles(newProvider?: TeslaToken) {
     this.loading = true;
     this.allProviderVehicles = [];
     // TODO: break this out into a helper function ?
@@ -109,7 +112,7 @@ export default class TeslaVue extends Vue {
     }
   }
 
-  async newProvider(token: IRestToken) {
+  async newProvider(token: TeslaToken) {
     this.showTokenForm = false;
     this.loadTeslaVehicles(token);
   }

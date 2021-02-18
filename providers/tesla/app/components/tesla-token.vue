@@ -1,15 +1,17 @@
 <template>
   <div>
-    <p>Please enter a <b>refresh token</b> to continue</p>
-    <v-text-field
+    <p>Please paste your <b>refresh token</b> to continue</p>
+    <v-textarea
       v-model="refresh_token_input"
-      small
-      grow
-      label="Tesla API refresh token"
+      auto-grow
+      autofocus
+      flat
+      filled
+      label="Tesla refresh token"
       hint="Get it here"
       persistent-hint
-      filled
-      ><template v-slot:message="{ message, key }">
+      counter
+      ><template #message="{ message, key }">
         <a
           :key="key"
           href="https://tesla-token.netlify.com/#refresh_token"
@@ -17,7 +19,7 @@
           >{{ message }}</a
         >
       </template>
-    </v-text-field>
+    </v-textarea>
 
     <v-card-actions class="justify-center">
       <v-btn
@@ -49,10 +51,9 @@ export default class TeslaTokenVue extends Vue {
     };
   }
   get properToken(): boolean {
-    console.debug(this.refresh_token_input);
     return (
       this.refresh_token_input !== undefined &&
-      this.refresh_token_input.match(/^[0-9a-f]{64}$/) !== null
+      this.refresh_token_input.match(/^\S{800}/) !== null
     );
   }
   async newToken() {

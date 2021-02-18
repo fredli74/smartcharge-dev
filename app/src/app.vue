@@ -19,7 +19,7 @@
       </v-toolbar-title>
       <v-spacer></v-spacer>
       <v-menu v-if="authorized" bottom left offset-y>
-        <template v-slot:activator="{ on }">
+        <template #activator="{ on }">
           <v-btn dark icon v-on="on">
             <v-icon>mdi-dots-vertical</v-icon>
           </v-btn>
@@ -51,13 +51,23 @@
       <template v-if="$route.meta.fullpage"
         ><router-view></router-view
       ></template>
-      <v-container v-else fluid>
-        <v-layout row justify-space-around>
-          <v-flex xs12 class="px-4">
-            <v-alert v-model="error.show" dismissible type="error" prominent>{{
-              error.message
-            }}</v-alert>
-            <v-alert v-model="warning.show" dismissible type="warning">{{
+      <v-container v-else fluid class="mt-sm-6">
+        <v-layout
+          v-if="error.show || warning.show"
+          row
+          justify-space-around
+          class="mb-sm-4"
+        >
+          <v-flex xs12 sm10 md8>
+            <v-alert
+              v-model="error.show"
+              dismissible
+              type="error"
+              tile
+              prominent
+              >{{ error.message }}</v-alert
+            >
+            <v-alert v-model="warning.show" dismissible type="warning" tile>{{
               warning.message
             }}</v-alert>
           </v-flex>
@@ -171,6 +181,9 @@ input,
 textarea {
   -moz-user-select: text;
 }
+.v-list-item--link:before {
+  z-index: 1;
+}
 .v-list-item .v-list-item__title,
 .v-list-item .v-list-item__subtitle {
   line-height: inherit;
@@ -206,7 +219,7 @@ a#homelink {
     flex: none;
   }
   #app-content {
-    padding: 0 0 12px !important;
+    padding: 0px 0 18px !important;
   }
 }
 .v-icon.mdi-menu-down {
