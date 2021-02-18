@@ -34,7 +34,7 @@
     "dotenv": "8.2.0",
     "eventemitter3": "4.0.7",
     "express": "4.17.1",
-    "express-rate-limit": "5.2.5",
+    "express-rate-limit": "5.2.6",
     "graphql": "15.5.0",
     "graphql-type-json": "0.3.2",
     "https-proxy-agent": "5.0.0",
