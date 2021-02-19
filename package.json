@@ -52,7 +52,7 @@
     "ws": "7.4.3"
   },
   "devDependencies": {
-    "@babel/cli": "7.12.16",
+    "@babel/cli": "7.12.17",
     "@babel/core": "7.12.17",
     "@babel/preset-typescript": "7.12.17",
     "@mdi/font": "5.9.55",
