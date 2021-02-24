@@ -107,7 +107,7 @@
     "vue-router": "3.5.1",
     "vue-template-compiler": "2.6.12",
     "vue-visible": "1.0.2",
-    "vuetify": "2.4.4",
+    "vuetify": "2.4.5",
     "vuetify-loader": "1.7.2",
     "weekstart": "1.0.1"
   },
