@@ -417,7 +417,9 @@ export class TeslaAgent extends AbstractAgent {
         subject.chargeEnabled =
           data.charge_state.user_charge_enable_request !== null
             ? data.charge_state.user_charge_enable_request
-            : data.charge_state.charge_enable_request;
+            : data.charge_state.charging_state === "Stopped"
+              ? false
+              : data.charge_state.charge_enable_request;
         subject.portOpen = data.charge_state.charge_port_door_open;
         subject.online = true;
 
