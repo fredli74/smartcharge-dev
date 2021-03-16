@@ -106,7 +106,7 @@
       <v-row v-if="vehicleConnectedAtUnknownLocation" justify="space-around">
         <v-col>
           <p class="mt-5">
-            Vehicle connected at location whithout smart charging.
+            Vehicle connected at location without smart charging.
           </p>
           <v-card-actions class="justify-center">
             <router-link :to="addLocationURL">
