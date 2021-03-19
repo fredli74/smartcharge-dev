@@ -109,7 +109,7 @@
     "vue-visible": "1.0.2",
     "vuetify": "2.4.7",
     "vuetify-loader": "1.7.2",
-    "weekstart": "1.0.1"
+    "weekstart": "1.1.0"
   },
   "engines": {
     "node": "12.7.x"
