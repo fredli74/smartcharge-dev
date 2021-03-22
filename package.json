@@ -84,7 +84,7 @@
     "auth0-js": "9.14.3",
     "babel-eslint": "10.1.0",
     "babel-plugin-module-resolver": "4.1.0",
-    "babel-plugin-transform-typescript-metadata": "0.3.1",
+    "babel-plugin-transform-typescript-metadata": "0.3.2",
     "chart.js": "2.9.4",
     "class-validator": "0.13.1",
     "deepmerge": "4.2.2",
