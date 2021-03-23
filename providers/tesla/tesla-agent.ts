@@ -193,7 +193,8 @@ export class TeslaAgent extends AbstractAgent {
         PearlWhite: "PPSW",
         SilverMetallic: "PMSS",
         Blue: "PMMB",
-        Black: "PBSB"
+        Black: "PBSB",
+        Red: "PPMR"
       })
     );
 
