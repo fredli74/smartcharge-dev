@@ -1198,7 +1198,10 @@ export class Logic {
 
           // Do we need to topup charge above maximum
           if (level > vehicle.maximum_charge) {
-            const topupTime = ChargeDuration(vehicle.maximum_charge, level);
+            const topupTime = ChargeDuration(
+              Math.max(startLevel, vehicle.maximum_charge),
+              level
+            );
             const topupStart = before_ts - SCHEDULE_TOPUP_MARGIN - topupTime;
             log(
               LogLevel.Debug,
