@@ -860,13 +860,24 @@ export class Logic {
             a.chargeType === b.chargeType ||
             numericStopTime(b.chargeStop) <= numericStopTime(a.chargeStop)
           ) {
-            // Merge them
-            if (numericStopTime(b.chargeStop) > numericStopTime(a.chargeStop)) {
-              a.chargeStop = b.chargeStop;
+            if (
+              b.level > a.level &&
+              a.chargeStop === null &&
+              b.chargeStart !== null
+            ) {
+              // Cut off a free running charge if next charge has higher level
+              a.chargeStop = b.chargeStart;
+            } else {
+              // Merge them
+              if (
+                numericStopTime(b.chargeStop) > numericStopTime(a.chargeStop)
+              ) {
+                a.chargeStop = b.chargeStop;
+              }
+              a.level = Math.max(a.level, b.level);
+              plan.splice(i + 1, 1);
+              --i;
             }
-            a.level = Math.max(a.level, b.level);
-            plan.splice(i + 1, 1);
-            --i;
           } else if (a.level >= b.level) {
             // Push the next segment forward
             b.chargeStart = a.chargeStop;
@@ -1090,17 +1101,6 @@ export class Logic {
         comment: `charging disabled`
       });
       smartStatus = `Charging disabled until next plug in`;
-    } else if (manual && !manual.schedule_ts) {
-      assert(manual.level);
-      log(LogLevel.Debug, `Manual charging directly to ${manual.level}%`);
-      chargePlan.push({
-        chargeStart: null,
-        chargeStop: null,
-        chargeType: ChargeType.Manual,
-        level: manual.level,
-        comment: `manual charge`
-      });
-      smartStatus = smartStatus || `Manual charging to ${manual.level}%`;
     } else {
       const priceMap: { ts: Date; price: number }[] =
         (vehicle.location_uuid &&
@@ -1198,7 +1198,10 @@ export class Logic {
 
           // Do we need to topup charge above maximum
           if (level > vehicle.maximum_charge) {
-            const topupTime = ChargeDuration(vehicle.maximum_charge, level);
+            const topupTime = ChargeDuration(
+              Math.max(startLevel, vehicle.maximum_charge),
+              level
+            );
             const topupStart = before_ts - SCHEDULE_TOPUP_MARGIN - topupTime;
             log(
               LogLevel.Debug,
@@ -1292,8 +1295,21 @@ export class Logic {
         }
       };
 
-      // Emergency charge up to minimum level
+      const HandleTripCharge = () => {
+        if (trip) {
+          assert(trip.level);
+          assert(trip.schedule_ts);
+          GeneratePlan(
+            ChargeType.Trip,
+            `upcoming trip`,
+            trip.level,
+            trip.schedule_ts.getTime()
+          );
+        }
+      };
+
       if (startLevel < minimum_charge) {
+        // Emergency charge up to minimum level
         GeneratePlan(ChargeType.Minimum, `emergency charge`, minimum_charge);
         smartStatus =
           (vehicle.connected
@@ -1303,14 +1319,30 @@ export class Logic {
 
       // Manual schedule blocks everything
       if (manual) {
-        assert(manual.level);
-        assert(manual.schedule_ts);
-        GeneratePlan(
-          ChargeType.Manual,
-          `manual charge`,
-          manual.level,
-          manual.schedule_ts.getTime()
-        );
+        if (!manual.schedule_ts) {
+          assert(manual.level);
+          log(LogLevel.Debug, `Manual charging directly to ${manual.level}%`);
+          chargePlan.push({
+            chargeStart: null,
+            chargeStop: null,
+            chargeType: ChargeType.Manual,
+            level: manual.level,
+            comment: `manual charge`
+          });
+          smartStatus = smartStatus || `Manual charging to ${manual.level}%`;
+        } else {
+          assert(manual.level);
+          assert(manual.schedule_ts);
+          GeneratePlan(
+            ChargeType.Manual,
+            `manual charge`,
+            manual.level,
+            manual.schedule_ts.getTime()
+          );
+        }
+
+        // Still do trip charging!
+        HandleTripCharge();
       } else {
         let stats: DBLocationStats | null = null;
         if (vehicle.location_uuid) {
@@ -1351,16 +1383,7 @@ export class Logic {
         this.updateAIschedule(vehicle.vehicle_uuid, ai.ts, ai.level);
 
         // Do we have an upcoming trip?
-        if (trip) {
-          assert(trip.level);
-          assert(trip.schedule_ts);
-          GeneratePlan(
-            ChargeType.Trip,
-            `upcoming trip`,
-            trip.level,
-            trip.schedule_ts.getTime()
-          );
-        }
+        HandleTripCharge();
 
         if (startLevel < vehicle.maximum_charge) {
           if (ai.charge) {
