@@ -808,7 +808,7 @@ export class Logic {
    * Estimated charge duration
    * @returns duration (ms)
    */
-  private async chargeDuration(
+  /* private async chargeDuration(
     vehicleUUID: string,
     locationUUID: string | null,
     from: number,
@@ -828,7 +828,7 @@ export class Logic {
       }
     }
     return sum * 1e3;
-  }
+  }*/
 
   private static cleanupPlan(plan: ChargePlan[]): ChargePlan[] {
     const chargePrio = {
@@ -1125,7 +1125,8 @@ export class Logic {
         let sum = 0;
         for (let l = from; l < to; ++l) {
           sum +=
-            chargeCurve[Math.min(100, Math.ceil(l))] * (l < to ? 1.0 : 0.75); // remove 25% of the last % to not overshoot
+            chargeCurve[Math.max(0, Math.min(100, Math.ceil(l)))] *
+            (l < to ? 1.0 : 0.75); // remove 25% of the last % to not overshoot
         }
         return sum * 1e3;
       };
