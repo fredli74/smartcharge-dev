@@ -97,7 +97,7 @@
     "register-service-worker": "1.7.2",
     "sass": "1.34.0",
     "sass-loader": "10.1.1",
-    "typescript": "4.3.2",
+    "typescript": "4.2.4",
     "vue-apexcharts": "1.6.1",
     "vue-apollo": "3.0.7",
     "vue-chartjs": "3.5.1",
