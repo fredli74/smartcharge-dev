@@ -63,7 +63,7 @@
     "@types/deepmerge": "2.2.0",
     "@types/express": "4.17.12",
     "@types/express-rate-limit": "5.1.2",
-    "@types/express-serve-static-core": "4.17.20",
+    "@types/express-serve-static-core": "4.17.22",
     "@types/graphql-type-json": "0.3.2",
     "@types/jsonwebtoken": "8.5.3",
     "@types/luxon": "1.27.0",
