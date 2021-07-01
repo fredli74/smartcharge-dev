@@ -44,7 +44,7 @@
     "md5": "2.3.0",
     "pg-promise": "10.10.2",
     "reflect-metadata": "0.1.13",
-    "subscriptions-transport-ws": "0.9.16",
+    "subscriptions-transport-ws": "0.9.19",
     "type-graphql": "1.1.1",
     "uuid": "8.3.2",
     "vue": "2.6.12",
