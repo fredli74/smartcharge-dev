@@ -845,6 +845,7 @@ export class TeslaAgent extends AbstractAgent {
           subject.data.chargePlan &&
           subject.data.chargePlan.findIndex(
             f =>
+              f.chargeType !== GQLChargeType.Disable &&
               f.chargeType !== GQLChargeType.Fill &&
               f.chargeType !== GQLChargeType.Manual &&
               f.chargeType !== GQLChargeType.Prefered
