@@ -88,7 +88,11 @@ export class TeslaAPI extends RestClient {
           client_id: config.TESLA_CLIENT_ID,
           client_secret: config.TESLA_CLIENT_SECRET
         },
-        authResponse.access_token
+        authResponse.access_token,
+        {
+          "x-tesla-user-agent": config.TESLA_X_TESLA_USER_AGENT,
+          "X-Requested-With": "com.teslamotors.tesla"
+        }
       )) as any;
 
       // Parse the token response
@@ -207,7 +211,7 @@ export class TeslaAPI extends RestClient {
 }
 const teslaAPI = new TeslaAPI({
   baseURL: config.TESLA_API_BASE_URL,
-  agent: `curl/7.64.1`, // ${PROJECT_AGENT} ${provider.name}/${provider.version}`,
+  agent: config.TESLA_USER_AGENT,
   proxy: config.TESLA_API_PROXY,
   timeout: 120e3
 });

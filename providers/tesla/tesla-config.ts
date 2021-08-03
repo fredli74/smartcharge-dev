@@ -4,7 +4,12 @@ const config = {
   TESLA_AUTH_BASE_URL: `https://auth.tesla.com/oauth2/v3/`,
   TESLA_CLIENT_ID: `81527cff06843c8634fdc09e8ac0abefb46ac849f38fe1e431c2ef2106796384`,
   TESLA_CLIENT_SECRET: `c7257eb71a564034f9419ee651c7d0e5f7aa6bfbd18bafb5c5c033b093bb2fa3`,
-
+  TESLA_X_TESLA_USER_AGENT: `TeslaApp/3.10.9-433/adff2e065/android/10`,
+  TESLA_USER_AGENT: `Mozilla/5.0 (Linux; Android 10; Pixel 3 Build/QQ2A.200305.002; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/85.0.4183.81 Mobile Safari/537.36`,
+  /*
+    User agent was ${PROJECT_AGENT} ${provider.name}/${provider.version}`,
+    then we had to use `curl/7.64.1`, but now we are fully faking it
+  */
   TOKEN_EXPIRATION_WINDOW: 300, // Pre-expiration Tesla API token renewal window
 
   TIME_BEFORE_TIRED: 20 * 60e3, // stay online 20 min after a drive or charge
