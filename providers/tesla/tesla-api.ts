@@ -8,8 +8,7 @@
 import { RestClient, RestClientError } from "@shared/restclient";
 import config from "./tesla-config";
 import { log, LogLevel, mergeURL } from "@shared/utils";
-import provider, { TeslaToken } from ".";
-import { PROJECT_AGENT } from "@shared/smartcharge-defines";
+import { TeslaToken } from ".";
 
 function time(): number {
   return Math.floor(new Date().valueOf() / 1e3);
@@ -88,11 +87,7 @@ export class TeslaAPI extends RestClient {
           client_id: config.TESLA_CLIENT_ID,
           client_secret: config.TESLA_CLIENT_SECRET
         },
-        authResponse.access_token,
-        {
-          "x-tesla-user-agent": config.TESLA_X_TESLA_USER_AGENT,
-          "X-Requested-With": "com.teslamotors.tesla"
-        }
+        authResponse.access_token
       )) as any;
 
       // Parse the token response
@@ -211,7 +206,7 @@ export class TeslaAPI extends RestClient {
 }
 const teslaAPI = new TeslaAPI({
   baseURL: config.TESLA_API_BASE_URL,
-  agent: config.TESLA_USER_AGENT,
+  headers: config.TESLA_API_HEADERS,
   proxy: config.TESLA_API_PROXY,
   timeout: 120e3
 });

@@ -15,7 +15,7 @@ const DEFAULT_AGENT = `RestClient/1.0 (Node.js)`;
 
 export interface Options {
   baseURL?: string;
-  agent?: string;
+  headers?: http.OutgoingHttpHeaders;
   proxy?: string;
   timeout?: number;
 }
@@ -70,8 +70,7 @@ export class RestClient {
     method: string,
     relativeURL: string,
     data: any,
-    bearerToken?: string,
-    headers?: any
+    bearerToken?: string
   ): Promise<RestClientResponse> {
     const url = mergeURL(this.options.baseURL, relativeURL);
     const secure = /^https:/.test(url);
@@ -81,12 +80,14 @@ export class RestClient {
       method: method,
       timeout: this.options.timeout,
       headers: {
-        ...headers,
+        ...this.options.headers,
         Accept: "application/json",
-        "Content-Type": "application/json",
-        "User-Agent": this.options.agent || DEFAULT_AGENT
+        "Content-Type": "application/json"
       }
     };
+    if (opt.headers["User-Agent"] === undefined) {
+      opt.headers["User-Agent"] = DEFAULT_AGENT;
+    }
     if (typeof bearerToken === "string") {
       opt.headers["Authorization"] = `Bearer ${bearerToken}`;
     }
@@ -131,50 +132,22 @@ export class RestClient {
     });
   }
 
-  public async subscribe(
-    url: string,
-    data?: any,
-    bearerToken?: string,
-    headers?: any
-  ) {
-    return (await this.request("SUBSCRIBE", url, data, bearerToken, headers))
-      .data;
+  public async subscribe(url: string, data?: any, bearerToken?: string) {
+    return (await this.request("SUBSCRIBE", url, data, bearerToken)).data;
   }
-  public async unsubscribe(
-    url: string,
-    data?: any,
-    bearerToken?: string,
-    headers?: any
-  ) {
-    return (await this.request("UNSUBSCRIBE", url, data, bearerToken, headers))
-      .data;
+  public async unsubscribe(url: string, data?: any, bearerToken?: string) {
+    return (await this.request("UNSUBSCRIBE", url, data, bearerToken)).data;
   }
-  public async get(url: string, bearerToken?: string, headers?: any) {
-    return (await this.request("GET", url, undefined, bearerToken, headers))
-      .data;
+  public async get(url: string, bearerToken?: string) {
+    return (await this.request("GET", url, undefined, bearerToken)).data;
   }
-  public async post(
-    url: string,
-    data?: any,
-    bearerToken?: string,
-    headers?: any
-  ) {
-    return (await this.request("POST", url, data, bearerToken, headers)).data;
+  public async post(url: string, data?: any, bearerToken?: string) {
+    return (await this.request("POST", url, data, bearerToken)).data;
   }
-  public async put(
-    url: string,
-    data?: any,
-    bearerToken?: string,
-    headers?: any
-  ) {
-    return (await this.request("PUT", url, data, bearerToken, headers)).data;
+  public async put(url: string, data?: any, bearerToken?: string) {
+    return (await this.request("PUT", url, data, bearerToken)).data;
   }
-  public async patch(
-    url: string,
-    data?: any,
-    bearerToken?: string,
-    headers?: any
-  ) {
-    return (await this.request("PATCH", url, data, bearerToken, headers)).data;
+  public async patch(url: string, data?: any, bearerToken?: string) {
+    return (await this.request("PATCH", url, data, bearerToken)).data;
   }
 }
