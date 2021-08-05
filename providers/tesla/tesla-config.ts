@@ -5,9 +5,9 @@ const config = {
   TESLA_CLIENT_ID: `81527cff06843c8634fdc09e8ac0abefb46ac849f38fe1e431c2ef2106796384`,
   TESLA_CLIENT_SECRET: `c7257eb71a564034f9419ee651c7d0e5f7aa6bfbd18bafb5c5c033b093bb2fa3`,
   TESLA_API_HEADERS: {
-    "User-Agent": `Mozilla/5.0 (Linux; Android 10; Pixel 3 Build/QQ2A.200305.002; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/85.0.4183.81 Mobile Safari/537.36`,
-    "x-tesla-user-agent": `TeslaApp/3.10.9-433/adff2e065/android/10`,
-    "X-Requested-With": "com.teslamotors.tesla"
+    "User-Agent": `curl/7.64.1`
+    //    "x-tesla-user-agent": `TeslaApp/3.10.9-433/adff2e065/android/10`,
+    //    "X-Requested-With": "com.teslamotors.tesla"
   },
   /*
     User agent was ${PROJECT_AGENT} ${provider.name}/${provider.version}`,
