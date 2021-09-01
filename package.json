@@ -108,7 +108,7 @@
     "vue-template-compiler": "2.6.12",
     "vue-visible": "1.0.2",
     "vuetify": "2.5.8",
-    "vuetify-loader": "1.7.2",
+    "vuetify-loader": "1.7.3",
     "weekstart": "1.1.0"
   },
   "engines": {
