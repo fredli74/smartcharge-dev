@@ -121,9 +121,9 @@ export default class Home extends Vue {
   }
 
   vehiclePicture(vehicle: GQLVehicle) {
-    if (vehicle.providerData && vehicle.providerData.unknown_image) {
+    /*if (vehicle.providerData && vehicle.providerData.unknown_image) {
       return require("../assets/unknown_vehicle.png");
-    } else {
+    } else*/ {
       const provider = providers.find(
         p => p.name === vehicle.providerData.provider
       );
