@@ -148,6 +148,13 @@ export class TeslaAgent extends AbstractAgent {
           wheel_type: "WT20"
         };
         break;
+      case "modely":
+        defaults = {
+          exterior_color: "PPSW",
+          roof_color: "RF3G",
+          wheel_type: "WY19B"
+        };
+        break;
       default:
         defaults = {
           exterior_color: "PPSW",
@@ -219,7 +226,8 @@ export class TeslaAgent extends AbstractAgent {
         Turbine19: "WTTB",
         Turbine22Dark: "WTUT",
         Charcoal21: "WTSP",
-        Base19: "WT19" // does not work on facelift model s
+        Base19: "WT19", // does not work on facelift model s
+        Apollo19: "WY19B"
       })
     );
 
