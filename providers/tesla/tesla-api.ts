@@ -7,15 +7,16 @@
 
 import { RestClient, RestClientError } from "@shared/restclient";
 import config from "./tesla-config";
-import { log, LogLevel, mergeURL } from "@shared/utils";
-import provider, { TeslaToken } from ".";
-import { PROJECT_AGENT } from "@shared/smartcharge-defines";
+import { log, LogLevel } from "@shared/utils";
+import { TeslaToken } from ".";
 
 function time(): number {
   return Math.floor(new Date().valueOf() / 1e3);
 }
 
-export class TeslaAPI extends RestClient {
+export class TeslaAPI {
+  constructor(private ownerAPI: RestClient, private authAPI: RestClient) { }
+
   public static tokenExpired(token: TeslaToken): boolean {
     return token.expires_at <= time();
   }
@@ -24,28 +25,28 @@ export class TeslaAPI extends RestClient {
     Obsolete!
     Needs to be reimplemented with v3
 
-    public async authenticate(
-      email: string,
-      password: string,
-      mfa: string
-    ): Promise<TeslaToken> {
-      try {
-        return (await this.getToken("/oauth/token?grant_type=password", {
-          grant_type: "password",
-          client_id: config.TESLA_CLIENT_ID,
-          client_secret: config.TESLA_CLIENT_SECRET,
-          email: email,
-          password: password
-        })) as TeslaToken;
-      } catch (error) {
-        log(
-          LogLevel.Debug,
-          `TeslaAgent.Authenticate error: ${error.data.response}`
-        );
-        throw error;
-      }
-    }
-  */
+   public async authenticate(
+     email: string,
+     password: string,
+     mfa: string
+   ): Promise<TeslaToken> {
+     try {
+       return (await this.getToken("/oauth/token?grant_type=password", {
+         grant_type: "password",
+         client_id: config.TESLA_CLIENT_ID,
+         client_secret: config.TESLA_CLIENT_SECRET,
+         email: email,
+         password: password
+       })) as TeslaToken;
+     } catch (error) {
+       log(
+         LogLevel.Debug,
+         `TeslaAgent.Authenticate error: ${error.data.response}`
+       );
+       throw error;
+     }
+   }
+ */
 
   public async renewToken(refresh_token: string): Promise<TeslaToken> {
     try {
@@ -54,15 +55,12 @@ export class TeslaAPI extends RestClient {
       // Tesla authentication is multi layered at the moment
       // First you need to renew the new Tesla SSO access token by using
       // the refresh token from previous oauth2/v3 authorization
-      const authResponse = (await this.post(
-        mergeURL(config.TESLA_AUTH_BASE_URL, "token"),
-        {
-          grant_type: "refresh_token",
-          scope: "openid email offline_access",
-          client_id: "ownerapi",
-          refresh_token: refresh_token
-        }
-      )) as any;
+      const authResponse = (await this.authAPI.post("/oauth2/v3/token", {
+        grant_type: "refresh_token",
+        scope: "openid email offline_access",
+        client_id: "ownerapi",
+        refresh_token: refresh_token
+      })) as any;
       if (typeof authResponse.access_token !== "string") {
         throw new RestClientError(
           `Error parsing Tesla oauth2 v3 token response, missing access_token ${JSON.stringify(
@@ -81,7 +79,7 @@ export class TeslaAPI extends RestClient {
       }
 
       // Use the bearer token to access owner-api and get a new access token
-      const apiResponse = (await this.post(
+      const apiResponse = (await this.ownerAPI.post(
         "/oauth/token",
         {
           grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
@@ -117,7 +115,7 @@ export class TeslaAPI extends RestClient {
   }
 
   public async wakeUp(id: string, token: TeslaToken) {
-    const result = await this.post(
+    const result = await this.ownerAPI.post(
       `/api/1/vehicles/${id}/wake_up`,
       undefined,
       token.access_token
@@ -126,7 +124,7 @@ export class TeslaAPI extends RestClient {
     return result;
   }
   public async setChargeLimit(id: string, limit: number, token: TeslaToken) {
-    const result = await this.post(
+    const result = await this.ownerAPI.post(
       `/api/1/vehicles/${id}/command/set_charge_limit`,
       { percent: limit },
       token.access_token
@@ -138,7 +136,7 @@ export class TeslaAPI extends RestClient {
     return result;
   }
   public async chargeStart(id: string, token: TeslaToken) {
-    const result = await this.post(
+    const result = await this.ownerAPI.post(
       `/api/1/vehicles/${id}/command/charge_start`,
       undefined,
       token.access_token
@@ -147,7 +145,7 @@ export class TeslaAPI extends RestClient {
     return result;
   }
   public async chargeStop(id: string, token: TeslaToken) {
-    const result = await this.post(
+    const result = await this.ownerAPI.post(
       `/api/1/vehicles/${id}/command/charge_stop`,
       undefined,
       token.access_token
@@ -156,7 +154,7 @@ export class TeslaAPI extends RestClient {
     return result;
   }
   public async openChargePort(id: string, token: TeslaToken) {
-    const result = await this.post(
+    const result = await this.ownerAPI.post(
       `/api/1/vehicles/${id}/command/charge_port_door_open`,
       undefined,
       token.access_token
@@ -165,7 +163,7 @@ export class TeslaAPI extends RestClient {
     return result;
   }
   public async closeChargePort(id: string, token: TeslaToken) {
-    const result = await this.post(
+    const result = await this.ownerAPI.post(
       `/api/1/vehicles/${id}/command/charge_port_door_close`,
       undefined,
       token.access_token
@@ -174,7 +172,7 @@ export class TeslaAPI extends RestClient {
     return result;
   }
   public async climateOn(id: string, token: TeslaToken) {
-    const result = await this.post(
+    const result = await this.ownerAPI.post(
       `/api/1/vehicles/${id}/command/auto_conditioning_start`,
       undefined,
       token.access_token
@@ -183,7 +181,7 @@ export class TeslaAPI extends RestClient {
     return result;
   }
   public async climateOff(id: string, token: TeslaToken) {
-    const result = await this.post(
+    const result = await this.ownerAPI.post(
       `/api/1/vehicles/${id}/command/auto_conditioning_stop`,
       undefined,
       token.access_token
@@ -193,22 +191,34 @@ export class TeslaAPI extends RestClient {
   }
   public async listVehicle(id: string | undefined, token: TeslaToken) {
     if (id === undefined) {
-      return await this.get(`/api/1/vehicles`, token.access_token);
+      return await this.ownerAPI.get(`/api/1/vehicles`, token.access_token);
     } else {
-      return await this.get(`/api/1/vehicles/${id}`, token.access_token);
+      return await this.ownerAPI.get(
+        `/api/1/vehicles/${id}`,
+        token.access_token
+      );
     }
   }
   public async getVehicleData(id: string, token: TeslaToken) {
-    return await this.get(
+    return await this.ownerAPI.get(
       `/api/1/vehicles/${id}/vehicle_data`,
       token.access_token
     );
   }
 }
-const teslaAPI = new TeslaAPI({
-  baseURL: config.TESLA_API_BASE_URL,
-  agent: `curl/7.64.1`, // ${PROJECT_AGENT} ${provider.name}/${provider.version}`,
-  proxy: config.TESLA_API_PROXY,
-  timeout: 120e3
-});
+const teslaAPI = new TeslaAPI(
+  new RestClient({
+    baseURL: config.TESLA_API_BASE_URL,
+    headers: config.TESLA_API_HEADERS,
+    proxy: config.TESLA_API_PROXY,
+    timeout: 120e3
+  }),
+  new RestClient({
+    baseURL: config.TESLA_AUTH_BASE_URL,
+    headers: config.TESLA_AUTH_HEADERS,
+    proxy: config.TESLA_AUTH_PROXY,
+    timeout: 60e3
+  })
+);
+
 export default teslaAPI;

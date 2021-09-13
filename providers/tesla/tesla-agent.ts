@@ -148,6 +148,13 @@ export class TeslaAgent extends AbstractAgent {
           wheel_type: "WT20"
         };
         break;
+      case "modely":
+        defaults = {
+          exterior_color: "PPSW",
+          roof_color: "RF3G",
+          wheel_type: "WY19B"
+        };
+        break;
       default:
         defaults = {
           exterior_color: "PPSW",
@@ -211,6 +218,7 @@ export class TeslaAgent extends AbstractAgent {
         Pinwheel18: "W38B",
         Pinwheel18CapKit: "W32D", // Performance wheels place holder until we can find the correct ones
         Stiletto19: "W39B",
+        PinwheelRefresh18: "W40B",
         StilettoRefresh19: "W41B",
         Stiletto20: "W32B",
         Slipstream19Carbon: "WTDS",
@@ -219,7 +227,8 @@ export class TeslaAgent extends AbstractAgent {
         Turbine19: "WTTB",
         Turbine22Dark: "WTUT",
         Charcoal21: "WTSP",
-        Base19: "WT19" // does not work on facelift model s
+        Base19: "WT19", // does not work on facelift model s
+        Apollo19: "WY19B"
       })
     );
 
@@ -845,6 +854,7 @@ export class TeslaAgent extends AbstractAgent {
           subject.data.chargePlan &&
           subject.data.chargePlan.findIndex(
             f =>
+              f.chargeType !== GQLChargeType.Disable &&
               f.chargeType !== GQLChargeType.Fill &&
               f.chargeType !== GQLChargeType.Manual &&
               f.chargeType !== GQLChargeType.Prefered

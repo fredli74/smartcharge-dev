@@ -15,7 +15,7 @@ const DEFAULT_AGENT = `RestClient/1.0 (Node.js)`;
 
 export interface Options {
   baseURL?: string;
-  agent?: string;
+  headers?: http.OutgoingHttpHeaders;
   proxy?: string;
   timeout?: number;
 }
@@ -80,11 +80,14 @@ export class RestClient {
       method: method,
       timeout: this.options.timeout,
       headers: {
+        ...this.options.headers,
         Accept: "application/json",
-        "Content-Type": "application/json",
-        "User-Agent": this.options.agent || DEFAULT_AGENT
+        "Content-Type": "application/json"
       }
     };
+    if (opt.headers["User-Agent"] === undefined) {
+      opt.headers["User-Agent"] = DEFAULT_AGENT;
+    }
     if (typeof bearerToken === "string") {
       opt.headers["Authorization"] = `Bearer ${bearerToken}`;
     }
