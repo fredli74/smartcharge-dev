@@ -54,7 +54,7 @@
   "devDependencies": {
     "@babel/cli": "7.15.7",
     "@babel/core": "7.15.5",
-    "@babel/preset-typescript": "7.15.0",
+    "@babel/preset-typescript": "7.16.0",
     "@mdi/font": "6.4.95",
     "@types/auth0-js": "9.14.5",
     "@types/chart.js": "2.9.34",
