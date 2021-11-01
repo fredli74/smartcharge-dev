@@ -73,7 +73,7 @@
     "@types/vue-datetime": "1.0.1",
     "@typescript-eslint/eslint-plugin": "4.33.0",
     "@typescript-eslint/parser": "4.33.0",
-    "@vue/cli-plugin-babel": "4.5.13",
+    "@vue/cli-plugin-babel": "4.5.15",
     "@vue/cli-plugin-eslint": "4.5.7",
     "@vue/cli-plugin-pwa": "4.5.15",
     "@vue/cli-plugin-typescript": "4.5.15",
