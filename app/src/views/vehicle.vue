@@ -289,9 +289,9 @@ export default class VehicleVue extends Vue {
 
   get vehiclePicture() {
     if (this.vehicle !== undefined) {
-      if (this.vehiclePictureUnknown) {
+      /*if (this.vehiclePictureUnknown) {
         return require("../assets/unknown_vehicle.png");
-      } else {
+      } else*/ {
         const provider = providers.find(
           p => p.name === this.vehicle!.providerData.provider
         );
