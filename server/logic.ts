@@ -1109,13 +1109,12 @@ export class Logic {
             [vehicle.location_uuid]
           ))) ||
         [];
-      const priceAvailable: number = priceMap.reduce(
-        (prev: number, current) => {
+      const priceAvailable: number =
+        priceMap.reduce((prev: number, current) => {
           const d = current.ts.getTime();
           return !prev || d > prev ? d : prev;
-        },
-        0
-      );
+        }, 0) +
+        60 * 60e3; // Assume the price is fixed for an hour
 
       const chargeCurve = await this.db.getChargeCurve(
         vehicle.vehicle_uuid,
