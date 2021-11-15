@@ -68,8 +68,8 @@ const router = new Router({
     },
     {
       path: "*",
-      component: Vue.component("page-not-found", {
-        created: () => {},
+      component: Vue.component("PageNotFound", {
+        created: () => { },
         render: createElement => {
           return createElement(
             "h4",
@@ -88,7 +88,7 @@ const router = new Router({
   ]
 });
 router.beforeEach((to, _from, next) => {
-  if (!apollo.authorized && to.meta.login) {
+  if (!apollo.authorized && to.meta && to.meta.login) {
     next({ name: "about" });
   } else {
     next();
