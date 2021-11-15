@@ -974,28 +974,28 @@ export class Logic {
     } | null = await this.db.pg.oneOrNone(
       `WITH connections AS (
         -- all connections for specific vehicle_uuid and location_uuid
-        SELECT connected_id, start_ts, end_ts, connected, end_ts-start_ts as duration, end_level-start_level as charged,
+        SELECT connected_id, start_ts, end_ts, connected, LEAST((end_ts-start_ts)/2, interval '14 hours') as duration_limit, end_level-start_level as charged,
           end_level-(SELECT start_level FROM connected B WHERE B.vehicle_uuid = A.vehicle_uuid AND B.connected_id > A.connected_id ORDER BY connected_id LIMIT 1) as used
         FROM connected A WHERE vehicle_uuid = $1 AND location_uuid = $2
-      ), ref_time AS ( 
+      ), ref_time AS (
         -- latest connection time as base reference, or current time if not connected or 24h have passed
-        SELECT COALESCE((SELECT MAX(start_ts) FROM connections WHERE connected AND start_ts > NOW() - interval '1 day'), NOW()) AS start_ts,
+        SELECT GREATEST((SELECT MAX(start_ts) FROM connections), NOW() - interval '1 day') AS start_ts,
           -- also setup not_before if owner has guided the AI that a disconnect will not happen before a specific time
           GREATEST(NOW(), $3) as not_before_ts
       ), similar_connections AS ( 
         -- find similar connections in previous data
         SELECT end_ts - series_offset as target_ts,
           (SELECT not_before_ts FROM ref_time)::date + (end_ts - series_offset)::time as remapped_target_ts, *
-        FROM ( 
+        FROM (
           -- create a series looking back at the same week day for the past 58 weeks
           SELECT series as series_start_ts, series - (SELECT start_ts FROM ref_time) AS series_offset, (SELECT not_before_ts FROM ref_time)+(series-(SELECT start_ts FROM ref_time)) AS series_not_before_ts
           FROM generate_series((SELECT start_ts FROM ref_time) - interval '58 weeks',(SELECT start_ts FROM ref_time) - interval '1 week', interval '1 week') as series
-        ) as s INNER JOIN LATERAL ( 
+        ) as s INNER JOIN LATERAL (
           -- join together with the connection that had the closest end_ts
           SELECT * FROM connections
           WHERE end_ts > series_not_before_ts
             AND end_ts < series_not_before_ts + interval '1 week'
-            AND end_ts > series_start_ts+(duration/2)
+            AND end_ts > series_start_ts+duration_limit
             -- only include sessions where the used amount is in the 25th percentile (this was added so that if you just disconnect to move your vehicle, it won't use that one)
             AND used >= (select percentile_cont(0.25) WITHIN GROUP (ORDER BY used) FROM connections)
             -- and where the charge amount was at least half of the 25th percentile (this was added to filter out connections where nothing was charged)
@@ -1008,13 +1008,13 @@ export class Logic {
         -- segment the list into four partitions
         SELECT
           -- roll disconnection times forward 24 hours if we would not have sufficient time to charge
-          CASE WHEN GREATEST((SELECT not_before_ts FROM ref_time), (SELECT start_ts FROM ref_time)+(duration/2)) >= remapped_target_ts
-            THEN remapped_target_ts + interval '1 day' ELSE remapped_target_ts 
+          CASE WHEN GREATEST((SELECT not_before_ts FROM ref_time), (SELECT start_ts FROM ref_time)+duration_limit) >= remapped_target_ts
+            THEN remapped_target_ts + interval '1 day' ELSE remapped_target_ts
           END as before, NTILE(4) OVER (ORDER BY target_ts), *
         FROM similar_connections
       )
-      SELECT 
-        GREATEST( 
+      SELECT
+        GREATEST(
           -- compare how much was used after these charges to the mean average and go with the greatest number
           (SELECT AVG(used) FROM connections WHERE end_ts > current_date - interval '1 week'),
           (SELECT percentile_cont(0.6) WITHIN GROUP (ORDER BY used) as used FROM segmented)
