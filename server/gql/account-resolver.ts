@@ -19,11 +19,11 @@ import {
   verify,
   JwtHeader,
   SigningKeyCallback,
-  VerifyErrors
+  VerifyErrors,
 } from "jsonwebtoken";
 import JwksClient from "jwks-rsa";
 const jwksClient = JwksClient({
-  jwksUri: `${AUTH0_DOMAIN_URL}.well-known/jwks.json`
+  jwksUri: `${AUTH0_DOMAIN_URL}.well-known/jwks.json`,
 });
 async function jwkVerify(idToken: string): Promise<any> {
   return new Promise((resolve, reject) => {
@@ -34,7 +34,7 @@ async function jwkVerify(idToken: string): Promise<any> {
           reject("Internal error, invalid header in jwkVerify");
         }
         jwksClient.getSigningKey(header.kid!, (err, key: any) => {
-          var signingKey = key.publicKey || key.rsaPublicKey;
+          const signingKey = key.publicKey || key.rsaPublicKey;
           callback(null, signingKey);
         });
       },
@@ -52,7 +52,7 @@ async function jwkVerify(idToken: string): Promise<any> {
 
 @Resolver()
 export class AccountResolver {
-  @Query(_returns => Account)
+  @Query((_returns) => Account)
   async account(@Ctx() context: IContext): Promise<Account> {
     return plainToClass(
       Account,
@@ -60,7 +60,7 @@ export class AccountResolver {
     );
   }
 
-  @Mutation(_returns => Account)
+  @Mutation((_returns) => Account)
   async loginWithPassword(
     @Arg("password") password: string,
     @Ctx() context: IContext
@@ -78,7 +78,7 @@ export class AccountResolver {
     return plainToClass(Account, await context.db.getAccount(SINGLE_USER_UUID));
   }
 
-  @Mutation(_returns => Account)
+  @Mutation((_returns) => Account)
   async loginWithIDToken(
     @Arg("idToken") idToken: string,
     @Ctx() context: IContext
