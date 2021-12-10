@@ -27,26 +27,27 @@ import providers from "@providers/provider-apps";
 import apollo from "@app/plugins/apollo";
 
 @Component({
-  components: {}
+  components: {},
 })
 export default class Add extends Vue {
   limited!: boolean;
   async mounted() {
     const limit = await apollo.getVehicleLimit();
-    this.limited = limit !== null && limit <= 0;
+    this.limited =
+      this.$route.params.type === "vehicle" && limit !== null && limit <= 0;
   }
   data() {
     return {
-      limited: false
+      limited: false,
     };
   }
   get providers() {
-    return providers.filter(f => f.type === this.$route.params.type);
+    return providers.filter((f) => f.type === this.$route.params.type);
   }
   addProvider(name: string) {
     this.$router.replace({
       path: `/provider/${name}/new`,
-      query: this.$route.query
+      query: this.$route.query,
     });
   }
 }
