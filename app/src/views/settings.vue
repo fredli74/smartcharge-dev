@@ -8,14 +8,25 @@
         <div v-if="$apollo.queries.vehicles.loading">
           <v-progress-linear indeterminate color="primary"></v-progress-linear>
         </div>
-        <v-expansion-panels v-else :value="vehicles.length > 1 ? undefined : 0">
+        <v-expansion-panels
+          v-else
+          :value="vehicles && vehicles.length > 1 ? undefined : 0"
+        >
           <v-expansion-panel v-for="vehicle in vehicles" :key="vehicle.id">
             <v-expansion-panel-header>{{
               vehicle.name
             }}</v-expansion-panel-header>
             <v-expansion-panel-content>
               <div
-                class="font-light overline caption mr-4 mt-n5 secondary--text text--lighten-2"
+                class="
+                  font-light
+                  overline
+                  caption
+                  mr-4
+                  mt-n5
+                  secondary--text
+                  text--lighten-2
+                "
               >
                 ({{ vehicle.id }})
               </div>
@@ -41,7 +52,7 @@
         </div>
         <v-expansion-panels
           v-else
-          :value="locations.length > 1 ? undefined : 0"
+          :value="locations && locations.length > 1 ? undefined : 0"
         >
           <v-expansion-panel v-for="location in locations" :key="location.id">
             <v-expansion-panel-header>{{
@@ -49,7 +60,15 @@
             }}</v-expansion-panel-header>
             <v-expansion-panel-content>
               <div
-                class="font-light overline caption mr-4 mt-n5 secondary--text text--lighten-2"
+                class="
+                  font-light
+                  overline
+                  caption
+                  mr-4
+                  mt-n5
+                  secondary--text
+                  text--lighten-2
+                "
               >
                 ({{ location.id }})
               </div>
@@ -106,7 +125,7 @@ import { GQLVehicle, GQLLocation } from "@shared/sc-schema";
             }
           }
         }
-      `
+      `,
     },
     vehicles: {
       query: gql`
@@ -129,9 +148,9 @@ import { GQLVehicle, GQLLocation } from "@shared/sc-schema";
       watchLoading(isLoading, _countModifier) {
         this.loading = isLoading;
       },
-      pollInterval: 5000
-    }
-  }
+      pollInterval: 5000,
+    },
+  },
 })
 export default class Home extends Vue {
   loading?: boolean;

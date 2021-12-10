@@ -511,9 +511,9 @@ export const DB_SETUP_TSQL = [
     `,
 
     /*
-              Deep merge jsonb function
-              Thanks to (http://blog.bguiz.com/2017/json-merge-postgresql/)
-          */
+                Deep merge jsonb function
+                Thanks to (http://blog.bguiz.com/2017/json-merge-postgresql/)
+            */
     `CREATE OR REPLACE FUNCTION scserver.jsonb_merge(orig jsonb, delta jsonb) RETURNS jsonb LANGUAGE sql AS $$
        SELECT
            jsonb_strip_nulls(jsonb_object_agg(
