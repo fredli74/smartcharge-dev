@@ -1,9 +1,13 @@
 <template>
-  <v-app :class="`page-${$route.name} ${$route.meta.class}`">
+  <v-app
+    :class="`page-${$route.name} ${
+      $route.meta && $route.meta.class ? $route.meta.class : ''
+    }`"
+  >
     <v-app-bar id="app-bar" app flat color="secondary" dark>
       <v-btn
         v-if="authorized"
-        v-visible="$route.meta.root !== true"
+        v-visible="!($route.meta && $route.meta.root)"
         dark
         icon
         @click="$router.go(-1)"
@@ -37,6 +41,9 @@
             </v-list-item-content>
           </v-list-item>
           <v-divider></v-divider>
+          <v-list-item v-if="help_url" :href="help_url" target="_blank"
+            ><v-list-item-title>Help</v-list-item-title>
+          </v-list-item>
           <v-list-item @click="logout">
             <v-list-item-title>Sign out</v-list-item-title>
           </v-list-item>
@@ -48,12 +55,12 @@
       >
     </v-app-bar>
     <v-main id="app-content">
-      <template v-if="$route.meta.fullpage"
+      <template v-if="$route.meta && $route.meta.fullpage"
         ><router-view></router-view
       ></template>
       <v-container v-else fluid class="mt-sm-6">
         <v-layout
-          v-if="error.show || warning.show"
+          v-if="error.show || warning.show || info.show"
           row
           justify-space-around
           class="mb-sm-4"
@@ -65,11 +72,14 @@
               type="error"
               tile
               prominent
-              >{{ error.message }}</v-alert
-            >
-            <v-alert v-model="warning.show" dismissible type="warning" tile>{{
-              warning.message
-            }}</v-alert>
+              ><span v-html="error.message"></span
+            ></v-alert>
+            <v-alert v-model="warning.show" dismissible type="warning" tile
+              ><span v-html="warning.message"></span
+            ></v-alert>
+            <v-alert v-model="info.show" dismissible type="info" tile
+              ><span v-html="info.message"></span
+            ></v-alert>
           </v-flex>
         </v-layout>
         <v-layout row justify-space-around>
@@ -98,14 +108,26 @@ interface AlertMessage {
 @Component({})
 export default class App extends Vue {
   authorized!: boolean;
+  help_url!: string;
+  info!: AlertMessage;
   warning!: AlertMessage;
   error!: AlertMessage;
   data() {
     return {
       authorized: apollo.authorized,
-      warning: { show: false, message: undefined },
-      error: { show: false, message: undefined }
-      //
+      help_url: config.HELP_URL,
+      info: {
+        show: Boolean(config.GLOBAL_INFO_MESSAGE),
+        message: config.GLOBAL_INFO_MESSAGE,
+      },
+      warning: {
+        show: Boolean(config.GLOBAL_WARNING_MESSAGE),
+        message: config.GLOBAL_WARNING_MESSAGE,
+      },
+      error: {
+        show: Boolean(config.GLOBAL_ERROR_MESSAGE),
+        message: config.GLOBAL_ERROR_MESSAGE,
+      },
     };
   }
 
@@ -143,7 +165,7 @@ export default class App extends Vue {
   }
 
   appReload() {
-    window.location.reload(true);
+    window.location.reload();
   }
 
   get singleUserMode() {
@@ -252,5 +274,8 @@ a#homelink {
 }
 .pointer input {
   cursor: pointer;
+}
+.v-alert a {
+  color: unset !important;
 }
 </style>

@@ -39,6 +39,8 @@
 </template>
 
 <script lang="ts">
+import { strict as assert } from "assert";
+
 import { Component, Vue, Prop, Watch } from "vue-property-decorator";
 import ApexCharts from "apexcharts";
 import VueApexCharts from "vue-apexcharts";
@@ -48,7 +50,7 @@ import {
   LogLevel,
   numericStartTime,
   numericStopTime,
-  secondsToString
+  secondsToString,
 } from "@shared/utils";
 import {
   GQLVehicle,
@@ -56,7 +58,7 @@ import {
   GQLEventType,
   GQLEventList,
   GQLChargeType,
-  GQLChargePlan
+  GQLChargePlan,
 } from "@shared/sc-schema";
 import { DateTime } from "luxon";
 
@@ -88,7 +90,7 @@ const Color = {
   trip: "#ff4560",
   sleep: "#886dd0",
   threshold: "#2f872a",
-  thresholdText: "#2f872a"
+  thresholdText: "#2f872a",
 };
 
 @Component({
@@ -153,7 +155,7 @@ const Color = {
           from: new Date(this.defaultMinX),
           // to: new Date(this.defaultMaxX),
           period: 60,
-          locationID: this.location_id || null
+          locationID: this.location_id || null,
         };
       },
       deep: true,
@@ -162,9 +164,9 @@ const Color = {
         this.$data.fullUpdate = true;
         log(LogLevel.Debug, "new chartDataResult");
       },
-      fetchPolicy: "network-only"
-    }
-  }
+      fetchPolicy: "network-only",
+    },
+  },
 })
 export default class eventchart extends Vue {
   @Prop({ type: Object, required: true }) readonly vehicle!: GQLVehicle;
@@ -180,7 +182,7 @@ export default class eventchart extends Vue {
   data() {
     return {
       chartData: undefined,
-      fullUpdate: false
+      fullUpdate: false,
     };
   }
   mounted() {}
@@ -204,9 +206,9 @@ export default class eventchart extends Vue {
           eventchart && eventchart.updateOptions(this.eventoptions);
           eventchart && eventchart.updateSeries(s);
         }*/
-        const timechart = (this.$refs.timechart as any) as ApexCharts;
+        const timechart = this.$refs.timechart as any as ApexCharts;
         timechart && timechart.updateOptions(this.timeoptions);
-        const eventchart = (this.$refs.eventchart as any) as ApexCharts;
+        const eventchart = this.$refs.eventchart as any as ApexCharts;
         eventchart && eventchart.updateOptions(this.eventoptions);
         this.fullUpdate = false;
       }
@@ -257,12 +259,10 @@ export default class eventchart extends Vue {
 
     if (!(this.chartReady && this.chartData)) return;
 
-    const timechart = (this.$refs.timechart as any) as ApexCharts;
+    const timechart = this.$refs.timechart as any as ApexCharts;
     if (!timechart) return;
 
-    const thisHour = DateTime.local()
-      .startOf("hour")
-      .toMillis();
+    const thisHour = DateTime.local().startOf("hour").toMillis();
 
     timechart.clearAnnotations();
 
@@ -291,9 +291,9 @@ export default class eventchart extends Vue {
               background: "#ffffffcc",
               color: Color.level,
               fontSize: "12px",
-              cssClass: "apexcharts-xaxis-annotation-label"
-            }
-          }
+              cssClass: "apexcharts-xaxis-annotation-label",
+            },
+          },
         });
       }
     }
@@ -321,9 +321,9 @@ export default class eventchart extends Vue {
               background: "#ffffffcc",
               color: Color.level,
               fontSize: "12px",
-              cssClass: "apexcharts-xaxis-annotation-label"
-            }
-          }
+              cssClass: "apexcharts-xaxis-annotation-label",
+            },
+          },
         });
       }
     }
@@ -358,9 +358,9 @@ export default class eventchart extends Vue {
             text: a.plan.comment,
             style: {
               background: Color.labelBackground,
-              color: Color.planText
-            }
-          }
+              color: Color.planText,
+            },
+          },
         });
       }
     }
@@ -373,7 +373,7 @@ export default class eventchart extends Vue {
       const thisPrice =
         this.chartData.prices &&
         this.chartData.prices.find(
-          f => new Date(f.startAt).getTime() === thisHour
+          (f) => new Date(f.startAt).getTime() === thisHour
         );
 
       // Annotate current price
@@ -391,7 +391,7 @@ export default class eventchart extends Vue {
             shape: "circle",
             OffsetX: 0,
             OffsetY: 0,
-            cssClass: ""
+            cssClass: "",
           },
           label: {
             borderWidth: 1,
@@ -408,10 +408,10 @@ export default class eventchart extends Vue {
                 left: 5,
                 right: 5,
                 top: 1,
-                bottom: 1
-              }
-            }
-          }
+                bottom: 1,
+              },
+            },
+          },
         });
       }
 
@@ -440,9 +440,9 @@ export default class eventchart extends Vue {
                 background: "none",
                 color: Color.thresholdText,
                 fontSize: "12px",
-                cssClass: "apexcharts-xaxis-annotation-label"
-              }
-            }
+                cssClass: "apexcharts-xaxis-annotation-label",
+              },
+            },
           });
         }
       }
@@ -468,24 +468,18 @@ export default class eventchart extends Vue {
           background: "none",
           color: Color.red,
           fontSize: "12px",
-          cssClass: "apexcharts-xaxis-annotation-label"
-        }
-      }
+          cssClass: "apexcharts-xaxis-annotation-label",
+        },
+      },
     });
   }
 
   get defaultMaxX(): number {
-    return DateTime.local()
-      .plus({ hours: 37 })
-      .startOf("hour")
-      .toMillis();
+    return DateTime.local().plus({ hours: 37 }).startOf("hour").toMillis();
   }
 
   get defaultMinX(): number {
-    return DateTime.local()
-      .minus({ hours: 24 })
-      .startOf("hour")
-      .toMillis();
+    return DateTime.local().minus({ hours: 24 }).startOf("hour").toMillis();
   }
 
   get minPriceX(): number {
@@ -528,15 +522,16 @@ export default class eventchart extends Vue {
      ***/
     let priceData: any = [];
     if (showPrices) {
-      priceData = this.chartData.prices!.map(p => {
+      assert(this.chartData.prices !== null);
+      priceData = this.chartData.prices.map((p) => {
         const price = scalePrice(p.price);
         return [new Date(p.startAt).getTime(), price];
       });
       // extend 1 hour to get a step line in the end
-      const last = this.chartData.prices![this.chartData.prices!.length - 1];
+      const last = this.chartData.prices![this.chartData.prices.length - 1];
       priceData.push([
         new Date(last.startAt).getTime() + 60 * 60e3,
-        scalePrice(last.price)
+        scalePrice(last.price),
       ]);
     }
 
@@ -544,18 +539,18 @@ export default class eventchart extends Vue {
      *  Fill past battery level
      ***/
     let levelData: any = [];
-    let eventList = (this.chartData.eventList || []).map(e => ({
+    let eventList = (this.chartData.eventList || []).map((e) => ({
       eventType: e.eventType,
       start_ts: numericStartTime(e.start),
       end_ts: numericStopTime(e.end),
       start_level: e.data.startLevel,
-      end_level: e.data.endLevel
+      end_level: e.data.endLevel,
     }));
 
     if (this.chartData.stateMap && this.chartData.stateMap.length > 1) {
       const margin = 15 * 60e3;
       levelData = this.chartData.stateMap
-        .map(p => {
+        .map((p) => {
           let level: number | null = Math.floor(
             (p.minimumLevel + p.maximumLevel) / 2
           );
@@ -577,7 +572,7 @@ export default class eventchart extends Vue {
           }
           return [ts, level];
         })
-        .filter(f => f[1] !== null);
+        .filter((f) => f[1] !== null);
       levelData.push([now, this.vehicle.batteryLevel]);
     }
     for (const e of eventList) {
@@ -644,7 +639,7 @@ export default class eventchart extends Vue {
           this.chartAnnotations.push({
             from: cs,
             to: ce,
-            plan: c
+            plan: c,
           });
         }
       }
@@ -677,7 +672,7 @@ export default class eventchart extends Vue {
       ...priceData,
       ...levelData,
       ...predictData,
-      [this.chartStop]
+      [this.chartStop],
     ]
       .reduce((acc: number[], cur) => {
         if (acc.indexOf(cur[0]) < 0) {
@@ -708,7 +703,7 @@ export default class eventchart extends Vue {
       } else if (levelData[i][0] > ts) {
         levelData.splice(i, 0, [
           ts,
-          interpolate(levelData, i, ts) || levelData[i][1]
+          interpolate(levelData, i, ts) || levelData[i][1],
         ]);
       }
 
@@ -722,7 +717,7 @@ export default class eventchart extends Vue {
           dataPointIndex: i,
           size: 4,
           fillColor: Color.predicted,
-          strokeColor: "white"
+          strokeColor: "white",
         });
       }
     }
@@ -786,24 +781,24 @@ export default class eventchart extends Vue {
       axisBorder: {
         show: true,
         color: Color.price,
-        offsetX: -1
+        offsetX: -1,
       },
       decimalsInFloat: 1,
       labels: {
         minWidth: 55,
         maxWidth: 55,
         style: {
-          colors: Color.priceText
-        }
+          colors: Color.priceText,
+        },
       },
       tickAmount: 5,
       min: (min: number) => this.minPriceX || Math.floor(min),
-      max: (max: number) => this.maxPriceX || Math.ceil(max)
+      max: (max: number) => this.maxPriceX || Math.ceil(max),
     };
     const yaxisLevelHidden = {
       show: false,
       min: 0,
-      max: 100
+      max: 100,
     };
     const yaxisLevel = {
       show: true,
@@ -812,7 +807,7 @@ export default class eventchart extends Vue {
       axisBorder: {
         show: true,
         color: Color.level,
-        offsetX: -1
+        offsetX: -1,
       },
       decimalsInFloat: 0,
       labels: {
@@ -820,10 +815,10 @@ export default class eventchart extends Vue {
         maxWidth: 55,
 
         style: { fontWeight: 600, colors: Color.level },
-        formatter: function(val: number, _index: number) {
+        formatter: function (val: number, _index: number) {
           return `${levelPrecision(val)}%`;
-        }
-      }
+        },
+      },
     };
 
     return {
@@ -833,7 +828,7 @@ export default class eventchart extends Vue {
         animations: { enabled: false },
         background: "none",
         toolbar: {
-          show: false
+          show: false,
         },
         selection: { enabled: false },
         zoom: { enabled: false },
@@ -843,11 +838,11 @@ export default class eventchart extends Vue {
               this.chartReady = true;
               this.annotate();
             }
-          }
-        }
+          },
+        },
       },
       title: {
-        text: ""
+        text: "",
       },
       xaxis: {
         type: "datetime",
@@ -881,17 +876,17 @@ export default class eventchart extends Vue {
               }
             }
             return DateTime.fromMillis(timestamp).toFormat("HH:mm");
-          }
+          },
         },
         tooltip: {
           enabled: true,
           formatter: (value: number) => {
             return timeOnly(new Date(value));
-          }
+          },
         },
         crosshairs: {
-          show: true
-        }
+          show: true,
+        },
       },
       yaxis: showPrices
         ? [yaxisLevelHidden, yaxisLevelHidden, yaxisPrice]
@@ -901,7 +896,7 @@ export default class eventchart extends Vue {
         lineCap: "butt",
         curve: ["straight", "straight", "stepline"],
         width: [2, 2.5, 2],
-        dashArray: [0, [4, 2], 0]
+        dashArray: [0, [4, 2], 0],
       },
       colors: [Color.level, Color.predicted, Color.price],
       fill: {
@@ -912,20 +907,20 @@ export default class eventchart extends Vue {
           enabled: true,
           type: "vertical",
           opacityFrom: [0.15, 0.15, 0.45],
-          opacityTo: [0.05, 0.05, 0.25]
-        }
+          opacityTo: [0.05, 0.05, 0.25],
+        },
       },
       annotations: {
         position: "front",
         yaxis: [],
         xaxis: [],
-        points: []
+        points: [],
       },
       legend: {
         show: false,
 
         horizontalAlign: "left",
-        offsetX: 40
+        offsetX: 40,
       },
       markers: {
         size: [0.1, 0.1, 0.1],
@@ -936,10 +931,10 @@ export default class eventchart extends Vue {
         fillOpacity: [0, 1, 0],
         shape: "circle",
         radius: 2,
-        discrete: this.discreteMarkers
+        discrete: this.discreteMarkers,
       },
       hover: {
-        sizeOffset: 3
+        sizeOffset: 3,
       },
       tooltip: {
         enabled: true,
@@ -949,13 +944,13 @@ export default class eventchart extends Vue {
         theme: "light",
         style: {
           fontSize: "12px",
-          fontFamily: undefined
+          fontFamily: undefined,
         },
         marker: {
-          show: true
+          show: true,
         },
         x: {
-          show: false
+          show: false,
         },
         y: {
           formatter: (
@@ -983,14 +978,14 @@ export default class eventchart extends Vue {
             } else {
               return null;
             }
-          }
-        }
+          },
+        },
       },
       grid: {
         show: true,
         borderColor: "#90a4ae66",
-        strokeDashArray: [1, 1]
-      }
+        strokeDashArray: [1, 1],
+      },
     };
   }
 
@@ -1002,7 +997,7 @@ export default class eventchart extends Vue {
 
     this.eventLookup = [[], [], []];
     if (this.chartData && this.chartData.eventList) {
-      this.chartData.eventList.forEach(e => {
+      this.chartData.eventList.forEach((e) => {
         const start = Math.max(this.chartStart, numericStartTime(e.start));
         const end = Math.min(this.chartStop, numericStopTime(e.end));
         switch (e.eventType) {
@@ -1019,7 +1014,7 @@ export default class eventchart extends Vue {
             sleepData.push({
               x: "event",
               y: [start, e.data.active ? Date.now() : end],
-              data: e.data
+              data: e.data,
             });
             break;
         }
@@ -1028,16 +1023,16 @@ export default class eventchart extends Vue {
     return [
       {
         name: "Trip",
-        data: [...tripData, { x: "event", y: [null, null] }]
+        data: [...tripData, { x: "event", y: [null, null] }],
       },
       {
         name: "Charge",
-        data: [...chargeData, { x: "event", y: [null, null] }]
+        data: [...chargeData, { x: "event", y: [null, null] }],
       },
       {
         name: "Sleep",
-        data: [...sleepData, { x: "event", y: [null, null] }]
-      }
+        data: [...sleepData, { x: "event", y: [null, null] }],
+      },
     ];
   }
 
@@ -1050,25 +1045,25 @@ export default class eventchart extends Vue {
         background: "transparent",
         type: "rangeBar",
         toolbar: {
-          show: false
+          show: false,
         },
         selection: { enabled: false },
-        zoom: { enabled: false }
+        zoom: { enabled: false },
       },
       title: {
-        text: ""
+        text: "",
       },
       plotOptions: {
         bar: {
           horizontal: true,
-          rangeBarOverlap: true
-        }
+          rangeBarOverlap: true,
+        },
       },
       stroke: {
         show: true,
         curve: "smooth",
         lineCap: "butt",
-        width: 1
+        width: 1,
       },
       colors: [Color.trip, Color.charge, Color.sleep],
       xaxis: {
@@ -1079,8 +1074,8 @@ export default class eventchart extends Vue {
         tickAmount: Math.round((this.chartStop - this.chartStart) / 3600e3),
         labels: { datetimeUTC: true, format: "" },
         tooltip: {
-          enabled: false
-        }
+          enabled: false,
+        },
       },
       yaxis: {
         show: false,
@@ -1088,8 +1083,8 @@ export default class eventchart extends Vue {
         max: this.chartStop,
         labels: {
           minWidth: 55,
-          maxWidth: 55
-        }
+          maxWidth: 55,
+        },
       },
       tooltip: {
         enabled: true,
@@ -1100,19 +1095,19 @@ export default class eventchart extends Vue {
         theme: "light",
         style: {
           fontSize: "12px",
-          fontFamily: undefined
+          fontFamily: undefined,
         },
         marker: {
-          show: true
+          show: true,
         },
         fixed: {
           enabled: true,
           position: "bottomLeft",
           offsetX: 60,
-          offsetY: 0
+          offsetY: 0,
         },
         x: {
-          show: false
+          show: false,
         },
         y: {
           show: true,
@@ -1139,21 +1134,22 @@ export default class eventchart extends Vue {
                   })`;
                 }
                 case GQLEventType.Trip:
-                  return `${duration} (${Math.round(e.data.distance / 1e2) /
-                    10}km)`;
+                  return `${duration} (${
+                    Math.round(e.data.distance / 1e2) / 10
+                  }km)`;
               }
             }
             return null;
-          }
-        }
+          },
+        },
       },
       legend: {
         show: true,
         position: "bottom",
         horizontalAlign: "right",
         offsetX: 0,
-        offsetY: -20
-      }
+        offsetY: -20,
+      },
     };
   }
 }

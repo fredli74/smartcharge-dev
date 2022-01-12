@@ -151,7 +151,7 @@ import { scheduleMap } from "@shared/sc-utils";
 @Component({
   components: {
     VehicleCharge,
-    VehicleSchedule
+    VehicleSchedule,
   },
   apollo: {
     $subscribe: {
@@ -175,7 +175,7 @@ import { scheduleMap } from "@shared/sc-utils";
         `,
         variables() {
           return {
-            serviceID: this.$props.vehicle.serviceID
+            serviceID: this.$props.vehicle.serviceID,
           };
         },
         result({ data }: any) {
@@ -191,10 +191,10 @@ import { scheduleMap } from "@shared/sc-utils";
               this.$data.hvacLoading = false;
             }
           }
-        }
-      }
-    }
-  }
+        },
+      },
+    },
+  },
 })
 export default class VehicleActions extends Vue {
   @Prop({ type: Object, required: true }) readonly vehicle!: GQLVehicle;
@@ -218,7 +218,7 @@ export default class VehicleActions extends Vue {
       dialogShow: false,
       dialogContent: undefined,
       dialogTitle: undefined,
-      chargePopup: false
+      chargePopup: false,
     };
   }
   mounted() {}
@@ -227,9 +227,8 @@ export default class VehicleActions extends Vue {
   }
   get isSleeping() {
     return (
-      this.vehicle &&
-      (this.vehicle!.status.toLowerCase() === "offline" ||
-        this.vehicle!.status.toLowerCase() === "sleeping")
+      this.vehicle?.status.toLowerCase() === "offline" ||
+      this.vehicle?.status.toLowerCase() === "sleeping"
     );
   }
   get hasSchedule() {
@@ -250,14 +249,14 @@ export default class VehicleActions extends Vue {
           outlined: false,
           dark: true,
           color: this.vehicle.isConnected ? "success darken-1" : "warning",
-          tooltip: "Manual charge"
+          tooltip: "Manual charge",
         };
       } else {
         return {
           outlined: false,
           dark: true,
           color: "red accent-4",
-          tooltip: "No charge"
+          tooltip: "No charge",
         };
       }
     } else if (!this.vehicle.isConnected && this.vehicle.locationID) {
@@ -265,7 +264,7 @@ export default class VehicleActions extends Vue {
         outlined: true,
         dark: false,
         color: "grey darken-3",
-        tooltip: "Not connected"
+        tooltip: "Not connected",
       };
     }
     return {
@@ -273,7 +272,7 @@ export default class VehicleActions extends Vue {
       dark: false,
       color: undefined,
 
-      tooltip: "Charge Control"
+      tooltip: "Charge Control",
     };
   }
 
@@ -281,7 +280,7 @@ export default class VehicleActions extends Vue {
     if (this.vehicle && this.vehicle.serviceID) {
       this.refreshLoading = true;
       apollo.action(this.vehicle.serviceID, AgentAction.Refresh, {
-        id: this.vehicle.id
+        id: this.vehicle.id,
       });
       const was = this.vehicle.updated;
       const maxWait = Date.now() + 5 * 60e3;
@@ -301,7 +300,7 @@ export default class VehicleActions extends Vue {
       const want = !this.vehicle.climateControl;
       apollo.action(this.vehicle.serviceID, AgentAction.ClimateControl, {
         id: this.vehicle.id,
-        enable: want
+        enable: want,
       });
       const maxWait = Date.now() + 5 * 60e3;
       while (this.vehicle.climateControl !== want) {
@@ -354,7 +353,7 @@ export default class VehicleActions extends Vue {
     this.changed = false;
     await apollo.updateVehicle({
       id: this.vehicle.id,
-      ...this.unsavedData
+      ...this.unsavedData,
     });
     this.saving = false;
   }

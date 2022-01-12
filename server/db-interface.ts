@@ -75,8 +75,8 @@ export class DBInterface {
       ssl:
         config.DATABASE_SSL === "true"
           ? {
-            rejectUnauthorized: false,
-          }
+              rejectUnauthorized: false,
+            }
           : false,
     });
   }
@@ -88,8 +88,8 @@ export class DBInterface {
       if (version !== DB_VERSION) {
         throw "Database is out of date. No automatic upgrade script found.";
       }
-    } catch (err) {
-      if (err.code === "42P01") {
+    } catch (err: any) {
+      if (err?.code === "42P01") {
         // PostgreSQL error code for parserOpenTable
         log(LogLevel.Info, `No tables found, running database setup script`);
         await this.setupDatabase();
@@ -314,7 +314,7 @@ export class DBInterface {
   ): Promise<DBPriceData> {
     const result = await this.pg.one(
       `INSERT INTO price_data(price_list_uuid, ts, price) VALUES($1, $2, $3) ` +
-      `ON CONFLICT (price_list_uuid,ts) DO UPDATE SET price=EXCLUDED.price RETURNING *;`,
+        `ON CONFLICT (price_list_uuid,ts) DO UPDATE SET price=EXCLUDED.price RETURNING *;`,
       [price_list_uuid, ts, price * 1e5]
     );
     return result;
@@ -532,7 +532,7 @@ export class DBInterface {
       [];
 
     if (dbCurve.length > 0) {
-      current = dbCurve.shift()!.seconds;
+      current = dbCurve.shift().seconds;
     } else {
       // Check estimate for current connection
       current =
@@ -550,7 +550,7 @@ export class DBInterface {
     const curve: ChargeCurve = {};
     for (let level = 0; level <= 100; ++level) {
       while (dbCurve.length > 0 && level >= dbCurve[0].level) {
-        current = dbCurve.shift()!.seconds;
+        current = dbCurve.shift().seconds;
       }
       curve[level] = parseFloat(current);
     }

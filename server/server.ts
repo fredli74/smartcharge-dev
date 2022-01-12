@@ -38,7 +38,7 @@ program
   .version(`${APP_NAME} ${APP_VERSION}`, "-v, --version")
   .option("-p, --port <port>", "port to listen to")
   .option("-i, --ip <ip>", "ip to listen to")
-  .action(async function() {
+  .action(async function () {
     try {
       const db = new DBInterface();
       await db.init();
@@ -86,7 +86,7 @@ program
           rateLimit({
             windowMs: 15 * 60e3, // 15 min
             max: 255,
-            skipSuccessfulRequests: true
+            skipSuccessfulRequests: true,
           })
         )
         .use(compression())
@@ -94,7 +94,7 @@ program
           // simple console logging
           const s = `${req.ip} ${req.method} ${req.originalUrl}`;
           let rawBody = "";
-          req.on("data", chunk => (rawBody += chunk));
+          req.on("data", (chunk) => (rawBody += chunk));
           req.on("end", () =>
             log(
               LogLevel.Trace,
@@ -106,9 +106,9 @@ program
           res.on("finish", () =>
             log(
               LogLevel.Debug,
-              `${s} => ${res.statusCode} ${res.statusMessage}; ${res.get(
-                "Content-Length"
-              ) || 0}b sent`
+              `${s} => ${res.statusCode} ${res.statusMessage}; ${
+                res.get("Content-Length") || 0
+              }b sent`
             )
           );
           next();
@@ -121,7 +121,7 @@ program
             if (res.locals.account) {
               log(LogLevel.Trace, `Authorized as ${res.locals.account.name}`);
             }
-          } catch (err) {
+          } catch (err: any) {
             assert(err.message !== undefined); // Only real errors expected
             res.status(401).send({ success: false, error: err.message || err });
             return;
@@ -146,7 +146,7 @@ program
             accountUUID:
               (res.locals.account && res.locals.account.account_uuid) ||
               undefined,
-            account: res.locals.account
+            account: res.locals.account,
           };
         },
         subscriptions: {
@@ -164,7 +164,7 @@ program
               db,
               logic,
               accountUUID: (account && account.account_uuid) || undefined,
-              account: account
+              account: account,
             };
           },
           onDisconnect: (_websocket, context) => {
@@ -172,8 +172,8 @@ program
               LogLevel.Info,
               `WS ${context.request.connection.remoteAddress}:${context.request.connection.remotePort} Disconnected`
             );
-          }
-        }
+          },
+        },
       });
       apiServer.applyMiddleware({ app, path: "/api/gql" });
 
@@ -181,13 +181,13 @@ program
         .use(express.static(path.resolve(__dirname, "../app")))
         .use(
           history({
-            index: "/index.html"
+            index: "/index.html",
           })
         )
         .use(express.static(path.resolve(__dirname, "../app")));
 
       // Add 404 handling
-      app.use(function(req, res, _next) {
+      app.use(function (req, res, _next) {
         res
           .status(404)
           .send(
@@ -206,7 +206,7 @@ program
         log(LogLevel.Info, `HTTP Server running on port ${PORT}`);
       });
       // const io = io.listen(httpServer);
-    } catch (err) {
+    } catch (err: any) {
       log(LogLevel.Error, `Error: ${err.message}`);
       log(LogLevel.Debug, err);
       log(LogLevel.Error, `Terminating server`);

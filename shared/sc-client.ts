@@ -5,6 +5,8 @@
  * @license MIT (MIT)
  */
 
+import { strict as assert } from "assert";
+
 import { gql, InMemoryCache } from "apollo-boost";
 import ApolloClient from "apollo-client";
 import { mergeURL, log, LogLevel } from "@shared/utils";
@@ -30,7 +32,7 @@ import {
   GQLAction,
   GQLScheduleType,
   GQLPriceList,
-  GQLSchedule
+  GQLSchedule,
 } from "./sc-schema";
 import { API_PATH } from "./smartcharge-defines";
 
@@ -148,16 +150,16 @@ export class SCClient extends ApolloClient<any> {
           headers: this.token
             ? {
                 ...headers,
-                authorization: `Bearer ${this.token}`
+                authorization: `Bearer ${this.token}`,
               }
-            : headers
+            : headers,
         };
       }),
       new HttpLink({
         // You should use an absolute URL here
         uri: mergeURL(server_url, API_PATH),
-        fetch: fetch
-      })
+        fetch: fetch,
+      }),
     ]);
 
     if (subscription_url) {
@@ -167,7 +169,7 @@ export class SCClient extends ApolloClient<any> {
           connectionParams: () => {
             return this.token ? { Authorization: `Bearer ${this.token}` } : {};
           },
-          reconnect: true
+          reconnect: true,
         },
         webSocketImpl
       );
@@ -175,21 +177,21 @@ export class SCClient extends ApolloClient<any> {
       super({
         connectToDevTools: true,
         link: errorLink.concat(new WebSocketLink(wsClient)),
-        cache: new InMemoryCache()
+        cache: new InMemoryCache(),
       });
       this.wsClient = wsClient;
     } else {
       super({
         connectToDevTools: true,
         link: errorLink.concat(httpLink),
-        cache: new InMemoryCache()
+        cache: new InMemoryCache(),
       });
     }
 
     this.defaultOptions = {
       watchQuery: { fetchPolicy: "no-cache", errorPolicy: "none" },
       query: { fetchPolicy: "no-cache", errorPolicy: "none" },
-      mutate: { fetchPolicy: "no-cache", errorPolicy: "none" }
+      mutate: { fetchPolicy: "no-cache", errorPolicy: "none" },
     };
   }
 
@@ -201,11 +203,12 @@ export class SCClient extends ApolloClient<any> {
           mutation LoginWithPassword($password: String!) {
               loginWithPassword(password: $password) { ${SCClient.accountFragment} }
           }`,
-        variables: { password }
+        variables: { password },
       })
     ).data.loginWithPassword;
-    this.token = this.account!.token;
-    localStorage.setItem("token", this.account!.token);
+    assert(this.account !== undefined);
+    this.token = this.account.token;
+    localStorage.setItem("token", this.account.token);
     if (this.wsClient) {
       this.wsClient.close(false, true);
     }
@@ -214,7 +217,7 @@ export class SCClient extends ApolloClient<any> {
     this.token = token;
     this.account = (
       await this.query({
-        query: gql`{ account { ${SCClient.accountFragment} } }`
+        query: gql`{ account { ${SCClient.accountFragment} } }`,
       })
     ).data.account;
   }
@@ -225,11 +228,12 @@ export class SCClient extends ApolloClient<any> {
       mutation LoginWithIDToken($idToken: String!) {
         loginWithIDToken(idToken: $idToken) { ${SCClient.accountFragment} }
           }`,
-        variables: { idToken }
+        variables: { idToken },
       })
     ).data.loginWithIDToken;
-    this.token = this.account!.token;
-    localStorage.setItem("token", this.account!.token);
+    assert(this.account !== undefined);
+    this.token = this.account.token;
+    localStorage.setItem("token", this.account.token);
     if (this.wsClient) {
       this.wsClient.close(false, true);
     }
@@ -253,7 +257,7 @@ export class SCClient extends ApolloClient<any> {
     const query = gql`query GetLocation($id: String!) { location(id: $id) { ${locationFragment} } }`;
     const result = await this.query({
       query,
-      variables: { id: locationUUID }
+      variables: { id: locationUUID },
     });
     return result.data.location;
   }
@@ -270,7 +274,7 @@ export class SCClient extends ApolloClient<any> {
     `;
     const result = await this.mutate({
       mutation: mutation,
-      variables: { input }
+      variables: { input },
     });
     return result.data.updateLocation;
   }
@@ -282,7 +286,7 @@ export class SCClient extends ApolloClient<any> {
     `;
     const result = await this.mutate({
       mutation: mutation,
-      variables: { input }
+      variables: { input },
     });
     return result.data._updatePrice;
   }
@@ -292,7 +296,7 @@ export class SCClient extends ApolloClient<any> {
     const query = gql`query GetVehicle($id: String!) { vehicle(id: $id) { ${vehicleFragment} } }`;
     const result = await this.query({
       query,
-      variables: { id: vehicleUUID }
+      variables: { id: vehicleUUID },
     });
     return result.data.vehicle;
   }
@@ -318,7 +322,7 @@ export class SCClient extends ApolloClient<any> {
     `;
     const result = await this.mutate({
       mutation: mutation,
-      variables: { input }
+      variables: { input },
     });
     return result.data.updateVehicle;
   }
@@ -333,7 +337,7 @@ export class SCClient extends ApolloClient<any> {
     `;
     const result = await this.mutate({
       mutation: mutation,
-      variables: { input }
+      variables: { input },
     });
     return result.data._updateVehicleData;
   }
@@ -345,7 +349,7 @@ export class SCClient extends ApolloClient<any> {
     `;
     const result = await this.mutate({
       mutation: mutation,
-      variables: { input }
+      variables: { input },
     });
     return result.data._vehicleDebug;
   }
@@ -368,7 +372,7 @@ export class SCClient extends ApolloClient<any> {
     `;
     const result = await this.query({
       query,
-      variables: { accept }
+      variables: { accept },
     });
     return result.data._serviceProviders;
   }
@@ -381,7 +385,7 @@ export class SCClient extends ApolloClient<any> {
     `;
     const result = await this.query({
       query,
-      variables: { name, input }
+      variables: { name, input },
     });
     return result.data.providerQuery.result;
   }
@@ -393,7 +397,7 @@ export class SCClient extends ApolloClient<any> {
     `;
     const result = await this.mutate({
       mutation,
-      variables: { name, input }
+      variables: { name, input },
     });
     return result.data.providerMutate.result;
   }
@@ -421,7 +425,7 @@ export class SCClient extends ApolloClient<any> {
 
     const result = await this.mutate({
       mutation,
-      variables: { actionID, serviceID, action, data }
+      variables: { actionID, serviceID, action, data },
     });
     return result.data.performAction;
   }
@@ -460,7 +464,7 @@ export class SCClient extends ApolloClient<any> {
     `;
     const result = this.subscribe({
       query,
-      variables: { providerName, serviceID }
+      variables: { providerName, serviceID },
     });
     result.subscribe({
       next(value: any) {
@@ -470,7 +474,7 @@ export class SCClient extends ApolloClient<any> {
       error(err) {
         log(LogLevel.Error, err);
         throw new Error(err);
-      }
+      },
     });
   }
 
@@ -498,7 +502,7 @@ export class SCClient extends ApolloClient<any> {
 
     const result = await this.mutate({
       mutation,
-      variables: { vehicleID, level, duration, powerUse }
+      variables: { vehicleID, level, duration, powerUse },
     });
     return result.data._chargeCalibration;
   }
@@ -511,7 +515,7 @@ export class SCClient extends ApolloClient<any> {
     `;
     await this.mutate({
       mutation: mutation,
-      variables: { id, confirm }
+      variables: { id, confirm },
     });
   }
 
@@ -523,7 +527,7 @@ export class SCClient extends ApolloClient<any> {
     `;
     await this.mutate({
       mutation: mutation,
-      variables: { id, confirm }
+      variables: { id, confirm },
     });
   }
 
@@ -535,7 +539,7 @@ export class SCClient extends ApolloClient<any> {
     `;
     await this.mutate({
       mutation: mutation,
-      variables: { id, vehicleID }
+      variables: { id, vehicleID },
     });
   }
   public async updateSchedule(
@@ -570,7 +574,7 @@ export class SCClient extends ApolloClient<any> {
     `;
     const result = await this.mutate({
       mutation: mutation,
-      variables: { id, vehicleID, type, time, level }
+      variables: { id, vehicleID, type, time, level },
     });
     return result.data.updateSchedule;
   }
@@ -588,7 +592,7 @@ export class SCClient extends ApolloClient<any> {
     `;
     const result = await this.query({
       query,
-      variables: { id: listUUID }
+      variables: { id: listUUID },
     });
     return result.data.priceList;
   }
@@ -627,8 +631,8 @@ export class SCClient extends ApolloClient<any> {
       variables: {
         name,
         isPublic,
-        id
-      }
+        id,
+      },
     });
     return result.data.newPriceList;
   }

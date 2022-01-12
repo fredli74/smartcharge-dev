@@ -3,7 +3,7 @@ import provider, {
   TeslaProviderMutates,
   TeslaProviderQueries,
   TeslaProviderData,
-  TeslaToken
+  TeslaToken,
 } from "./index";
 import { ApolloError } from "apollo-server-express";
 import { DBInterface } from "@server/db-interface";
@@ -49,7 +49,7 @@ async function validToken(
     `UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $2) WHERE service_data @> $1 RETURNING *;`,
     [
       { token: { refresh_token: oldRefreshToken } },
-      { updated: Date.now(), token: newToken, invalid_token: null }
+      { updated: Date.now(), token: newToken, invalid_token: null },
     ]
   );
   for (const s of dblist) {
@@ -73,10 +73,10 @@ async function invalidToken(db: DBInterface, token: Partial<TeslaToken>) {
       {
         token: {
           refresh_token: token.refresh_token,
-          access_token: token.access_token
-        }
+          access_token: token.access_token,
+        },
       },
-      { updated: Date.now(), invalid_token: true }
+      { updated: Date.now(), invalid_token: true },
     ]
   );
   log(LogLevel.Trace, dblist);
@@ -102,7 +102,7 @@ const server: IProviderServer = {
             [
               context.accountUUID,
               provider.name,
-              { token: data.token, updated: Date.now() }
+              { token: data.token, updated: Date.now() },
             ]
           );
         }
@@ -156,7 +156,7 @@ const server: IProviderServer = {
                       [
                         vehicle.service_uuid,
                         vehicle.vehicle_uuid,
-                        { updated: Date.now() }
+                        { updated: Date.now() },
                         // TODO: updated should be a DB field instead
                       ]
                     );
@@ -168,7 +168,7 @@ const server: IProviderServer = {
                 }
               }
               vehicles.push(...list);
-            } catch (err) {
+            } catch (err: any) {
               if (err.code === 401) {
                 log(
                   LogLevel.Trace,
@@ -224,6 +224,6 @@ const server: IProviderServer = {
           `Invalid mutation ${data.mutation} sent to tesla-server`
         );
     }
-  }
+  },
 };
 export default server;
