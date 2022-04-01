@@ -81,7 +81,7 @@
     "@vue/cli-service": "4.5.15",
     "@vue/eslint-config-prettier": "7.0.0",
     "@vue/eslint-config-typescript": "7.0.0",
-    "apexcharts": "3.35.0",
+    "apexcharts": "3.33.1",
     "auth0-js": "9.19.0",
     "babel-eslint": "10.1.0",
     "babel-plugin-module-resolver": "4.1.0",
