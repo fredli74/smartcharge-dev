@@ -7,6 +7,6 @@ const app: IProviderApp = {
   ...provider,
   logo: require("./tesla-logo.jpg"),
   image: vehicleImage,
-  vue: TeslaVue
+  vue: TeslaVue,
 };
 export default app;

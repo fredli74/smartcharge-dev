@@ -11,7 +11,7 @@
           >
             <v-col cols="7" sm="3" md="4" lg="5" class="my-4"
               ><v-img
-                style="filter: drop-shadow(0 0 1rem #00000066);"
+                style="filter: drop-shadow(0 0 1rem #00000066)"
                 contain
                 src="/img/icons/android-chrome-512x512.png"
               ></v-img
@@ -55,7 +55,7 @@
       </v-col>
     </v-row>
 
-    <v-row style="background:#ddd" class="px-sm-12">
+    <v-row style="background: #ddd" class="px-sm-12">
       <v-col>
         <v-container>
           <v-row id="about" class="xvga-limit autosize flex-nowrap"
@@ -111,7 +111,7 @@
                     <v-card-title class="py-0 headline">{{
                       feature.title
                     }}</v-card-title
-                    ><v-card-text class="mt-1 body-1	"
+                    ><v-card-text class="mt-1 body-1"
                       >{{ feature.text }}
                     </v-card-text>
                   </v-col></v-row
@@ -122,13 +122,11 @@
         </v-container>
       </v-col>
     </v-row>
-    <v-row style="background:#000" class="px-3 px-sm-12 white--text">
+    <v-row style="background: #000" class="px-3 px-sm-12 white--text">
       <v-container id="about-footer">
         <v-row align="start" justify-content="space-between">
           <v-col cols="12" md="6" class="">
-            <h2>
-              Open-source
-            </h2>
+            <h2>Open-source</h2>
             <p>
               Since the system handles Tesla API access keys, I believe in full
               transparency. Audit the code or run your server and own your data.
@@ -158,6 +156,7 @@ import apollo from "@app/plugins/apollo";
 @Component({ components: {} })
 export default class About extends Vue {
   limit!: number;
+  features!: { title: string; icon: string; text: string }[];
   async mounted() {
     const limit = await apollo.getVehicleLimit();
     this.limit = limit === null ? 0 : limit || -1;
@@ -169,34 +168,34 @@ export default class About extends Vue {
         {
           title: "AI driven charging",
           icon: "mdi-school-outline",
-          text: `Maps usage and charging habits to figure out the needed battery level and charging window.`
+          text: `Maps usage and charging habits to figure out the needed battery level and charging window.`,
         },
         {
           title: "Off-peak hours and days",
           icon: "mdi-weather-night-partly-cloudy",
-          text: `Smart Charge tries to find the best price to charge, whether it is a windy day or weekend with low demand.`
+          text: `Smart Charge tries to find the best price to charge, whether it is a windy day or weekend with low demand.`,
         },
         {
           title: "Schedule trips",
           icon: "mdi-road",
-          text: `Allows you to set a time and needed battery level. It will top-up and turn on climate control just before you leave.`
+          text: `Allows you to set a time and needed battery level. It will top-up and turn on climate control just before you leave.`,
         },
         {
           title: "Doctor sleep",
           icon: "mdi-sleep",
-          text: `See if your vehicle is sleeping as it should. Vampire drain causes lost range and unnecessary battery usage.`
+          text: `See if your vehicle is sleeping as it should. Vampire drain causes lost range and unnecessary battery usage.`,
         },
         {
           title: "Reminds you to connect",
           icon: "mdi-power-plug-outline",
-          text: `Automatically opens your charge port, if a charge is planned (optional feature).`
+          text: `Automatically opens your charge port, if a charge is planned (optional feature).`,
         },
         {
           title: "Climate on",
           icon: "mdi-snowflake",
-          text: `Turn on your climate control with just a click, without having to wait for the car to wake up.`
-        }
-      ]
+          text: `Turn on your climate control with just a click, without having to wait for the car to wake up.`,
+        },
+      ],
     };
   }
 }

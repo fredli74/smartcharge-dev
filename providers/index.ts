@@ -1,6 +1,6 @@
 export enum ProviderType {
   Vehicle = "vehicle",
-  Location = "location"
+  Location = "location",
 }
 
 export interface IProvider {

@@ -12,17 +12,17 @@ import { DBAccount } from "@server/db-schema";
 @ObjectType()
 export class Account extends DBAccount {}
 
-@Resolver(_of => Account)
+@Resolver((_of) => Account)
 export class AccountTypeResolver {
-  @FieldResolver(_returns => ID)
+  @FieldResolver((_returns) => ID)
   id(@Root() account: Account): string {
     return account.account_uuid;
   }
-  @FieldResolver(_returns => String)
+  @FieldResolver((_returns) => String)
   name(@Root() account: Account): string {
     return account.name;
   }
-  @FieldResolver(_returns => String)
+  @FieldResolver((_returns) => String)
   token(@Root() account: Account): string {
     return account.api_token;
   }

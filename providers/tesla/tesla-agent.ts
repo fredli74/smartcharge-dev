@@ -14,7 +14,7 @@ import {
   logFormat,
   LogLevel,
   numericStopTime,
-  numericStartTime
+  numericStartTime,
 } from "@shared/utils";
 import { SCClient } from "@shared/sc-client";
 import config from "./tesla-config";
@@ -23,13 +23,13 @@ import {
   AgentJob,
   AbstractAgent,
   IProviderAgent,
-  AgentAction
+  AgentAction,
 } from "@providers/provider-agent";
 import provider, {
   TeslaServiceData,
   TeslaProviderMutates,
   TeslaProviderQueries,
-  TeslaToken
+  TeslaToken,
 } from ".";
 import {
   GQLVehicle,
@@ -38,7 +38,7 @@ import {
   GQLChargePlan,
   GQLChargeType,
   GQLAction,
-  GQLScheduleType
+  GQLScheduleType,
 } from "@shared/sc-schema";
 import { scheduleMap } from "@shared/sc-utils";
 
@@ -47,7 +47,7 @@ enum ChargeControl {
   Starting,
   Started,
   Stopping,
-  Stopped
+  Stopped,
 }
 
 interface TeslaSubject {
@@ -128,7 +128,7 @@ export class TeslaAgent extends AbstractAgent {
           exterior_color: "PPSW",
           passive_spoiler: "X019",
           roof_color: "RFP2",
-          wheel_type: "WTAS"
+          wheel_type: "WTAS",
         };
         break;
       case "models2":
@@ -137,7 +137,7 @@ export class TeslaAgent extends AbstractAgent {
           exterior_color: "PPSW",
           passive_spoiler: "X019",
           roof_color: "RFFG",
-          wheel_type: "WTDS"
+          wheel_type: "WTDS",
         };
         break;
       case "modelx":
@@ -145,21 +145,21 @@ export class TeslaAgent extends AbstractAgent {
           exterior_color: "PPSW",
           passive_spoiler: "X021",
           roof_color: "RFPX",
-          wheel_type: "WT20"
+          wheel_type: "WT20",
         };
         break;
       case "modely":
         defaults = {
           exterior_color: "PPSW",
           roof_color: "RF3G",
-          wheel_type: "WY19B"
+          wheel_type: "WY19B",
         };
         break;
       default:
         defaults = {
           exterior_color: "PPSW",
           roof_color: "RF3G",
-          wheel_type: "W38B"
+          wheel_type: "W38B",
         };
         break;
     }
@@ -201,7 +201,7 @@ export class TeslaAgent extends AbstractAgent {
         SilverMetallic: "PMSS",
         Blue: "PMMB",
         Black: "PBSB",
-        Red: "PPMR"
+        Red: "PPMR",
       })
     );
 
@@ -209,7 +209,7 @@ export class TeslaAgent extends AbstractAgent {
       optionTranslate("roof_color", {
         RoofColorGlass: defaults.roof_color,
         Glass: defaults.roof_color,
-        None: defaults.roof_color
+        None: defaults.roof_color,
       })
     );
 
@@ -228,7 +228,7 @@ export class TeslaAgent extends AbstractAgent {
         Turbine22Dark: "WTUT",
         Charcoal21: "WTSP",
         Base19: "WT19", // does not work on facelift model s
-        Apollo19: "WY19B"
+        Apollo19: "WY19B",
       })
     );
 
@@ -236,7 +236,7 @@ export class TeslaAgent extends AbstractAgent {
       optionTranslate("spoiler_type", {
         Passive: defaults.passive_spoiler, // "X019" | "X021",
         // "SLR1"
-        None: null
+        None: null,
       })
     );
 
@@ -244,7 +244,7 @@ export class TeslaAgent extends AbstractAgent {
       option_codes.push(
         optionTranslate("exterior_trim", {
           Chrome: null,
-          Black: ["MT315", "IPB0"]
+          Black: ["MT315", "IPB0"],
         })
       );
     }
@@ -252,7 +252,7 @@ export class TeslaAgent extends AbstractAgent {
     option_codes.push(
       optionTranslate("rhd", {
         true: "DRRH",
-        false: null
+        false: null,
       })
     );
 
@@ -266,22 +266,22 @@ export class TeslaAgent extends AbstractAgent {
 
     option_codes = option_codes
       .flat(Infinity)
-      .filter(f => f !== undefined && f !== null);
+      .filter((f) => f !== undefined && f !== null);
 
     if (
       subject.data.providerData.car_type !== config.car_type ||
       Boolean(subject.data.providerData.unknown_image) !==
-      Boolean(unknown_image) ||
+        Boolean(unknown_image) ||
       JSON.stringify(subject.data.providerData.option_codes) !==
-      JSON.stringify(option_codes)
+        JSON.stringify(option_codes)
     ) {
       await this.scClient.updateVehicle({
         id: subject.vehicleUUID,
         providerData: {
           car_type: config.car_type,
           unknown_image: unknown_image,
-          option_codes: option_codes
-        }
+          option_codes: option_codes,
+        },
       });
     }
   }
@@ -294,7 +294,7 @@ export class TeslaAgent extends AbstractAgent {
       // Token has expired, run it through server
       const newToken = await this.scClient.providerMutate("tesla", {
         mutation: TeslaProviderMutates.RefreshToken,
-        token
+        token,
       });
       for (const j of Object.values(this.services)) {
         if (
@@ -316,7 +316,7 @@ export class TeslaAgent extends AbstractAgent {
         id: subject.vehicleUUID,
         category: "sleep",
         timestamp: new Date().toISOString(),
-        data: subject.debugSleep
+        data: subject.debugSleep,
       });
     }
   }
@@ -339,8 +339,9 @@ export class TeslaAgent extends AbstractAgent {
     if (!subject.online) {
       log(
         LogLevel.Info,
-        `${subject.teslaID} waking up ${(subject.data && subject.data.name) ||
-        subject.vehicleUUID}`
+        `${subject.teslaID} waking up ${
+          (subject.data && subject.data.name) || subject.vehicleUUID
+        }`
       );
       const data = await teslaAPI.wakeUp(
         subject.teslaID,
@@ -391,7 +392,7 @@ export class TeslaAgent extends AbstractAgent {
         if (config.AGENT_SAVE_TO_TRACEFILE) {
           const s = logFormat(LogLevel.Trace, data);
           fs.writeFileSync(config.AGENT_TRACE_FILENAME, `${s}\n`, {
-            flag: "as"
+            flag: "as",
           });
         }
 
@@ -428,8 +429,8 @@ export class TeslaAgent extends AbstractAgent {
           data.charge_state.user_charge_enable_request !== null
             ? data.charge_state.user_charge_enable_request
             : data.charge_state.charging_state === "Stopped"
-              ? false
-              : data.charge_state.charge_enable_request;
+            ? false
+            : data.charge_state.charge_enable_request;
         subject.portOpen = data.charge_state.charge_port_door_open;
         subject.online = true;
 
@@ -443,12 +444,12 @@ export class TeslaAgent extends AbstractAgent {
         // the correct number should be 11 kW on 3 phases (3*16*230).
         const phases =
           data.charge_state.charger_actual_current > 0 &&
-            data.charge_state.charger_voltage > 1
+          data.charge_state.charger_voltage > 1
             ? Math.round(
-              (data.charge_state.charger_power * 1e3) /
-              data.charge_state.charger_actual_current /
-              data.charge_state.charger_voltage
-            )
+                (data.charge_state.charger_power * 1e3) /
+                  data.charge_state.charger_actual_current /
+                  data.charge_state.charger_voltage
+              )
             : 0;
         // const phases = data.charge_state.charger_phases;
 
@@ -456,9 +457,9 @@ export class TeslaAgent extends AbstractAgent {
         const powerUse =
           phases > 0 // we get 0 phases when DC charging because current is 0
             ? (data.charge_state.charger_actual_current * // amp
-              phases * // * phases
-              data.charge_state.charger_voltage) /
-            1e3 // * voltage = watt / 1000 = kW
+                phases * // * phases
+                data.charge_state.charger_voltage) /
+              1e3 // * voltage = watt / 1000 = kW
             : data.charge_state.charger_power; // fallback to API reported power
 
         // Update info
@@ -466,7 +467,7 @@ export class TeslaAgent extends AbstractAgent {
           id: subject.vehicleUUID,
           geoLocation: {
             latitude: data.drive_state.latitude,
-            longitude: data.drive_state.longitude
+            longitude: data.drive_state.longitude,
           },
           batteryLevel: Math.trunc(data.charge_state.usable_battery_level), // battery level in %
           odometer: Math.trunc(data.vehicle_state.odometer * 1609.344), // 1 mile = 1.609344 km
@@ -480,14 +481,14 @@ export class TeslaAgent extends AbstractAgent {
           connectedCharger: data.charge_state.fast_charger_present
             ? GQLChargeConnection.DC // fast charger
             : data.charge_state.charging_state !== "Disconnected"
-              ? GQLChargeConnection.AC
-              : null, // any other charger or no charger
+            ? GQLChargeConnection.AC
+            : null, // any other charger or no charger
           chargingTo: chargingTo,
           estimatedTimeLeft: Math.round(
             data.charge_state.time_to_full_charge * 60
           ), // 1 hour = 60 minutes
           powerUse: chargingTo !== null ? powerUse : null,
-          energyAdded: data.charge_state.charge_energy_added // added kWh
+          energyAdded: data.charge_state.charge_energy_added, // added kWh
         };
 
         const isGettingTired =
@@ -528,7 +529,7 @@ export class TeslaAgent extends AbstractAgent {
                 id: subject.vehicleUUID,
                 category: "sleep",
                 timestamp: new Date().toISOString(),
-                data: subject.debugSleep
+                data: subject.debugSleep,
               });
               subject.debugSleep.info = data;
             }
@@ -540,7 +541,7 @@ export class TeslaAgent extends AbstractAgent {
               now: now,
               start: now,
               success: false,
-              info: data
+              info: data,
             }; // Save current state to debug sleep tries
           } else {
             await this.setStatus(subject, "Idle");
@@ -613,7 +614,7 @@ export class TeslaAgent extends AbstractAgent {
         if (config.AGENT_SAVE_TO_TRACEFILE) {
           const s = logFormat(LogLevel.Trace, data);
           fs.writeFileSync(config.AGENT_TRACE_FILENAME, `${s}\n`, {
-            flag: "as"
+            flag: "as",
           });
         }
         log(
@@ -673,7 +674,7 @@ export class TeslaAgent extends AbstractAgent {
               `${subject.teslaID} unknown state: ${JSON.stringify(data)}`
             );
             fs.writeFileSync(config.AGENT_TRACE_FILENAME, `${s}\n`, {
-              flag: "as"
+              flag: "as",
             });
             console.error(s);
           }
@@ -683,7 +684,7 @@ export class TeslaAgent extends AbstractAgent {
       if (subject.data.providerData.invalid_token) {
         await this.scClient.updateVehicle({
           id: subject.vehicleUUID,
-          providerData: { invalid_token: null }
+          providerData: { invalid_token: null },
         });
       }
 
@@ -794,8 +795,8 @@ export class TeslaAgent extends AbstractAgent {
             }
           }
 
-          let setLevel = shouldCharge!.level;
-          if (shouldCharge!.chargeType === GQLChargeType.Calibrate) {
+          let setLevel = shouldCharge.level;
+          if (shouldCharge.chargeType === GQLChargeType.Calibrate) {
             if (!subject.calibrating) {
               subject.calibrating = {
                 level: Math.max(
@@ -803,10 +804,10 @@ export class TeslaAgent extends AbstractAgent {
                   subject.data.batteryLevel
                 ),
                 duration: 0,
-                next: now + 30e3
+                next: now + 30e3,
               };
             }
-            if (subject.calibrating.level >= shouldCharge!.level) {
+            if (subject.calibrating.level >= shouldCharge.level) {
               // done!
               setLevel = 0;
             } else {
@@ -853,7 +854,7 @@ export class TeslaAgent extends AbstractAgent {
           subject.parked !== undefined &&
           subject.data.chargePlan &&
           subject.data.chargePlan.findIndex(
-            f =>
+            (f) =>
               f.chargeType !== GQLChargeType.Disable &&
               f.chargeType !== GQLChargeType.Fill &&
               f.chargeType !== GQLChargeType.Manual &&
@@ -909,7 +910,7 @@ export class TeslaAgent extends AbstractAgent {
               `${subject.teslaID} starting climate control on ${subject.data.name}`
             );
             await this[AgentAction.ClimateControl](job, {
-              data: { id: subject.vehicleUUID, enable: true }
+              data: { id: subject.vehicleUUID, enable: true },
             } as any);
           }
         } else if (
@@ -924,7 +925,7 @@ export class TeslaAgent extends AbstractAgent {
             `${subject.teslaID} stopping climate control on ${subject.data.name}`
           );
           await this[AgentAction.ClimateControl](job, {
-            data: { id: subject.vehicleUUID, enable: false }
+            data: { id: subject.vehicleUUID, enable: false },
           } as any);
         } else if (!inWindow && !subject.climateEnabled) {
           // we're outside of hvac window, hvac is turned off, reset state
@@ -932,7 +933,7 @@ export class TeslaAgent extends AbstractAgent {
           delete subject.hvacOverride;
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       if (config.AGENT_SAVE_TO_TRACEFILE) {
         const s = logFormat(LogLevel.Error, err);
         fs.writeFileSync(config.AGENT_TRACE_FILENAME, `${s}\n`, { flag: "as" });
@@ -948,7 +949,8 @@ export class TeslaAgent extends AbstractAgent {
       if (err.code === 401) {
         log(
           LogLevel.Trace,
-          `${subject.teslaID
+          `${
+            subject.teslaID
           } tesla-agent polling error 401 for ${JSON.stringify(
             job.serviceData
           )}`
@@ -956,14 +958,15 @@ export class TeslaAgent extends AbstractAgent {
         try {
           const newToken = await this.scClient.providerMutate("tesla", {
             mutation: TeslaProviderMutates.RefreshToken,
-            refresh_token: job.serviceData.token.refresh_token
+            refresh_token: job.serviceData.token.refresh_token,
           });
           delete job.serviceData.invalid_token; // client side update to match server
           job.serviceData.token = newToken; // client side update to match server
         } catch (err) {
           log(
             LogLevel.Error,
-            `${subject.teslaID} unable to refresh teslaAPI token for ${subject.teslaID
+            `${subject.teslaID} unable to refresh teslaAPI token for ${
+              subject.teslaID
             }: ${JSON.stringify(err)}`
           );
           job.serviceData.invalid_token = true; // client side update to match server
@@ -1002,7 +1005,7 @@ export class TeslaAgent extends AbstractAgent {
       job.state = {};
       const list = await this.scClient.providerQuery("tesla", {
         query: TeslaProviderQueries.Vehicles,
-        service_uuid: job.serviceID
+        service_uuid: job.serviceID,
       });
       for (const v of list) {
         if (v.vehicle_uuid && !job.state[v.vehicle_uuid]) {
@@ -1013,7 +1016,7 @@ export class TeslaAgent extends AbstractAgent {
             pollerror: undefined,
             pollstate: undefined,
             statestart: Date.now(),
-            status: ""
+            status: "",
           };
           log(
             LogLevel.Debug,
@@ -1070,6 +1073,6 @@ export class TeslaAgent extends AbstractAgent {
 
 const agent: IProviderAgent = {
   ...provider,
-  agent: (scClient: SCClient) => new TeslaAgent(scClient)
+  agent: (scClient: SCClient) => new TeslaAgent(scClient),
 };
 export default agent;

@@ -4,7 +4,7 @@
       <v-col cols="12" md="9">
         <v-text-field
           v-model="name"
-          :rules="[v => v.length > 0 || 'Required']"
+          :rules="[(v) => v.length > 0 || 'Required']"
           label="Location name"
           required
           :loading="saving.name"
@@ -73,10 +73,10 @@ import { UpdateLocationParams } from "@shared/sc-client";
           }
         }
       `,
-      update: data =>
-        data.priceLists.map((f: any) => ({ text: f.name, value: f.id }))
-    }
-  }
+      update: (data) =>
+        data.priceLists.map((f: any) => ({ text: f.name, value: f.id })),
+    },
+  },
 })
 export default class EditLocation extends Vue {
   @Prop({ type: Object, required: true }) readonly location!: GQLLocation;
@@ -92,8 +92,8 @@ export default class EditLocation extends Vue {
 
       saving: {
         name: false,
-        pricelist: false
-      }
+        pricelist: false,
+      },
     };
   }
   async created() {}
@@ -136,7 +136,7 @@ export default class EditLocation extends Vue {
       const form: any = this.$refs.form;
       if (form.validate && form.validate()) {
         const update: UpdateLocationParams = {
-          id: this.location.id
+          id: this.location.id,
         };
         if (this.saving["name"]) {
           update.name = this.location.name;

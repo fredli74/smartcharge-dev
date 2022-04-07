@@ -59,13 +59,13 @@ export default class VehicleSchedule extends Vue {
       guideDateTime: DateTime.fromMillis(
         Math.ceil(Date.now() / 60e4) * 60e4 + 12 * 60 * 60e3
       ),
-      newSchedule: undefined
+      newSchedule: undefined,
     };
   }
 
   @Watch("vehicle.schedule", { immediate: true })
   onChangeSchedule() {
-    this.schedule = this.vehicle.schedule.filter(f => {
+    this.schedule = this.vehicle.schedule.filter((f) => {
       if (!f.level) return false;
       if (!f.time) return false;
       if (f.type === GQLScheduleType.Trip) return true;
@@ -84,7 +84,7 @@ export default class VehicleSchedule extends Vue {
       vehicleID: this.vehicle.id,
       type: GQLScheduleType.Trip,
       level: this.vehicle.maximumLevel,
-      time: this.guideDateTime.toISO()
+      time: this.guideDateTime.toISO(),
     };
   }
 

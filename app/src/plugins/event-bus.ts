@@ -5,5 +5,5 @@ export enum BusEvent {
   AuthenticationChange = "AUTHENTICATION_CHANGED",
   AlertClear = "ALERT_CLEAR",
   AlertWarning = "ALERT_WARNING",
-  AlertError = "ALERT_ERROR"
+  AlertError = "ALERT_ERROR",
 }

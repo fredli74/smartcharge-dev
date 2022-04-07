@@ -16,7 +16,7 @@ Vue.config.devtools = true;
     if (token !== null) {
       await apollo.loginWithAPIToken(token);
     }
-  } catch (err) {
+  } catch (err: any) {
     if (err.networkError && err.networkError.statusCode === 401) {
       localStorage.removeItem("token");
       console.log("Invalid access token, new login required");
@@ -29,6 +29,6 @@ Vue.config.devtools = true;
     router,
     vuetify,
     apolloProvider,
-    render: h => h(App)
+    render: (h) => h(App),
   }).$mount("#app");
 })();

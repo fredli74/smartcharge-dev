@@ -13,21 +13,21 @@ import { DBServiceProvider } from "@server/db-schema";
 @ObjectType("ServiceProvider")
 export class ServiceProvider extends DBServiceProvider {}
 
-@Resolver(_of => ServiceProvider)
+@Resolver((_of) => ServiceProvider)
 export class ServiceProviderTypeResolver {
-  @FieldResolver(_returns => ID)
+  @FieldResolver((_returns) => ID)
   ownerID(@Root() serviceprovider: ServiceProvider): string {
     return serviceprovider.account_uuid;
   }
-  @FieldResolver(_returns => String)
+  @FieldResolver((_returns) => String)
   providerName(@Root() serviceprovider: ServiceProvider): string {
     return serviceprovider.provider_name;
   }
-  @FieldResolver(_returns => ID)
+  @FieldResolver((_returns) => ID)
   serviceID(@Root() serviceprovider: ServiceProvider): string {
     return serviceprovider.service_uuid;
   }
-  @FieldResolver(_returns => GraphQLJSONObject)
+  @FieldResolver((_returns) => GraphQLJSONObject)
   serviceData(@Root() serviceprovider: ServiceProvider): any {
     return serviceprovider.service_data;
   }

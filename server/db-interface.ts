@@ -19,7 +19,7 @@ import {
   DBServiceProvider,
   DBChargeCurve,
   DBPriceList,
-  DBSchedule
+  DBSchedule,
 } from "./db-schema";
 import { log, LogLevel, geoDistance, generateToken } from "@shared/utils";
 import config from "@shared/smartcharge-config";
@@ -29,7 +29,7 @@ import { DEFAULT_DIRECTLEVEL } from "@shared/smartcharge-defines";
 import {
   VehicleLocationSettings,
   VehicleDebugInput,
-  Schedule
+  Schedule,
 } from "./gql/vehicle-type";
 
 export const DB_OPTIONS: pgp.IInitOptions = {};
@@ -75,9 +75,9 @@ export class DBInterface {
       ssl:
         config.DATABASE_SSL === "true"
           ? {
-              rejectUnauthorized: false
+              rejectUnauthorized: false,
             }
-          : false
+          : false,
     });
   }
   public async init(): Promise<void> {
@@ -88,8 +88,8 @@ export class DBInterface {
       if (version !== DB_VERSION) {
         throw "Database is out of date. No automatic upgrade script found.";
       }
-    } catch (err) {
-      if (err.code === "42P01") {
+    } catch (err: any) {
+      if (err && err.code === "42P01") {
         // PostgreSQL error code for parserOpenTable
         log(LogLevel.Info, `No tables found, running database setup script`);
         await this.setupDatabase();
@@ -164,7 +164,7 @@ export class DBInterface {
       {
         account_uuid: INTERNAL_SERVICE_UUID,
         name: "internal",
-        api_token: process.env["INTERNAL_SERVICE_TOKEN"] || generateToken(48)
+        api_token: process.env["INTERNAL_SERVICE_TOKEN"] || generateToken(48),
       }
     );
     log(LogLevel.Info, `Internal agency api_token is: ${k.api_token}`);
@@ -175,7 +175,7 @@ export class DBInterface {
       {
         account_uuid: SINGLE_USER_UUID,
         name: "single user",
-        api_token: generateToken(48)
+        api_token: generateToken(48),
       }
     );
   }
@@ -196,7 +196,7 @@ export class DBInterface {
         location_micro_latitude,
         location_micro_longitude,
         radius,
-        price_list_uuid
+        price_list_uuid,
       }
     );
     await this.updateAllLocations(account_uuid);
@@ -262,7 +262,7 @@ export class DBInterface {
   ): Promise<DBLocation[]> {
     const [values, where] = queryHelper([
       [location_uuid, `location_uuid = $1`],
-      [account_uuid, `account_uuid = $2`]
+      [account_uuid, `account_uuid = $2`],
     ]);
     return this.pg.manyOrNone(
       `SELECT * FROM location ${queryWhere(
@@ -295,7 +295,7 @@ export class DBInterface {
       [input.radius, `radius = $5`],
       [input.price_list_uuid, `price_list_uuid = $6`],
       [input.service_uuid, `service_uuid = $7`],
-      [input.provider_data, `provider_data = jsonb_merge(provider_data, $8)`]
+      [input.provider_data, `provider_data = jsonb_merge(provider_data, $8)`],
     ]);
     assert(set.length > 0);
 
@@ -327,7 +327,7 @@ export class DBInterface {
     return {
       locationID: location_uuid || "",
       directLevel: DEFAULT_DIRECTLEVEL,
-      goal: SmartChargeGoal.Balanced
+      goal: SmartChargeGoal.Balanced,
     };
   }
 
@@ -343,7 +343,7 @@ export class DBInterface {
       name,
       maximum_charge,
       service_uuid,
-      provider_data
+      provider_data,
     };
     for (const key of Object.keys(fields)) {
       if (fields[key] === undefined) {
@@ -362,8 +362,14 @@ export class DBInterface {
   ): Promise<DBVehicle[]> {
     const [values, where] = queryHelper([
       [vehicle_uuid, `vehicle_uuid = $1`],
-      [account_uuid, `account_uuid = $2`]
+      [account_uuid, `account_uuid = $2`],
     ]);
+    if (account_uuid) {
+      this.pg.none(
+        `UPDATE account SET accessed = NOW() WHERE account_uuid=$1;`,
+        [account_uuid]
+      );
+    }
     return this.pg.manyOrNone(
       `SELECT * FROM vehicle ${queryWhere(where)} ORDER BY name, vehicle_uuid;`,
       values
@@ -374,6 +380,12 @@ export class DBInterface {
     account_uuid: string | null | undefined,
     vehicle_uuid: string
   ): Promise<DBVehicle> {
+    if (account_uuid) {
+      this.pg.none(
+        `UPDATE account SET accessed = NOW() WHERE account_uuid=$1;`,
+        [account_uuid]
+      );
+    }
     const dblist = await this.getVehicles(account_uuid, vehicle_uuid);
     if (dblist.length === 0) {
       throw new Error(`Unknown vehicle id ${vehicle_uuid}`);
@@ -400,11 +412,11 @@ export class DBInterface {
       [input.maximum_charge, `maximum_charge = $3`],
       [
         input.location_settings,
-        `location_settings = jsonb_merge(location_settings, $4)`
+        `location_settings = jsonb_merge(location_settings, $4)`,
       ],
       [input.status, `status = $5`],
       [input.service_uuid, `service_uuid = $6`],
-      [input.provider_data, `provider_data = jsonb_merge(provider_data, $7)`]
+      [input.provider_data, `provider_data = jsonb_merge(provider_data, $7)`],
     ]);
     assert(set.length > 0);
 
@@ -440,18 +452,18 @@ export class DBInterface {
       vehicle_uuid: record.id,
       category: record.category,
       ts: record.timestamp,
-      data: record.data
+      data: record.data,
     };
   }
 
   public async getAccount(accountUUID: string): Promise<DBAccount> {
     return this.pg.one(`SELECT * FROM account WHERE account_uuid = $1;`, [
-      accountUUID
+      accountUUID,
     ]);
   }
   public async lookupAccount(api_token: string): Promise<DBAccount> {
     return this.pg.one(`SELECT * FROM account WHERE api_token = $1;`, [
-      api_token
+      api_token,
     ]);
   }
   public async makeAccount(
@@ -472,7 +484,7 @@ export class DBInterface {
     const [values, where] = queryHelper([
       [account_uuid, `account_uuid = $1`],
       [service_uuid, `service_uuid = $2`],
-      [accept, `provider_name IN ($3:csv)`]
+      [accept, `provider_name IN ($3:csv)`],
     ]);
     assert(where.length > 0);
 
@@ -520,7 +532,7 @@ export class DBInterface {
       [];
 
     if (dbCurve.length > 0) {
-      current = dbCurve.shift()!.seconds;
+      current = dbCurve.shift().seconds;
     } else {
       // Check estimate for current connection
       current =
@@ -538,7 +550,7 @@ export class DBInterface {
     const curve: ChargeCurve = {};
     for (let level = 0; level <= 100; ++level) {
       while (dbCurve.length > 0 && level >= dbCurve[0].level) {
-        current = dbCurve.shift()!.seconds;
+        current = dbCurve.shift().seconds;
       }
       curve[level] = parseFloat(current);
     }
@@ -558,7 +570,7 @@ export class DBInterface {
       vehicle_uuid,
       charge_id,
       level,
-      duration
+      duration,
     };
     if (outside_deci_temperature !== undefined) {
       input.outside_deci_temperature = outside_deci_temperature;
@@ -631,7 +643,7 @@ export class DBInterface {
   ): Promise<DBPriceList[]> {
     const [values, where] = queryHelper([
       [price_list_uuid, `price_list_uuid = $1`],
-      [account_uuid, `(account_uuid = $2 OR public_list IS TRUE)`]
+      [account_uuid, `(account_uuid = $2 OR public_list IS TRUE)`],
     ]);
     return this.pg.manyOrNone(
       `SELECT * FROM price_list ${queryWhere(
@@ -660,7 +672,7 @@ export class DBInterface {
       [input.name, `name = $2`],
       [input.public_list, `public_list = $3`],
       [input.service_uuid, `service_uuid = $4`],
-      [input.provider_data, `provider_data = jsonb_merge(provider_data, $5)`]
+      [input.provider_data, `provider_data = jsonb_merge(provider_data, $5)`],
     ]);
     assert(set.length > 0);
 
@@ -720,7 +732,7 @@ export class DBInterface {
       price_list_uuid,
       account_uuid,
       name,
-      public_list
+      public_list,
     };
     for (const key of Object.keys(fields)) {
       if (fields[key] === undefined || fields[key] === null) {
@@ -744,7 +756,7 @@ export class DBInterface {
       vehicle_uuid,
       schedule_type,
       level,
-      schedule_ts
+      schedule_ts,
     };
     if (schedule_id !== undefined) {
       return await this.pg.one(

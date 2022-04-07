@@ -9,13 +9,13 @@ export enum EventType {
   Sleep = "sleep",
   // Idle = "idle",
   Charge = "charge",
-  Trip = "trip"
+  Trip = "trip",
 }
 
 export enum SmartChargeGoal {
   Low = "low",
   Balanced = "balanced",
-  Full = "full"
+  Full = "full",
 }
 
 export enum ChargeType {
@@ -26,18 +26,18 @@ export enum ChargeType {
   Trip = "trip",
   Routine = "routine",
   Prefered = "prefered",
-  Fill = "fill"
+  Fill = "fill",
 }
 
 export enum ChargeConnection {
   AC = "ac",
-  DC = "dc"
+  DC = "dc",
 }
 
 export enum DisableType {
   Nothing = 0,
   Control = 1,
-  Everything = 2
+  Everything = 2,
 }
 
 export enum ScheduleType {
@@ -60,5 +60,5 @@ export enum ScheduleType {
   /**
    * Charge for upcoming trip
    */
-  Trip = "trip"
+  Trip = "trip",
 }

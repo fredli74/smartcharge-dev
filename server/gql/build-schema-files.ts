@@ -28,7 +28,7 @@ const typeFileName = path.resolve(__dirname, "../../../shared/sc-schema.ts");
       smartTParent: true,
       asyncResult: true,
       strictNulls: true,
-      customScalarType: { DateTime: "string" }
+      customScalarType: { DateTime: "string" },
     });
     fs.writeFileSync(typeFileName, content, "utf-8");
     console.log(`Typescript definitions file ${typeFileName} created`);

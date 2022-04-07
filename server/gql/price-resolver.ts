@@ -13,7 +13,7 @@ import { ApolloError } from "apollo-server-core";
 
 @Resolver()
 export class PriceResolver {
-  @Query(_returns => [PriceList])
+  @Query((_returns) => [PriceList])
   async priceLists(@Ctx() context: IContext): Promise<PriceList[]> {
     return plainToClass(
       PriceList,
@@ -21,7 +21,7 @@ export class PriceResolver {
     );
   }
 
-  @Query(_returns => PriceList)
+  @Query((_returns) => PriceList)
   async priceList(
     @Arg("id") id: string,
     @Ctx() context: IContext
@@ -32,12 +32,15 @@ export class PriceResolver {
     );
   }
 
-  @Mutation(_returns => PriceList)
+  @Mutation((_returns) => PriceList)
   async newPriceList(
-    @Arg("name", _type => String) name: string,
-    @Arg("isPublic", _type => Boolean, { nullable: true, defaultValue: false })
+    @Arg("name", (_type) => String) name: string,
+    @Arg("isPublic", (_type) => Boolean, {
+      nullable: true,
+      defaultValue: false,
+    })
     isPublic: boolean,
-    @Arg("id", _type => ID, { nullable: true }) id: string,
+    @Arg("id", (_type) => ID, { nullable: true }) id: string,
     @Ctx() context: IContext
   ): Promise<PriceList> {
     return plainToClass(
@@ -46,7 +49,7 @@ export class PriceResolver {
     );
   }
 
-  @Mutation(_returns => PriceList)
+  @Mutation((_returns) => PriceList)
   async updatePriceList(
     @Arg("input") input: UpdatePriceListInput,
     @Ctx() context: IContext
@@ -62,7 +65,7 @@ export class PriceResolver {
       PriceList,
       await context.db.updatePriceList(input.id, {
         name: input.name,
-        public_list: input.isPublic
+        public_list: input.isPublic,
       })
     );
   }

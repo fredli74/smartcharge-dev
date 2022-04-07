@@ -12,7 +12,7 @@
       <v-col cols="6" sm="3" md="3">
         <v-text-field
           v-model="directLevel"
-          :rules="[v => (v >= 5 && v <= 50) || 'allowed range 5% - 50%']"
+          :rules="[directLevelRules]"
           label="Direct charge level"
           placeholder=" "
           type="number"
@@ -21,9 +21,9 @@
           suffix="%"
           :loading="saving.directLevel"
         >
-          <template v-slot:append-outer>
+          <template #append-outer>
             <v-tooltip bottom max-width="18rem">
-              <template v-slot:activator="{ on }">
+              <template #activator="{ on }">
                 <v-icon v-on="on">mdi-help-circle-outline</v-icon>
               </template>
               Charge directly to this level when plugged in. It should be enough
@@ -42,9 +42,9 @@
           :suffix="typeof goal === 'string' ? '%' : ''"
           :loading="saving.goal"
         >
-          <template v-slot:append-outer>
+          <template #append-outer>
             <v-tooltip bottom max-width="18rem">
-              <template v-slot:activator="{ on }">
+              <template #activator="{ on }">
                 <v-icon v-on="on">mdi-help-circle-outline</v-icon>
               </template>
               Set the smart charge focus from low cost, that may only fill up on
@@ -95,15 +95,23 @@ export default class EditVehicle extends Vue {
     return {
       saving: {
         directLevel: false,
-        goal: false
+        goal: false,
       },
       goalCBList: [
         { text: "Low cost", value: SmartChargeGoal.Low },
         { text: "Balanced", value: SmartChargeGoal.Balanced },
         { text: "Full charge", value: SmartChargeGoal.Full },
-        { text: "Custom", value: "%" }
-      ]
+        { text: "Custom", value: "%" },
+      ],
     };
+  }
+
+  directLevelRules(value: string) {
+    const v = parseInt(value) || 0;
+    if (v < 5 || v > 50) {
+      return `allowed range 5% - 50%`;
+    }
+    return true;
   }
 
   targetRules(value: string | any) {
@@ -127,7 +135,7 @@ export default class EditVehicle extends Vue {
     }
   }
   get goal(): any {
-    const preset = this.goalCBList.find(f => f.value === this.settings.goal);
+    const preset = this.goalCBList.find((f) => f.value === this.settings.goal);
     if (preset) {
       return preset;
     }
@@ -166,9 +174,9 @@ export default class EditVehicle extends Vue {
             {
               locationID: this.settings.locationID,
               directLevel: this.settings.directLevel,
-              goal: goal.value || goal
-            } as GQLVehicleLocationSetting
-          ]
+              goal: goal.value || goal,
+            } as GQLVehicleLocationSetting,
+          ],
         };
 
         this.clearSaving = deepmerge(this.clearSaving, this.saving);

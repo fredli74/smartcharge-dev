@@ -5,6 +5,6 @@ import NordpoolVue from "./nordpool.vue";
 const app: IProviderApp = {
   ...provider,
   logo: require("./nordpool-logo.png"),
-  vue: NordpoolVue
+  vue: NordpoolVue,
 };
 export default app;

@@ -9,19 +9,17 @@
           <h2>{{ vehicle.name }}</h2>
           <h6>{{ prettyStatus }}</h6>
           <RelativeTime
-            style="font-size:0.7em; font-weight:light"
+            style="font-size: 0.7em; font-weight: light"
             :hide-below="15"
             :units="1"
             :time="new Date(vehicle.updated)"
             >Updated
-            <template #suffix>
-              ago
-            </template>
+            <template #suffix> ago </template>
           </RelativeTime>
           <div
             v-if="Boolean(vehicle && vehicle.providerData.disabled)"
             class="pt-4 text-no-wrap deep-orange--text text--accent-4"
-            style="font-size:0.8em"
+            style="font-size: 0.8em"
           >
             Polling is disabled
           </div>
@@ -48,14 +46,14 @@
                 <span>Report incorrect image</span>
               </v-tooltip>
             </v-flex>
-            <v-flex sm12 grow class="" style="z-index:2">
-              <div v-if="freshInfo" id="temperatures" style="margin:0 auto">
+            <v-flex sm12 grow class="" style="z-index: 2">
+              <div v-if="freshInfo" id="temperatures" style="margin: 0 auto">
                 <div>
                   <v-icon>mdi-weather-partly-cloudy</v-icon
                   >{{ Number(vehicle.outsideTemperature).toFixed(1) }}&#176;
                 </div>
                 <div>
-                  <v-icon style="top:1px;">mdi-car</v-icon
+                  <v-icon style="top: 1px">mdi-car</v-icon
                   >{{ Number(vehicle.insideTemperature).toFixed(1) }}&#176;
                 </div>
               </div>
@@ -65,14 +63,16 @@
         <v-flex v-if="vehicle !== undefined" sm6 xs12 class="mb-5">
           <VehicleActions :vehicle="vehicle"></VehicleActions>
         </v-flex>
-        <v-flex sm6 xs12 class="mb-5" style="z-index:2">
+        <v-flex sm6 xs12 class="mb-5" style="z-index: 2">
           <div v-if="vehicle.chargingTo" class="mt-n5 caption">
             Charging to {{ vehicle.chargingTo }}%
             <RelativeTime
               until
               :hide-below="120"
               :units="2"
-              :time="new Date(Date.now() + vehicle.estimatedTimeLeft * 60e3)"
+              :time="
+                new Date(Date.now() + (vehicle.estimatedTimeLeft || 0) * 60e3)
+              "
               >(est.<template #suffix>) </template>
             </RelativeTime>
           </div>
@@ -96,7 +96,14 @@
         </v-flex>
       </v-layout>
       <v-row
-        style="-webkit-touch-callout: none; -webkit-user-select: none; -khtml-user-select: none; -moz-user-select: none; -ms-user-select: none; user-select: none;"
+        style="
+          -webkit-touch-callout: none;
+          -webkit-user-select: none;
+          -khtml-user-select: none;
+          -moz-user-select: none;
+          -ms-user-select: none;
+          user-select: none;
+        "
       >
         <v-col class="body-2">
           {{ replaceISOtime(vehicle.smartStatus) }}
@@ -171,7 +178,7 @@ import { vehicleFragment, GQLLocationFragment } from "@shared/sc-client";
       `,
       variables() {
         return {
-          id: this.$route.params.id
+          id: this.$route.params.id,
         };
       },
       fetchPolicy: "cache-and-network",
@@ -180,7 +187,7 @@ import { vehicleFragment, GQLLocationFragment } from "@shared/sc-client";
         document: gql`subscription VehicleSubscription($id:String!) { vehicleSubscription(id: $id) { ${vehicleFragment} } }`,
         variables() {
           return {
-            id: this.$route.params.id
+            id: this.$route.params.id,
           };
         },
         fetchPolicy: "cache-and-network",
@@ -189,13 +196,13 @@ import { vehicleFragment, GQLLocationFragment } from "@shared/sc-client";
           return {
             vehicle: {
               ...((previousResult && previousResult.vehicle) || undefined),
-              ...subscriptionData.data.vehicleSubscription
-            }
+              ...subscriptionData.data.vehicleSubscription,
+            },
           };
         },
         skip() {
           return this.locations === undefined;
-        }
+        },
       },
 
       update(data) {
@@ -224,9 +231,9 @@ import { vehicleFragment, GQLLocationFragment } from "@shared/sc-client";
       },
       skip() {
         return this.locations === undefined;
-      }
-    }
-  } as VueApolloComponentOptions<VehicleVue> // needed because skip is not declared on subscribeToMore, but I am pretty sure I had to have it in my tests when the query had toggled skip()
+      },
+    },
+  } as VueApolloComponentOptions<VehicleVue>, // needed because skip is not declared on subscribeToMore, but I am pretty sure I had to have it in my tests when the query had toggled skip()
 })
 export default class VehicleVue extends Vue {
   loading!: boolean;
@@ -243,7 +250,7 @@ export default class VehicleVue extends Vue {
       location: undefined,
       locations: undefined,
       prettyStatus: "",
-      freshInfo: false
+      freshInfo: false,
     };
   }
 
@@ -293,7 +300,7 @@ export default class VehicleVue extends Vue {
         return require("../assets/unknown_vehicle.png");
       } else*/ {
         const provider = providers.find(
-          p => p.name === this.vehicle!.providerData.provider
+          (p) => p.name === this.vehicle!.providerData.provider
         );
         if (provider && provider.image) {
           return provider.image(this.vehicle);
@@ -312,13 +319,13 @@ export default class VehicleVue extends Vue {
   }
   get addLocationURL(): RawLocation {
     assert(this.vehicle !== undefined);
-    assert(this.vehicle.geoLocation !== undefined);
+    assert(this.vehicle.geoLocation !== null);
     return {
       path: "/add/location",
       query: {
-        lat: this.vehicle!.geoLocation!.latitude.toString(),
-        long: this.vehicle!.geoLocation!.longitude.toString()
-      }
+        lat: this.vehicle.geoLocation.latitude.toString(),
+        long: this.vehicle.geoLocation.longitude.toString(),
+      },
     };
   }
 
@@ -335,10 +342,10 @@ export default class VehicleVue extends Vue {
     }
 
     if (val.locationID && this.locations) {
-      this.location = this.locations.find(f => f.id === val.locationID);
+      this.location = this.locations.find((f) => f.id === val.locationID);
       assert(this.location !== undefined);
 
-      suffix = `${val.isDriving ? "near" : "@"} ${this.location!.name}`;
+      suffix = `${val.isDriving ? "near" : "@"} ${this.location.name}`;
     }
 
     if (
@@ -378,18 +385,20 @@ export default class VehicleVue extends Vue {
       (suffix ? " " + suffix : "");
   }
   get batteryColor() {
-    const settings = getVehicleLocationSettings(this.vehicle!);
-    return this.vehicle!.batteryLevel > this.vehicle!.maximumLevel
+    assert(this.vehicle !== undefined);
+    const settings = getVehicleLocationSettings(this.vehicle);
+    return this.vehicle.batteryLevel > this.vehicle.maximumLevel
       ? "#9cef19"
-      : this.vehicle!.batteryLevel > settings.directLevel
+      : this.vehicle.batteryLevel > settings.directLevel
       ? "#4cd853"
-      : this.vehicle!.batteryLevel > 10
+      : this.vehicle.batteryLevel > 10
       ? "orange"
       : "red";
   }
   get nochargestyle() {
+    assert(this.vehicle !== undefined);
     const width =
-      100 - Math.max(this.vehicle!.chargingTo || 0, this.vehicle!.maximumLevel);
+      100 - Math.max(this.vehicle.chargingTo || 0, this.vehicle.maximumLevel);
     if (width > 0) {
       return `width:${width}%`;
     } else {
@@ -400,7 +409,7 @@ export default class VehicleVue extends Vue {
   replaceISOtime(s: string): string {
     return s.replace(
       /\d{4}-[01]\d-[0-3]\dT[0-2]\d:[0-5]\d:[0-5]\d\.\d+([+-][0-2]\d:[0-5]\d|Z)/g,
-      f => moment(f).format("YYYY-MM-DD HH:mm")
+      (f) => moment(f).format("YYYY-MM-DD HH:mm")
     );
   }
 }

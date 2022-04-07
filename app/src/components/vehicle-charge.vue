@@ -1,6 +1,6 @@
 <template>
   <v-container>
-    <div style="min-height:270px">
+    <div style="min-height: 270px">
       <v-row justify="center" class="my-4">
         <v-btn-toggle
           v-model="chargeControl"
@@ -18,7 +18,9 @@
       <template v-if="chargeControl == 0">
         <v-row class="">
           <v-col class="text-center">
-            <v-icon style="margin-top:54px; font-size:60px" color="red darken-3"
+            <v-icon
+              style="margin-top: 54px; font-size: 60px"
+              color="red darken-3"
               >mdi-flash-off</v-icon
             >
           </v-col>
@@ -64,7 +66,7 @@
               top
               min-width="290px"
             >
-              <template v-slot:activator="{ on }">
+              <template #activator="{ on }">
                 <v-btn color="secondary" outlined v-on="on">
                   <v-icon left>mdi-calendar-plus</v-icon> Schedule
                 </v-btn>
@@ -101,7 +103,7 @@
                 top
                 min-width="290px"
               >
-                <template v-slot:activator="{ on }">
+                <template #activator="{ on }">
                   <v-btn depressed v-on="on"
                     ><v-icon left>mdi-calendar</v-icon>{{ pickerDate }}
                   </v-btn>
@@ -136,7 +138,7 @@
                 top
                 min-width="290px"
               >
-                <template v-slot:activator="{ on }">
+                <template #activator="{ on }">
                   <v-btn depressed @click="scrollFix" v-on="on"
                     ><v-icon left class="mt-1">mdi-clock-end</v-icon
                     >{{ pickerTime }}</v-btn
@@ -168,7 +170,7 @@
             </v-col>
 
             <v-col cols="auto">
-              <v-hover v-slot:default="{ hover }">
+              <v-hover v-slot="{ hover }">
                 <v-btn
                   fab
                   small
@@ -184,7 +186,7 @@
       </template>
     </div>
     <div
-      style="min-height:40px"
+      style="min-height: 40px"
       class="text-center title grey--text text--darken-2"
     >
       <v-progress-circular
@@ -253,7 +255,7 @@ export default class VehicleCharge extends Vue {
       defaultTimestamp: undefined,
       pickerDateTime: undefined,
       minDate: this.minDate,
-      maxDate: this.maxDate
+      maxDate: this.maxDate,
     };
   }
 
@@ -290,13 +292,8 @@ export default class VehicleCharge extends Vue {
   }
 
   updateMinMax() {
-    this.minDate = DateTime.utc()
-      .plus({ minutes: 1 })
-      .toISO();
-    this.maxDate = DateTime.utc()
-      .plus({ months: 6 })
-      .endOf("month")
-      .toISO();
+    this.minDate = DateTime.utc().plus({ minutes: 1 }).toISO();
+    this.maxDate = DateTime.utc().plus({ months: 6 }).endOf("month").toISO();
   }
 
   @Watch("vehicle", { deep: false, immediate: true })
@@ -309,7 +306,7 @@ export default class VehicleCharge extends Vue {
       directLevel: settings.directLevel,
       chargeControl: !manual ? 1 : manual.level ? 2 : 0,
       chargeLevel: (manual && manual.level) || this.vehicle.maximumLevel,
-      chargeDate: manual && manual.time
+      chargeDate: manual && manual.time,
     };
 
     // Make AI time default for the date time picker

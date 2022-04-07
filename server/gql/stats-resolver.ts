@@ -13,7 +13,7 @@ import {
   ID,
   Float,
   registerEnumType,
-  GraphQLISODateTime
+  GraphQLISODateTime,
 } from "type-graphql";
 import { GraphQLJSONObject } from "graphql-type-json";
 import { ChargePlan } from "./vehicle-type";
@@ -28,7 +28,7 @@ import {
   DBStatsMap,
   DBSleep,
   DBCharge,
-  DBTrip
+  DBTrip,
 } from "@server/db-schema";
 import { EventType } from "@shared/sc-types";
 
@@ -36,74 +36,74 @@ registerEnumType(EventType, { name: "EventType" });
 
 @ObjectType()
 export class EventList {
-  @Field(_type => EventType)
+  @Field((_type) => EventType)
   eventType!: EventType;
-  @Field(_type => GraphQLISODateTime)
+  @Field((_type) => GraphQLISODateTime)
   start!: Date;
-  @Field(_type => GraphQLISODateTime)
+  @Field((_type) => GraphQLISODateTime)
   end!: Date;
-  @Field(_type => GraphQLJSONObject, { nullable: true })
+  @Field((_type) => GraphQLJSONObject, { nullable: true })
   data!: PlainObject | null;
 }
 
 @ObjectType()
 export class StateMap {
-  @Field(_type => GraphQLISODateTime)
+  @Field((_type) => GraphQLISODateTime)
   start!: Date;
-  @Field(_type => Int)
+  @Field((_type) => Int)
   period!: number;
 
-  @Field(_type => Int)
+  @Field((_type) => Int)
   minimumLevel!: number;
-  @Field(_type => Int)
+  @Field((_type) => Int)
   maximumLevel!: number;
-  @Field(_type => Int)
+  @Field((_type) => Int)
   drivenSeconds!: number;
-  @Field(_type => Int)
+  @Field((_type) => Int)
   drivenMeters!: number;
-  @Field(_type => Int)
+  @Field((_type) => Int)
   chargedSeconds!: number;
-  @Field(_type => Float)
+  @Field((_type) => Float)
   chargedEnergy!: number;
-  @Field(_type => Float)
+  @Field((_type) => Float)
   chargeCost!: number;
-  @Field(_type => Float)
+  @Field((_type) => Float)
   chargeCostSaved!: number;
 }
 
 @ObjectType()
 export class ChartData {
-  @Field(_type => ID)
+  @Field((_type) => ID)
   vehicleID!: string;
-  @Field(_type => Int)
+  @Field((_type) => Int)
   batteryLevel!: number;
-  @Field(_type => GraphQLJSONObject)
+  @Field((_type) => GraphQLJSONObject)
   chargeCurve!: any;
-  @Field(_type => Int)
+  @Field((_type) => Int)
   directLevel!: number;
-  @Field(_type => Int)
+  @Field((_type) => Int)
   maximumLevel!: number;
-  @Field(_type => ID, { nullable: true })
+  @Field((_type) => ID, { nullable: true })
   locationID!: string | null;
-  @Field(_type => Float, { nullable: true })
+  @Field((_type) => Float, { nullable: true })
   thresholdPrice!: number | null;
-  @Field(_type => [PriceData], { nullable: true })
+  @Field((_type) => [PriceData], { nullable: true })
   prices!: PriceData[] | null;
-  @Field(_type => [ChargePlan], { nullable: true })
+  @Field((_type) => [ChargePlan], { nullable: true })
   chargePlan!: ChargePlan[] | null;
-  @Field(_type => [StateMap])
+  @Field((_type) => [StateMap])
   stateMap!: StateMap[];
-  @Field(_type => [EventList])
+  @Field((_type) => [EventList])
   eventList!: EventList[];
 }
 
 @Resolver()
 export class StatsResolver {
-  @Query(_returns => ChartData)
+  @Query((_returns) => ChartData)
   async chartData(
     @Arg("vehicleID") vehicle_uuid: string,
-    @Arg("from", _type => GraphQLISODateTime) from: Date,
-    @Arg("period", _type => Int, { nullable: true, defaultValue: 60 })
+    @Arg("from", (_type) => GraphQLISODateTime) from: Date,
+    @Arg("period", (_type) => Int, { nullable: true, defaultValue: 60 })
     period: number,
     @Arg("locationID", { nullable: true }) location_uuid: string | null,
     @Ctx() context: IContext
@@ -126,21 +126,25 @@ export class StatsResolver {
     )) as DBStatsMap[];
 
     const eventList: EventList[] = [];
-    ((await context.db.pg.manyOrNone(
-      `SELECT * FROM sleep WHERE vehicle_uuid = $1 AND end_ts >= $2`,
-      [vehicle_uuid, from]
-    )) as DBSleep[]).forEach(f => {
+    (
+      (await context.db.pg.manyOrNone(
+        `SELECT * FROM sleep WHERE vehicle_uuid = $1 AND end_ts >= $2`,
+        [vehicle_uuid, from]
+      )) as DBSleep[]
+    ).forEach((f) => {
       eventList.push({
         eventType: EventType.Sleep,
         start: f.start_ts,
         end: f.end_ts,
-        data: { active: f.active }
+        data: { active: f.active },
       });
     });
-    ((await context.db.pg.manyOrNone(
-      `SELECT * FROM charge WHERE vehicle_uuid = $1 AND end_ts >= $2`,
-      [vehicle_uuid, from]
-    )) as DBCharge[]).forEach(f => {
+    (
+      (await context.db.pg.manyOrNone(
+        `SELECT * FROM charge WHERE vehicle_uuid = $1 AND end_ts >= $2`,
+        [vehicle_uuid, from]
+      )) as DBCharge[]
+    ).forEach((f) => {
       eventList.push({
         eventType: EventType.Charge,
         start: f.start_ts,
@@ -151,14 +155,16 @@ export class StatsResolver {
           charger: f.type,
           addedLevel: f.end_level - f.start_level,
           addedEnergy: (f.end_added - f.start_added) / 60e3,
-          energyUsed: f.energy_used / 60e3
-        }
+          energyUsed: f.energy_used / 60e3,
+        },
       });
     });
-    ((await context.db.pg.manyOrNone(
-      `SELECT * FROM trip WHERE vehicle_uuid = $1 AND end_ts >= $2`,
-      [vehicle_uuid, from]
-    )) as DBTrip[]).forEach(f => {
+    (
+      (await context.db.pg.manyOrNone(
+        `SELECT * FROM trip WHERE vehicle_uuid = $1 AND end_ts >= $2`,
+        [vehicle_uuid, from]
+      )) as DBTrip[]
+    ).forEach((f) => {
       eventList.push({
         eventType: EventType.Trip,
         start: f.start_ts,
@@ -166,8 +172,8 @@ export class StatsResolver {
         data: {
           startLevel: f.start_level,
           endLevel: f.end_level,
-          distance: f.distance
-        }
+          distance: f.distance,
+        },
       });
     });
 
@@ -180,7 +186,7 @@ export class StatsResolver {
       prices: null,
       chargePlan:
         (vehicle.charge_plan &&
-          (vehicle.charge_plan as ChargePlan[]).map(f =>
+          (vehicle.charge_plan as ChargePlan[]).map((f) =>
             plainToClass(ChargePlan, f)
           )) ||
         null,
@@ -189,7 +195,7 @@ export class StatsResolver {
         DBInterface.DefaultVehicleLocationSettings()
       ).directLevel,
       maximumLevel: vehicle.maximum_charge,
-      stateMap: stateMap.map(f =>
+      stateMap: stateMap.map((f) =>
         plainToClass(StateMap, {
           start: f.stats_ts,
           period: f.period,
@@ -200,10 +206,10 @@ export class StatsResolver {
           chargedSeconds: f.charged_seconds,
           chargedEnergy: f.charge_energy / 60e3,
           chargeCost: f.charge_cost / 1e5,
-          chargeCostSaved: f.charge_cost_saved / 1e5
+          chargeCostSaved: f.charge_cost_saved / 1e5,
         } as StateMap)
       ),
-      eventList: eventList.sort((a, b) => a.end.getTime() - b.end.getTime())
+      eventList: eventList.sort((a, b) => a.end.getTime() - b.end.getTime()),
     } as ChartData);
 
     if (location_uuid) {
@@ -214,10 +220,10 @@ export class StatsResolver {
         [location_uuid, from]
       )) as DBPriceData[];
       chartData.prices = priceData.map(
-        f =>
+        (f) =>
           plainToClass(PriceData, {
             startAt: f.ts,
-            price: f.price / 1e5
+            price: f.price / 1e5,
           } as PriceData) || null
       );
 

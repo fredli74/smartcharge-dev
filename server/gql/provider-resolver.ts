@@ -17,7 +17,7 @@ import {
   Int,
   Query,
   ObjectType,
-  Field
+  Field,
 } from "type-graphql";
 import { IContext } from "@server/gql/api";
 import { GraphQLJSONObject } from "graphql-type-json";
@@ -38,25 +38,25 @@ const providerMap = providers.reduce((a, p) => {
 
 @ObjectType()
 export abstract class Action {
-  @Field(_type => Int)
+  @Field((_type) => Int)
   actionID!: number;
-  @Field(_type => ID)
+  @Field((_type) => ID)
   serviceID!: string;
   @Field()
   providerName!: string;
   @Field()
   action!: string;
-  @Field(_type => GraphQLJSONObject)
+  @Field((_type) => GraphQLJSONObject)
   data!: any;
 }
 
 @Resolver()
 export class ProviderResolver {
   // TODO: replace provider query and mutate with provider actions?
-  @Query(_returns => GraphQLJSONObject)
+  @Query((_returns) => GraphQLJSONObject)
   async providerQuery(
     @Arg("name", { description: `Provider name` }) name: string,
-    @Arg("input", _type => GraphQLJSONObject) input: any,
+    @Arg("input", (_type) => GraphQLJSONObject) input: any,
     @Ctx() context: IContext
   ): Promise<any> {
     const provider = providerMap[name];
@@ -69,13 +69,13 @@ export class ProviderResolver {
       );
     }
     return {
-      result: await provider.query(input, context)
+      result: await provider.query(input, context),
     };
   }
-  @Mutation(_returns => GraphQLJSONObject)
+  @Mutation((_returns) => GraphQLJSONObject)
   async providerMutate(
     @Arg("name", { description: `Provider name` }) name: string,
-    @Arg("input", _type => GraphQLJSONObject) input: any,
+    @Arg("input", (_type) => GraphQLJSONObject) input: any,
     @Ctx() context: IContext
   ): Promise<any> {
     const provider = providerMap[name];
@@ -88,16 +88,16 @@ export class ProviderResolver {
       );
     }
     return {
-      result: await provider.mutation(input, context)
+      result: await provider.mutation(input, context),
     };
   }
 
-  @Mutation(_returns => GraphQLJSONObject)
+  @Mutation((_returns) => GraphQLJSONObject)
   async performAction(
-    @Arg("actionID", _type => Int, { nullable: true }) actionID: number,
-    @Arg("serviceID", _type => ID) serviceID: string,
+    @Arg("actionID", (_type) => Int, { nullable: true }) actionID: number,
+    @Arg("serviceID", (_type) => ID) serviceID: string,
     @Arg("action") action: string,
-    @Arg("data", _type => GraphQLJSONObject, { nullable: true })
+    @Arg("data", (_type) => GraphQLJSONObject, { nullable: true })
     data: any | null,
     @Ctx() context: IContext
   ): Promise<Action> {
@@ -123,7 +123,7 @@ export class ProviderResolver {
       serviceID: service.service_uuid,
       providerName: service.provider_name,
       action: action,
-      data: data || {}
+      data: data || {},
     };
 
     if (actionObj.data.result !== undefined) {
@@ -136,7 +136,7 @@ export class ProviderResolver {
     return actionObj;
   }
 
-  @Subscription(_returns => Action, {
+  @Subscription((_returns) => Action, {
     subscribe: withFilter(
       (_payload?: Action, args?: any, context?: IContext) => {
         if (!args || !context) {
@@ -163,13 +163,13 @@ export class ProviderResolver {
               args.serviceID === payload.serviceID)
         );
       }
-    )
+    ),
   })
   async actionSubscription(
     @Root() payload: Action,
-    @Arg("providerName", _type => String, { nullable: true })
+    @Arg("providerName", (_type) => String, { nullable: true })
     _providerName: string | null,
-    @Arg("serviceID", _type => ID, { nullable: true })
+    @Arg("serviceID", (_type) => ID, { nullable: true })
     _serviceID: string | null,
     @Ctx() _context: IContext
   ): Promise<Action> {

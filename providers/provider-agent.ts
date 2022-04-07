@@ -18,7 +18,7 @@ export interface IProviderAgent extends IProvider {
 
 export enum AgentAction {
   Refresh = "refresh",
-  ClimateControl = "climate"
+  ClimateControl = "climate",
 }
 
 export interface AgentWork {
@@ -143,7 +143,7 @@ export abstract class AbstractAgent {
             const subject = this.services[action.serviceID];
             if (subject) {
               const hasAction = subject.actionQueue.findIndex(
-                f => f.actionID === action.actionID
+                (f) => f.actionID === action.actionID
               );
               if (hasAction >= 0) {
                 if (action.data.result !== undefined) {
@@ -163,7 +163,7 @@ export abstract class AbstractAgent {
         this.globalWorker = this.globalWorker || {
           interval: 5,
           nextrun: 0,
-          running: false
+          running: false,
         };
       }
 
@@ -173,7 +173,7 @@ export abstract class AbstractAgent {
             for (const [id, job] of Object.entries(this.services)) {
               await Promise.all([
                 this.handleActions(job),
-                this.handleWork(job)
+                this.handleWork(job),
               ]);
               this.services[id] = job;
             }
@@ -196,7 +196,7 @@ export abstract class AbstractAgent {
       running: false,
       interval: 5,
       nextrun: 0,
-      actionQueue: []
+      actionQueue: [],
     };
   }
   public remove(subject: GQLServiceProvider) {

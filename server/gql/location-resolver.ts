@@ -14,14 +14,14 @@ import { plainToClass } from "class-transformer";
 
 @Resolver()
 export class LocationResolver {
-  @Query(_returns => [Location])
+  @Query((_returns) => [Location])
   async locations(@Ctx() context: IContext): Promise<Location[]> {
     return plainToClass(
       Location,
       await context.db.getLocations(accountFilter(context.accountUUID))
     );
   }
-  @Query(_returns => Location)
+  @Query((_returns) => Location)
   async location(
     @Arg("id") id: string,
     @Ctx() context: IContext
@@ -32,7 +32,7 @@ export class LocationResolver {
     );
   }
 
-  @Mutation(_returns => Location)
+  @Mutation((_returns) => Location)
   async updateLocation(
     @Arg("input") input: UpdateLocationInput,
     @Ctx() context: IContext
@@ -54,14 +54,14 @@ export class LocationResolver {
         radius: input.geoFenceRadius,
         price_list_uuid: input.priceListID,
         service_uuid: input.serviceID,
-        provider_data: input.providerData
+        provider_data: input.providerData,
       })
     );
   }
 
-  @Mutation(_returns => Boolean)
+  @Mutation((_returns) => Boolean)
   async removeLocation(
-    @Arg("id", _type => ID) id: string,
+    @Arg("id", (_type) => ID) id: string,
     @Arg("confirm") confirm: string,
     @Ctx() context: IContext
   ): Promise<Boolean> {

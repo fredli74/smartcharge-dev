@@ -16,7 +16,7 @@ import {
   DBConnected,
   DBLocationStats,
   DBStatsMap,
-  DBSchedule
+  DBSchedule,
 } from "./db-schema";
 import {
   LogLevel,
@@ -26,22 +26,22 @@ import {
   numericStartTime,
   numericStopTime,
   compareStartTimes,
-  capitalize
+  capitalize,
 } from "@shared/utils";
 import {
   UpdateVehicleDataInput,
   ChargePlan,
-  Schedule
+  Schedule,
 } from "./gql/vehicle-type";
 import { SmartChargeGoal, ChargeType, ScheduleType } from "@shared/sc-types";
 import {
   MIN_STATS_PERIOD,
-  SCHEDULE_TOPUP_MARGIN
+  SCHEDULE_TOPUP_MARGIN,
 } from "@shared/smartcharge-defines";
 
 export class Logic {
-  constructor(private db: DBInterface) { }
-  public init() { }
+  constructor(private db: DBInterface) {}
+  public init() {}
 
   public async updateVehicleData(
     input: UpdateVehicleDataInput,
@@ -69,7 +69,7 @@ export class Logic {
       charging_to: input.chargingTo, // in %
       estimate: input.estimatedTimeLeft || 0, // estimated time in minutes to complete charge
       power: (input.powerUse || 0) * 1e3, // current power drain kW to W
-      added: (input.energyAdded || 0) * 60e3 // added kWh to Wm (1000 * 60)
+      added: (input.energyAdded || 0) * 60e3, // added kWh to Wm (1000 * 60)
     };
 
     // Setup stats record
@@ -89,7 +89,7 @@ export class Logic {
       charged_seconds: 0,
       charge_energy: 0,
       charge_cost: 0,
-      charge_cost_saved: 0
+      charge_cost_saved: 0,
     };
 
     // Did we move?
@@ -126,9 +126,9 @@ export class Logic {
             connected: data.connected !== null,
             charging_to: data.charging_to,
             estimate: data.estimate,
-            updated: now
+            updated: now,
           },
-          vehicle.vehicle_uuid
+          vehicle.vehicle_uuid,
         ]
       );
     }
@@ -180,7 +180,7 @@ export class Logic {
             energy_used: 0,
             cost: 0,
             saved: 0,
-            connected: true
+            connected: true,
           }
         )) as DBConnected;
       }
@@ -221,7 +221,7 @@ export class Logic {
               end_ts: now,
               end_level: data.level,
               end_added: data.added,
-              energy_used: 0
+              energy_used: 0,
             }
           )) as DBCharge;
           vehicle.charge_id = charge.charge_id;
@@ -274,7 +274,7 @@ export class Logic {
                   saved = Math.round(
                     ((priceLookup.price_then - priceLookup.price_now) *
                       deltaPowerUsed) /
-                    60e3
+                      60e3
                   );
                 }
               }
@@ -295,7 +295,7 @@ export class Logic {
             {
               const update: any = {
                 end_ts: now,
-                end_level: data.level
+                end_level: data.level,
               };
               if (data.charging_to) {
                 update.target_level = data.charging_to;
@@ -319,10 +319,11 @@ export class Logic {
             // charge_curve logic
             if (data.level > charge.start_level) {
               // Ignore first % since integer % lacks precision
-              const current: DBChargeCurrent | null = await this.db.pg.oneOrNone(
-                `SELECT * FROM charge_current WHERE charge_id = $1;`,
-                [vehicle.charge_id]
-              );
+              const current: DBChargeCurrent | null =
+                await this.db.pg.oneOrNone(
+                  `SELECT * FROM charge_current WHERE charge_id = $1;`,
+                  [vehicle.charge_id]
+                );
               if (!current || data.level > current.start_level) {
                 // reached a new level, create charge curve statistics
                 doPricePlan = true;
@@ -336,7 +337,8 @@ export class Logic {
                   const avgTemp = arrayMean(current.outside_deci_temperatures); // deci-celsius
                   log(
                     LogLevel.Debug,
-                    `Calculated charge curve between ${current.start_level
+                    `Calculated charge curve between ${
+                      current.start_level
                     }% and ${data.level}% is ${(energyUsed / 60.0).toFixed(
                       2
                     )}kWh in ${(duration / 60.0).toFixed(2)}m`
@@ -353,12 +355,12 @@ export class Logic {
                 }
                 await this.db.pg.none(
                   `INSERT INTO charge_current(charge_id) SELECT $[charge_id] WHERE NOT EXISTS (SELECT charge_id FROM charge_current WHERE charge_id = $[charge_id]);` +
-                  `UPDATE charge_current SET start_ts=$[start_ts], start_level=$[start_level], start_added=$[start_added], powers='{}', outside_deci_temperatures='{}' WHERE charge_id = $[charge_id];`,
+                    `UPDATE charge_current SET start_ts=$[start_ts], start_level=$[start_level], start_added=$[start_added], powers='{}', outside_deci_temperatures='{}' WHERE charge_id = $[charge_id];`,
                   {
                     charge_id: vehicle.charge_id,
                     start_ts: now,
                     start_level: data.level,
-                    start_added: data.added
+                    start_added: data.added,
                   }
                 );
               }
@@ -367,7 +369,7 @@ export class Logic {
                 {
                   charge_id: vehicle.charge_id,
                   power: Math.trunc(data.power),
-                  outside_temp: Math.trunc(data.outside_temp)
+                  outside_temp: Math.trunc(data.outside_temp),
                 }
               );
               log(LogLevel.Trace, `current: ${JSON.stringify(new_current)}`);
@@ -399,9 +401,9 @@ export class Logic {
               energy_used: connection.energy_used,
               cost: connection.cost,
               saved: connection.saved,
-              connected: Boolean(data.connected)
+              connected: Boolean(data.connected),
             },
-            vehicle.connected_id
+            vehicle.connected_id,
           ]
         );
       }
@@ -443,7 +445,7 @@ export class Logic {
             end_ts: now,
             end_level: data.level,
             end_location_uuid: currentLocationUUID,
-            distance: 0
+            distance: 0,
           }
         );
         vehicle.trip_id = trip.trip_id;
@@ -454,7 +456,7 @@ export class Logic {
         );
       } else {
         trip = await this.db.pg.one(`SELECT * FROM trip WHERE trip_id = $1`, [
-          vehicle.trip_id
+          vehicle.trip_id,
         ]);
       }
 
@@ -474,7 +476,7 @@ export class Logic {
             ts: now,
             level: data.level,
             location_uuid: currentLocationUUID,
-            distance: distance
+            distance: distance,
           }
         );
       }
@@ -485,8 +487,9 @@ export class Logic {
           // We stopped driving at a location we know
           log(
             LogLevel.Debug,
-            `Vehicle at location ${currentLocationUUID} after driving ${trip.distance /
-            1e3} km, ending trip ${trip.trip_id}`
+            `Vehicle at location ${currentLocationUUID} after driving ${
+              trip.distance / 1e3
+            } km, ending trip ${trip.trip_id}`
           );
           stopTrip = true;
           if (trip.distance < 1e3) {
@@ -496,14 +499,15 @@ export class Logic {
               `Removing trip ${trip.trip_id}, because it only recorded ${trip.distance} meters`
             );
             await this.db.pg.none(`DELETE FROM trip WHERE trip_id=$1`, [
-              vehicle.trip_id
+              vehicle.trip_id,
             ]);
           }
         } else if (data.connected) {
           log(
             LogLevel.Debug,
-            `Vehicle connected after driving ${trip.distance /
-            1e3} km, ending trip ${trip.trip_id}`
+            `Vehicle connected after driving ${
+              trip.distance / 1e3
+            } km, ending trip ${trip.trip_id}`
           );
           stopTrip = true;
         }
@@ -524,7 +528,7 @@ export class Logic {
       await Promise.all([
         this.updateStatsMap(statsData, 5), // 5 minute stats bucket
         this.updateStatsMap(statsData, 60), // hourly stats bucket
-        this.updateStatsMap(statsData, 24 * 60) // daily stats bucket
+        this.updateStatsMap(statsData, 24 * 60), // daily stats bucket
       ]);
     }
 
@@ -552,7 +556,7 @@ export class Logic {
         period: period,
         stats_ts: new Date(
           Math.floor(data.stats_ts.getTime() / (period * 60e3)) *
-          (period * 60e3)
+            (period * 60e3)
         ),
         minimum_level: data.minimum_level,
         maximum_level: data.maximum_level,
@@ -561,7 +565,7 @@ export class Logic {
         charged_seconds: data.charged_seconds,
         charge_energy: data.charge_energy,
         charge_cost: data.charge_cost,
-        charge_cost_saved: data.charge_cost_saved
+        charge_cost_saved: data.charge_cost_saved,
       }
     );
   }
@@ -676,7 +680,7 @@ export class Logic {
             start_level: h.start_level,
             needed: h.needed,
             offsite: h.location_uuid !== location_uuid,
-            hours: []
+            hours: [],
           });
         }
         if (h.location_uuid === location_uuid) {
@@ -684,7 +688,7 @@ export class Logic {
             hour: h.hour,
             fraction: h.fraction,
             price: h.price,
-            threshold: h.threshold
+            threshold: h.threshold,
           });
         }
       }
@@ -701,7 +705,7 @@ export class Logic {
 
       const thresholdList = historyMap
         .reduce(
-          (p, c) => [...c.hours.map(h => h.threshold), ...p],
+          (p, c) => [...c.hours.map((h) => h.threshold), ...p],
           [] as number[]
         )
         .filter((v, i, a) => a.indexOf(v) === i)
@@ -732,7 +736,7 @@ export class Logic {
           neededLevel = Math.min(
             100,
             minimum_charge +
-            (historyMap[i].needed > 0 ? historyMap[i].needed * 1.1 : needavg)
+              (historyMap[i].needed > 0 ? historyMap[i].needed * 1.1 : needavg)
           );
 
           let smartCharging = false;
@@ -782,7 +786,7 @@ export class Logic {
         level_charge_time: Math.round(level_charge_time),
         weekly_avg7_price: Math.round(avg_prices.avg7),
         weekly_avg21_price: Math.round(avg_prices.avg21),
-        threshold: Math.round(threshold * 100)
+        threshold: Math.round(threshold * 100),
       }
     );
   }
@@ -839,7 +843,7 @@ export class Logic {
       [ChargeType.Trip]: 4,
       [ChargeType.Routine]: 5,
       [ChargeType.Prefered]: 6,
-      [ChargeType.Fill]: 7
+      [ChargeType.Fill]: 7,
     };
     plan.sort(
       (a, b) =>
@@ -905,14 +909,14 @@ export class Logic {
           // or maximum shift possible within the current hour
           // hour - (stop - start) => start - stop + hour
           numericStartTime(a.chargeStart) -
-          numericStopTime(a.chargeStop) +
-          3600e3
+            numericStopTime(a.chargeStop) +
+            3600e3
         );
 
         if (
           shift > 0 &&
           numericStopTime(a.chargeStop) + shift >=
-          numericStartTime(b.chargeStart)
+            numericStartTime(b.chargeStart)
         ) {
           a.chargeStop = b.chargeStart;
           a.chargeStart = new Date(numericStartTime(a.chargeStart) + shift);
@@ -1029,7 +1033,7 @@ export class Logic {
         vehicle.vehicle_uuid,
         vehicle.location_uuid,
         null /*scheduleMap[ScheduleType.Guide] &&
-                  scheduleMap[ScheduleType.Guide].time*/
+                  scheduleMap[ScheduleType.Guide].time*/,
       ]
     );
 
@@ -1045,7 +1049,7 @@ export class Logic {
       const before = guess.before * 1e3; // epoch to ms
       return {
         ts: before,
-        level: minimumLevel
+        level: minimumLevel,
       };
     }
   }
@@ -1098,7 +1102,7 @@ export class Logic {
         chargeStop: null,
         chargeType: ChargeType.Disable,
         level: 0,
-        comment: `charging disabled`
+        comment: `charging disabled`,
       });
       smartStatus = `Charging disabled until next plug in`;
     } else {
@@ -1182,8 +1186,8 @@ export class Logic {
               before_ts = priceAvailable;
               level = Math.floor(
                 startLevel +
-                ((level - startLevel) * (priceAvailable - startDeadline)) /
-                (timeNeeded * 1.5)
+                  ((level - startLevel) * (priceAvailable - startDeadline)) /
+                    (timeNeeded * 1.5)
               );
               log(
                 LogLevel.Debug,
@@ -1205,7 +1209,8 @@ export class Logic {
             const topupStart = before_ts - SCHEDULE_TOPUP_MARGIN - topupTime;
             log(
               LogLevel.Debug,
-              `${capitalize(chargeType)} topup charge from ${vehicle.maximum_charge
+              `${capitalize(chargeType)} topup charge from ${
+                vehicle.maximum_charge
               }% to ${level}% start at ${new Date(topupStart).toISOString()}`
             );
             chargePlan.push({
@@ -1213,7 +1218,7 @@ export class Logic {
               chargeStop: null,
               level,
               chargeType,
-              comment: `topping up`
+              comment: `topping up`,
             });
 
             // Adjust charge target to exclude topup range
@@ -1254,14 +1259,14 @@ export class Logic {
                 chargeStop: new Date(end),
                 level,
                 chargeType,
-                comment
+                comment,
               });
               timeLeft -= duration;
               log(
                 LogLevel.Trace,
-                `charge ${duration / 1e3}s ${JSON.stringify(
-                  price
-                )} => ${timeLeft / 1e3}s left`
+                `charge ${duration / 1e3}s ${JSON.stringify(price)} => ${
+                  timeLeft / 1e3
+                }s left`
               );
             }
 
@@ -1278,7 +1283,7 @@ export class Logic {
               chargeStop: new Date(Date.now() + timeNeeded),
               chargeType,
               level,
-              comment
+              comment,
             });
             smartStatus =
               smartStatus ||
@@ -1327,7 +1332,7 @@ export class Logic {
             chargeStop: null,
             chargeType: ChargeType.Manual,
             level: manual.level,
-            comment: `manual charge`
+            comment: `manual charge`,
           });
           smartStatus = smartStatus || `Manual charging to ${manual.level}%`;
         } else {
@@ -1354,7 +1359,7 @@ export class Logic {
           charge: false,
           learning: false,
           level: null,
-          ts: null
+          ts: null,
         } as {
           charge: boolean;
           learning: boolean;
@@ -1397,13 +1402,16 @@ export class Logic {
               const before = new Date(ai.ts);
               smartStatus =
                 smartStatus ||
-                `Predicting battery level ${ai.level}% (${neededCharge > 0 ? Math.round(neededCharge) + "%" : "no"
+                `Predicting battery level ${ai.level}% (${
+                  neededCharge > 0 ? Math.round(neededCharge) + "%" : "no"
                 } charge) is needed before ${before.toISOString()}`;
               log(
                 LogLevel.Debug,
-                `Current level: ${vehicle.level}, predicting ${ai.level
-                }% (${minimum_charge}+${neededCharge -
-                minimum_charge}) is needed before ${before.toISOString()}`
+                `Current level: ${vehicle.level}, predicting ${
+                  ai.level
+                }% (${minimum_charge}+${
+                  neededCharge - minimum_charge
+                }) is needed before ${before.toISOString()}`
               );
               GeneratePlan(
                 ChargeType.Routine,
@@ -1421,15 +1429,15 @@ export class Logic {
                   goal === SmartChargeGoal.Full
                     ? vehicle.maximum_charge
                     : goal === SmartChargeGoal.Low
-                      ? 0
-                      : Math.min(
+                    ? 0
+                    : Math.min(
                         vehicle.maximum_charge,
                         Math.max(
                           ai.level,
                           parseInt(goal) ||
-                          Math.round(
-                            ai.level + (vehicle.maximum_charge - ai.level) / 2
-                          )
+                            Math.round(
+                              ai.level + (vehicle.maximum_charge - ai.level) / 2
+                            )
                         )
                       );
 

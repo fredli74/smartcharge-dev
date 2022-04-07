@@ -1,7 +1,7 @@
 <template>
   <v-dialog v-model="dialog" max-width="410">
-    <template v-slot:activator="{ on }">
-      <v-hover v-slot:default="{ hover }">
+    <template #activator="{ on }">
+      <v-hover v-slot="{ hover }">
         <v-btn small :outlined="!hover" color="error" v-on="on">remove</v-btn>
       </v-hover>
     </template>
@@ -31,7 +31,7 @@
         v-model="confirmCode"
         class="mx-6"
         label="confirmation code"
-        :rules="[v => !v || valid || 'incorrect code']"
+        :rules="[confirmCodeRules]"
         dense
         outlined
       ></v-text-field>
@@ -66,9 +66,13 @@ export default class RemoveDialog extends Vue {
   data() {
     return {
       dialog: false,
-      confirmCode: ""
+      confirmCode: "",
     };
   }
+  confirmCodeRules(value: string) {
+    return !value || this.valid || `incorrect code`;
+  }
+
   get publicID(): string {
     return makePublicID(this.id).toUpperCase();
   }

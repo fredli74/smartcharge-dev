@@ -37,7 +37,7 @@ import config from "@shared/smartcharge-config";
 import auth from "../plugins/auth0";
 
 @Component({
-  components: {}
+  components: {},
 })
 export default class Login extends Vue {
   loading?: boolean;
@@ -58,7 +58,7 @@ export default class Login extends Vue {
       eventBus.$emit(BusEvent.AuthenticationChange);
       assert(apollo.account);
       this.$router.push("/");
-    } catch (err) {
+    } catch (err: any) {
       if (err.graphQLErrors) {
         for (const e of err.graphQLErrors) {
           if (e.extensions && e.extensions.code === "UNAUTHENTICATED") {
@@ -83,7 +83,7 @@ export default class Login extends Vue {
           assert(apollo.account);
           this.$router.push("/");
         }
-      } catch (err) {
+      } catch (err: any) {
         if (err && err.graphQLErrors) {
           for (const e of err.graphQLErrors) {
             if (e.extensions && e.extensions.code === "UNAUTHENTICATED") {

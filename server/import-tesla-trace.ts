@@ -75,7 +75,7 @@ const vid: { [id: string]: string } = {};
       const powerUse =
         phases > 0 // we get 0 phases when DC charging because current is 0
           ? (data.charge_state.charger_actual_current * // amp
-            phases * // * phases
+              phases * // * phases
               data.charge_state.charger_voltage) /
             1e3 // * voltage = watt / 1000 = kW
           : data.charge_state.charger_power; // fallback to API reported power
@@ -85,7 +85,7 @@ const vid: { [id: string]: string } = {};
         id: job.subjectID,
         geoLocation: {
           latitude: data.drive_state.latitude,
-          longitude: data.drive_state.longitude
+          longitude: data.drive_state.longitude,
         },
         batteryLevel: Math.trunc(data.charge_state.usable_battery_level), // battery level in %
         odometer: Math.trunc(data.vehicle_state.odometer * 1609.344), // 1 mile = 1.609344 km
@@ -106,7 +106,7 @@ const vid: { [id: string]: string } = {};
           data.charge_state.time_to_full_charge * 60
         ), // 1 hour = 60 minutes
         powerUse: chargingTo !== null ? powerUse : null,
-        energyAdded: data.charge_state.charge_energy_added // added kWh
+        energyAdded: data.charge_state.charge_energy_added, // added kWh
       };
 
       //  await this.scClient.updateVehicleData(input);
@@ -124,7 +124,7 @@ const vid: { [id: string]: string } = {};
           odometer: input.odometer,
           temp: input.outsideTemperature,
           power: input.powerUse,
-          added: input.energyAdded
+          added: input.energyAdded,
         })}`
       );
       await delay(10);

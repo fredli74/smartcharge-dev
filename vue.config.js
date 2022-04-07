@@ -16,43 +16,40 @@ module.exports = {
     index: {
       entry: "app/src/main.ts",
       template: "app/public/index.html",
-      filename: "index.html"
-    }
+      filename: "index.html",
+    },
   },
   devServer: {
     proxy: {
       [globals.API_PATH]: {
         //"https://smartcharge-dev.herokuapp.com",
-        target: `http://localhost:${process.env.SERVER_PORT ||
-          globals.DEFAULT_PORT}`,
-        ws: true
-      }
+        target: `http://localhost:${
+          process.env.SERVER_PORT || globals.DEFAULT_PORT
+        }`,
+        ws: true,
+      },
     },
     contentBase: [
       path.resolve(__dirname, "app/public"),
-      path.resolve(__dirname, "public")
-    ]
+      path.resolve(__dirname, "public"),
+    ],
   },
   configureWebpack: {
     plugins: [
       new webpack.DefinePlugin({
-        COMMIT_HASH: JSON.stringify(commitHash)
+        COMMIT_HASH: JSON.stringify(commitHash),
       }),
       new CopyPlugin([
         {
           from: path.resolve(__dirname, "./app/public/"),
           to: ".",
-          ignore: ["index.html", ".DS_Store"]
-        }
-      ])
-    ]
+          ignore: ["index.html", ".DS_Store"],
+        },
+      ]),
+    ],
   },
-  chainWebpack: config => {
-    config
-      .entry("app")
-      .clear()
-      .add("./app/src/main.ts")
-      .end();
+  chainWebpack: (config) => {
+    config.entry("app").clear().add("./app/src/main.ts").end();
 
     // Not needed anymore?
     //config.resolve.alias.delete("@");
@@ -67,25 +64,25 @@ module.exports = {
       .before("friendly-errors")
       .use(IgnoreNotFoundExportPlugin, [
         {
-          sourceFiles: [/\/shared\/sc-schema$/]
-        }
+          sourceFiles: [/\/shared\/sc-schema$/],
+        },
       ]);
 
     config.plugin("type-graphql").use(webpack.NormalModuleReplacementPlugin, [
       /type-graphql$/,
-      resource => {
+      (resource) => {
         resource.request = resource.request.replace(
           /type-graphql/,
           "type-graphql/dist/browser-shim"
         );
-      }
+      },
     ]);
   },
   pwa: {
     workboxOptions: {
-      skipWaiting: true
-    }
-  }
+      skipWaiting: true,
+    },
+  },
 };
 
 /***
@@ -100,7 +97,7 @@ class IgnoreNotFoundExportPlugin {
     const op = {
       sourceFiles: [],
       exportNames: [],
-      ...option
+      ...option,
     };
     this.ignoredSourceFiles = op.sourceFiles;
     this.ignoredExportNames = op.exportNames;
@@ -108,8 +105,8 @@ class IgnoreNotFoundExportPlugin {
 
   apply(compiler) {
     const reg = /export '(.*)'.* was not found in '(.*)'/;
-    const doneHook = stats => {
-      stats.compilation.warnings = stats.compilation.warnings.filter(warn => {
+    const doneHook = (stats) => {
+      stats.compilation.warnings = stats.compilation.warnings.filter((warn) => {
         if (!(warn instanceof ModuleDependencyWarning) || !warn.message) {
           return true;
         }
@@ -124,7 +121,7 @@ class IgnoreNotFoundExportPlugin {
 
         const customRulesIgnore = {
           exportNames: false,
-          sourceFiles: false
+          sourceFiles: false,
         };
 
         if (this.ignoredExportNames.length) {
@@ -158,7 +155,7 @@ class IgnoreNotFoundExportPlugin {
         }
 
         let ret = false;
-        Object.keys(customRulesIgnore).forEach(key => {
+        Object.keys(customRulesIgnore).forEach((key) => {
           if (!customRulesIgnore[key]) {
             ret = true;
           }

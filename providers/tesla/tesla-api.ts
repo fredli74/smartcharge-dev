@@ -15,38 +15,11 @@ function time(): number {
 }
 
 export class TeslaAPI {
-  constructor(private ownerAPI: RestClient, private authAPI: RestClient) { }
+  constructor(private ownerAPI: RestClient, private authAPI: RestClient) {}
 
   public static tokenExpired(token: TeslaToken): boolean {
     return token.expires_at <= time();
   }
-
-  /*
-    Obsolete!
-    Needs to be reimplemented with v3
-
-   public async authenticate(
-     email: string,
-     password: string,
-     mfa: string
-   ): Promise<TeslaToken> {
-     try {
-       return (await this.getToken("/oauth/token?grant_type=password", {
-         grant_type: "password",
-         client_id: config.TESLA_CLIENT_ID,
-         client_secret: config.TESLA_CLIENT_SECRET,
-         email: email,
-         password: password
-       })) as TeslaToken;
-     } catch (error) {
-       log(
-         LogLevel.Debug,
-         `TeslaAgent.Authenticate error: ${error.data.response}`
-       );
-       throw error;
-     }
-   }
- */
 
   public async renewToken(refresh_token: string): Promise<TeslaToken> {
     try {
@@ -59,8 +32,9 @@ export class TeslaAPI {
         grant_type: "refresh_token",
         scope: "openid email offline_access",
         client_id: "ownerapi",
-        refresh_token: refresh_token
+        refresh_token: refresh_token,
       })) as any;
+      // Parse the token response
       if (typeof authResponse.access_token !== "string") {
         throw new RestClientError(
           `Error parsing Tesla oauth2 v3 token response, missing access_token ${JSON.stringify(
@@ -77,36 +51,20 @@ export class TeslaAPI {
           500
         );
       }
-
-      // Use the bearer token to access owner-api and get a new access token
-      const apiResponse = (await this.ownerAPI.post(
-        "/oauth/token",
-        {
-          grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
-          client_id: config.TESLA_CLIENT_ID,
-          client_secret: config.TESLA_CLIENT_SECRET
-        },
-        authResponse.access_token
-      )) as any;
-
-      // Parse the token response
-      const expires = Number.parseInt(apiResponse.expires_in);
-      if (
-        typeof apiResponse.access_token !== "string" ||
-        !Number.isInteger(expires)
-      ) {
+      const expires = Number.parseInt(authResponse.expires_in);
+      if (!Number.isInteger(expires)) {
         throw new RestClientError(
-          `Error parsing invalid OAuth2.0 token response ${JSON.stringify(
-            apiResponse
+          `Error parsing Tesla oauth2 v3 token response, invalid expires_in ${JSON.stringify(
+            authResponse
           )}`,
           500
         );
       }
 
       return {
-        access_token: apiResponse.access_token,
+        access_token: authResponse.access_token,
         expires_at: time() + expires - config.TOKEN_EXPIRATION_WINDOW,
-        refresh_token: authResponse.refresh_token
+        refresh_token: authResponse.refresh_token,
       };
     } catch (e) {
       console.debug(`TeslaAPI.renewToken error: ${e}`);
@@ -211,13 +169,13 @@ const teslaAPI = new TeslaAPI(
     baseURL: config.TESLA_API_BASE_URL,
     headers: config.TESLA_API_HEADERS,
     proxy: config.TESLA_API_PROXY,
-    timeout: 120e3
+    timeout: 120e3,
   }),
   new RestClient({
     baseURL: config.TESLA_AUTH_BASE_URL,
     headers: config.TESLA_AUTH_HEADERS,
     proxy: config.TESLA_AUTH_PROXY,
-    timeout: 60e3
+    timeout: 60e3,
   })
 );
 

@@ -118,13 +118,13 @@ const crosshair = {
 
     chart.ctx.restore();
     return true;
-  }
+  },
 };
 
 @Component({
   extends: Line,
   props: ["chartData", "options"],
-  mixins: [mixins.reactiveProp]
+  mixins: [mixins.reactiveProp],
 })
 export default class LineChart extends Mixins(Line) {
   chartData?: ChartData;
@@ -153,6 +153,6 @@ Chart.Tooltip.positioners.topcorner = function (
 
   return {
     x: chart.chartArea.left,
-    y: chart.chartArea.top
+    y: chart.chartArea.top,
   };
 };

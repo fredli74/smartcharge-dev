@@ -8,7 +8,7 @@
 import {
   GQLSchedule,
   GQLVehicleLocationSetting,
-  GQLVehicle
+  GQLVehicle,
 } from "./sc-schema";
 import { compareStartTimes } from "./utils";
 import { DEFAULT_DIRECTLEVEL } from "./smartcharge-defines";
@@ -32,7 +32,7 @@ export function DefaultVehicleLocationSettings(
   return {
     locationID: location_uuid,
     directLevel: DEFAULT_DIRECTLEVEL,
-    goal: SmartChargeGoal.Balanced
+    goal: SmartChargeGoal.Balanced,
   };
 }
 
@@ -43,7 +43,7 @@ export function getVehicleLocationSettings(
   const findID = locationID || vehicle.locationID || "";
   return (
     (vehicle.locationSettings &&
-      vehicle.locationSettings.find(f => f.locationID === findID)) ||
+      vehicle.locationSettings.find((f) => f.locationID === findID)) ||
     DefaultVehicleLocationSettings(findID)
   );
 }

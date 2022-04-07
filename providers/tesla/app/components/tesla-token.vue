@@ -47,7 +47,7 @@ export default class TeslaTokenVue extends Vue {
     // data() hook for undefined values
     return {
       loading: false,
-      refresh_token_input: ""
+      refresh_token_input: "",
     };
   }
   get properToken(): boolean {
@@ -62,7 +62,7 @@ export default class TeslaTokenVue extends Vue {
     try {
       const token = await apollo.providerMutate("tesla", {
         mutation: TeslaProviderMutates.RefreshToken,
-        refresh_token: this.refresh_token_input
+        refresh_token: this.refresh_token_input,
       });
       this.$emit("token", token);
     } catch {

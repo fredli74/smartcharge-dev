@@ -37,7 +37,7 @@ export class RestClient {
   private httpAgent: http.Agent | undefined;
   private httpsAgent: https.Agent | undefined;
   private httpsProxyAgent: https_proxy_agent.HttpsProxyAgent | undefined;
-  constructor(private options: Options) { }
+  constructor(private options: Options) {}
 
   private getAgent(secure: boolean): http.Agent | https.Agent {
     if (this.options.proxy) {
@@ -51,7 +51,7 @@ export class RestClient {
       if (!this.httpsAgent) {
         this.httpsAgent = new https.Agent({
           keepAlive: true,
-          timeout: this.options.timeout
+          timeout: this.options.timeout,
         });
       }
       return this.httpsAgent;
@@ -59,7 +59,7 @@ export class RestClient {
       if (!this.httpAgent) {
         this.httpAgent = new http.Agent({
           keepAlive: true,
-          timeout: this.options.timeout
+          timeout: this.options.timeout,
         });
       }
       return this.httpAgent;
@@ -82,8 +82,8 @@ export class RestClient {
       headers: {
         ...this.options.headers,
         Accept: "application/json",
-        "Content-Type": "application/json"
-      }
+        "Content-Type": "application/json",
+      },
     };
     if (opt.headers["User-Agent"] === undefined) {
       opt.headers["User-Agent"] = DEFAULT_AGENT;
@@ -97,8 +97,9 @@ export class RestClient {
     }
     return new Promise<RestClientResponse>((resolve, reject) => {
       const dispatchError = (e: any, code?: number) => {
-        const s = `request error: ${typeof e === "string" ? e : JSON.stringify(e)
-          }`;
+        const s = `request error: ${
+          typeof e === "string" ? e : JSON.stringify(e)
+        }`;
         reject(new RestClientError(s, code || 500));
       };
 
@@ -106,7 +107,7 @@ export class RestClient {
         let body = "";
         res.setEncoding("utf8");
         res.on("error", dispatchError);
-        res.on("data", chunk => (body += chunk));
+        res.on("data", (chunk) => (body += chunk));
         res.on("end", () => {
           if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
             try {
@@ -114,9 +115,9 @@ export class RestClient {
               resolve({
                 status: res.statusCode || 200,
                 headers: res.headers,
-                data: data
+                data: data,
               });
-            } catch (e) {
+            } catch (e: any) {
               dispatchError(e.message);
             }
           } else {

@@ -9,12 +9,11 @@
 import { SCClient } from "@shared/sc-client";
 import { log, LogLevel } from "@shared/utils";
 import {
-  AgentJob,
   AbstractAgent,
   IProviderAgent,
-  AgentWork
+  AgentWork,
 } from "@providers/provider-agent";
-import provider, { NordpoolServiceData } from ".";
+import provider from ".";
 import config from "./nordpool-config";
 import nordpoolAPI from "./nordpool-api";
 import { DateTime } from "luxon";
@@ -22,11 +21,6 @@ import { GQLUpdatePriceInput } from "@shared/sc-schema";
 import { v5 as uuidv5 } from "uuid";
 
 const NORDPOOL_NAMESPACE = uuidv5("agent.nordpool.smartcharge.dev", uuidv5.DNS);
-
-interface NordpoolAgentJob extends AgentJob {
-  serviceData: NordpoolServiceData;
-  state: {};
-}
 
 export class NordpoolAgent extends AbstractAgent {
   public name: string = provider.name;
@@ -50,7 +44,7 @@ export class NordpoolAgent extends AbstractAgent {
     for (const row of res.data.Rows) {
       if (row.IsExtraRow) continue;
       const startAt = DateTime.fromISO(row.StartTime, {
-        zone: "Europe/Oslo"
+        zone: "Europe/Oslo",
       }).toISO();
       for (const col of row.Columns) {
         const price =
@@ -77,12 +71,12 @@ export class NordpoolAgent extends AbstractAgent {
 
             areas[col.Name] = {
               priceListID: this.areaIDmap[col.Name],
-              prices: []
+              prices: [],
             };
           }
           areas[col.Name].prices.push({
             startAt,
-            price: price
+            price: price,
           });
         }
       }
@@ -103,6 +97,6 @@ export class NordpoolAgent extends AbstractAgent {
 
 const agent: IProviderAgent = {
   ...provider,
-  agent: (scClient: SCClient) => new NordpoolAgent(scClient)
+  agent: (scClient: SCClient) => new NordpoolAgent(scClient),
 };
 export default agent;

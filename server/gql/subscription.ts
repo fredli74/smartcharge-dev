@@ -11,17 +11,17 @@ import { Resolver, Subscription, Root, Int } from "type-graphql";
 export enum SubscriptionTopic {
   ActionUpdate = "ACTION_UPDATE",
   VehicleUpdate = "VEHICLE_UPDATE",
-  Ping = "PING"
+  Ping = "PING",
 }
 
 export const apolloPubSub = new PubSub();
 
 @Resolver()
 export class PingResolver {
-  @Subscription(_returns => Int, {
+  @Subscription((_returns) => Int, {
     subscribe: () => {
       return apolloPubSub.asyncIterator(SubscriptionTopic.Ping);
-    }
+    },
   })
   async pingSubscription(@Root() payload: number): Promise<number> {
     return payload;

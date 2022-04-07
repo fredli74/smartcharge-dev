@@ -15,7 +15,7 @@ import {
   Root,
   Resolver,
   Ctx,
-  Float
+  Float,
 } from "type-graphql";
 import { GraphQLJSONObject } from "graphql-type-json";
 
@@ -29,59 +29,59 @@ import { PriceResolver } from "./price-resolver";
 @ObjectType()
 @InputType("GeoLocationInput")
 export class GeoLocation {
-  @Field(_type => Float)
+  @Field((_type) => Float)
   latitude!: number;
-  @Field(_type => Float)
+  @Field((_type) => Float)
   longitude!: number;
 }
 
 @ObjectType()
 export class Location extends DBLocation {}
 
-@Resolver(_of => Location)
+@Resolver((_of) => Location)
 export class LocationTypeResolver {
-  @FieldResolver(_returns => ID)
+  @FieldResolver((_returns) => ID)
   id(@Root() location: Location): string {
     return location.location_uuid;
   }
-  @FieldResolver(_returns => ID)
+  @FieldResolver((_returns) => ID)
   ownerID(@Root() location: Location): string {
     return location.account_uuid;
   }
-  @FieldResolver(_returns => String)
+  @FieldResolver((_returns) => String)
   name(@Root() location: Location): string {
     return location.name;
   }
 
-  @FieldResolver(_returns => GeoLocation)
+  @FieldResolver((_returns) => GeoLocation)
   geoLocation(@Root() location: Location): GeoLocation {
     return plainToClass(GeoLocation, {
       latitude: location.location_micro_latitude / 1e6,
-      longitude: location.location_micro_longitude / 1e6
+      longitude: location.location_micro_longitude / 1e6,
     });
   }
 
-  @FieldResolver(_returns => Int, {
+  @FieldResolver((_returns) => Int, {
     nullable: true,
-    description: `Radius in meters`
+    description: `Radius in meters`,
   })
   geoFenceRadius(@Root() location: Location): number {
     return location.radius;
   }
 
-  @FieldResolver(_returns => ID, { nullable: true })
+  @FieldResolver((_returns) => ID, { nullable: true })
   serviceID(@Root() location: Location): string | null {
     return location.service_uuid;
   }
-  @FieldResolver(_returns => GraphQLJSONObject, { nullable: true })
+  @FieldResolver((_returns) => GraphQLJSONObject, { nullable: true })
   providerData(@Root() location: Location): any {
     return location.provider_data;
   }
-  @FieldResolver(_returns => String, { nullable: true })
+  @FieldResolver((_returns) => String, { nullable: true })
   async priceListID(@Root() location: Location): Promise<string | null> {
     return location.price_list_uuid;
   }
-  @FieldResolver(_returns => PriceList, { nullable: true })
+  @FieldResolver((_returns) => PriceList, { nullable: true })
   async priceList(
     @Root() location: Location,
     @Ctx() context: IContext
@@ -95,18 +95,18 @@ export class LocationTypeResolver {
 
 @InputType()
 export abstract class UpdateLocationInput {
-  @Field(_type => ID)
+  @Field((_type) => ID)
   id!: string;
-  @Field(_type => String, { nullable: true })
+  @Field((_type) => String, { nullable: true })
   name?: string;
-  @Field(_type => GeoLocation, { nullable: true })
+  @Field((_type) => GeoLocation, { nullable: true })
   geoLocation?: GeoLocation;
-  @Field(_type => Int, { nullable: true, description: `Radius in meters` })
+  @Field((_type) => Int, { nullable: true, description: `Radius in meters` })
   geoFenceRadius?: number;
-  @Field(_type => ID, { nullable: true })
+  @Field((_type) => ID, { nullable: true })
   priceListID?: string;
-  @Field(_type => ID, { nullable: true })
+  @Field((_type) => ID, { nullable: true })
   serviceID?: string;
-  @Field(_type => GraphQLJSONObject, { nullable: true })
+  @Field((_type) => GraphQLJSONObject, { nullable: true })
   providerData?: any;
 }

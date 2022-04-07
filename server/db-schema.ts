@@ -19,6 +19,7 @@ const DBAccount_TSQL = `CREATE TABLE scserver.account
         account_uuid uuid DEFAULT sequential_uuid(),
         name character varying(64) NOT NULL,
         api_token character varying(64) NOT NULL,
+        accessed timestamp(0) with time zone NOT NULL DEFAULT NOW(),
         CONSTRAINT account_pkey PRIMARY KEY (account_uuid)
     );`;
 
@@ -510,9 +511,9 @@ export const DB_SETUP_TSQL = [
     `,
 
   /*
-        Deep merge jsonb function
-        Thanks to (http://blog.bguiz.com/2017/json-merge-postgresql/)
-    */
+                Deep merge jsonb function
+                Thanks to (http://blog.bguiz.com/2017/json-merge-postgresql/)
+            */
   `CREATE OR REPLACE FUNCTION scserver.jsonb_merge(orig jsonb, delta jsonb) RETURNS jsonb LANGUAGE sql AS $$
        SELECT
            jsonb_strip_nulls(jsonb_object_agg(
@@ -554,5 +555,5 @@ export const DB_SETUP_TSQL = [
 
   DBStatsMap_TSQL,
 
-  DBSetting_TSQL
+  DBSetting_TSQL,
 ];
