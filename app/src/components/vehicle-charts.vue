@@ -785,8 +785,8 @@ export default class eventchart extends Vue {
       },
       decimalsInFloat: 1,
       labels: {
-        minWidth: 55,
-        maxWidth: 55,
+        minWidth: 30,
+        maxWidth: 30,
         style: {
           colors: Color.priceText,
         },
@@ -811,8 +811,8 @@ export default class eventchart extends Vue {
       },
       decimalsInFloat: 0,
       labels: {
-        minWidth: 55,
-        maxWidth: 55,
+        minWidth: 30,
+        maxWidth: 30,
 
         style: { fontWeight: 600, colors: Color.level },
         formatter: function (val: number, _index: number) {
