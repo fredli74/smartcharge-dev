@@ -47,7 +47,7 @@
     "subscriptions-transport-ws": "0.9.19",
     "type-graphql": "1.1.1",
     "uuid": "8.3.2",
-    "vue": "2.6.14",
+    "vue": "3.2.31",
     "vue-datetime": "1.0.0-beta.14",
     "ws": "8.5.0"
   },
