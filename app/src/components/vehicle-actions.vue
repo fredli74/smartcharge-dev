@@ -227,8 +227,10 @@ export default class VehicleActions extends Vue {
   }
   get isSleeping() {
     return (
-      this.vehicle?.status.toLowerCase() === "offline" ||
-      this.vehicle?.status.toLowerCase() === "sleeping"
+      this.vehicle &&
+      this.vehicle.status &&
+      (this.vehicle.status.toLowerCase() === "offline" ||
+        this.vehicle.status.toLowerCase() === "sleeping")
     );
   }
   get hasSchedule() {

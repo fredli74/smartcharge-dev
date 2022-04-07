@@ -89,7 +89,7 @@ export class DBInterface {
         throw "Database is out of date. No automatic upgrade script found.";
       }
     } catch (err: any) {
-      if (err?.code === "42P01") {
+      if (err && err.code === "42P01") {
         // PostgreSQL error code for parserOpenTable
         log(LogLevel.Info, `No tables found, running database setup script`);
         await this.setupDatabase();

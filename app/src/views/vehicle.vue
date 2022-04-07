@@ -300,7 +300,7 @@ export default class VehicleVue extends Vue {
         return require("../assets/unknown_vehicle.png");
       } else*/ {
         const provider = providers.find(
-          (p) => p.name === this.vehicle?.providerData.provider
+          (p) => p.name === this.vehicle!.providerData.provider
         );
         if (provider && provider.image) {
           return provider.image(this.vehicle);
