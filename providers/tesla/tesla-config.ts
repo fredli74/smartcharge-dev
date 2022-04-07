@@ -2,7 +2,7 @@ const config = {
   TESLA_API_BASE_URL: `https://owner-api.teslamotors.com/`,
   TESLA_API_PROXY: undefined,
   TESLA_API_HEADERS: {
-    "User-Agent": `curl/7.64.1`
+    "User-Agent": `curl/7.64.1`,
   },
   // User agent was ${PROJECT_AGENT} ${provider.name}/${provider.version}`,
   // then we had to use `curl/7.64.1`
@@ -10,7 +10,7 @@ const config = {
   TESLA_AUTH_BASE_URL: `https://auth.tesla.com/`,
   TESLA_AUTH_PROXY: undefined,
   TESLA_AUTH_HEADERS: {
-    "User-Agent": `curl/7.64.1`
+    "User-Agent": `curl/7.64.1`,
     //    "x-tesla-user-agent": `TeslaApp/3.10.9-433/adff2e065/android/10`,
     //    "X-Requested-With": "com.teslamotors.tesla"
   },
@@ -32,7 +32,7 @@ const config = {
   LOWEST_POSSIBLE_CHARGETO: 50,
 
   AGENT_SAVE_TO_TRACEFILE: false,
-  AGENT_TRACE_FILENAME: "logs/tesla_trace.log"
+  AGENT_TRACE_FILENAME: "logs/tesla_trace.log",
 };
 if (process && process.env) {
   for (const key of Object.keys(config)) {

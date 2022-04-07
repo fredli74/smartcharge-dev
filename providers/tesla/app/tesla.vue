@@ -39,14 +39,14 @@ import { ProviderVuePage } from "@providers/provider-app";
 import provider, {
   TeslaProviderQueries,
   TeslaProviderMutates,
-  TeslaToken
+  TeslaToken,
 } from "..";
 
 @Component({
   components: {
     TeslaTokenVue,
-    TeslaNewVehicleList
-  }
+    TeslaNewVehicleList,
+  },
 })
 export default class TeslaVue extends Vue {
   @Prop({ default: "view" })
@@ -59,10 +59,10 @@ export default class TeslaVue extends Vue {
   showTokenForm!: boolean;
   allProviderVehicles!: TeslaNewListEntry[];
   get newVehiclesNotConnected() {
-    return this.allProviderVehicles.filter(f => f.vehicle_uuid === undefined);
+    return this.allProviderVehicles.filter((f) => f.vehicle_uuid === undefined);
   }
   get newVehiclesConnected() {
-    return this.allProviderVehicles.filter(f => f.vehicle_uuid !== undefined);
+    return this.allProviderVehicles.filter((f) => f.vehicle_uuid !== undefined);
   }
 
   // HOOKS
@@ -71,7 +71,7 @@ export default class TeslaVue extends Vue {
     return {
       loading: false,
       showTokenForm: false,
-      allProviderVehicles: []
+      allProviderVehicles: [],
     };
   }
 
@@ -87,16 +87,16 @@ export default class TeslaVue extends Vue {
     try {
       for (const v of await apollo.providerQuery(provider.name, {
         query: TeslaProviderQueries.Vehicles,
-        token: newProvider
+        token: newProvider,
       })) {
-        let entry = this.allProviderVehicles.find(f => f.id === v.id_s);
+        let entry = this.allProviderVehicles.find((f) => f.id === v.id_s);
         if (!entry) {
           entry = {
             id: v.id_s,
             vin: v.vin,
             name: v.display_name,
             vehicle_uuid: v.vehicle_uuid,
-            service_uuid: v.service_uuid
+            service_uuid: v.service_uuid,
           } as TeslaNewListEntry;
           this.allProviderVehicles.push(entry);
         }
@@ -121,7 +121,7 @@ export default class TeslaVue extends Vue {
     this.loading = true;
     await apollo.providerMutate(provider.name, {
       mutation: TeslaProviderMutates.NewVehicle,
-      input: vehicle
+      input: vehicle,
     });
     this.loading = false;
     this.$router.push("/");

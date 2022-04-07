@@ -15,7 +15,7 @@ import {
   ObjectType,
   Query,
   Resolver,
-  ResolverInterface
+  ResolverInterface,
 } from "type-graphql";
 import { AccountResolver } from "./account-resolver";
 import { AccountTypeResolver } from "./account-type";
@@ -95,9 +95,9 @@ export default function schema(emitFile?: string): Promise<GraphQLSchema> {
       ServiceProviderTypeResolver,
       ServiceResolver,
 
-      StatsResolver
+      StatsResolver,
     ],
     emitSchemaFile: !!emitFile && emitFile,
-    validate: false
+    validate: false,
   });
 }

@@ -21,8 +21,8 @@ export class NordpoolAPI extends RestClient {
 const nordpoolAPI = new NordpoolAPI({
   baseURL: config.NORDPOOL_API_BASE_URL,
   headers: {
-    "User-Agent": `${PROJECT_AGENT} ${provider.name}/${provider.version}`
+    "User-Agent": `${PROJECT_AGENT} ${provider.name}/${provider.version}`,
   },
-  timeout: 120e3
+  timeout: 120e3,
 });
 export default nordpoolAPI;

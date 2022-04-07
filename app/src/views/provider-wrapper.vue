@@ -14,7 +14,7 @@ const components = providers.reduce((map, obj) => {
 }, {} as any);
 
 @Component({
-  components: components
+  components: components,
 })
 export default class Add extends Vue {}
 </script>

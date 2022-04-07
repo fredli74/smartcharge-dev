@@ -26,18 +26,18 @@ export interface TeslaServiceData {
 }
 
 export enum TeslaProviderQueries {
-  Vehicles = "vehicles"
+  Vehicles = "vehicles",
 }
 export enum TeslaProviderMutates {
   RefreshToken = "refreshToken",
-  NewVehicle = "newVehicle"
+  NewVehicle = "newVehicle",
 }
 
 const provider: IProvider = {
   name: "tesla",
   display: "Tesla",
   version: "1.0",
-  type: ProviderType.Vehicle
+  type: ProviderType.Vehicle,
 };
 
 export default provider;

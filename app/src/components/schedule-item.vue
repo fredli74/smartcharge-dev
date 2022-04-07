@@ -15,7 +15,7 @@
             top
             min-width="290px"
           >
-            <template v-slot:activator="{ on }">
+            <template #activator="{ on }">
               <v-btn depressed class="px-3" v-on="on">
                 <v-icon left class="mt-1">{{ timeIcon }}</v-icon>
                 {{ schedulePrettyDate }}
@@ -57,7 +57,7 @@
             :min-width="$vuetify.breakpoint.xsOnly ? `90vw` : `400px`"
             top
           >
-            <template v-slot:activator="{ on }">
+            <template #activator="{ on }">
               <v-btn depressed class="px-2" v-on="on">
                 <v-icon left>mdi-lightning-bolt</v-icon>
                 {{ schedule.level }}%
@@ -105,8 +105,8 @@
           class="text-right"
         >
           <v-menu top left offset-y nudge-top="10">
-            <template v-slot:activator="{ on }">
-              <v-hover v-slot:default="{ hover }">
+            <template #activator="{ on }">
+              <v-hover v-slot="{ hover }">
                 <v-btn
                   :loading="isRemoving"
                   fab
@@ -178,7 +178,7 @@ export default class ScheduleItem extends Vue {
       levelSlider: this.schedule.level || this.vehicle.maximumLevel,
 
       isSaving: false,
-      isRemoving: false
+      isRemoving: false,
     };
   }
 

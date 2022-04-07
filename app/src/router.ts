@@ -15,33 +15,33 @@ const router = new Router({
       path: "/index.html",
       alias: "/",
       component: Home,
-      meta: { login: true, root: true }
+      meta: { login: true, root: true },
     },
     {
       path: "/",
       name: "home",
       component: Home,
-      meta: { login: true, root: true }
+      meta: { login: true, root: true },
     },
     {
       path: "/about",
       name: "about",
       meta: { root: true, fullpage: true },
-      component: About
+      component: About,
     },
     {
       path: "/login",
       name: "login",
       component: () =>
         import(/* webpackChunkName: "login" */ "./views/login.vue"),
-      meta: { root: true }
+      meta: { root: true },
     },
 
     {
       path: "/add/:type",
       name: "add",
       component: () => import(/* webpackChunkName: "add" */ "./views/add.vue"),
-      meta: { login: true }
+      meta: { login: true },
     },
     {
       path: "/provider/:provider/:page",
@@ -50,42 +50,42 @@ const router = new Router({
         import(
           /* webpackChunkName: "providerwrapper" */ "./views/provider-wrapper.vue"
         ),
-      meta: { login: true }
+      meta: { login: true },
     },
     {
       path: "/settings",
       name: "settings",
       component: () =>
         import(/* webpackChunkName: "settings" */ "./views/settings.vue"),
-      meta: { login: true }
+      meta: { login: true },
     },
     {
       path: "/vehicle/:id",
       name: "vehicle",
       component: () =>
         import(/* webpackChunkName: "vehicle" */ "./views/vehicle.vue"),
-      meta: { login: true }
+      meta: { login: true },
     },
     {
       path: "*",
       component: Vue.component("PageNotFound", {
-        created: () => { },
-        render: createElement => {
+        created: () => {},
+        render: (createElement) => {
           return createElement(
             "h4",
             {
               style: {
                 width: "100%",
                 textAlign: "center",
-                wordBreak: "break-all"
-              }
+                wordBreak: "break-all",
+              },
             },
             `404 - ${location}`
           );
-        }
-      })
-    }
-  ]
+        },
+      }),
+    },
+  ],
 });
 router.beforeEach((to, _from, next) => {
   if (!apollo.authorized && to.meta && to.meta.login) {

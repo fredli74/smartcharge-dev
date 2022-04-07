@@ -15,9 +15,9 @@ module.exports = {
           "@app": "./app/src",
           "@shared": "./shared",
           "@server": "./server",
-          "@providers": "./providers"
-        }
-      }
-    ]
-  ]
+          "@providers": "./providers",
+        },
+      },
+    ],
+  ],
 };

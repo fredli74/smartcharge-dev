@@ -40,6 +40,6 @@ const server: IProviderServer = {
           `Invalid mutation ${data.mutation} sent to nordpool-server`
         );
     }
-  }
+  },
 };
 export default server;

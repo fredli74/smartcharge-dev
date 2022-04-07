@@ -93,9 +93,9 @@ import { GQLVehicle } from "@shared/sc-schema";
       watchLoading(isLoading, _countModifier) {
         this.loading = isLoading;
       },
-      pollInterval: 5000
-    }
-  }
+      pollInterval: 5000,
+    },
+  },
 })
 export default class Home extends Vue {
   loading?: boolean;
@@ -125,7 +125,7 @@ export default class Home extends Vue {
       return require("../assets/unknown_vehicle.png");
     } else*/ {
       const provider = providers.find(
-        p => p.name === vehicle.providerData.provider
+        (p) => p.name === vehicle.providerData.provider
       );
       if (provider && provider.image) {
         return provider.image(vehicle, false);

@@ -16,7 +16,7 @@ import {
   Query,
   Float,
   PubSub,
-  PubSubEngine
+  PubSubEngine,
 } from "type-graphql";
 import { IContext } from "@server/gql/api";
 import { INTERNAL_SERVICE_UUID, DBInterface } from "@server/db-interface";
@@ -35,9 +35,9 @@ function authorizeService(context: IContext) {
 
 @Resolver()
 export class ServiceResolver {
-  @Query(_returns => [ServiceProvider])
+  @Query((_returns) => [ServiceProvider])
   async _serviceProviders(
-    @Arg("accept", _type => [String]) accept: string[],
+    @Arg("accept", (_type) => [String]) accept: string[],
     @Ctx() context: IContext
   ): Promise<ServiceProvider[]> {
     authorizeService(context);
@@ -47,7 +47,7 @@ export class ServiceResolver {
     );
   }
 
-  @Mutation(_returns => Boolean)
+  @Mutation((_returns) => Boolean)
   async _updateVehicleData(
     @Arg("input") input: UpdateVehicleDataInput,
     @Ctx() context: IContext,
@@ -61,11 +61,11 @@ export class ServiceResolver {
     await context.logic.updateVehicleData(input);
     await pubSub.publish(SubscriptionTopic.VehicleUpdate, {
       vehicle_uuid: vehicle.vehicle_uuid,
-      account_uuid: vehicle.account_uuid
+      account_uuid: vehicle.account_uuid,
     });
     return true;
   }
-  @Mutation(_returns => Boolean)
+  @Mutation((_returns) => Boolean)
   async _vehicleDebug(
     @Arg("input") input: VehicleDebugInput,
     @Ctx() context: IContext
@@ -78,18 +78,18 @@ export class ServiceResolver {
     return true;
   }
 
-  @Mutation(_returns => Int, { nullable: true })
+  @Mutation((_returns) => Int, { nullable: true })
   async _chargeCalibration(
-    @Arg("vehicleID", _type => ID) vehicle_uuid: string,
-    @Arg("level", _type => Int, { nullable: true }) level: number,
-    @Arg("duration", _type => Int, {
+    @Arg("vehicleID", (_type) => ID) vehicle_uuid: string,
+    @Arg("level", (_type) => Int, { nullable: true }) level: number,
+    @Arg("duration", (_type) => Int, {
       nullable: true,
-      description: `duration (seconds)`
+      description: `duration (seconds)`,
     })
     duration: number,
-    @Arg("powerUse", _type => Float, {
+    @Arg("powerUse", (_type) => Float, {
       nullable: true,
-      description: `current power use (kW)`
+      description: `current power use (kW)`,
     })
     powerUse: number,
     @Ctx() context: IContext
@@ -126,7 +126,7 @@ export class ServiceResolver {
     }
   }
 
-  @Mutation(_returns => Boolean)
+  @Mutation((_returns) => Boolean)
   async _updatePrice(
     @Arg("input") input: UpdatePriceInput,
     @Ctx() context: IContext

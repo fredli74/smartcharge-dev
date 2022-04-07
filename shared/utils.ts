@@ -11,7 +11,7 @@ export enum LogLevel {
   Warning,
   Info,
   Debug,
-  Trace
+  Trace,
 }
 
 export const logSymbol = [" ", "!", "*", ".", "(", "?"];
@@ -127,7 +127,7 @@ export class MemCache {
 }
 
 export function delay(ms: number) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 export function prettyTime(seconds: number): string {

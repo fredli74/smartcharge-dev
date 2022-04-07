@@ -4,7 +4,7 @@
       <v-col cols="12" sm="8">
         <v-text-field
           v-model="name"
-          :rules="[v => v.length > 0 || 'Required']"
+          :rules="[nameRules]"
           label="Vehicle name"
           required
           :loading="saving.name"
@@ -13,7 +13,7 @@
       <v-col cols="6" sm="4">
         <v-text-field
           v-model="maximumLevel"
-          :rules="[v => (v >= 50 && v <= 100) || 'allowed range 50% - 100%']"
+          :rules="[maximumLevelRules]"
           label="Maximum charge level"
           type="number"
           min="50"
@@ -21,9 +21,9 @@
           suffix="%"
           :loading="saving.maximumLevel"
         >
-          <template v-slot:append-outer>
+          <template #append-outer>
             <v-tooltip bottom max-width="18rem">
-              <template v-slot:activator="{ on }">
+              <template #activator="{ on }">
                 <v-icon v-on="on">mdi-help-circle-outline</v-icon>
               </template>
               To avoid battery degradation, do not charge above this level,
@@ -81,7 +81,7 @@
           label="Disable"
           :loading="saving.disabled"
         >
-          <template v-if="disabled" v-slot:label>
+          <template v-if="disabled" #label>
             <div class="deep-orange--text text--accent-4">
               Disabled information polling and charge control!
             </div>
@@ -110,13 +110,13 @@ import equal from "fast-deep-equal";
 import {
   GQLVehicle,
   GQLLocation,
-  GQLVehicleLocationSetting
+  GQLVehicleLocationSetting,
 } from "@shared/sc-schema";
 import { DefaultVehicleLocationSettings } from "@shared/sc-utils";
 import { UpdateVehicleParams } from "@shared/sc-client";
 
 @Component({
-  components: { EditVehicleLocationSettings, RemoveDialog }
+  components: { EditVehicleLocationSettings, RemoveDialog },
 })
 export default class EditVehicle extends Vue {
   @Prop({ type: Object, required: true }) readonly vehicle!: GQLVehicle;
@@ -131,27 +131,39 @@ export default class EditVehicle extends Vue {
         maximumLevel: false,
         auto_hvac: false,
         auto_port: false,
-        disabled: false
-      }
+        disabled: false,
+      },
     };
   }
   async created() {}
+
+  nameRules(value: string) {
+    return (value && value.length) || `Required`;
+  }
+
+  maximumLevelRules(value: string) {
+    const v = parseInt(value) || 0;
+    if (v < 50 || v > 100) {
+      return `allowed range 50% - 100%`;
+    }
+    return true;
+  }
 
   locationSettings(): any[] {
     return (
       (this.locations &&
         this.locations
-          .filter(l => l.ownerID === this.vehicle.ownerID)
-          .map(l => {
+          .filter((l) => l.ownerID === this.vehicle.ownerID)
+          .map((l) => {
             const settings: GQLVehicleLocationSetting =
               (this.vehicle.locationSettings &&
                 this.vehicle.locationSettings.find(
-                  f => f.locationID === l.id
+                  (f) => f.locationID === l.id
                 )) ||
               DefaultVehicleLocationSettings(l.id);
             return {
               name: l.name,
-              settings
+              settings,
             };
           })) ||
       []
@@ -217,7 +229,7 @@ export default class EditVehicle extends Vue {
       if (form.validate && form.validate()) {
         const update: UpdateVehicleParams = {
           id: this.vehicle.id,
-          providerData: {}
+          providerData: {},
         };
         if (this.saving["name"]) {
           update.name = this.vehicle.name;

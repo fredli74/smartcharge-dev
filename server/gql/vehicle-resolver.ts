@@ -19,7 +19,7 @@ import {
   Root,
   Int,
   ID,
-  GraphQLISODateTime
+  GraphQLISODateTime,
 } from "type-graphql";
 import { IContext, accountFilter } from "./api";
 import { INTERNAL_SERVICE_UUID } from "@server/db-interface";
@@ -27,7 +27,7 @@ import {
   Vehicle,
   UpdateVehicleInput,
   VehicleLocationSettings,
-  Schedule
+  Schedule,
 } from "./vehicle-type";
 import { log, LogLevel, makePublicID } from "@shared/utils";
 import { ApolloError } from "apollo-server-core";
@@ -42,14 +42,14 @@ interface VehicleSubscriptionPayload {
 
 @Resolver()
 export class VehicleResolver {
-  @Query(_returns => [Vehicle])
+  @Query((_returns) => [Vehicle])
   async vehicles(@Ctx() context: IContext): Promise<Vehicle[]> {
     const dblist = await context.db.getVehicles(
       accountFilter(context.accountUUID)
     );
     return plainToClass(Vehicle, dblist);
   }
-  @Query(_returns => Vehicle)
+  @Query((_returns) => Vehicle)
   async vehicle(
     @Arg("id") id: string,
     @Ctx() context: IContext
@@ -59,7 +59,7 @@ export class VehicleResolver {
       await context.db.getVehicle(accountFilter(context.accountUUID), id)
     );
   }
-  @Query(_returns => Int, { nullable: true })
+  @Query((_returns) => Int, { nullable: true })
   async vehicleLimit(@Ctx() context: IContext): Promise<number> {
     const limit = await context.db.pg.oneOrNone(
       `SELECT value::int - (SELECT COUNT(*) FROM vehicle) as limit FROM setting WHERE key = 'vehicleLimit';`
@@ -67,7 +67,7 @@ export class VehicleResolver {
     return (limit && limit.limit) || null;
   }
 
-  @Subscription(_returns => Vehicle, {
+  @Subscription((_returns) => Vehicle, {
     // TODO: convert this into a subscribe: using apolloPubSub
     topics: SubscriptionTopic.VehicleUpdate,
     filter: async ({ payload, args, context }) => {
@@ -76,7 +76,7 @@ export class VehicleResolver {
         (context.accountUUID === INTERNAL_SERVICE_UUID ||
           context.accountUUID === payload.account_uuid)
       );
-    }
+    },
   })
   async vehicleSubscription(
     @Root() payload: VehicleSubscriptionPayload,
@@ -105,9 +105,9 @@ export class VehicleResolver {
     }
   }
 
-  @Mutation(_returns => Boolean)
+  @Mutation((_returns) => Boolean)
   async removeVehicle(
-    @Arg("id", _type => ID) id: string,
+    @Arg("id", (_type) => ID) id: string,
     @Arg("confirm") confirm: string,
     @Ctx() context: IContext
   ): Promise<Boolean> {
@@ -127,7 +127,7 @@ export class VehicleResolver {
     return true;
   }
 
-  @Mutation(_returns => Vehicle)
+  @Mutation((_returns) => Vehicle)
   async updateVehicle(
     @Arg("input") input: UpdateVehicleInput,
     @Ctx() context: IContext,
@@ -144,7 +144,7 @@ export class VehicleResolver {
         (map: any, obj: VehicleLocationSettings) => {
           map[obj.locationID] = {
             directLevel: obj.directLevel,
-            goal: obj.goal
+            goal: obj.goal,
           };
           return map;
         },
@@ -157,7 +157,7 @@ export class VehicleResolver {
       location_settings: locationSettingsMap,
       status: input.status,
       service_uuid: input.serviceID,
-      provider_data: input.providerData
+      provider_data: input.providerData,
     });
 
     if (
@@ -168,15 +168,15 @@ export class VehicleResolver {
     }
     await pubSub.publish(SubscriptionTopic.VehicleUpdate, {
       vehicle_uuid: result.vehicle_uuid,
-      account_uuid: result.account_uuid
+      account_uuid: result.account_uuid,
     });
     return result;
   }
 
-  @Mutation(_returns => Boolean)
+  @Mutation((_returns) => Boolean)
   async removeSchedule(
-    @Arg("id", _type => Int) id: number,
-    @Arg("vehicleID", _type => ID) vehicleID: string,
+    @Arg("id", (_type) => Int) id: number,
+    @Arg("vehicleID", (_type) => ID) vehicleID: string,
     @Ctx() context: IContext,
     @PubSub() pubSub: PubSubEngine
   ): Promise<boolean> {
@@ -191,20 +191,20 @@ export class VehicleResolver {
     await context.logic.refreshChargePlan(vehicle.vehicle_uuid);
     await pubSub.publish(SubscriptionTopic.VehicleUpdate, {
       vehicle_uuid: vehicle.vehicle_uuid,
-      account_uuid: vehicle.account_uuid
+      account_uuid: vehicle.account_uuid,
     });
     return true;
   }
 
-  @Mutation(_returns => [Schedule])
+  @Mutation((_returns) => [Schedule])
   async updateSchedule(
-    @Arg("id", _type => Int, { nullable: true, defaultValue: undefined })
+    @Arg("id", (_type) => Int, { nullable: true, defaultValue: undefined })
     id: number | undefined,
-    @Arg("vehicleID", _type => ID) vehicleID: string,
-    @Arg("type", _type => ScheduleType) type: ScheduleType,
-    @Arg("level", _type => Int, { nullable: true })
+    @Arg("vehicleID", (_type) => ID) vehicleID: string,
+    @Arg("type", (_type) => ScheduleType) type: ScheduleType,
+    @Arg("level", (_type) => Int, { nullable: true })
     level: number | null,
-    @Arg("time", _type => GraphQLISODateTime, { nullable: true })
+    @Arg("time", (_type) => GraphQLISODateTime, { nullable: true })
     time: Date | null,
     @Ctx() context: IContext,
     @PubSub() pubSub: PubSubEngine
@@ -229,7 +229,7 @@ export class VehicleResolver {
     await context.logic.refreshChargePlan(vehicle.vehicle_uuid);
     await pubSub.publish(SubscriptionTopic.VehicleUpdate, {
       vehicle_uuid: vehicle.vehicle_uuid,
-      account_uuid: vehicle.account_uuid
+      account_uuid: vehicle.account_uuid,
     });
     return context.db.getSchedule(vehicle.vehicle_uuid);
   }

@@ -17,14 +17,14 @@ const webAuth = new auth0.WebAuth({
   clientID: config.AUTH0_CLIENT_ID,
   redirectUri: `${window.location.origin}/login`,
   responseType: "id_token",
-  scope: "profile openid"
+  scope: "profile openid",
 });
 
 class AuthService extends EventEmitter {
   // Starts the user login flow
   login(customState?: any) {
     webAuth.authorize({
-      appState: customState
+      appState: customState,
     });
   }
   logout() {

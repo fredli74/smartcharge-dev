@@ -10,9 +10,9 @@ export const DB_VERSION = `1.0-beta`;
 export type PlainObject = Record<string, any>;
 
 export abstract class DBAccount {
-    account_uuid!: string; // account uuid
-    name!: string; // account name
-    api_token!: string; // API-token for data access
+  account_uuid!: string; // account uuid
+  name!: string; // account name
+  api_token!: string; // API-token for data access
 }
 const DBAccount_TSQL = `CREATE TABLE scserver.account
     (
@@ -24,16 +24,16 @@ const DBAccount_TSQL = `CREATE TABLE scserver.account
     );`;
 
 export abstract class DBLocation {
-    location_uuid!: string; // location uuid
-    account_uuid!: string; // account identifier
-    name!: string; // name of location
-    location_micro_latitude!: number; // 6 decimal precision converted to integer
-    location_micro_longitude!: number; // 6 decimal precision converted to integer
-    radius!: number; // radius tollerance (in meters)
-    price_list_uuid!: string | null; // price list code (or null)
-    // TODO: remove service and provider on locations?
-    service_uuid!: string | null; // provider uuid
-    provider_data!: PlainObject; // provider custom data
+  location_uuid!: string; // location uuid
+  account_uuid!: string; // account identifier
+  name!: string; // name of location
+  location_micro_latitude!: number; // 6 decimal precision converted to integer
+  location_micro_longitude!: number; // 6 decimal precision converted to integer
+  radius!: number; // radius tollerance (in meters)
+  price_list_uuid!: string | null; // price list code (or null)
+  // TODO: remove service and provider on locations?
+  service_uuid!: string | null; // provider uuid
+  provider_data!: PlainObject; // provider custom data
 }
 const DBLocation_TSQL = `CREATE TABLE scserver.location
     (
@@ -58,12 +58,12 @@ const DBLocation_TSQL = `CREATE TABLE scserver.location
     );`;
 
 export abstract class DBPriceList {
-    price_list_uuid!: string; // price list identifier
-    account_uuid!: string; // account identifier
-    name!: string; // unique name of price list
-    public_list!: boolean; // show up for everyone
-    service_uuid!: string | null; // provider uuid
-    provider_data!: PlainObject; // provider custom data
+  price_list_uuid!: string; // price list identifier
+  account_uuid!: string; // account identifier
+  name!: string; // unique name of price list
+  public_list!: boolean; // show up for everyone
+  service_uuid!: string | null; // provider uuid
+  provider_data!: PlainObject; // provider custom data
 }
 const DBPriceList_TSQL = `CREATE TABLE scserver.price_list
     (
@@ -81,9 +81,9 @@ const DBPriceList_TSQL = `CREATE TABLE scserver.price_list
     );`;
 
 export abstract class DBPriceData {
-    price_list_uuid!: string; // price list identifier
-    ts!: Date; // price tariff starts at
-    price!: number; // cost per kWh
+  price_list_uuid!: string; // price list identifier
+  ts!: Date; // price tariff starts at
+  price!: number; // cost per kWh
 }
 
 const DBPriceData_TSQL = `CREATE TABLE scserver.price_data
@@ -99,32 +99,32 @@ const DBPriceData_TSQL = `CREATE TABLE scserver.price_data
     );`;
 
 export abstract class DBVehicle {
-    vehicle_uuid!: string; // vehicle uuid
-    account_uuid!: string; // account identifier
-    service_uuid!: string | null; // provider uuid
-    name!: string; // name of vehicle
-    maximum_charge!: number; // maximum normal (non trip) charge
-    provider_data!: PlainObject; // provider custom data
-    location_micro_latitude!: number | null; // 6 decimal precision converted to integer
-    location_micro_longitude!: number | null; // 6 decimal precision converted to integer
-    location_uuid!: string | null; // known location id
-    location_settings!: PlainObject; // location settings (or null)
-    level!: number; // current battery charge level %
-    odometer!: number; // odometer (in meter)
-    outside_deci_temperature!: number; // temperature (deci-celsius)
-    inside_deci_temperature!: number; // temperature (deci-celsius)
-    climate_control!: boolean; // climate control on
-    connected!: boolean; // connected to charger
-    connected_id!: number | null; // current charge session id
-    charging_to!: number | null; // currently charging to level %
-    estimate!: number | null; // estimated time left (in minutes)
-    charge_id!: number | null; // current charge session id
-    driving!: boolean; // currently driving
-    trip_id!: number | null; // current trip session id
-    status!: string; // informative status string
-    smart_status!: string; // smart charging information
-    charge_plan!: any | null; // current charge plan (or null)
-    updated!: Date; // timestamp of last record update
+  vehicle_uuid!: string; // vehicle uuid
+  account_uuid!: string; // account identifier
+  service_uuid!: string | null; // provider uuid
+  name!: string; // name of vehicle
+  maximum_charge!: number; // maximum normal (non trip) charge
+  provider_data!: PlainObject; // provider custom data
+  location_micro_latitude!: number | null; // 6 decimal precision converted to integer
+  location_micro_longitude!: number | null; // 6 decimal precision converted to integer
+  location_uuid!: string | null; // known location id
+  location_settings!: PlainObject; // location settings (or null)
+  level!: number; // current battery charge level %
+  odometer!: number; // odometer (in meter)
+  outside_deci_temperature!: number; // temperature (deci-celsius)
+  inside_deci_temperature!: number; // temperature (deci-celsius)
+  climate_control!: boolean; // climate control on
+  connected!: boolean; // connected to charger
+  connected_id!: number | null; // current charge session id
+  charging_to!: number | null; // currently charging to level %
+  estimate!: number | null; // estimated time left (in minutes)
+  charge_id!: number | null; // current charge session id
+  driving!: boolean; // currently driving
+  trip_id!: number | null; // current trip session id
+  status!: string; // informative status string
+  smart_status!: string; // smart charging information
+  charge_plan!: any | null; // current charge plan (or null)
+  updated!: Date; // timestamp of last record update
 }
 const DBVehicle_TSQL = `CREATE TABLE scserver.vehicle
     (
@@ -162,10 +162,10 @@ const DBVehicle_TSQL = `CREATE TABLE scserver.vehicle
     );`;
 
 export abstract class DBVehicleDebug {
-    vehicle_uuid!: string; // vehicle identifier
-    ts!: Date; // timestamp
-    category!: string; // debug category
-    data: any; // variable data payload
+  vehicle_uuid!: string; // vehicle identifier
+  ts!: Date; // timestamp
+  category!: string; // debug category
+  data: any; // variable data payload
 }
 const DBVehicleDebug_TSQL = `CREATE TABLE scserver.vehicle_debug
     (
@@ -181,11 +181,11 @@ const DBVehicleDebug_TSQL = `CREATE TABLE scserver.vehicle_debug
     );`;
 
 export abstract class DBSchedule {
-    schedule_id!: number; // schedule id
-    vehicle_uuid!: string; // vehicle identifier
-    schedule_type!: string; // schedule type (enum ScheduleType)
-    schedule_ts!: Date | null; // timestamp associated with schedule
-    level!: number | null; // battery charge level % associated with schedule
+  schedule_id!: number; // schedule id
+  vehicle_uuid!: string; // vehicle identifier
+  schedule_type!: string; // schedule type (enum ScheduleType)
+  schedule_ts!: Date | null; // timestamp associated with schedule
+  level!: number | null; // battery charge level % associated with schedule
 }
 
 const DBSchedule_TSQL = `CREATE TABLE scserver.schedule
@@ -203,10 +203,10 @@ const DBSchedule_TSQL = `CREATE TABLE scserver.schedule
     );`;
 
 export abstract class DBServiceProvider {
-    account_uuid!: string; // account uuid
-    provider_name!: string; // provider name
-    service_uuid!: string; // provider uuid
-    service_data!: any; // service data
+  account_uuid!: string; // account uuid
+  provider_name!: string; // provider name
+  service_uuid!: string; // provider uuid
+  service_data!: any; // service data
 }
 const DBServiceProvider_TSQL = `CREATE TABLE scserver.service_provider
     (
@@ -222,11 +222,11 @@ const DBServiceProvider_TSQL = `CREATE TABLE scserver.service_provider
     );`;
 
 export abstract class DBSleep {
-    sleep_id!: number; // sleep id
-    vehicle_uuid!: string; // vehicle identifier
-    active!: boolean; // are we still sleeping
-    start_ts!: Date; // time when starting
-    end_ts!: Date; // time when ending
+  sleep_id!: number; // sleep id
+  vehicle_uuid!: string; // vehicle identifier
+  active!: boolean; // are we still sleeping
+  start_ts!: Date; // time when starting
+  end_ts!: Date; // time when ending
 }
 const DBSleep_TSQL = `CREATE TABLE scserver.sleep
     (
@@ -244,17 +244,17 @@ const DBSleep_TSQL = `CREATE TABLE scserver.sleep
 
 /** DBTrip not used anymore, should we stop collecting it?  **/
 export abstract class DBTrip {
-    trip_id!: number; // trip id
-    vehicle_uuid!: string; // vehicle identifier
-    start_ts!: Date; // time when starting
-    start_level!: number; // charge level when starting (%)
-    start_location_uuid!: string | null; // TODO lookup location from coordinates
-    start_odometer!: number; // odometer when starting (in meter)
-    start_outside_deci_temperature!: number; // temperature at start (deci-celsius)
-    end_ts!: Date; // time when ending
-    end_level!: number; // charge level when ending (%)
-    end_location_uuid!: string | null; // TODO lookup location from coordinates
-    distance!: number; // distance travelled (in meter)
+  trip_id!: number; // trip id
+  vehicle_uuid!: string; // vehicle identifier
+  start_ts!: Date; // time when starting
+  start_level!: number; // charge level when starting (%)
+  start_location_uuid!: string | null; // TODO lookup location from coordinates
+  start_odometer!: number; // odometer when starting (in meter)
+  start_outside_deci_temperature!: number; // temperature at start (deci-celsius)
+  end_ts!: Date; // time when ending
+  end_level!: number; // charge level when ending (%)
+  end_location_uuid!: string | null; // TODO lookup location from coordinates
+  distance!: number; // distance travelled (in meter)
 }
 const DBTrip_TSQL = `CREATE TABLE scserver.trip
     (
@@ -277,19 +277,19 @@ const DBTrip_TSQL = `CREATE TABLE scserver.trip
     );`;
 
 export abstract class DBConnected {
-    connected_id!: number; // charge session id
-    vehicle_uuid!: string; // vehicle identifier
-    type!: string; // "ac"|"dc"
-    location_uuid!: string | null; // location uuid from coordinates
-    start_ts!: Date; // timestamp when session started
-    start_level!: number; // battery level in % when session started
-    start_odometer!: number; // odometer (in meters)
-    end_ts!: Date; // timestamp when session stopped (updated continiously)
-    end_level!: number; // battery level in % when session stopped (updated continiously)
-    energy_used!: number; // approximated energy used in Wm (Watt-minutes)
-    cost!: number; // approximated energy cost (in integer currency unit)
-    saved!: number; // approximated energy cost saved (in integer currency unit)
-    connected!: boolean; // is it still connected
+  connected_id!: number; // charge session id
+  vehicle_uuid!: string; // vehicle identifier
+  type!: string; // "ac"|"dc"
+  location_uuid!: string | null; // location uuid from coordinates
+  start_ts!: Date; // timestamp when session started
+  start_level!: number; // battery level in % when session started
+  start_odometer!: number; // odometer (in meters)
+  end_ts!: Date; // timestamp when session stopped (updated continiously)
+  end_level!: number; // battery level in % when session stopped (updated continiously)
+  energy_used!: number; // approximated energy used in Wm (Watt-minutes)
+  cost!: number; // approximated energy cost (in integer currency unit)
+  saved!: number; // approximated energy cost saved (in integer currency unit)
+  connected!: boolean; // is it still connected
 }
 const DBChargeSession_TSQL = `CREATE TABLE scserver.connected
     (
@@ -314,20 +314,20 @@ const DBChargeSession_TSQL = `CREATE TABLE scserver.connected
     );`;
 
 export abstract class DBCharge {
-    charge_id!: number; // charge id
-    connected_id!: number; // charge session id
-    vehicle_uuid!: string; // vehicle identifier
-    type!: string; // "ac"|"dc"
-    location_uuid!: string | null; // lookup location from coordinates
-    start_ts!: Date; // timestamp when charge started
-    start_level!: number; // battery level in % when charge started
-    start_added!: number; // energy added in Wm (track this because it does not always reset between charges)
-    target_level!: number; // charge target %
-    estimate!: number; // estimated time to full charge (in minutes)
-    end_ts!: Date; // timestamp when charge stopped (updated continiously)
-    end_level!: number; // battery level in % when charge stopped (updated continiously)
-    end_added!: number; // energy added in Wm
-    energy_used!: number; // approximated energy used in Wm (Watt-minutes)
+  charge_id!: number; // charge id
+  connected_id!: number; // charge session id
+  vehicle_uuid!: string; // vehicle identifier
+  type!: string; // "ac"|"dc"
+  location_uuid!: string | null; // lookup location from coordinates
+  start_ts!: Date; // timestamp when charge started
+  start_level!: number; // battery level in % when charge started
+  start_added!: number; // energy added in Wm (track this because it does not always reset between charges)
+  target_level!: number; // charge target %
+  estimate!: number; // estimated time to full charge (in minutes)
+  end_ts!: Date; // timestamp when charge stopped (updated continiously)
+  end_level!: number; // battery level in % when charge stopped (updated continiously)
+  end_added!: number; // energy added in Wm
+  energy_used!: number; // approximated energy used in Wm (Watt-minutes)
 }
 const DBCharge_TSQL = `CREATE TABLE scserver.charge
     (
@@ -357,12 +357,12 @@ const DBCharge_TSQL = `CREATE TABLE scserver.charge
     );`;
 
 export abstract class DBChargeCurrent {
-    charge_id!: number; // charge identifier
-    start_ts!: Date; // time when starting
-    start_level!: number; // charge level when starting (%)
-    start_added!: number; // energy added (Wm) when starting
-    powers!: number[]; // array of power (W) readings
-    outside_deci_temperatures!: number[]; // array of temperature readings (deci-celsius)
+  charge_id!: number; // charge identifier
+  start_ts!: Date; // time when starting
+  start_level!: number; // charge level when starting (%)
+  start_added!: number; // energy added (Wm) when starting
+  powers!: number[]; // array of power (W) readings
+  outside_deci_temperatures!: number[]; // array of temperature readings (deci-celsius)
 }
 // TODO: these fields should be NOT NULL, but we have a sloppy INSERT WHERE NOT EXISTS in logic.ts
 const DBChargeCurrent_TSQL = `CREATE TABLE scserver.charge_current
@@ -377,13 +377,13 @@ const DBChargeCurrent_TSQL = `CREATE TABLE scserver.charge_current
     );`;
 
 export abstract class DBChargeCurve {
-    vehicle_uuid!: string; // vehicle identifier
-    charge_id!: number; // charge identifier
-    level!: number; // charge level (%)
-    outside_deci_temperature!: number | null; // average temperature (deci-celsius)
-    duration!: number; // duration (in seconds)
-    energy_used!: number; // approximated energy used in Wm (Watt-minutes)
-    energy_added!: number; // energy added in Wm (Watt-minutes)
+  vehicle_uuid!: string; // vehicle identifier
+  charge_id!: number; // charge identifier
+  level!: number; // charge level (%)
+  outside_deci_temperature!: number | null; // average temperature (deci-celsius)
+  duration!: number; // duration (in seconds)
+  energy_used!: number; // approximated energy used in Wm (Watt-minutes)
+  energy_added!: number; // energy added in Wm (Watt-minutes)
 }
 const DBChargeCurve_TSQL = `CREATE TABLE scserver.charge_curve
     (
@@ -402,15 +402,15 @@ const DBChargeCurve_TSQL = `CREATE TABLE scserver.charge_curve
     );`;
 
 export abstract class DBLocationStats {
-    stats_id!: number; // stats id
-    vehicle_uuid!: string; // vehicle uuid
-    location_uuid!: string; // location identifer
-    updated!: Date; // date when stats where updated
-    price_data_ts!: Date; // timestamp of last pricelist data entry
-    level_charge_time!: number; // time to charge 1% (in seconds)
-    weekly_avg7_price!: number; // weekly running average price (per kWh)
-    weekly_avg21_price!: number; // total charging time (in seconds)
-    threshold!: number; // price threshold needed to fulfill total charging time
+  stats_id!: number; // stats id
+  vehicle_uuid!: string; // vehicle uuid
+  location_uuid!: string; // location identifer
+  updated!: Date; // date when stats where updated
+  price_data_ts!: Date; // timestamp of last pricelist data entry
+  level_charge_time!: number; // time to charge 1% (in seconds)
+  weekly_avg7_price!: number; // weekly running average price (per kWh)
+  weekly_avg21_price!: number; // total charging time (in seconds)
+  threshold!: number; // price threshold needed to fulfill total charging time
 }
 const DBLocationStats_TSQL = `CREATE TABLE scserver.location_stats
     (
@@ -436,17 +436,17 @@ const DBLocationStats_TSQL = `CREATE TABLE scserver.location_stats
     );`;
 
 export abstract class DBStatsMap {
-    vehicle_uuid!: string; // vehicle identifier
-    period!: number; // period interval in minutes
-    stats_ts!: Date; // date truncated down to closest period
-    minimum_level!: number; // vehicle minimum battery level during the period
-    maximum_level!: number; // vehicle maximum battery level during the period
-    driven_seconds!: number; // driven seconds during the period
-    driven_meters!: number; // driven meters during the period
-    charged_seconds!: number; // charging during the period
-    charge_energy!: number; // energy used charging in Wm (Watt-minutes) during the period
-    charge_cost!: number; // total cost of energy charged
-    charge_cost_saved!: number; // estimated cost savings
+  vehicle_uuid!: string; // vehicle identifier
+  period!: number; // period interval in minutes
+  stats_ts!: Date; // date truncated down to closest period
+  minimum_level!: number; // vehicle minimum battery level during the period
+  maximum_level!: number; // vehicle maximum battery level during the period
+  driven_seconds!: number; // driven seconds during the period
+  driven_meters!: number; // driven meters during the period
+  charged_seconds!: number; // charging during the period
+  charge_energy!: number; // energy used charging in Wm (Watt-minutes) during the period
+  charge_cost!: number; // total cost of energy charged
+  charge_cost_saved!: number; // estimated cost savings
 }
 const DBStatsMap_TSQL = `CREATE TABLE scserver.state_map
     (
@@ -469,8 +469,8 @@ const DBStatsMap_TSQL = `CREATE TABLE scserver.state_map
     );`;
 
 export abstract class DBSetting {
-    key!: string; // key
-    value!: any; // value (json)
+  key!: string; // key
+  value!: any; // value (json)
 }
 const DBSetting_TSQL = `CREATE TABLE scserver.setting
     (
@@ -481,8 +481,8 @@ const DBSetting_TSQL = `CREATE TABLE scserver.setting
     INSERT INTO setting(key,value) VALUES('version', '"${DB_VERSION}"');`;
 
 export const DB_SETUP_TSQL = [
-    `CREATE SCHEMA IF NOT EXISTS scserver;`,
-    `ALTER ROLE current_user SET search_path = "$user",scserver,public;`,
+  `CREATE SCHEMA IF NOT EXISTS scserver;`,
+  `ALTER ROLE current_user SET search_path = "$user",scserver,public;`,
 
   /*
         PostgreSQL sequential uuid function
@@ -510,11 +510,11 @@ export const DB_SETUP_TSQL = [
         END $$;
     `,
 
-    /*
+  /*
                 Deep merge jsonb function
                 Thanks to (http://blog.bguiz.com/2017/json-merge-postgresql/)
             */
-    `CREATE OR REPLACE FUNCTION scserver.jsonb_merge(orig jsonb, delta jsonb) RETURNS jsonb LANGUAGE sql AS $$
+  `CREATE OR REPLACE FUNCTION scserver.jsonb_merge(orig jsonb, delta jsonb) RETURNS jsonb LANGUAGE sql AS $$
        SELECT
            jsonb_strip_nulls(jsonb_object_agg(
                COALESCE(keyOrig, keyDelta),
@@ -528,32 +528,32 @@ export const DB_SETUP_TSQL = [
        FULL JOIN jsonb_each(delta) e2(keyDelta, valDelta) ON keyOrig = keyDelta
    $$;`,
 
-    DBAccount_TSQL,
+  DBAccount_TSQL,
 
-    DBLocation_TSQL,
+  DBLocation_TSQL,
 
-    DBPriceList_TSQL,
-    DBPriceData_TSQL,
+  DBPriceList_TSQL,
+  DBPriceData_TSQL,
 
-    DBVehicle_TSQL,
-    DBVehicleDebug_TSQL,
+  DBVehicle_TSQL,
+  DBVehicleDebug_TSQL,
 
-    DBSchedule_TSQL,
+  DBSchedule_TSQL,
 
-    DBServiceProvider_TSQL,
+  DBServiceProvider_TSQL,
 
-    DBTrip_TSQL,
+  DBTrip_TSQL,
 
-    DBSleep_TSQL,
+  DBSleep_TSQL,
 
-    DBChargeSession_TSQL,
-    DBCharge_TSQL,
-    DBChargeCurrent_TSQL,
-    DBChargeCurve_TSQL,
+  DBChargeSession_TSQL,
+  DBCharge_TSQL,
+  DBChargeCurrent_TSQL,
+  DBChargeCurve_TSQL,
 
-    DBLocationStats_TSQL,
+  DBLocationStats_TSQL,
 
-    DBStatsMap_TSQL,
+  DBStatsMap_TSQL,
 
-    DBSetting_TSQL,
+  DBSetting_TSQL,
 ];

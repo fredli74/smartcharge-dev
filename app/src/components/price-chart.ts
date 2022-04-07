@@ -5,7 +5,7 @@ import { ChartData, ChartOptions } from "chart.js";
 @Component({
   extends: Line,
   props: ["chartData", "options"],
-  mixins: [mixins.reactiveProp]
+  mixins: [mixins.reactiveProp],
 })
 export default class PriceChart extends Mixins(Line) {
   chartData?: ChartData;
@@ -41,7 +41,7 @@ export default class PriceChart extends Mixins(Line) {
           (x === undefined ||
             (x >= chart.chartArea.left && x <= chart.chartArea.right))
         );
-      }
+      },
     });
     if (this.chartData && this.options) {
       this.renderChart(this.chartData, this.options);
@@ -65,6 +65,6 @@ Chart.Tooltip.positioners.topcorner = function (
 
   return {
     x: chart.chartArea.left,
-    y: chart.chartArea.top
+    y: chart.chartArea.top,
   };
 };
