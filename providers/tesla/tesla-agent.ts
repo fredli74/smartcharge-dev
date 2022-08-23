@@ -198,11 +198,11 @@ export class TeslaAgent extends AbstractAgent {
         RedMulticoat: "PPMR",
         Pearl: "PPSW",
         PearlWhite: "PPSW",
-        // PearlWhite: "PBCW" -- old model S Cataline White, reported as "PearlWhite"
         SilverMetallic: "PMSS",
         Blue: "PMMB",
         Black: "PBSB",
         Red: "PPMR",
+        White: "PBCW", // old model S Cataline White
       })
     );
 
@@ -231,6 +231,7 @@ export class TeslaAgent extends AbstractAgent {
         Base19: "WT19", // does not work on facelift model s
         Apollo19: "WY19B",
         Induction20Black: "WY20P",
+        Super21Gray: "WTSG",
       })
     );
 
