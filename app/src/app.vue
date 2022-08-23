@@ -77,7 +77,12 @@
             <v-alert v-model="warning.show" dismissible type="warning" tile
               ><span v-html="warning.message"></span
             ></v-alert>
-            <v-alert v-model="info.show" dismissible type="info" tile
+            <v-alert
+              v-model="info.show"
+              dismissible
+              type="info"
+              tile
+              @input="closedInfo"
               ><span v-html="info.message"></span
             ></v-alert>
           </v-flex>
@@ -91,6 +96,8 @@
 </template>
 
 <script lang="ts">
+import { strict as assert } from "assert";
+
 import { Component, Vue } from "vue-property-decorator";
 import apollo from "./plugins/apollo";
 import eventBus, { BusEvent } from "./plugins/event-bus";
@@ -113,7 +120,7 @@ export default class App extends Vue {
   warning!: AlertMessage;
   error!: AlertMessage;
   data() {
-    return {
+    const data = {
       authorized: apollo.authorized,
       help_url: config.HELP_URL,
       info: {
@@ -129,6 +136,21 @@ export default class App extends Vue {
         message: config.GLOBAL_ERROR_MESSAGE,
       },
     };
+
+    // Logic for global messages
+    const dismissed = localStorage.getItem(`dismissed_info`);
+    if (dismissed !== null) {
+      if (data.info.show && data.info.message === dismissed) {
+        data.info.show = false;
+      } else {
+        localStorage.removeItem(`dismissed_info`);
+      }
+    }
+    return data;
+  }
+  closedInfo() {
+    assert(this.info.message !== undefined);
+    localStorage.setItem(`dismissed_info`, this.info.message);
   }
 
   async mounted() {
