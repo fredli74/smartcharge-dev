@@ -297,7 +297,10 @@ a#homelink {
 .pointer input {
   cursor: pointer;
 }
-.v-alert a {
-  color: unset !important;
+.v-alert {
+  z-index: 1;
+  a {
+    color: unset !important;
+  }
 }
 </style>
