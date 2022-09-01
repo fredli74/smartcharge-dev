@@ -155,12 +155,29 @@ export class TeslaAgent extends AbstractAgent {
           wheel_type: "WY19B",
         };
         break;
+      case "model3":
+        if (config.performance_package === "Performance") {
+          option_codes.push("MT317");
+          defaults = {
+            exterior_color: "PPSW",
+            passive_spoiler: "IPB1",
+            roof_color: "RF3G",
+            wheel_type: "W33D",
+          };
+        } else {
+          defaults = {
+            exterior_color: "PPSW",
+            passive_spoiler: "X021",
+            roof_color: "RF3G",
+            wheel_type: "W38B",
+          };
+        }
+        break;
       default:
-        defaults = {
-          exterior_color: "PPSW",
-          roof_color: "RF3G",
-          wheel_type: "W38B",
-        };
+        log(
+          LogLevel.Warning,
+          `${subject.teslaID} unknown car_type = ${config.car_type}`
+        );
         break;
     }
 
@@ -232,6 +249,7 @@ export class TeslaAgent extends AbstractAgent {
         Apollo19: "WY19B",
         Induction20Black: "WY20P",
         Super21Gray: "WTSG",
+        UberTurbine20Gunpowder: "W33D",
       })
     );
 
