@@ -287,7 +287,8 @@ export class TeslaAgent extends AbstractAgent {
 
     option_codes = option_codes
       .flat(Infinity)
-      .filter((f) => f !== undefined && f !== null);
+      .filter((f) => f !== undefined && f !== null)
+      .sort();
 
     if (
       subject.data.providerData.car_type !== config.car_type ||
