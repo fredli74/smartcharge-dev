@@ -44,6 +44,7 @@ import { scheduleMap } from "@shared/sc-utils";
 
 type PollState = "polling" | "tired" | "offline" | "asleep";
 enum ChargeControl {
+  None,
   Starting,
   Started,
   Stopping,
@@ -710,14 +711,19 @@ export class TeslaAgent extends AbstractAgent {
         });
       }
 
-      const wasDriving = Boolean(subject.data && subject.data.isDriving);
+      const previousData = subject.data;
       subject.data = await this.scClient.getVehicle(subject.vehicleUUID);
+
+      const wasDriving = Boolean(
+        previousData &&
+          (previousData.isDriving ||
+            subject.data.odometer - previousData.odometer >= 200) // Vehicle moved 200 meters
+      );
 
       if (subject.data.isDriving) {
         subject.triedOpen = undefined;
         subject.parked = undefined;
       } else if (wasDriving) {
-        assert(subject.parked === undefined);
         subject.parked = now;
       }
 
@@ -732,18 +738,25 @@ export class TeslaAgent extends AbstractAgent {
       }
 
       // Command logic
+      if (subject.data.isDriving || wasDriving) {
+        subject.chargeControl = ChargeControl.None;
+      } else if (subject.chargeControl === undefined) {
+        // If chargeControl was reset ...
+        subject.chargeControl = subject.chargeEnabled
+          ? ChargeControl.Stopped // ... we're charging, let's assume we tried to stop it earlier
+          : ChargeControl.Started; // ... we're not charging, let's assume we tried to start it earlier
+      }
+
       if (subject.data.isConnected) {
-        // are we charging or not
+        // did we control the charge?
         if (
           subject.chargeEnabled === true &&
-          (subject.chargeControl === undefined ||
-            subject.chargeControl === ChargeControl.Starting)
+          subject.chargeControl === ChargeControl.Starting
         ) {
           subject.chargeControl = ChargeControl.Started;
         } else if (
           subject.chargeEnabled === false &&
-          (subject.chargeControl === undefined ||
-            subject.chargeControl === ChargeControl.Stopping)
+          subject.chargeControl === ChargeControl.Stopping
         ) {
           subject.chargeControl = ChargeControl.Stopped;
         }
@@ -869,7 +882,6 @@ export class TeslaAgent extends AbstractAgent {
           }
         }
       } else {
-        subject.chargeControl = undefined;
         if (
           subject.data.locationID !== null &&
           subject.data.providerData.auto_port &&
