@@ -250,6 +250,7 @@ export class TeslaAgent extends AbstractAgent {
         Induction20Black: "WY20P",
         Super21Gray: "WTSG",
         UberTurbine20Gunpowder: "W33D",
+        Silver21: "WTSS",
       }) ||
         optionMap({
           models: "WTAS",
