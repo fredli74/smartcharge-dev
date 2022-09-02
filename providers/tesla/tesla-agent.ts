@@ -120,92 +120,73 @@ export class TeslaAgent extends AbstractAgent {
 
     const config = data.vehicle_config;
     let option_codes = [];
-    let defaults: any;
-
-    switch (config.car_type) {
-      case "models":
-        option_codes.push("MI02"); // force nose cone
-        defaults = {
-          exterior_color: "PPSW",
-          passive_spoiler: "X019",
-          roof_color: "RFP2",
-          wheel_type: "WTAS",
-        };
-        break;
-      case "models2":
-        option_codes.push("MI03"); // force facelift
-        defaults = {
-          exterior_color: "PPSW",
-          passive_spoiler: "X019",
-          roof_color: "RFFG",
-          wheel_type: "WTDS",
-        };
-        break;
-      case "modelx":
-        defaults = {
-          exterior_color: "PPSW",
-          passive_spoiler: "X021",
-          roof_color: "RFPX",
-          wheel_type: "WT20",
-        };
-        break;
-      case "modely":
-        defaults = {
-          exterior_color: "PPSW",
-          roof_color: "RF3G",
-          wheel_type: "WY19B",
-        };
-        break;
-      case "model3":
-        if (config.performance_package === "Performance") {
-          option_codes.push("MT317");
-          defaults = {
-            exterior_color: "PPSW",
-            passive_spoiler: "IPB1",
-            roof_color: "RF3G",
-            wheel_type: "W33D",
-          };
-        } else {
-          defaults = {
-            exterior_color: "PPSW",
-            passive_spoiler: "X021",
-            roof_color: "RF3G",
-            wheel_type: "W38B",
-          };
-        }
-        break;
-      default:
-        log(
-          LogLevel.Warning,
-          `${subject.teslaID} unknown car_type = ${config.car_type}`
-        );
-        break;
-    }
 
     let unknown_image = null;
 
+    type carOption = string[] | string | null;
+    function optionMap(
+      value: Record<string, carOption> | carOption
+    ): carOption {
+      if (value === null || Array.isArray(value) || typeof value === "string") {
+        return value;
+      }
+      return value[config.car_type];
+    }
     function optionTranslate(
       field: string,
-      a: { [name: string]: string[] | string | null }
-    ): string[] | string | null | undefined {
+      a: Record<string, Record<string, carOption> | carOption>
+    ): carOption | undefined {
       const d = String(config[field]);
       if (d === "undefined") {
         log(
-          LogLevel.Warning,
+          LogLevel.Info,
           `${subject.teslaID} vehicle_config contains no ${field}`
         );
         return undefined;
-      }
-      if (a[d] === undefined) {
+      } else if (a[d] === undefined) {
         log(
           LogLevel.Warning,
           `${subject.teslaID} unknown vehicle_config.${field} = ${d}`
         );
         unknown_image = true;
-        return defaults[field];
+        return undefined;
       }
-      return a[d];
+      return optionMap(a[d]);
     }
+
+    const performance =
+      config.performance_package === "Performance" ||
+      (typeof config.trim_badging === "string" &&
+        config.trim_badging.match(/^p/i) !== null);
+
+    // Model extra defaults
+    option_codes.push(
+      optionMap({
+        models: [
+          "MI02", // force nose cone
+          "RFP2", // roof color
+          ...(performance
+            ? [
+                "BC0R", // Red Brake Calipers
+                "X024", // Performance Package
+              ]
+            : []),
+        ],
+        models2: [
+          "MI03", // force facelift
+          "RFFG", // roof color
+        ],
+        modelx: [
+          "RFPX", // roof color
+        ],
+        modely: [
+          "RF3G", // roof color
+        ],
+        model3: [
+          "RF3G", // roof color
+        ],
+      })
+    );
 
     option_codes.push(
       optionTranslate("exterior_color", {
@@ -221,16 +202,34 @@ export class TeslaAgent extends AbstractAgent {
         Black: "PBSB",
         Red: "PPMR",
         White: "PBCW", // old model S Cataline White
-      })
+      }) || "PPSW"
     );
 
     option_codes.push(
-      optionTranslate("roof_color", {
-        RoofColorGlass: defaults.roof_color,
-        Glass: defaults.roof_color,
-        None: defaults.roof_color,
+      optionTranslate("spoiler_type", {
+        Passive: {
+          models: "X019",
+          models2: "X019",
+          modelx: "X021",
+          model3: "SLR1",
+          modely: "SLR1",
+        },
+        None: null,
       })
     );
+
+    if (typeof config.exterior_trim === "string") {
+      option_codes.push(
+        optionTranslate("exterior_trim", {
+          Chrome: {
+            model3: "MT304",
+          },
+          Black: {
+            model3: performance ? ["MT317", "IPB1"] : ["MT315", "IPB0"],
+          },
+        })
+      );
+    }
 
     option_codes.push(
       optionTranslate("wheel_type", {
@@ -251,25 +250,15 @@ export class TeslaAgent extends AbstractAgent {
         Induction20Black: "WY20P",
         Super21Gray: "WTSG",
         UberTurbine20Gunpowder: "W33D",
-      })
-    );
-
-    option_codes.push(
-      optionTranslate("spoiler_type", {
-        Passive: defaults.passive_spoiler, // "X019" | "X021",
-        // "SLR1"
-        None: null,
-      })
-    );
-
-    if (typeof config.exterior_trim === "string") {
-      option_codes.push(
-        optionTranslate("exterior_trim", {
-          Chrome: null,
-          Black: ["MT315", "IPB0"],
+      }) ||
+        optionMap({
+          models: "WTAS",
+          models2: "WTDS",
+          modelx: "WT20",
+          model3: performance ? "W33D" : "W38B",
+          modely: "WY19B",
         })
-      );
-    }
+    );
 
     option_codes.push(
       optionTranslate("rhd", {
@@ -277,14 +266,6 @@ export class TeslaAgent extends AbstractAgent {
         false: null,
       })
     );
-
-    if (
-      typeof config.trim_badging === "string" &&
-      config.trim_badging.match(/^p/i)
-    ) {
-      option_codes.push("BC0R"); // Red Brake Calipers
-      option_codes.push("X024"); // Performance Package
-    }
 
     option_codes = option_codes
       .flat(Infinity)
