@@ -44,7 +44,6 @@ import { scheduleMap } from "@shared/sc-utils";
 
 type PollState = "polling" | "tired" | "offline" | "asleep";
 enum ChargeControl {
-  None,
   Starting,
   Started,
   Stopping,
@@ -705,8 +704,10 @@ export class TeslaAgent extends AbstractAgent {
       if (subject.data.isDriving) {
         subject.triedOpen = undefined;
         subject.parked = undefined;
+        subject.chargeControl = undefined;
       } else if (wasDriving) {
         subject.parked = now;
+        subject.chargeControl = undefined;
       }
 
       log(LogLevel.Trace, `${subject.teslaID} ${JSON.stringify(subject)}`);
@@ -720,15 +721,6 @@ export class TeslaAgent extends AbstractAgent {
       }
 
       // Command logic
-      if (subject.data.isDriving || wasDriving) {
-        subject.chargeControl = ChargeControl.None;
-      } else if (subject.chargeControl === undefined) {
-        // If chargeControl was reset ...
-        subject.chargeControl = subject.chargeEnabled
-          ? ChargeControl.Stopped // ... we're charging, let's assume we tried to stop it earlier
-          : ChargeControl.Started; // ... we're not charging, let's assume we tried to start it earlier
-      }
-
       if (subject.data.isConnected) {
         // did we control the charge?
         if (
