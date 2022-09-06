@@ -15,5 +15,5 @@ psql postgres -c "CREATE DATABASE smartcharge WITH OWNER scserver ENCODING UTF8 
 # set our default schema
 psql postgres -c "ALTER ROLE scserver IN DATABASE smartcharge SET search_path TO scserver;"
 # grant?
-# GRANT ALL PRIVILEGES ON DATABASE scserver TO scserver;"
+# GRANT ALL PRIVILEGES ON DATABASE smartcharge TO scserver;"
 
