@@ -7,6 +7,7 @@
  * @license MIT (MIT)
  * @description Agency coordinates with the server which agent jobs to run
  */
+import "./env";
 import { strict as assert } from "assert";
 
 import { Command } from "commander";
@@ -124,7 +125,7 @@ program
       }
     }
 
-    process.on("SIGINT", async function() {
+    process.on("SIGINT", async function () {
       log(LogLevel.Info, `Caught interrupt signal, shutting down.`);
       process.removeAllListeners("SIGINT"); // remove it to allow double ctrl-c
       try {
