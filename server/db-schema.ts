@@ -131,7 +131,7 @@ const DBVehicle_TSQL = `CREATE TABLE scserver.vehicle
         vehicle_uuid uuid NOT NULL DEFAULT sequential_uuid(),
         account_uuid uuid NOT NULL,
         service_uuid uuid,
-        name text COLLATE NOT NULL,
+        name text COLLATE pg_catalog."default" NOT NULL,
         maximum_charge smallint NOT NULL,
         provider_data jsonb NOT NULL DEFAULT '{}'::jsonb,
         location_micro_latitude integer,
@@ -150,8 +150,8 @@ const DBVehicle_TSQL = `CREATE TABLE scserver.vehicle
         charge_id integer,
         driving boolean NOT NULL DEFAULT false,
         trip_id integer,
-        status text COLLATE NOT NULL DEFAULT ''::text,
-        smart_status text COLLATE NOT NULL DEFAULT ''::text,
+        status text COLLATE pg_catalog."default" NOT NULL DEFAULT ''::text,
+        smart_status text COLLATE pg_catalog."default" NOT NULL DEFAULT ''::text,
         charge_plan jsonb,
         updated timestamp(0) with time zone NOT NULL DEFAULT NOW(),
         CONSTRAINT vehicle_pkey PRIMARY KEY (vehicle_uuid),
@@ -530,10 +530,10 @@ export const DB_SETUP_TSQL = [
 
   DBAccount_TSQL,
 
-  DBLocation_TSQL,
-
   DBPriceList_TSQL,
   DBPriceData_TSQL,
+
+  DBLocation_TSQL,
 
   DBVehicle_TSQL,
   DBVehicleDebug_TSQL,
