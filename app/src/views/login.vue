@@ -62,7 +62,10 @@ export default class Login extends Vue {
       if (err.graphQLErrors) {
         for (const e of err.graphQLErrors) {
           if (e.extensions && e.extensions.code === "UNAUTHENTICATED") {
-            eventBus.$emit(BusEvent.AlertWarning, `invalid password`);
+            eventBus.$emit(
+              BusEvent.AlertWarning,
+              e.message || `invalid password`
+            );
             return;
           }
         }
@@ -87,7 +90,10 @@ export default class Login extends Vue {
         if (err && err.graphQLErrors) {
           for (const e of err.graphQLErrors) {
             if (e.extensions && e.extensions.code === "UNAUTHENTICATED") {
-              eventBus.$emit(BusEvent.AlertWarning, `invalid password`);
+              eventBus.$emit(
+                BusEvent.AlertWarning,
+                e.message || `invalid password`
+              );
               return;
             }
           }
