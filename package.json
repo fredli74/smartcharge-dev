@@ -40,7 +40,7 @@
     "https-proxy-agent": "5.0.0",
     "jsonwebtoken": "8.5.1",
     "jwks-rsa": "2.0.5",
-    "luxon": "1.28.0",
+    "luxon": "2.5.2",
     "md5": "2.3.0",
     "pg-promise": "10.11.1",
     "reflect-metadata": "0.1.13",
