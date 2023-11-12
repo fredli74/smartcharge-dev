@@ -159,7 +159,7 @@ export class TeslaAPI {
   }
   public async getVehicleData(id: string, token: TeslaToken) {
     return await this.ownerAPI.get(
-      `/api/1/vehicles/${id}/vehicle_data`,
+      `/api/1/vehicles/${id}/vehicle_data?endpoints=charge_state%3Bclimate_state%3Bdrive_state%3Blocation_data%3Bvehicle_config%3Bvehicle_state`,
       token.access_token
     );
   }
