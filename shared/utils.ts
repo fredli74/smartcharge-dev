@@ -198,9 +198,11 @@ export function secondsToString(
 }
 
 import md5 from "md5";
-import { DateTime } from "luxon";
+export function hashID(id: string, pepper: string): string {
+  return md5(`${pepper}+${id}`);
+}
 export function makePublicID(id: string, len?: number): string {
-  return md5("public+" + id).substr(0, len || 8);
+  return hashID(id, "public").substring(0, len || 8);
 }
 
 export type OpenDate = Date | null | number | string | undefined;
@@ -249,6 +251,7 @@ export async function asyncFilter<T>(
   return array.filter((_v, index) => results[index]);
 }
 
+import { DateTime } from "luxon";
 export function relativeTime(when: Date): { date: string; time: string } {
   const nowLocal = DateTime.local();
   const thenLocal = DateTime.fromJSDate(when).toLocal();
