@@ -1,10 +1,18 @@
 <template>
   <div class="provider.name">
-    <div v-if="page === 'new'">
-      <TeslaTokenVue v-if="showTokenForm" @token="newProvider" />
+    <div v-if="page === 'new' || page === 'auth'">
+      <v-card-actions v-if="showAuthButton" class="justify-center">
+        <v-btn
+          color="primary"
+          :disabled="loading"
+          :loading="loading"
+          @click="authorize"
+          >Authorize Access<v-icon right>mdi-chevron-right</v-icon></v-btn
+        >
+      </v-card-actions>
       <div v-else>
         <v-card-actions class="justify-center">
-          <v-btn text small color="primary" @click="showTokenForm = true"
+          <v-btn text small color="primary" @click="authorize"
             >change Tesla account</v-btn
           >
         </v-card-actions>
@@ -30,8 +38,12 @@
 </template>
 
 <script lang="ts">
+import { strict as assert } from "assert";
+
 import { Component, Vue, Prop } from "vue-property-decorator";
 import apollo from "@app/plugins/apollo";
+import eventBus, { BusEvent } from "@app/plugins/event-bus";
+import { hashID } from "@shared/utils";
 import { TeslaNewListEntry } from "./tesla-helper";
 import TeslaTokenVue from "./components/tesla-token.vue";
 import TeslaNewVehicleList from "./components/tesla-new-list.vue";
@@ -41,6 +53,12 @@ import provider, {
   TeslaProviderMutates,
   TeslaToken,
 } from "..";
+
+const AUTHORIZE_URL = "https://auth.tesla.com/oauth2/v3/authorize";
+const CLIENT_ID = "45618b860d7c-4186-89f4-2374bc1b1b83";
+const REDIRECT_URL = `${window.location.origin}/provider/tesla/auth`;
+const SCOPE =
+  "openid offline_access vehicle_device_data vehicle_cmds vehicle_charging_cmds";
 
 @Component({
   components: {
@@ -56,7 +74,7 @@ export default class TeslaVue extends Vue {
 
   // REACTIVE PROPERTIES
   loading!: boolean;
-  showTokenForm!: boolean;
+  showAuthButton!: boolean;
   allProviderVehicles!: TeslaNewListEntry[];
   get newVehiclesNotConnected() {
     return this.allProviderVehicles.filter((f) => f.vehicle_uuid === undefined);
@@ -70,13 +88,53 @@ export default class TeslaVue extends Vue {
     // data() hook for undefined values
     return {
       loading: false,
-      showTokenForm: false,
+      showAuthButton: false,
       allProviderVehicles: [],
     };
   }
 
   async mounted() {
-    await this.loadTeslaVehicles();
+    if (this.page === "auth") {
+      this.showAuthButton = true;
+      this.loading = true;
+
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get("code");
+      const state = params.get("state");
+      console.debug(`code: ${code}, state: ${state}`);
+
+      if (code === null || state === null || state !== this.authorizeState) {
+        console.debug(`Invalid code or state: ${state}`);
+        eventBus.$emit(
+          BusEvent.AlertWarning,
+          "Invalid authorization flow, please try again"
+        );
+      }
+
+      try {
+        const token = await apollo.providerMutate(provider.name, {
+          mutation: TeslaProviderMutates.Authorize,
+          code,
+          callbackURI: REDIRECT_URL,
+        });
+        // rewrite the URL to remove the code and state and change auth to new
+        window.history.replaceState(
+          {},
+          document.title,
+          window.location.pathname.replace("/auth", "/new")
+        );
+        await this.loadTeslaVehicles(token);
+      } catch (err) {
+        console.debug(err);
+        eventBus.$emit(
+          BusEvent.AlertWarning,
+          "Unable to verify Tesla Authorization"
+        );
+      }
+      this.loading = false;
+    } else {
+      await this.loadTeslaVehicles();
+    }
   }
 
   // ACTIONS
@@ -108,13 +166,8 @@ export default class TeslaVue extends Vue {
 
     this.loading = false;
     if (this.allProviderVehicles.length === 0) {
-      this.showTokenForm = true;
+      this.showAuthButton = true;
     }
-  }
-
-  async newProvider(token: TeslaToken) {
-    this.showTokenForm = false;
-    this.loadTeslaVehicles(token);
   }
 
   async selectVehicle(vehicle: TeslaNewListEntry) {
@@ -125,6 +178,37 @@ export default class TeslaVue extends Vue {
     });
     this.loading = false;
     this.$router.push("/");
+  }
+
+  get authorizeState() {
+    assert(apollo.account, "No user ID found");
+    return hashID(apollo.account.id, `teslaAuthState`);
+  }
+  async authorize() {
+    this.loading = true;
+    /*
+      Parameters
+      Name	Required	Example	Description
+      response_type	Yes	code	A string, always use the value "code".
+      client_id	Yes	abc-123	Partner application client id.
+      redirect_uri	Yes	https://example.com/auth/callback	Partner application callback url, spec: rfc6749.
+      scope	Yes	openid offline_access user_data vehicle_device_data vehicle_cmds vehicle_charging_cmds	Space delimited list of scopes, include openid and offline_access to obtain a refresh token.
+      state	Yes	db4af3f87...	Random value used for validation.
+      nonce	No	7baf90cda...	Random value used for replay prevention.
+    */
+    const authUrl = `${AUTHORIZE_URL}?client_id=${encodeURIComponent(
+      CLIENT_ID
+    )}&locale=en-US&prompt=login&redirect_uri=${encodeURIComponent(
+      REDIRECT_URL
+    )}&response_type=code&scope=${encodeURIComponent(
+      SCOPE
+    )}&state=${encodeURIComponent(
+      this.authorizeState
+    )}&nonce=${encodeURIComponent(
+      hashID(new Date().toISOString(), Math.random().toString())
+    )}`;
+
+    window.location.href = authUrl;
   }
 }
 </script>

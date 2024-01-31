@@ -15,6 +15,21 @@ import config from "./tesla-config";
 import { DBServiceProvider } from "@server/db-schema";
 import { strict as assert } from "assert";
 
+export async function authorize(
+  db: DBInterface,
+  code: string,
+  callbackURI: string
+): Promise<TeslaToken> {
+  try {
+    log(LogLevel.Trace, `authorize(${code}, ${callbackURI})`);
+    const newToken = await teslaAPI.authorize(code, callbackURI);
+    return maintainToken(db, newToken);
+  } catch (err) {
+    log(LogLevel.Error, err);
+    throw new ApolloError("Invalid token", "INVALID_TOKEN");
+  }
+}
+
 // Check token and refresh through direct database update
 export async function maintainToken(
   db: DBInterface,
@@ -187,6 +202,9 @@ const server: IProviderServer = {
   },
   mutation: async (data: any, context: IContext) => {
     switch (data.mutation) {
+      case TeslaProviderMutates.Authorize: {
+        return await authorize(context.db, data.code, data.callbackURI);
+      }
       case TeslaProviderMutates.RefreshToken: {
         return await maintainToken(
           context.db,

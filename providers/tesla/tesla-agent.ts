@@ -53,6 +53,7 @@ enum ChargeControl {
 interface TeslaSubject {
   teslaID: string;
   vehicleUUID: string;
+  vin: string;
   data?: GQLVehicle;
   online: boolean;
   pollerror: number | undefined;
@@ -362,7 +363,7 @@ export class TeslaAgent extends AbstractAgent {
       }
       return true;
     }
-    this.adjustInterval(job, 10); // poll more often after an interaction
+    // this.adjustInterval(job, 10); // poll more often after an interaction
     return false;
   }
 
@@ -506,11 +507,13 @@ export class TeslaAgent extends AbstractAgent {
         if (input.chargingTo) {
           await this.setStatus(subject, "Charging"); // We are charging
           insomnia = true; // Can not sleep while charging
-          this.adjustInterval(job, 10); // Poll more often when charging
+          // this.adjustInterval(job, 10); // Poll more often when charging
+          this.adjustInterval(job, config.TESLA_POLL_INTERVAL); // not allowed to poll more than 5 minutes now
         } else if (input.isDriving) {
           await this.setStatus(subject, "Driving"); // We are driving
           insomnia = true; // Can not sleep while driving
-          this.adjustInterval(job, 10); // Poll more often when driving
+          // this.adjustInterval(job, 10); // Poll more often when driving
+          this.adjustInterval(job, config.TESLA_POLL_INTERVAL); // not allowed to poll more than 5 minutes now
         } else {
           this.adjustInterval(job, config.TESLA_POLL_INTERVAL);
           if (data.vehicle_state.is_user_present) {
@@ -1020,6 +1023,7 @@ export class TeslaAgent extends AbstractAgent {
           job.state[v.vehicle_uuid] = {
             vehicleUUID: v.vehicle_uuid,
             teslaID: v.id_s,
+            vin: v.vin,
             online: false,
             pollerror: undefined,
             pollstate: undefined,

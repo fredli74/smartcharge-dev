@@ -29,6 +29,7 @@ export enum TeslaProviderQueries {
   Vehicles = "vehicles",
 }
 export enum TeslaProviderMutates {
+  Authorize = "authorize",
   RefreshToken = "refreshToken",
   NewVehicle = "newVehicle",
 }
