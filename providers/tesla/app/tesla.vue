@@ -124,6 +124,7 @@ export default class TeslaVue extends Vue {
           window.location.pathname.replace("/auth", "/new")
         );
         await this.loadTeslaVehicles(token);
+        this.showAuthButton = false;
       } catch (err) {
         console.debug(err);
         eventBus.$emit(
