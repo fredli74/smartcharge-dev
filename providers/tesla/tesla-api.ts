@@ -86,8 +86,7 @@ export class TeslaAPI {
       // the refresh token from previous oauth2/v3 authorization
       const authResponse = (await this.authAPI.post("/oauth2/v3/token", {
         grant_type: "refresh_token",
-        scope: "openid email offline_access",
-        client_id: "ownerapi",
+        client_id: config.TESLA_CLIENT_ID,
         refresh_token: refresh_token,
       })) as any;
       return this.parseTokenResponse(authResponse);
