@@ -1,5 +1,5 @@
 const config = {
-  TESLA_COMMAND_PROXY: ``,
+  TESLA_COMMAND_PROXY: ``, // 'https://user:pass@localhost:4443',
 
   TESLA_API_BASE_URL: `https://fleet-api.prd.eu.vn.cloud.tesla.com`,
   TESLA_API_PROXY: ``,

@@ -41,11 +41,11 @@
           text--darken-4
         "
       >
-        The newest Tesla vehicles require a
+        Tesla
         <a :href="teslaVirtualKeyUrl" target="_blank" rel="noopener noreferrer"
           >Virtual Key</a
         >
-        to control charging.
+        required to control charging.
       </div>
     </div>
   </div>
