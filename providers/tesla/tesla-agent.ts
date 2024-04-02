@@ -51,7 +51,6 @@ enum ChargeControl {
 }
 
 interface TeslaSubject {
-  teslaID: string;
   vehicleUUID: string;
   vin: string;
   data?: GQLVehicle;
@@ -344,14 +343,11 @@ export class TeslaAgent extends AbstractAgent {
     if (!subject.online) {
       log(
         LogLevel.Info,
-        `${subject.teslaID} waking up ${
+        `${subject.vin} waking up ${
           (subject.data && subject.data.name) || subject.vehicleUUID
         }`
       );
-      const data = await teslaAPI.wakeUp(
-        subject.teslaID,
-        job.serviceData.token
-      );
+      const data = await teslaAPI.wakeUp(subject.vin, job.serviceData.token);
       if (data && data.response && data.response.state === "online") {
         subject.online = true;
       }
@@ -388,11 +384,11 @@ export class TeslaAgent extends AbstractAgent {
           now >= subject.statestart + timeTryingToSleep) // or if we've been trying to sleep for TIME_BEING_TIRED seconds
       ) {
         const data = (
-          await teslaAPI.getVehicleData(subject.teslaID, job.serviceData.token)
+          await teslaAPI.getVehicleData(subject.vin, job.serviceData.token)
         ).response;
         log(
           LogLevel.Trace,
-          `${subject.teslaID} full poll : ${JSON.stringify(data)}`
+          `${subject.vin} full poll : ${JSON.stringify(data)}`
         );
         if (config.AGENT_SAVE_TO_TRACEFILE === "true") {
           const s = logFormat(LogLevel.Trace, data);
@@ -413,15 +409,15 @@ export class TeslaAgent extends AbstractAgent {
           if (subject.chargeControl === ChargeControl.Stopped) {
             log(
               LogLevel.Trace,
-              `${subject.teslaID} trickle-charge fix stop of ${subject.data.name} overridden by user interaction`
+              `${subject.vin} trickle-charge fix stop of ${subject.data.name} overridden by user interaction`
             );
           } else {
             // known location or force disable
             log(
               LogLevel.Info,
-              `${subject.teslaID} trickle-charge fix stop charging ${subject.data.name}`
+              `${subject.vin} trickle-charge fix stop charging ${subject.data.name}`
             );
-            teslaAPI.chargeStop(subject.teslaID, job.serviceData.token);
+            teslaAPI.chargeStop(subject.vin, job.serviceData.token);
             subject.chargeControl = ChargeControl.Stopping;
           }
         }
@@ -616,7 +612,7 @@ export class TeslaAgent extends AbstractAgent {
       } else {
         // Poll vehicle list to avoid keeping it awake
         const data = (
-          await teslaAPI.listVehicle(subject.teslaID, job.serviceData.token)
+          await teslaAPI.listVehicle(subject.vin, job.serviceData.token)
         ).response;
         if (config.AGENT_SAVE_TO_TRACEFILE === "true") {
           const s = logFormat(LogLevel.Trace, data);
@@ -626,7 +622,7 @@ export class TeslaAgent extends AbstractAgent {
         }
         log(
           LogLevel.Trace,
-          `${subject.teslaID} list poll : ${JSON.stringify(data)}`
+          `${subject.vin} list poll : ${JSON.stringify(data)}`
         );
 
         this.adjustInterval(job, parseInt(config.TESLA_POLL_INTERVAL));
@@ -640,7 +636,7 @@ export class TeslaAgent extends AbstractAgent {
               // We were offline or sleeping
               log(
                 LogLevel.Info,
-                `${subject.teslaID} ${data.display_name} is ${data.state} (${subject.pollstate} -> polling)`
+                `${subject.vin} ${data.display_name} is ${data.state} (${subject.pollstate} -> polling)`
               );
               if (subject.pollerror) {
                 this.changePollstate(subject, "polling"); // Active polling
@@ -655,7 +651,7 @@ export class TeslaAgent extends AbstractAgent {
             if (subject.pollstate !== "offline") {
               log(
                 LogLevel.Info,
-                `${subject.teslaID} ${data.display_name} is ${data.state} (${subject.pollstate} -> offline)`
+                `${subject.vin} ${data.display_name} is ${data.state} (${subject.pollstate} -> offline)`
               );
 
               this.changePollstate(subject, "offline");
@@ -667,7 +663,7 @@ export class TeslaAgent extends AbstractAgent {
             if (subject.pollstate !== "asleep") {
               log(
                 LogLevel.Info,
-                `${subject.teslaID} ${data.display_name} is ${data.state} (${subject.pollstate} -> asleep)`
+                `${subject.vin} ${data.display_name} is ${data.state} (${subject.pollstate} -> asleep)`
               );
 
               this.changePollstate(subject, "asleep");
@@ -678,7 +674,7 @@ export class TeslaAgent extends AbstractAgent {
           default: {
             const s = logFormat(
               LogLevel.Error,
-              `${subject.teslaID} unknown state: ${JSON.stringify(data)}`
+              `${subject.vin} unknown state: ${JSON.stringify(data)}`
             );
             fs.writeFileSync(config.AGENT_TRACE_FILENAME, `${s}\n`, {
               flag: "as",
@@ -713,7 +709,7 @@ export class TeslaAgent extends AbstractAgent {
         subject.chargeControl = undefined;
       }
 
-      log(LogLevel.Trace, `${subject.teslaID} ${JSON.stringify(subject)}`);
+      log(LogLevel.Trace, `${subject.vin} ${JSON.stringify(subject)}`);
 
       // Reduce the array to a map with only the first upcoming event of each type
       const schedule = scheduleMap(subject.data.schedule);
@@ -768,7 +764,7 @@ export class TeslaAgent extends AbstractAgent {
           if (subject.chargeControl === ChargeControl.Stopped) {
             log(
               LogLevel.Trace,
-              `${subject.teslaID} charge stop of ${subject.data.name} overridden by user interaction`
+              `${subject.vin} charge stop of ${subject.data.name} overridden by user interaction`
             );
           } else if (
             (subject.data.locationID !== null || disableCharge) &&
@@ -777,9 +773,9 @@ export class TeslaAgent extends AbstractAgent {
             // known location or force disable
             log(
               LogLevel.Info,
-              `${subject.teslaID} stop charging ${subject.data.name}`
+              `${subject.vin} stop charging ${subject.data.name}`
             );
-            teslaAPI.chargeStop(subject.teslaID, job.serviceData.token);
+            teslaAPI.chargeStop(subject.vin, job.serviceData.token);
             subject.chargeControl = ChargeControl.Stopping;
             this.stayOnline(subject);
           }
@@ -788,7 +784,7 @@ export class TeslaAgent extends AbstractAgent {
             if (subject.chargeControl === ChargeControl.Started) {
               log(
                 LogLevel.Trace,
-                `${subject.teslaID} charge start of ${subject.data.name} overridden by user interaction`
+                `${subject.vin} charge start of ${subject.data.name} overridden by user interaction`
               );
             } else if (
               subject.data.batteryLevel < shouldCharge.level &&
@@ -796,12 +792,9 @@ export class TeslaAgent extends AbstractAgent {
             ) {
               log(
                 LogLevel.Info,
-                `${subject.teslaID} start charging ${subject.data.name}`
+                `${subject.vin} start charging ${subject.data.name}`
               );
-              await teslaAPI.chargeStart(
-                subject.teslaID,
-                job.serviceData.token
-              );
+              await teslaAPI.chargeStart(subject.vin, job.serviceData.token);
               subject.chargeControl = ChargeControl.Starting;
               this.stayOnline(subject);
             }
@@ -850,10 +843,10 @@ export class TeslaAgent extends AbstractAgent {
             if (await this.vehicleInteraction(job, subject, true, false)) {
               log(
                 LogLevel.Info,
-                `${subject.teslaID} setting charge limit for ${subject.data.name} to ${chargeto}%`
+                `${subject.vin} setting charge limit for ${subject.data.name} to ${chargeto}%`
               );
               await teslaAPI.setChargeLimit(
-                subject.teslaID,
+                subject.vin,
                 chargeto,
                 job.serviceData.token
               );
@@ -882,10 +875,7 @@ export class TeslaAgent extends AbstractAgent {
           ) {
             if (await this.vehicleInteraction(job, subject, false, false)) {
               // if port is closed and we did not try to open it yet
-              await teslaAPI.openChargePort(
-                subject.teslaID,
-                job.serviceData.token
-              );
+              await teslaAPI.openChargePort(subject.vin, job.serviceData.token);
             }
             subject.triedOpen = now;
           } else if (
@@ -895,7 +885,7 @@ export class TeslaAgent extends AbstractAgent {
           ) {
             if (await this.vehicleInteraction(job, subject, false, false)) {
               await teslaAPI.closeChargePort(
-                subject.teslaID,
+                subject.vin,
                 job.serviceData.token
               );
             }
@@ -924,7 +914,7 @@ export class TeslaAgent extends AbstractAgent {
           } else {
             log(
               LogLevel.Info,
-              `${subject.teslaID} starting climate control on ${subject.data.name}`
+              `${subject.vin} starting climate control on ${subject.data.name}`
             );
             await this[AgentAction.ClimateControl](job, {
               data: { id: subject.vehicleUUID, enable: true },
@@ -939,7 +929,7 @@ export class TeslaAgent extends AbstractAgent {
           // we're after hvac window, we did turn it on, it's still on, and we were not told to leave it alone
           log(
             LogLevel.Info,
-            `${subject.teslaID} stopping climate control on ${subject.data.name}`
+            `${subject.vin} stopping climate control on ${subject.data.name}`
           );
           await this[AgentAction.ClimateControl](job, {
             data: { id: subject.vehicleUUID, enable: false },
@@ -966,9 +956,7 @@ export class TeslaAgent extends AbstractAgent {
       if (err.code === 401) {
         log(
           LogLevel.Trace,
-          `${
-            subject.teslaID
-          } tesla-agent polling error 401 for ${JSON.stringify(
+          `${subject.vin} tesla-agent polling error 401 for ${JSON.stringify(
             job.serviceData
           )}`
         );
@@ -982,8 +970,8 @@ export class TeslaAgent extends AbstractAgent {
         } catch (err) {
           log(
             LogLevel.Error,
-            `${subject.teslaID} unable to refresh teslaAPI token for ${
-              subject.teslaID
+            `${subject.vin} unable to refresh teslaAPI token for ${
+              subject.vin
             }: ${JSON.stringify(err)}`
           );
           job.serviceData.invalid_token = true; // client side update to match server
@@ -1000,13 +988,13 @@ export class TeslaAgent extends AbstractAgent {
       if (err.response && err.response.data) {
         log(
           LogLevel.Error,
-          `${subject.teslaID} ${JSON.stringify(err.response.data)}`
+          `${subject.vin} ${JSON.stringify(err.response.data)}`
         );
         if (err.response.data.error) {
           await this.setStatus(subject, err.response.data.error);
         }
       } else {
-        log(LogLevel.Error, `${subject.teslaID} ${JSON.stringify(err)}`);
+        log(LogLevel.Error, `${subject.vin} ${JSON.stringify(err)}`);
       }
       throw new Error(err);
     }
@@ -1028,7 +1016,6 @@ export class TeslaAgent extends AbstractAgent {
         if (v.vehicle_uuid && !job.state[v.vehicle_uuid]) {
           job.state[v.vehicle_uuid] = {
             vehicleUUID: v.vehicle_uuid,
-            teslaID: v.id_s,
             vin: v.vin,
             online: false,
             pollerror: undefined,
@@ -1038,12 +1025,12 @@ export class TeslaAgent extends AbstractAgent {
           };
           log(
             LogLevel.Debug,
-            `Service ${job.serviceID} mapping VIN ${v.vin} -> ID ${v.id_s} -> UUID ${v.vehicle_uuid}`
+            `Service ${job.serviceID} mapping VIN ${v.vin} -> UUID ${v.vehicle_uuid}`
           );
         } else {
           log(
             LogLevel.Debug,
-            `Service ${job.serviceID} ignoring VIN ${v.vin} -> ID ${v.id_s} -> UUID ${v.vehicle_uuid}`
+            `Service ${job.serviceID} ignoring VIN ${v.vin} -> UUID ${v.vehicle_uuid}`
           );
         }
       }
@@ -1079,9 +1066,9 @@ export class TeslaAgent extends AbstractAgent {
           return true; // Already correct
 
         if (action.data.enable) {
-          await teslaAPI.climateOn(subject.teslaID, job.serviceData.token);
+          await teslaAPI.climateOn(subject.vin, job.serviceData.token);
         } else {
-          await teslaAPI.climateOff(subject.teslaID, job.serviceData.token);
+          await teslaAPI.climateOff(subject.vin, job.serviceData.token);
         }
       }
     }

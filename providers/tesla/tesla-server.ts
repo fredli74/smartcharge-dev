@@ -153,7 +153,6 @@ const server: IProviderServer = {
 
               // Add everything that should be controlled
               for (const l of list) {
-                const teslaID = l.id_s;
                 const vin = l.vin;
 
                 mapped[vin] = mapped[vin] || s.service_uuid;
@@ -177,7 +176,7 @@ const server: IProviderServer = {
                     );
                     log(
                       LogLevel.Info,
-                      `Set service_uuid on ${teslaID}:${vehicle.vehicle_uuid} to ${vehicle.service_uuid}`
+                      `Set service_uuid on ${vin}:${vehicle.vehicle_uuid} to ${vehicle.service_uuid}`
                     );
                   }
                 }

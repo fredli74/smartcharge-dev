@@ -148,10 +148,9 @@ export default class TeslaVue extends Vue {
         query: TeslaProviderQueries.Vehicles,
         token: newProvider,
       })) {
-        let entry = this.allProviderVehicles.find((f) => f.id === v.id_s);
+        let entry = this.allProviderVehicles.find((f) => f.vin === v.vin);
         if (!entry) {
           entry = {
-            id: v.id_s,
             vin: v.vin,
             name: v.display_name,
             vehicle_uuid: v.vehicle_uuid,
