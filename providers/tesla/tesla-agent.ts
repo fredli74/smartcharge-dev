@@ -109,187 +109,6 @@ export class TeslaAgent extends AbstractAgent {
     }
   }
 
-  public async setOptionCodes(subject: TeslaSubject, data: any) {
-    assert(subject.data !== undefined);
-    assert(subject.data.providerData !== undefined);
-    assert(data !== undefined);
-    assert(data.vehicle_config !== undefined);
-
-    /***** No option codes are correct from the API, so I make my own *****/
-
-    const config = data.vehicle_config;
-    let option_codes = [];
-
-    let unknown_image = null;
-
-    type carOption = string[] | string | null;
-    function optionMap(
-      value: Record<string, carOption> | carOption
-    ): carOption {
-      if (value === null || Array.isArray(value) || typeof value === "string") {
-        return value;
-      }
-      return value[config.car_type];
-    }
-    function optionTranslate(
-      field: string,
-      a: Record<string, Record<string, carOption> | carOption>
-    ): carOption | undefined {
-      const d = String(config[field]);
-      if (d === "undefined") {
-        log(
-          LogLevel.Info,
-          `${subject.teslaID} vehicle_config contains no ${field}`
-        );
-        return undefined;
-      } else if (a[d] === undefined) {
-        log(
-          LogLevel.Warning,
-          `${subject.teslaID} unknown vehicle_config.${field} = ${d}`
-        );
-        unknown_image = true;
-        return undefined;
-      }
-      return optionMap(a[d]);
-    }
-
-    const performance =
-      config.performance_package === "Performance" ||
-      (typeof config.trim_badging === "string" &&
-        config.trim_badging.match(/^p/i) !== null);
-
-    // Model extra defaults
-    option_codes.push(
-      optionMap({
-        models: [
-          "MI02", // force nose cone
-          "RFP2", // roof color
-          ...(performance
-            ? [
-                "BC0R", // Red Brake Calipers
-                "X024", // Performance Package
-              ]
-            : []),
-        ],
-        models2: [
-          "MI03", // force facelift
-          "RFFG", // roof color
-        ],
-        modelx: [
-          "RFPX", // roof color
-        ],
-        modely: [
-          "RF3G", // roof color
-        ],
-        model3: [
-          "RF3G", // roof color
-        ],
-      })
-    );
-
-    option_codes.push(
-      optionTranslate("exterior_color", {
-        MidnightSilver: "PMNG",
-        DeepBlue: "PPSB",
-        SolidBlack: "PBSB",
-        SteelGrey: "PMNG",
-        RedMulticoat: "PPMR",
-        Pearl: "PPSW",
-        PearlWhite: "PPSW",
-        SilverMetallic: "PMSS",
-        Blue: "PMMB",
-        Black: "PBSB",
-        Red: "PPMR",
-        White: "PBCW", // old model S Cataline White
-      }) || "PPSW"
-    );
-
-    option_codes.push(
-      optionTranslate("spoiler_type", {
-        Passive: {
-          models: "X019",
-          models2: "X019",
-          modelx: "X021",
-          model3: "SLR1",
-          modely: "SLR1",
-        },
-        None: null,
-      })
-    );
-
-    if (typeof config.exterior_trim === "string") {
-      option_codes.push(
-        optionTranslate("exterior_trim", {
-          Chrome: {
-            model3: "MT304",
-          },
-          Black: {
-            model3: performance ? ["MT317", "IPB1"] : ["MT315", "IPB0"],
-          },
-        })
-      );
-    }
-
-    option_codes.push(
-      optionTranslate("wheel_type", {
-        Pinwheel18: "W38B",
-        Pinwheel18CapKit: "W32D", // Performance wheels place holder until we can find the correct ones
-        Stiletto19: "W39B",
-        PinwheelRefresh18: "W40B",
-        StilettoRefresh19: "W41B",
-        Stiletto20: "W32B",
-        Slipstream19Carbon: "WTDS",
-        AeroTurbine19: "WTAS",
-        AeroTurbine20: "WT20",
-        Turbine19: "WTTB",
-        Turbine22Dark: "WTUT",
-        Charcoal21: "WTSP",
-        Base19: "WT19", // does not work on facelift model s
-        Apollo19: "WY19B",
-        Induction20Black: "WY20P",
-        Super21Gray: "WTSG",
-        UberTurbine20Gunpowder: "W33D",
-        Silver21: "WTSS",
-      }) ||
-        optionMap({
-          models: "WTAS",
-          models2: "WTDS",
-          modelx: "WT20",
-          model3: performance ? "W33D" : "W38B",
-          modely: "WY19B",
-        })
-    );
-
-    option_codes.push(
-      optionTranslate("rhd", {
-        true: "DRRH",
-        false: null,
-      })
-    );
-
-    option_codes = option_codes
-      .flat(Infinity)
-      .filter((f) => f !== undefined && f !== null)
-      .sort();
-
-    if (
-      subject.data.providerData.car_type !== config.car_type ||
-      Boolean(subject.data.providerData.unknown_image) !==
-        Boolean(unknown_image) ||
-      JSON.stringify(subject.data.providerData.option_codes) !==
-        JSON.stringify(option_codes)
-    ) {
-      await this.scClient.updateVehicle({
-        id: subject.vehicleUUID,
-        providerData: {
-          car_type: config.car_type,
-          unknown_image: unknown_image,
-          option_codes: option_codes,
-        },
-      });
-    }
-  }
-
   // Check token and refresh through server provider API
   public async maintainToken(job: TeslaAgentJob) {
     // API Token check and update
@@ -554,7 +373,38 @@ export class TeslaAgent extends AbstractAgent {
           this.stayOnline(subject);
         }
         await this.scClient.updateVehicleData(input);
-        await this.setOptionCodes(subject, data);
+
+        // Set car_type and option_codes if missing
+        if (
+          subject.data.providerData.unknown_image ||
+          subject.data.providerData.car_type === undefined ||
+          subject.data.providerData.option_codes === undefined
+        ) {
+          const option_codes = [];
+          const options = await teslaAPI.getVehicleOptions(
+            subject.vin,
+            job.serviceData.token
+          );
+          let unknown_image;
+          if (Array.isArray(options.codes)) {
+            unknown_image = null;
+            for (const entry of options.codes) {
+              if (entry.isActive) {
+                option_codes.push(entry.code);
+              }
+            }
+          } else {
+            unknown_image = true;
+          }
+          await this.scClient.updateVehicle({
+            id: subject.vehicleUUID,
+            providerData: {
+              car_type: data.vehicle_config.car_type,
+              unknown_image,
+              option_codes,
+            },
+          });
+        }
 
         // Charge calibration
         if (

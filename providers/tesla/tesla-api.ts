@@ -187,6 +187,12 @@ export class TeslaAPI {
       token.access_token
     );
   }
+  public async getVehicleOptions(id: string, token: TeslaToken) {
+    return await this.ownerAPI.get(
+      `/api/1/dx/vehicles/options?vin=${id}`,
+      token.access_token
+    );
+  }
 }
 const teslaAPI = new TeslaAPI(
   new RestClient({

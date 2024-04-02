@@ -14,12 +14,14 @@ export function vehicleImage(
   sideView?: boolean,
   dark?: boolean
 ): string {
-  let options = ["W38B", "PPSW"];
-  if (vehicle.providerData.option_codes) {
-    options = vehicle.providerData.option_codes;
-  }
-  let model = "m3";
+  let model = "my";
   let background = 1;
+  const options = vehicle.providerData.option_codes || [
+    "$MTY13",
+    "$PPSW",
+    "$WY19B",
+    "$INPB0",
+  ];
   switch (vehicle.providerData.car_type) {
     case "models":
       model = "msl";
@@ -45,15 +47,23 @@ export function vehicleImage(
       if (sideView) {
         for (let i = 0; i < options.length; ++i) {
           // W32 does not exist in side view
-          if (options[i] === "W32B" || options[i] === "W32D") {
-            options[i] = "W39B";
+          if (options[i] === "$W32B" || options[i] === "$W32D") {
+            options[i] = "$W39B";
           }
           // Refreshed stiletto only works in 3QTR view without black trim
-          if (options[i] === "W41B") {
-            options[i] = "W39B";
+          if (options[i] === "$W41B") {
+            options[i] = "$W39B";
           }
         }
       }
+      break;
+    case "lychee":
+      model = "ms";
+      options.unshift("$IBC00");
+      break;
+    case "tamarind":
+      model = "mx";
+      options.unshift("$IBC00");
       break;
   }
   const view = `STUD_${sideView ? "SIDE" : "3QTR"}`;
