@@ -71,7 +71,7 @@ export class DBInterface {
     const pg = pgp(DB_OPTIONS);
     this.pg = pg({
       connectionString: config.DATABASE_URL,
-      max: config.DATABASE_CONNECTIONS || 10,
+      max: parseInt(config.DATABASE_CONNECTIONS) || 10,
       ssl:
         config.DATABASE_SSL === "true"
           ? {

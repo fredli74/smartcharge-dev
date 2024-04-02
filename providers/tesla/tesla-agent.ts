@@ -328,7 +328,7 @@ export class TeslaAgent extends AbstractAgent {
 
   private stayOnline(subject: TeslaSubject) {
     this.changePollstate(subject, "polling"); // Active polling
-    subject.keepAwake = Date.now() + config.TIME_BEFORE_TIRED;
+    subject.keepAwake = Date.now() + parseInt(config.TIME_BEFORE_TIRED);
   }
 
   private async vehicleInteraction(
@@ -394,7 +394,7 @@ export class TeslaAgent extends AbstractAgent {
           LogLevel.Trace,
           `${subject.teslaID} full poll : ${JSON.stringify(data)}`
         );
-        if (config.AGENT_SAVE_TO_TRACEFILE) {
+        if (config.AGENT_SAVE_TO_TRACEFILE === "true") {
           const s = logFormat(LogLevel.Trace, data);
           fs.writeFileSync(config.AGENT_TRACE_FILENAME, `${s}\n`, {
             flag: "as",
@@ -508,14 +508,14 @@ export class TeslaAgent extends AbstractAgent {
           await this.setStatus(subject, "Charging"); // We are charging
           insomnia = true; // Can not sleep while charging
           // this.adjustInterval(job, 10); // Poll more often when charging
-          this.adjustInterval(job, config.TESLA_POLL_INTERVAL); // not allowed to poll more than 5 minutes now
+          this.adjustInterval(job, parseInt(config.TESLA_POLL_INTERVAL)); // not allowed to poll more than 5 minutes now
         } else if (input.isDriving) {
           await this.setStatus(subject, "Driving"); // We are driving
           insomnia = true; // Can not sleep while driving
           // this.adjustInterval(job, 10); // Poll more often when driving
-          this.adjustInterval(job, config.TESLA_POLL_INTERVAL); // not allowed to poll more than 5 minutes now
+          this.adjustInterval(job, parseInt(config.TESLA_POLL_INTERVAL)); // not allowed to poll more than 5 minutes now
         } else {
-          this.adjustInterval(job, config.TESLA_POLL_INTERVAL);
+          this.adjustInterval(job, parseInt(config.TESLA_POLL_INTERVAL));
           if (data.vehicle_state.is_user_present) {
             await this.setStatus(subject, "Idle (user present)");
             insomnia = true;
@@ -618,7 +618,7 @@ export class TeslaAgent extends AbstractAgent {
         const data = (
           await teslaAPI.listVehicle(subject.teslaID, job.serviceData.token)
         ).response;
-        if (config.AGENT_SAVE_TO_TRACEFILE) {
+        if (config.AGENT_SAVE_TO_TRACEFILE === "true") {
           const s = logFormat(LogLevel.Trace, data);
           fs.writeFileSync(config.AGENT_TRACE_FILENAME, `${s}\n`, {
             flag: "as",
@@ -629,7 +629,7 @@ export class TeslaAgent extends AbstractAgent {
           `${subject.teslaID} list poll : ${JSON.stringify(data)}`
         );
 
-        this.adjustInterval(job, config.TESLA_POLL_INTERVAL);
+        this.adjustInterval(job, parseInt(config.TESLA_POLL_INTERVAL));
         switch (data.state) {
           case "online":
             if (
@@ -812,7 +812,7 @@ export class TeslaAgent extends AbstractAgent {
             if (!subject.calibrating) {
               subject.calibrating = {
                 level: Math.max(
-                  config.LOWEST_POSSIBLE_CHARGETO,
+                  parseInt(config.LOWEST_POSSIBLE_CHARGETO),
                   subject.data.batteryLevel
                 ),
                 duration: 0,
@@ -835,7 +835,10 @@ export class TeslaAgent extends AbstractAgent {
             delete subject.calibrating;
           }
 
-          const chargeto = Math.max(config.LOWEST_POSSIBLE_CHARGETO, setLevel); // Minimum allowed charge for Tesla is 50
+          const chargeto = Math.max(
+            parseInt(config.LOWEST_POSSIBLE_CHARGETO),
+            setLevel
+          ); // Minimum allowed charge for Tesla is 50
 
           if (
             subject.chargeLimit !== undefined && // Only controll if polled at least once
@@ -905,10 +908,13 @@ export class TeslaAgent extends AbstractAgent {
         const trip = schedule[GQLScheduleType.Trip];
         const after =
           !trip ||
-          now > numericStopTime(trip.time) + config.TRIP_HVAC_ON_DURATION;
+          now >
+            numericStopTime(trip.time) + parseInt(config.TRIP_HVAC_ON_DURATION);
         const inWindow =
           trip &&
-          now >= numericStartTime(trip.time) - config.TRIP_HVAC_ON_WINDOW &&
+          now >=
+            numericStartTime(trip.time) -
+              parseInt(config.TRIP_HVAC_ON_WINDOW) &&
           !after;
 
         if (inWindow && !subject.hvacOn && !subject.hvacOverride) {
@@ -945,13 +951,13 @@ export class TeslaAgent extends AbstractAgent {
         }
       }
     } catch (err: any) {
-      if (config.AGENT_SAVE_TO_TRACEFILE) {
+      if (config.AGENT_SAVE_TO_TRACEFILE === "true") {
         const s = logFormat(LogLevel.Error, err);
         fs.writeFileSync(config.AGENT_TRACE_FILENAME, `${s}\n`, { flag: "as" });
       }
 
       subject.pollerror = err.code;
-      this.adjustInterval(job, config.TESLA_POLL_INTERVAL); // avoid spam polling an interface that is down
+      this.adjustInterval(job, parseInt(config.TESLA_POLL_INTERVAL)); // avoid spam polling an interface that is down
 
       // this.changePollstate(subject, "offline");
       // this.adjustInterval(job, 10); // Try again

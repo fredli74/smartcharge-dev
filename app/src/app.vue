@@ -224,6 +224,9 @@ body {
 input,
 textarea {
   -moz-user-select: text;
+  -webkit-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
 }
 .v-list-item--link:before {
   z-index: 1;
