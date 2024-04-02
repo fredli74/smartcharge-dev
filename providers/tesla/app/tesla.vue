@@ -33,6 +33,20 @@
           subheader="Already added"
         />
       </div>
+      <div
+        class="
+          justify-center
+          text-center text-subtitle-2 text-uppercase
+          red--text
+          text--darken-4
+        "
+      >
+        The newest Tesla vehicles require a
+        <a :href="teslaVirtualKeyUrl" target="_blank" rel="noopener noreferrer"
+          >Virtual Key</a
+        >
+        to control charging.
+      </div>
     </div>
   </div>
 </template>
@@ -57,6 +71,7 @@ import provider, {
 const AUTHORIZE_URL = "https://auth.tesla.com/oauth2/v3/authorize";
 const CLIENT_ID = "45618b860d7c-4186-89f4-2374bc1b1b83";
 const REDIRECT_URL = `${window.location.origin}/provider/tesla/auth`;
+const TESLA_VIRTUAL_KEY_URL = `https://tesla.com/_ak/${window.location.hostname}`;
 const SCOPE =
   "openid offline_access vehicle_device_data vehicle_cmds vehicle_charging_cmds";
 
@@ -81,6 +96,9 @@ export default class TeslaVue extends Vue {
   }
   get newVehiclesConnected() {
     return this.allProviderVehicles.filter((f) => f.vehicle_uuid !== undefined);
+  }
+  get teslaVirtualKeyUrl() {
+    return TESLA_VIRTUAL_KEY_URL;
   }
 
   // HOOKS

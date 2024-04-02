@@ -89,7 +89,11 @@ export class RestClient {
       opt.headers["User-Agent"] = DEFAULT_AGENT;
     }
     if (typeof bearerToken === "string") {
-      opt.headers["Authorization"] = `Bearer ${bearerToken}`;
+      opt.headers[
+        opt.headers["Authorization"] !== undefined
+          ? "X-Forwarded-Authorization"
+          : "Authorization"
+      ] = `Bearer ${bearerToken}`;
     }
     const postData = JSON.stringify(data);
     if (postData) {

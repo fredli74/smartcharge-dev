@@ -5,7 +5,7 @@
  * @license MIT (MIT)
  */
 
-import { RestClient, RestClientError } from "@shared/restclient";
+import { RestClient, RestClientError, Options } from "@shared/restclient";
 import config from "./tesla-config";
 import { log, LogLevel } from "@shared/utils";
 import { TeslaToken } from ".";
@@ -194,19 +194,36 @@ export class TeslaAPI {
     );
   }
 }
-const teslaAPI = new TeslaAPI(
-  new RestClient({
+
+let apiClient: RestClient;
+if (config.TESLA_COMMAND_PROXY !== "") {
+  const url = new URL(config.TESLA_COMMAND_PROXY as any);
+  const options: Options = {
+    baseURL: url.origin,
+    timeout: 120e3,
+  };
+  if (url.username && url.password) {
+    const creds = Buffer.from(`${url.username}:${url.password}`).toString(
+      `base64`
+    );
+    options.headers = {
+      Authorization: `Basic ${creds}`,
+    };
+  }
+  apiClient = new RestClient(options);
+} else {
+  apiClient = new RestClient({
     baseURL: config.TESLA_API_BASE_URL,
-    headers: config.TESLA_API_HEADERS,
     proxy: config.TESLA_API_PROXY,
     timeout: 120e3,
-  }),
-  new RestClient({
-    baseURL: config.TESLA_AUTH_BASE_URL,
-    headers: config.TESLA_AUTH_HEADERS,
-    proxy: config.TESLA_AUTH_PROXY,
-    timeout: 60e3,
-  })
-);
+  });
+}
+const authClient = new RestClient({
+  baseURL: config.TESLA_AUTH_BASE_URL,
+  proxy: config.TESLA_AUTH_PROXY,
+  timeout: 60e3,
+});
+
+const teslaAPI = new TeslaAPI(apiClient, authClient);
 
 export default teslaAPI;

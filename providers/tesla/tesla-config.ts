@@ -1,19 +1,11 @@
 const config = {
+  TESLA_COMMAND_PROXY: ``,
+
   TESLA_API_BASE_URL: `https://fleet-api.prd.eu.vn.cloud.tesla.com`,
   TESLA_API_PROXY: ``,
-  TESLA_API_HEADERS: {
-    "User-Agent": `curl/7.64.1`,
-  },
-  // User agent was ${PROJECT_AGENT} ${provider.name}/${provider.version}`,
-  // then we had to use `curl/7.64.1`
 
   TESLA_AUTH_BASE_URL: `https://auth.tesla.com/`,
   TESLA_AUTH_PROXY: ``,
-  TESLA_AUTH_HEADERS: {
-    "User-Agent": `curl/7.64.1`,
-    //    "x-tesla-user-agent": `TeslaApp/3.10.9-433/adff2e065/android/10`,
-    //    "X-Requested-With": "com.teslamotors.tesla"
-  },
 
   TESLA_CLIENT_ID: `*** INSERT TESLA DEVELOPER APP CREDENTIALS ***`,
   TESLA_CLIENT_SECRET: `*** INSERT TESLA DEVELOPER APP CREDENTIALS ***`,
