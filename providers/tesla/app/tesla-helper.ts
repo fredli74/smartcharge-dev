@@ -16,12 +16,12 @@ export function vehicleImage(
 ): string {
   let model = "my";
   let background = 1;
-  const options = vehicle.providerData.option_codes || [
-    "$MTY13",
-    "$PPSW",
-    "$WY19B",
-    "$INPB0",
-  ];
+  let options =
+    vehicle.providerData.option_codes &&
+    vehicle.providerData.option_codes.length > 0
+      ? vehicle.providerData.option_codes.join(",")
+      : "$MTY13,$PPSW,$WY19B,$INPB0";
+
   switch (vehicle.providerData.car_type) {
     case "models":
       model = "msl";
@@ -45,28 +45,23 @@ export function vehicleImage(
     case "model3":
       model = "m3";
       if (sideView) {
-        for (let i = 0; i < options.length; ++i) {
-          // W32 does not exist in side view
-          if (options[i] === "$W32B" || options[i] === "$W32D") {
-            options[i] = "$W39B";
-          }
-          // Refreshed stiletto only works in 3QTR view without black trim
-          if (options[i] === "$W41B") {
-            options[i] = "$W39B";
-          }
-        }
+        // W32B and W32D does not exist in side view
+        // Refreshed stiletto only works in 3QTR view without black trim
+        options = options.replace(/(\$W32B|\$W32D|\$W41B)/g, "$W39B");
       }
       break;
     case "lychee":
       model = "ms";
-      options.unshift("$IBC00");
       break;
     case "tamarind":
       model = "mx";
-      options.unshift("$IBC00");
       break;
   }
+  // if no $I\DC0\d option is present, add $IBC00
+  if (!options.match(/\$I.C0\d/)) {
+    options = "$IBC00," + options;
+  }
+
   const view = `STUD_${sideView ? "SIDE" : "3QTR"}`;
-  const optionString = options.join(",");
-  return `https://static-assets.tesla.com/v1/compositor/?model=${model}&view=${view}&size=1440&options=${optionString}&bkba_opt=${background}&context=design_studio_2`;
+  return `https://static-assets.tesla.com/v1/compositor/?model=${model}&view=${view}&size=1440&options=${options}&bkba_opt=${background}&context=design_studio_2`;
 }
