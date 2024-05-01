@@ -1370,17 +1370,28 @@ export class Logic {
         if (vehicle.location_uuid) {
           if (startLevel < vehicle.maximum_charge) {
             // Generate an AI schedule
-            ai.charge = true;
             const schedule = stats && (await this.generateAIschedule(vehicle));
-            if (schedule) {
-              ai.level = schedule.level;
-              ai.ts = schedule.ts;
-            } else {
-              // Disable smart charging because without threshold and averages it can not make a good decision
-              log(LogLevel.Debug, `Missing stats for smart charging.`);
-              smartStatus =
-                smartStatus || `Smart charging disabled (still learning)`;
-              ai.learning = true;
+
+            // If we have a trip and ai.ts and schedule.ts is more than 10 hours apart, we should still AI charge
+            if (
+              !trip ||
+              !trip.schedule_ts ||
+              (schedule &&
+                Math.abs(trip.schedule_ts.getTime() - schedule.ts) >
+                  10 * 60 * 60e3)
+            ) {
+              ai.charge = true;
+
+              if (schedule) {
+                ai.level = schedule.level;
+                ai.ts = schedule.ts;
+              } else {
+                // Disable smart charging because without threshold and averages it can not make a good decision
+                log(LogLevel.Debug, `Missing stats for smart charging.`);
+                smartStatus =
+                  smartStatus || `Smart charging disabled (still learning)`;
+                ai.learning = true;
+              }
             }
           }
         }
