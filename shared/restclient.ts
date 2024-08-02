@@ -101,7 +101,7 @@ export class RestClient {
     }
     return new Promise<RestClientResponse>((resolve, reject) => {
       const dispatchError = (e: any, code?: number) => {
-        const s = `request error: ${
+        const s = `request error: ${code ? code + " " : ""}${
           typeof e === "string" ? e : JSON.stringify(e)
         }`;
         reject(new RestClientError(s, code || 500));
