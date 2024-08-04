@@ -110,7 +110,10 @@ export class RestClient {
       const req = requester(url, opt, (res: http.IncomingMessage) => {
         let body = "";
         res.setEncoding("utf8");
-        res.on("error", dispatchError);
+        res.on("error", (e) => {
+          console.log(`RestClientError: Response error: ${e}`);
+          dispatchError(e);
+        });
         res.on("data", (chunk) => (body += chunk));
         res.on("end", () => {
           if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
@@ -122,14 +125,21 @@ export class RestClient {
                 data: data,
               });
             } catch (e: any) {
+              console.log(`RestClientError: Unable to parse JSON`);
+              console.log(`RestClientError: ${body}`);
               dispatchError(e.message);
             }
           } else {
+            console.log(`RestClientError: Non-2xx status: ${res.statusCode}`);
+            console.log(`RestClientError: ${body}`);
             dispatchError(res.statusMessage, res.statusCode);
           }
         });
       });
-      req.on("error", dispatchError);
+      req.on("error", (e) => {
+        console.log(`RestClientError: Request error: ${e}`);
+        dispatchError(e);
+      });
       if (postData) {
         req.write(postData);
       }
