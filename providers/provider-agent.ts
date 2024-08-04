@@ -126,6 +126,7 @@ export abstract class AbstractAgent {
         work.nextrun = now + Math.min(60, work.interval) * 1e3;
       }
       work.running = false;
+      log(LogLevel.Trace, `Agent ${this.name} work done, interval ${work.interval}, next run ${new Date(work.nextrun).toISOString()}`);
     }
   }
 

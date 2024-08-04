@@ -188,7 +188,13 @@ export class TeslaAgent extends AbstractAgent {
 
       if (!subject.data || subject.data.providerData.disabled) {
         subject.data = await this.scClient.getVehicle(subject.vehicleUUID);
-        if (subject.data.providerData.disabled) return;
+        if (subject.data.providerData.disabled) {
+          log(
+            LogLevel.Trace,
+            `${subject.vin} disabled by user for ${subject.data.name}`
+          );
+          return;
+        }
       }
 
       await this.maintainToken(job);
@@ -851,7 +857,13 @@ export class TeslaAgent extends AbstractAgent {
   }
 
   public async serviceWork(job: TeslaAgentJob) {
-    if (job.serviceData.invalid_token) return; // provider requires a valid token
+    if (job.serviceData.invalid_token) {
+      log(
+        LogLevel.Trace,
+        `Service ${job.serviceID} has an invalid token, skipping work`
+      );
+      return;
+    }
 
     if (
       !job.mapped ||
