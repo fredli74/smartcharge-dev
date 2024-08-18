@@ -201,14 +201,16 @@ if (config.TESLA_COMMAND_PROXY !== "") {
   const options: Options = {
     baseURL: url.origin,
     timeout: 120e3,
+    headers: {
+      Accept: "*/*",
+      "User-Agent": "smartcharge.dev/1.0",
+    }
   };
   if (url.username && url.password) {
     const creds = Buffer.from(`${url.username}:${url.password}`).toString(
       `base64`
     );
-    options.headers = {
-      Authorization: `Basic ${creds}`,
-    };
+    options.headers!.Authorization = `Basic ${creds}`;
   }
   apiClient = new RestClient(options);
 } else {
@@ -216,12 +218,20 @@ if (config.TESLA_COMMAND_PROXY !== "") {
     baseURL: config.TESLA_API_BASE_URL,
     proxy: config.TESLA_API_PROXY,
     timeout: 120e3,
+    headers: {
+      Accept: "*/*",
+      "User-Agent": "smartcharge.dev/1.0",
+    }
   });
 }
 const authClient = new RestClient({
   baseURL: config.TESLA_AUTH_BASE_URL,
   proxy: config.TESLA_AUTH_PROXY,
   timeout: 60e3,
+  headers: {
+    Accept: "*/*",
+    "User-Agent": "smartcharge.dev/1.0",
+  }
 });
 
 const teslaAPI = new TeslaAPI(apiClient, authClient);
