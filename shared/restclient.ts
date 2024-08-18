@@ -110,7 +110,7 @@ export class RestClient {
       };
 
       const req = requester(url, opt, (res: http.IncomingMessage) => {
-        let stream = res;
+        let stream: NodeJS.ReadableStream = res;
 
         // Handle gzip and deflate responses
         const encoding = res.headers['content-encoding'];
