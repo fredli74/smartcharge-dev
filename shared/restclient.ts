@@ -8,6 +8,7 @@
 import * as https from "https";
 import * as http from "http";
 import * as https_proxy_agent from "https-proxy-agent";
+import * as zlib from "zlib";
 
 import { mergeURL } from "./utils";
 
@@ -83,6 +84,7 @@ export class RestClient {
         ...this.options.headers,
         Accept: "application/json",
         "Content-Type": "application/json",
+        "Accept-Encoding": "gzip, deflate"
       },
     };
     if (opt.headers["User-Agent"] === undefined) {
@@ -108,14 +110,24 @@ export class RestClient {
       };
 
       const req = requester(url, opt, (res: http.IncomingMessage) => {
+        let stream = res;
+
+        // Handle gzip and deflate responses
+        const encoding = res.headers['content-encoding'];
+        if (encoding === 'gzip') {
+          stream = res.pipe(zlib.createGunzip());
+        } else if (encoding === 'deflate') {
+          stream = res.pipe(zlib.createInflate());
+        }
+
         let body = "";
-        res.setEncoding("utf8");
-        res.on("error", (e) => {
+        stream.setEncoding("utf8");
+        stream.on("error", (e) => {
           console.log(`RestClientError: Response error: ${e}`);
           dispatchError(e);
         });
-        res.on("data", (chunk) => (body += chunk));
-        res.on("end", () => {
+        stream.on("data", (chunk) => (body += chunk));
+        stream.on("end", () => {
           if (res.statusCode && res.statusCode >= 200 && res.statusCode < 300) {
             try {
               const data = JSON.parse(body);
