@@ -43,14 +43,20 @@ export async function maintainToken(
       token.expires_at !== undefined &&
       !TeslaAPI.tokenExpired(token as TeslaToken)
     ) {
+      log(LogLevel.Trace, `Token ${token.access_token} is still valid`);
       return token as TeslaToken;
     }
+    log(LogLevel.Trace, `Token ${token.access_token} is invalid, calling renewToken`);
     const newToken = await teslaAPI.renewToken(token.refresh_token);
     validToken(db, token.refresh_token, newToken);
     return newToken;
-  } catch (err) {
-    log(LogLevel.Error, err);
-    invalidToken(db, token);
+  } catch (err:any) {
+    if (err && err.message === "login_required") {
+      log(LogLevel.Warning, `Token ${token.refresh_token} is invalid (login_required)`);
+      invalidToken(db, token);
+    } else {
+      log(LogLevel.Error, `Unexpected error raised when renewing token ${JSON.stringify(err)}`);
+    }
     throw new ApolloError("Invalid token", "INVALID_TOKEN");
   }
 }
@@ -205,6 +211,7 @@ const server: IProviderServer = {
         return await authorize(context.db, data.code, data.callbackURI);
       }
       case TeslaProviderMutates.RefreshToken: {
+        log(LogLevel.Trace, `TeslaProviderMutates.RefreshToken ${JSON.stringify(data)}`);
         return await maintainToken(
           context.db,
           data.token

@@ -62,14 +62,17 @@ export class TeslaAPI {
   ): Promise<TeslaToken> {
     try {
       log(LogLevel.Trace, `authorize(${code}, ${callbackURI})`);
-      const authResponse = (await this.authAPI.post("/oauth2/v3/token", {
-        grant_type: "authorization_code",
-        client_id: config.TESLA_CLIENT_ID,
-        client_secret: config.TESLA_CLIENT_SECRET,
-        code: code,
-        audience: config.TESLA_API_BASE_URL,
-        redirect_uri: callbackURI,
-      })) as any;
+
+      // Tesla authAPI expects form data in the body
+      const formData = new URLSearchParams();
+      formData.append("grant_type", "authorization_code");
+      formData.append("client_id", config.TESLA_CLIENT_ID);
+      formData.append("client_secret", config.TESLA_CLIENT_SECRET);
+      formData.append("code", code);
+      formData.append("audience", config.TESLA_API_BASE_URL);
+      formData.append("redirect_uri", callbackURI);
+
+      const authResponse = (await this.authAPI.post("/oauth2/v3/token", formData.toString())) as any;
       return this.parseTokenResponse(authResponse);
     } catch (e) {
       console.debug(`TeslaAPI.authorize error: ${e}`);
@@ -81,14 +84,13 @@ export class TeslaAPI {
     try {
       log(LogLevel.Trace, `renewToken(${refresh_token})`);
 
-      // Tesla authentication is multi layered at the moment
-      // First you need to renew the new Tesla SSO access token by using
-      // the refresh token from previous oauth2/v3 authorization
-      const authResponse = (await this.authAPI.post("/oauth2/v3/token", {
-        grant_type: "refresh_token",
-        client_id: config.TESLA_CLIENT_ID,
-        refresh_token: refresh_token,
-      })) as any;
+      // Tesla authAPI expects form data in the body
+      const formData = new URLSearchParams();
+      formData.append("grant_type", "refresh_token");
+      formData.append("client_id", config.TESLA_CLIENT_ID);
+      formData.append("refresh_token", refresh_token);
+
+      const authResponse = (await this.authAPI.post("/oauth2/v3/token", formData.toString())) as any;
       return this.parseTokenResponse(authResponse);
     } catch (e) {
       console.debug(`TeslaAPI.renewToken error: ${e}`);
@@ -231,6 +233,7 @@ const authClient = new RestClient({
   headers: {
     Accept: "*/*",
     "User-Agent": "smartcharge.dev/1.0",
+    "Content-Type": "application/x-www-form-urlencoded",
   }
 });
 

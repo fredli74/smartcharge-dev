@@ -71,7 +71,7 @@ export class RestClient {
     method: string,
     relativeURL: string,
     data: any,
-    bearerToken?: string
+    bearerToken?: string,
   ): Promise<RestClientResponse> {
     const url = mergeURL(this.options.baseURL, relativeURL);
     const secure = /^https:/.test(url);
@@ -81,10 +81,10 @@ export class RestClient {
       method: method,
       timeout: this.options.timeout,
       headers: {
-        ...this.options.headers,
         Accept: "application/json",
         "Content-Type": "application/json",
-        "Accept-Encoding": "gzip, deflate"
+        "Accept-Encoding": "gzip, deflate",
+        ...this.options.headers,
       },
     };
     if (opt.headers["User-Agent"] === undefined) {
@@ -97,15 +97,14 @@ export class RestClient {
           : "Authorization"
       ] = `Bearer ${bearerToken}`;
     }
-    const postData = JSON.stringify(data);
+    // Check if data is a string, if not assume it is JSON
+    const postData = typeof data === "string" ? data : JSON.stringify(data);
     if (postData) {
       opt.headers["Content-Length"] = Buffer.byteLength(postData);
     }
     return new Promise<RestClientResponse>((resolve, reject) => {
       const dispatchError = (e: any, code?: number) => {
-        const s = `request error: ${code ? code + " " : ""}${
-          typeof e === "string" ? e : JSON.stringify(e)
-        }`;
+        const s = (typeof e === "string" ? e : `${code ? code + " " : ""}${JSON.stringify(e)}`);
         reject(new RestClientError(s, code || 500));
       };
 
@@ -144,7 +143,14 @@ export class RestClient {
           } else {
             console.log(`RestClientError: Non-2xx status: ${res.statusCode}`);
             console.log(`RestClientError: ${body}`);
-            dispatchError(res.statusMessage, res.statusCode);
+            try {
+              const data = JSON.parse(body);
+              const message = data.message || data.error || JSON.stringify(data);
+              console.log(`RestClientError: ${message}`);
+              dispatchError(message, res.statusCode);
+            } catch (e: any) {
+              dispatchError(res.statusMessage, res.statusCode);
+            }
           }
         });
       });

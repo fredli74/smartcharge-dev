@@ -114,6 +114,7 @@ export class TeslaAgent extends AbstractAgent {
     // API Token check and update
     const token = job.serviceData.token as TeslaToken;
     if (TeslaAPI.tokenExpired(token)) {
+      log(LogLevel.Trace, `${job.serviceID} token expired, calling server API for refresh`);
       // Token has expired, run it through server
       const newToken = await this.scClient.providerMutate("tesla", {
         mutation: TeslaProviderMutates.RefreshToken,
