@@ -91,6 +91,7 @@ export class TeslaAPI {
       formData.append("refresh_token", refresh_token);
 
       const authResponse = (await this.authAPI.post("/oauth2/v3/token", formData.toString())) as any;
+      log(LogLevel.Trace, `renewToken response: ${JSON.stringify(authResponse)}`);
       return this.parseTokenResponse(authResponse);
     } catch (e) {
       console.debug(`TeslaAPI.renewToken error: ${e}`);

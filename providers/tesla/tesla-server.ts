@@ -46,6 +46,15 @@ export async function maintainToken(
       log(LogLevel.Trace, `Token ${token.access_token} is still valid`);
       return token as TeslaToken;
     }
+    
+    await db.pg.none(
+      `UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $2) WHERE service_data @> $1;`,
+      [
+        { token: { refresh_token: token.refresh_token } },
+        { renewing_token: true },
+      ]
+    );
+
     log(LogLevel.Trace, `Token ${token.access_token} is invalid, calling renewToken`);
     const newToken = await teslaAPI.renewToken(token.refresh_token);
     validToken(db, token.refresh_token, newToken);
@@ -70,7 +79,7 @@ async function validToken(
     `UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $2) WHERE service_data @> $1 RETURNING *;`,
     [
       { token: { refresh_token: oldRefreshToken } },
-      { updated: Date.now(), token: newToken, invalid_token: null },
+      { updated: Date.now(), token: newToken, invalid_token: null, renewing_token: null },
     ]
   );
   for (const s of dblist) {
