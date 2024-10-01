@@ -30,6 +30,9 @@ export async function authorize(
   }
 }
 
+// Maintain a map to track ongoing token renewals
+const tokenLocks: Map<string, Promise<TeslaToken>> = new Map();
+
 // Check token and refresh through direct database update
 export async function maintainToken(
   db: DBInterface,
@@ -37,35 +40,49 @@ export async function maintainToken(
     Pick<TeslaToken, "refresh_token">
 ): Promise<TeslaToken> {
   log(LogLevel.Trace, `maintainToken ${JSON.stringify(token)}`);
-  try {
-    if (
-      token.access_token !== undefined &&
-      token.expires_at !== undefined &&
-      !TeslaAPI.tokenExpired(token as TeslaToken)
-    ) {
-      log(LogLevel.Trace, `Token ${token.access_token} is still valid`);
-      return token as TeslaToken;
-    }
-
-    assert(token.refresh_token !== undefined);
-    if (token.access_token) {
-      log(LogLevel.Trace, `Token ${token.access_token} is expired, calling renewToken`);
-    } else {
-      log(LogLevel.Trace, `Client pre-emptively requrested token refresh on ${token.refresh_token}`);
-    }
-
-    const newToken = await teslaAPI.renewToken(token.refresh_token);
-    validToken(db, token.refresh_token, newToken);
-    return newToken;
-  } catch (err:any) {
-    if (err && err.message === "login_required") {
-      log(LogLevel.Warning, `Token ${token.refresh_token} is invalid (login_required)`);
-      invalidToken(db, token);
-    } else {
-      log(LogLevel.Error, `Unexpected error raised when renewing token ${JSON.stringify(err)}`);
-    }
-    throw new ApolloError("Invalid token", "INVALID_TOKEN");
+  if (
+    token.access_token !== undefined &&
+    token.expires_at !== undefined &&
+    !TeslaAPI.tokenExpired(token as TeslaToken)
+  ) {
+    log(LogLevel.Trace, `Token ${token.access_token} is still valid`);
+    return token as TeslaToken;
   }
+
+  assert(token.refresh_token !== undefined);
+
+  if (token.access_token) {
+    log(LogLevel.Trace, `Token ${token.access_token} is expired, calling renewToken`);
+  } else {
+    log(LogLevel.Trace, `Client pre-emptively requested token refresh on ${token.refresh_token}`);
+  }
+  
+  let renewal = tokenLocks.get(token.refresh_token);
+  if (!renewal) {
+    renewal = (async () => {
+      try {
+        const newToken = await teslaAPI.renewToken(token.refresh_token);
+        validToken(db, token.refresh_token, newToken);
+        return newToken;
+      } catch(err:any) {
+        if (err && err.message === "login_required") {
+          log(LogLevel.Warning, `Token ${token.refresh_token} is invalid (login_required)`);
+          invalidToken(db, token);
+        } else {
+          log(LogLevel.Error, `Unexpected error raised when renewing token ${JSON.stringify(err)}`);
+        }
+        throw new ApolloError("Invalid token", "INVALID_TOKEN");
+      } finally {
+        tokenLocks.delete(token.refresh_token);
+      }
+    })();
+    tokenLocks.set(token.refresh_token, renewal);
+  } else {
+    log(LogLevel.Trace, `Token ${token.refresh_token} is already being refreshed, waiting for it to complete`);
+  }
+
+  // Wait for the renewal process to complete (all callers will get the same result or error)
+  return await renewal;
 }
 
 async function validToken(
