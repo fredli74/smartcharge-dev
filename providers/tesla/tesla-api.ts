@@ -80,7 +80,20 @@ export class TeslaAPI {
     }
   }
 
+  /**
+   * WARNING: This function is not safe for multiple concurrent calls with the same refresh_token.
+   * Ensure that only one call is made at a time for each refresh_token.
+   * @throws Will throw an error if the function is called concurrently with the same refresh_token.
+   */
+  private renewTokenLock: Set<string> = new Set();
   public async renewToken(refresh_token: string): Promise<TeslaToken> {
+    if (this.renewTokenLock.has(refresh_token)) {
+      throw new RestClientError(
+        `Concurrent renewToken(${refresh_token}) calls are not allowed`,
+        500
+      );
+    }
+    this.renewTokenLock.add(refresh_token);
     try {
       log(LogLevel.Trace, `TeslaAPI.renewToken(${refresh_token})`);
 
@@ -96,6 +109,8 @@ export class TeslaAPI {
     } catch (e) {
       console.debug(`TeslaAPI.renewToken(${refresh_token}) error: ${e}`);
       throw e;
+    } finally {
+      this.renewTokenLock.delete(refresh_token);
     }
   }
 
