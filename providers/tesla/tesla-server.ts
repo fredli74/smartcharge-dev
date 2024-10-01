@@ -46,7 +46,14 @@ export async function maintainToken(
       log(LogLevel.Trace, `Token ${token.access_token} is still valid`);
       return token as TeslaToken;
     }
-    log(LogLevel.Trace, `Token ${token.access_token} is invalid, calling renewToken`);
+
+    assert(token.refresh_token !== undefined);
+    if (token.access_token) {
+      log(LogLevel.Trace, `Token ${token.access_token} is expired, calling renewToken`);
+    } else {
+      log(LogLevel.Trace, `Client pre-emptively requrested token refresh on ${token.refresh_token}`);
+    }
+
     const newToken = await teslaAPI.renewToken(token.refresh_token);
     validToken(db, token.refresh_token, newToken);
     return newToken;

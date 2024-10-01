@@ -82,7 +82,7 @@ export class TeslaAPI {
 
   public async renewToken(refresh_token: string): Promise<TeslaToken> {
     try {
-      log(LogLevel.Trace, `renewToken(${refresh_token})`);
+      log(LogLevel.Trace, `TeslaAPI.renewToken(${refresh_token})`);
 
       // Tesla authAPI expects form data in the body
       const formData = new URLSearchParams();
@@ -91,10 +91,10 @@ export class TeslaAPI {
       formData.append("refresh_token", refresh_token);
 
       const authResponse = (await this.authAPI.post("/oauth2/v3/token", formData.toString())) as any;
-      log(LogLevel.Trace, `renewToken response: ${JSON.stringify(authResponse)}`);
+      log(LogLevel.Trace, `TeslaAPI.renewToken(${refresh_token}) response: ${JSON.stringify(authResponse)}`);
       return this.parseTokenResponse(authResponse);
     } catch (e) {
-      console.debug(`TeslaAPI.renewToken error: ${e}`);
+      console.debug(`TeslaAPI.renewToken(${refresh_token}) error: ${e}`);
       throw e;
     }
   }
