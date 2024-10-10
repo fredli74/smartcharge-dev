@@ -109,6 +109,16 @@ export class TeslaAgent extends AbstractAgent {
     }
   }
 
+  public async refreshToken(job: TeslaAgentJob) {
+    const token = await this.scClient.providerMutate("tesla", {
+      mutation: TeslaProviderMutates.RefreshToken,
+      service_uuid: job.serviceID,
+    });
+    job.serviceData.token = token as TeslaToken;
+    delete job.serviceData.invalid_token;
+    log(LogLevel.Trace, `Updated token for ${job.serviceID} to ${token}`);
+  }
+
   // Check token and refresh through server provider API
   public async maintainToken(job: TeslaAgentJob) {
     // API Token check and update
@@ -116,19 +126,7 @@ export class TeslaAgent extends AbstractAgent {
     if (TeslaAPI.tokenExpired(token)) {
       log(LogLevel.Trace, `${job.serviceID} token expired, calling server API for refresh`);
       // Token has expired, run it through server
-      const newToken = await this.scClient.providerMutate("tesla", {
-        mutation: TeslaProviderMutates.RefreshToken,
-        token,
-      });
-      for (const j of Object.values(this.services)) {
-        if (
-          (j as TeslaAgentJob).serviceData.token.refresh_token ===
-          token.refresh_token
-        ) {
-          (j as TeslaAgentJob).serviceData.token = newToken;
-        }
-      }
-      assert(job.serviceData.token.access_token === newToken.access_token);
+      await this.refreshToken(job);
     }
   }
 
@@ -819,12 +817,7 @@ export class TeslaAgent extends AbstractAgent {
           )}`
         );
         try {
-          const newToken = await this.scClient.providerMutate("tesla", {
-            mutation: TeslaProviderMutates.RefreshToken,
-            refresh_token: job.serviceData.token.refresh_token,
-          });
-          delete job.serviceData.invalid_token; // client side update to match server
-          job.serviceData.token = newToken; // client side update to match server
+          await this.refreshToken(job);
         } catch (err) {
           log(
             LogLevel.Error,
