@@ -59,7 +59,6 @@ import apollo from "@app/plugins/apollo";
 import eventBus, { BusEvent } from "@app/plugins/event-bus";
 import { hashID } from "@shared/utils";
 import { TeslaNewListEntry } from "./tesla-helper";
-import TeslaTokenVue from "./components/tesla-token.vue";
 import TeslaNewVehicleList from "./components/tesla-new-list.vue";
 import { ProviderVuePage } from "@providers/provider-app";
 import provider, {
@@ -77,7 +76,6 @@ const SCOPE =
 
 @Component({
   components: {
-    TeslaTokenVue,
     TeslaNewVehicleList,
   },
 })
