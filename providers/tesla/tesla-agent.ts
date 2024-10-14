@@ -116,7 +116,7 @@ export class TeslaAgent extends AbstractAgent {
     });
     job.serviceData.token = token as TeslaToken;
     delete job.serviceData.invalid_token;
-    log(LogLevel.Trace, `Updated token for ${job.serviceID} to ${token}`);
+    log(LogLevel.Trace, `Updated token for ${job.serviceID} to ${token.access_token}`);
   }
 
   // Check token and refresh through server provider API
