@@ -11,17 +11,16 @@ import provider from ".";
 import { PROJECT_AGENT } from "@shared/smartcharge-defines";
 
 export class NordpoolAPI extends RestClient {
-  public async getPrices(page: number, currency: string) {
-    // add &endDate=29-03-2020 if we need to poll historic data
+  public async getPrices(date: string, deliveryArea: string, currency: string) {
     return this.get(
-      `/marketdata/page/${page}?currency=${currency},${currency},EUR,EUR`
+      `/DayAheadPrices?date=${date}&market=DayAhead&deliveryArea=${deliveryArea}&currency=${currency}`
     );
   }
 }
 const nordpoolAPI = new NordpoolAPI({
   baseURL: config.NORDPOOL_API_BASE_URL,
   headers: {
-    "User-Agent": `${PROJECT_AGENT} ${provider.name}/${provider.version}`,
+    "User-Agent": `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36`,
   },
   timeout: 120e3,
 });

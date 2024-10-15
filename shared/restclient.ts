@@ -138,7 +138,7 @@ export class RestClient {
             } catch (e: any) {
               console.log(`RestClientError: Unable to parse JSON`);
               console.log(`RestClientError: ${body}`);
-              dispatchError(e.message);
+              dispatchError(e.message, res.statusCode);
             }
           } else {
             console.log(`RestClientError: Non-2xx status: ${res.statusCode}`);
