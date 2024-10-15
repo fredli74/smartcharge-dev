@@ -56,12 +56,12 @@ export async function maintainServiceToken(
   );
   // If we got a row back, we are the only thread that is refreshing the token
   if (updateService) {
-    log(LogLevel.Trace, `Token ${service.service_data.token.access_token} is expired, calling renewToken`);
+    log(LogLevel.Debug, `Token ${service.service_data.token.access_token} is expired, calling renewToken`);
     try {
       const newToken = await teslaAPI.renewToken(service.service_data.token.refresh_token);
       // Update the token in the database
       log(LogLevel.Trace, `Token ${service.service_data.token.access_token} renewed to ${newToken.access_token}`);
-      log(LogLevel.Trace, `Updating service_provider ${service.service_uuid} with new token`);
+      log(LogLevel.Info, `Updating service_provider ${service.service_uuid} with new token`);
       await db.pg.none(`
         UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $2) WHERE service_uuid=$1;
         UPDATE vehicle SET provider_data = jsonb_strip_nulls(provider_data || $3) WHERE service_uuid=$1;`,
@@ -75,7 +75,7 @@ export async function maintainServiceToken(
     } catch (err: any) {
       if (err && err.message === "login_required") {
         log(LogLevel.Warning, `Refresh token ${service.service_data.token.refresh_token} is invalid (login_required)`);
-        log(LogLevel.Trace, `Updating service_provider ${service.service_uuid} with invalid token`);
+        log(LogLevel.Info, `Setting service_provider ${service.service_uuid} as invalid token status`);
         await db.pg.none(`
           UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $2) WHERE service_uuid=$1;
           UPDATE vehicle SET provider_data = jsonb_strip_nulls(provider_data || $3) WHERE service_uuid=$1;`,
@@ -95,7 +95,7 @@ export async function maintainServiceToken(
       throw new ApolloError("Invalid token", "INVALID_TOKEN");
     }
   } else {
-    log(LogLevel.Trace, `Token ${service.service_data.token.access_token} is already being refreshed, ignoring`);
+    log(LogLevel.Debug, `Token ${service.service_data.token.access_token} is already being refreshed, ignoring`);
     return null;
   }
 }

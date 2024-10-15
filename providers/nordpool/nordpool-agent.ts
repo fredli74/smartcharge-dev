@@ -92,7 +92,7 @@ export class NordpoolAgent extends AbstractAgent {
               price: price / 1e3,
             });
           } else {
-            log(LogLevel.Trace, `Unknown area ${area}`);
+            log(LogLevel.Debug, `Unknown area ${area}`);
           }
         }
       }
@@ -104,7 +104,7 @@ export class NordpoolAgent extends AbstractAgent {
           continue;
         }
         log(
-          LogLevel.Trace,
+          LogLevel.Info,
           `Sending updatePrice for ${name} => ${JSON.stringify(update)}`
         );
         await this.scClient.updatePrice(update);

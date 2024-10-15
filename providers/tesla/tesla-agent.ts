@@ -116,7 +116,7 @@ export class TeslaAgent extends AbstractAgent {
     });
     job.serviceData.token = token as TeslaToken;
     delete job.serviceData.invalid_token;
-    log(LogLevel.Trace, `Updated token for ${job.serviceID} to ${token.access_token}`);
+    log(LogLevel.Debug, `Updated token for ${job.serviceID} to ${token.access_token}`);
   }
 
   // Check token and refresh through server provider API
@@ -124,7 +124,7 @@ export class TeslaAgent extends AbstractAgent {
     // API Token check and update
     const token = job.serviceData.token as TeslaToken;
     if (TeslaAPI.tokenExpired(token)) {
-      log(LogLevel.Trace, `${job.serviceID} token expired, calling server API for refresh`);
+      log(LogLevel.Debug, `${job.serviceID} token expired, calling server API for refresh`);
       // Token has expired, run it through server
       await this.refreshToken(job);
     }
@@ -212,7 +212,7 @@ export class TeslaAgent extends AbstractAgent {
           await teslaAPI.getVehicleData(subject.vin, job.serviceData.token)
         ).response;
         log(
-          LogLevel.Trace,
+          LogLevel.Debug,
           `${subject.vin} full poll : ${JSON.stringify(data)}`
         );
         if (config.AGENT_SAVE_TO_TRACEFILE === "true") {
@@ -233,7 +233,7 @@ export class TeslaAgent extends AbstractAgent {
         ) {
           if (subject.chargeControl === ChargeControl.Stopped) {
             log(
-              LogLevel.Trace,
+              LogLevel.Debug,
               `${subject.vin} trickle-charge fix stop of ${subject.data.name} overridden by user interaction`
             );
           } else {
@@ -477,7 +477,7 @@ export class TeslaAgent extends AbstractAgent {
           });
         }
         log(
-          LogLevel.Trace,
+          LogLevel.Debug,
           `${subject.vin} list poll : ${JSON.stringify(data)}`
         );
 
@@ -565,7 +565,7 @@ export class TeslaAgent extends AbstractAgent {
         subject.chargeControl = undefined;
       }
 
-      log(LogLevel.Trace, `${subject.vin} ${JSON.stringify(subject)}`);
+      log(LogLevel.Debug, `${subject.vin} ${JSON.stringify(subject)}`);
 
       // Reduce the array to a map with only the first upcoming event of each type
       const schedule = scheduleMap(subject.data.schedule);
@@ -619,7 +619,7 @@ export class TeslaAgent extends AbstractAgent {
         ) {
           if (subject.chargeControl === ChargeControl.Stopped) {
             log(
-              LogLevel.Trace,
+              LogLevel.Debug,
               `${subject.vin} charge stop of ${subject.data.name} overridden by user interaction`
             );
           } else if (
@@ -639,7 +639,7 @@ export class TeslaAgent extends AbstractAgent {
           if (subject.chargeEnabled !== true) {
             if (subject.chargeControl === ChargeControl.Started) {
               log(
-                LogLevel.Trace,
+                LogLevel.Debug,
                 `${subject.vin} charge start of ${subject.data.name} overridden by user interaction`
               );
             } else if (
@@ -811,7 +811,7 @@ export class TeslaAgent extends AbstractAgent {
       // TODO: handle different errors?
       if (err.code === 401) {
         log(
-          LogLevel.Trace,
+          LogLevel.Debug,
           `${subject.vin} tesla-agent polling error 401 for ${JSON.stringify(
             job.serviceData
           )}`

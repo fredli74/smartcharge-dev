@@ -771,7 +771,7 @@ export class Logic {
           bestCost = f;
           threshold = t;
           log(
-            LogLevel.Trace,
+            LogLevel.Debug,
             `Cost simulation ${vehicle.vehicle_uuid} t=${t} => ${f}`
           );
         }
@@ -1275,7 +1275,7 @@ export class Logic {
               `${capitalize(chargeType)} charge to ${level}% scheduled`;
           } else {
             log(
-              LogLevel.Trace,
+              LogLevel.Debug,
               `${capitalize(chargeType)} charge directly to ${level}%`
             );
             chargePlan.push({
@@ -1293,7 +1293,7 @@ export class Logic {
           return true;
         } else {
           log(
-            LogLevel.Trace,
+            LogLevel.Debug,
             `${level} <= ${startLevel}, no ${chargeType} charge plan added for ${comment}`
           );
           return false;
