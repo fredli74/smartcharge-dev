@@ -23,6 +23,12 @@ import { RestClientError } from "@shared/restclient";
 
 const NORDPOOL_NAMESPACE = uuidv5("agent.nordpool.smartcharge.dev", uuidv5.DNS);
 
+interface PollResult {
+  date: DateTime;
+  updatedAt: DateTime;
+  allFinal: boolean;
+}
+
 export class NordpoolAgent extends AbstractAgent {
   public name: string = provider.name;
   constructor(scClient: SCClient) {
@@ -34,11 +40,11 @@ export class NordpoolAgent extends AbstractAgent {
   }
 
   private areaIDmap: Record<string, string> = {};
-  private deliveryDate = DateTime.utc().startOf("day");
+  private todaysPollResult: PollResult | undefined;
+  private tomorrowsPollResult: PollResult | undefined;
 
-  public async globalWork(job: AgentWork) {
-    const now = Date.now();
-
+  public async pollDate(pollDate:DateTime): Promise<PollResult | undefined> {
+    const pollDateString = pollDate.toISODate();
     try {
       const res:{
         updatedAt: string,
@@ -51,7 +57,7 @@ export class NordpoolAgent extends AbstractAgent {
           state: string,
           areas: string[]
         }[]
-      } = await nordpoolAPI.getPrices(this.deliveryDate.toISODate(), config.AREAS, config.CURRENCY);
+      } = await nordpoolAPI.getPrices(pollDateString, config.AREAS, config.CURRENCY);
 
       const areas: Record<string, GQLUpdatePriceInput> = {};
       const areaStates: Record<string, string> = {};
@@ -114,26 +120,60 @@ export class NordpoolAgent extends AbstractAgent {
       }
       await Promise.all(serverUpdates);
 
+      const updatedAt = DateTime.fromISO(res.updatedAt, { zone: "utc" });  
       if (allFinal) {
-        this.deliveryDate = this.deliveryDate.plus({ days: 1 });
-        const updatedAt = DateTime.fromISO(res.updatedAt, { zone: "utc" });
-        const nextUpdate = (updatedAt.plus({ hours: 22 }).startOf("hour").toMillis() + 60e3);
-        log(LogLevel.Info, `All areas were Final, scheduling next update at ${new Date(nextUpdate).toISOString()}`);
-        job.interval = Math.max(60, (nextUpdate - now) / 1e3);
+        log(LogLevel.Info, `All areas were final for ${pollDateString}, last update at ${updatedAt.toISO()}`);
       } else {
-        log(LogLevel.Info, `Some areas were not Final, retrying in 30 minutes`);
-        job.interval = 1800;
+        log(LogLevel.Info, `Some areas were not final for ${pollDateString}, will poll again`);
       }
+      return { date:pollDate, updatedAt, allFinal };
     } catch (e: any) {
       if (e instanceof RestClientError && e.code === 204) {
         // No content = no prices set yet
-        log(LogLevel.Info, `No nordpool prices set for ${this.deliveryDate.toISODate()} yet, will try again next hour`);
-        const nextUpdate = (Math.floor(now / 3600e3) + 1) * 3600e3 + 120e3;
-        job.interval = Math.max(60, (nextUpdate - now) / 1e3);
+        log(LogLevel.Info, `No nordpool prices set for ${pollDateString} yet, will poll again`);
       } else {
-        log(LogLevel.Error, `Error fetching prices: ${e.message}, retrying in 15 minutes`);
-        job.interval = 900;
+        log(LogLevel.Error, `Error fetching prices: ${e.message}`);
       }
+    }
+    return undefined;
+  }
+
+  public async globalWork(job: AgentWork) {
+    const now = Date.now();
+
+    const today = DateTime.utc().startOf("day");
+    if (this.todaysPollResult !== undefined && this.todaysPollResult.date !== today) {
+      this.todaysPollResult = this.tomorrowsPollResult;
+      this.tomorrowsPollResult = undefined;
+    }
+
+    if (this.todaysPollResult === undefined || this.todaysPollResult.date !== today || !this.todaysPollResult.allFinal) {
+      log(LogLevel.Debug, `Polling for ${today.toISODate()} because last poll for today was ${JSON.stringify(this.todaysPollResult)}`);
+      this.todaysPollResult = await this.pollDate(today);
+    }
+    if (this.todaysPollResult === undefined) {
+      job.interval = 3600;
+      return;
+    }
+
+    const tomorrow = today.plus({ days: 1 });
+    if (this.tomorrowsPollResult === undefined || this.tomorrowsPollResult.date !== tomorrow || !this.tomorrowsPollResult.allFinal) {
+      log(LogLevel.Debug, `Polling for ${tomorrow.toISODate()} because last poll for tomorrow was ${JSON.stringify(this.tomorrowsPollResult)}`);
+      this.tomorrowsPollResult = await this.pollDate(tomorrow);
+    }
+    if (this.tomorrowsPollResult === undefined) {
+      job.interval = 3600;
+      return;
+    }
+
+    if (this.tomorrowsPollResult.allFinal) {
+      // We have prices for today and tomorrow, set next poll to 22 hours after tomorrows update
+      const nextUpdate = (this.tomorrowsPollResult.updatedAt.plus({ hours: 22 }).startOf("hour").toMillis() + 60e3);
+      log(LogLevel.Info, `Scheduling next update at ${new Date(nextUpdate).toISOString()}`);
+      job.interval = Math.max(60, (nextUpdate - now) / 1e3);
+    } else {
+      log(LogLevel.Debug, `Not all areas were final for tomorrow, will poll again`);
+      job.interval = 3600;
     }
   }
 }
