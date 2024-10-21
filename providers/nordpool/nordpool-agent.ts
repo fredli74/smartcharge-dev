@@ -142,12 +142,12 @@ export class NordpoolAgent extends AbstractAgent {
     const now = Date.now();
 
     const today = DateTime.utc().startOf("day");
-    if (this.todaysPollResult !== undefined && this.todaysPollResult.date !== today) {
+    if (this.todaysPollResult !== undefined && +this.todaysPollResult.date !== +today) {
       this.todaysPollResult = this.tomorrowsPollResult;
       this.tomorrowsPollResult = undefined;
     }
 
-    if (this.todaysPollResult === undefined || this.todaysPollResult.date !== today || !this.todaysPollResult.allFinal) {
+    if (this.todaysPollResult === undefined || +this.todaysPollResult.date !== +today || !this.todaysPollResult.allFinal) {
       log(LogLevel.Debug, `Polling for ${today.toISODate()} because last poll for today was ${JSON.stringify(this.todaysPollResult)}`);
       this.todaysPollResult = await this.pollDate(today);
     }
@@ -157,7 +157,7 @@ export class NordpoolAgent extends AbstractAgent {
     }
 
     const tomorrow = today.plus({ days: 1 });
-    if (this.tomorrowsPollResult === undefined || this.tomorrowsPollResult.date !== tomorrow || !this.tomorrowsPollResult.allFinal) {
+    if (this.tomorrowsPollResult === undefined || +this.tomorrowsPollResult.date !== +tomorrow || !this.tomorrowsPollResult.allFinal) {
       log(LogLevel.Debug, `Polling for ${tomorrow.toISODate()} because last poll for tomorrow was ${JSON.stringify(this.tomorrowsPollResult)}`);
       this.tomorrowsPollResult = await this.pollDate(tomorrow);
     }
