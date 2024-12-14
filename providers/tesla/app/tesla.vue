@@ -168,7 +168,7 @@ export default class TeslaVue extends Vue {
         if (!entry) {
           entry = {
             vin: v.vin,
-            name: v.display_name,
+            name: v.vin,
             vehicle_uuid: v.vehicle_uuid,
             service_uuid: v.service_uuid,
           } as TeslaNewListEntry;

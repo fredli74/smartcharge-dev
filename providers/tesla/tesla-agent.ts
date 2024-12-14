@@ -492,7 +492,7 @@ export class TeslaAgent extends AbstractAgent {
               // We were offline or sleeping
               log(
                 LogLevel.Info,
-                `${subject.vin} ${data.display_name} is ${data.state} (${subject.pollstate} -> polling)`
+                `${subject.vin} is ${data.state} (${subject.pollstate} -> polling)`
               );
               if (subject.pollerror) {
                 this.changePollstate(subject, "polling"); // Active polling
@@ -507,7 +507,7 @@ export class TeslaAgent extends AbstractAgent {
             if (subject.pollstate !== "offline") {
               log(
                 LogLevel.Info,
-                `${subject.vin} ${data.display_name} is ${data.state} (${subject.pollstate} -> offline)`
+                `${subject.vin} is ${data.state} (${subject.pollstate} -> offline)`
               );
 
               this.changePollstate(subject, "offline");
@@ -519,7 +519,7 @@ export class TeslaAgent extends AbstractAgent {
             if (subject.pollstate !== "asleep") {
               log(
                 LogLevel.Info,
-                `${subject.vin} ${data.display_name} is ${data.state} (${subject.pollstate} -> asleep)`
+                `${subject.vin} is ${data.state} (${subject.pollstate} -> asleep)`
               );
 
               this.changePollstate(subject, "asleep");
