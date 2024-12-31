@@ -147,7 +147,7 @@ export class NordpoolAgent extends AbstractAgent {
             const localStartAt = DateTime.fromISO(entry.startAt, { zone: "utc" }).setZone("Europe/Stockholm");
             ellevioUpdate.prices.push({
               startAt: entry.startAt,
-              price: localStartAt.hour >= 6 && localStartAt.hour < 22 ? Math.max(4.20, maxPrice / 1e3) : entry.price,
+              price: localStartAt.hour >= 6 && localStartAt.hour < 22 ? Math.max(4.20, maxPrice * 1.5 / 1e3) : entry.price,
             });
           }
           log(
