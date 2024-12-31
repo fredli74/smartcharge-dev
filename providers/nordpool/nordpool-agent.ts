@@ -49,9 +49,9 @@ export class NordpoolAgent extends AbstractAgent {
       const res:{
         updatedAt: string,
         multiAreaEntries: {
-          deliveryStart: string,
-          deliveryEnd: string,
-          entryPerArea: Record<string, number>
+          deliveryStart: string,                // "2024-12-31T00:00:00Z"
+          deliveryEnd: string,                  // "2024-12-31T01:00:00Z"
+          entryPerArea: Record<string, number>  // "SE1": 420.69
         }[],
         areaStates: {
           state: string,
@@ -73,6 +73,7 @@ export class NordpoolAgent extends AbstractAgent {
       }
 
       // Go through prices and populate updatePriceInputs
+      let maxPrice = 0;
       for (const entry of res.multiAreaEntries) {
         for (const [area, price] of Object.entries(entry.entryPerArea)) {
           if (!areas[area]) {
@@ -98,6 +99,9 @@ export class NordpoolAgent extends AbstractAgent {
             startAt: entry.deliveryStart,
             price: price / 1e3,
           });
+          if (price > maxPrice) {
+            maxPrice = price;
+          }
         }
       }
 
@@ -117,6 +121,41 @@ export class NordpoolAgent extends AbstractAgent {
           allFinal = false;
         }
         serverUpdates.push(this.scClient.updatePrice(update));
+
+        {
+          // Temporary hack for Ellevio customers that has peak penalty
+          // Copy areas[*] to list.id with Ellevio.* and set price for 06:00-22:00 (CET/CEST) to max(420.69, maxPrice)
+          // This is to avoid charging during peak hours
+          const ellevioArea = `Ellevio.${name}`;
+          if (this.areaIDmap[ellevioArea] === undefined) {
+            const id = uuidv5(`${ellevioArea}.pricelist`, NORDPOOL_NAMESPACE);
+            try {
+              await this.scClient.getPriceList(id);
+            } catch {
+              const list = await this.scClient.newPriceList(ellevioArea, true, id);
+              if (list.id !== id) {
+                throw "Unable to create price list on server";
+              }
+            }
+            this.areaIDmap[ellevioArea] = id;
+          }
+          const ellevioUpdate: GQLUpdatePriceInput = {
+            priceListID: this.areaIDmap[ellevioArea],
+            prices: [],
+          };
+          for (const entry of update.prices) {
+            const localStartAt = DateTime.fromISO(entry.startAt, { zone: "utc" }).setZone("Europe/Stockholm");
+            ellevioUpdate.prices.push({
+              startAt: entry.startAt,
+              price: localStartAt.hour >= 6 && localStartAt.hour < 22 ? Math.max(4.20, maxPrice / 1e3) : entry.price,
+            });
+          }
+          log(
+            LogLevel.Info,
+            `Sending ${areaStates[name].toLowerCase()} updatePrice for ${ellevioArea} => ${JSON.stringify(ellevioUpdate)}`
+          );
+          serverUpdates.push(this.scClient.updatePrice(ellevioUpdate));
+        }
       }
       await Promise.all(serverUpdates);
 
