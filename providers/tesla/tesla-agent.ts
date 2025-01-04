@@ -169,7 +169,7 @@ export class TeslaAgent extends AbstractAgent {
       if (data && data.response && data.response.state === "online") {
         subject.online = true;
       }
-      this.adjustInterval(job, 30); // poll more often after wakeup
+      this.adjustInterval(job, 120); // poll more often after wakeup
     }
     if (subject.online) {
       this.stayOnline(subject);
