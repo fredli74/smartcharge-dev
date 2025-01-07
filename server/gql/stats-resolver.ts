@@ -19,7 +19,7 @@ import { GraphQLJSONObject } from "graphql-type-json";
 import { ChargePlan } from "./vehicle-type";
 import { Arg, Resolver, Query, Ctx } from "type-graphql";
 import { IContext, accountFilter } from "./api";
-import { plainToClass } from "class-transformer";
+import { plainToInstance } from "class-transformer";
 import { PriceData } from "./price-type";
 import { DBInterface } from "@server/db-interface";
 import {
@@ -177,7 +177,7 @@ export class StatsResolver {
       });
     });
 
-    const chartData: ChartData = plainToClass(ChartData, {
+    const chartData: ChartData = plainToInstance(ChartData, {
       locationID: location_uuid,
       vehicleID: vehicle.vehicle_uuid,
       batteryLevel: vehicle.level,
@@ -187,7 +187,7 @@ export class StatsResolver {
       chargePlan:
         (vehicle.charge_plan &&
           (vehicle.charge_plan as ChargePlan[]).map((f) =>
-            plainToClass(ChargePlan, f)
+            plainToInstance(ChargePlan, f)
           )) ||
         null,
       directLevel: (
@@ -196,7 +196,7 @@ export class StatsResolver {
       ).directLevel,
       maximumLevel: vehicle.maximum_charge,
       stateMap: stateMap.map((f) =>
-        plainToClass(StateMap, {
+        plainToInstance(StateMap, {
           start: f.stats_ts,
           period: f.period,
           minimumLevel: f.minimum_level,
@@ -221,7 +221,7 @@ export class StatsResolver {
       )) as DBPriceData[];
       chartData.prices = priceData.map(
         (f) =>
-          plainToClass(PriceData, {
+          plainToInstance(PriceData, {
             startAt: f.ts,
             price: f.price / 1e5,
           } as PriceData) || null

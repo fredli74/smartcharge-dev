@@ -23,7 +23,7 @@ import "reflect-metadata";
 import { DBLocation } from "@server/db-schema";
 import { PriceList } from "./price-type";
 import { IContext } from "./api";
-import { plainToClass } from "class-transformer";
+import { plainToInstance } from "class-transformer";
 import { PriceResolver } from "./price-resolver";
 
 @ObjectType()
@@ -55,7 +55,7 @@ export class LocationTypeResolver {
 
   @FieldResolver((_returns) => GeoLocation)
   geoLocation(@Root() location: Location): GeoLocation {
-    return plainToClass(GeoLocation, {
+    return plainToInstance(GeoLocation, {
       latitude: location.location_micro_latitude / 1e6,
       longitude: location.location_micro_longitude / 1e6,
     });

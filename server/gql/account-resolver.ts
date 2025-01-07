@@ -11,7 +11,7 @@ import { Account } from "./account-type";
 import { SINGLE_USER_UUID, makeAccountUUID } from "@server/db-interface";
 import config from "@shared/smartcharge-config";
 import { AuthenticationError } from "apollo-server-core";
-import { plainToClass } from "class-transformer";
+import { plainToInstance } from "class-transformer";
 
 const AUTH0_DOMAIN_URL = `https://${config.AUTH0_DOMAIN}/`;
 
@@ -54,7 +54,7 @@ async function jwkVerify(idToken: string): Promise<any> {
 export class AccountResolver {
   @Query((_returns) => Account)
   async account(@Ctx() context: IContext): Promise<Account> {
-    return plainToClass(
+    return plainToInstance(
       Account,
       await context.db.getAccount(context.accountUUID)
     );
@@ -75,7 +75,7 @@ export class AccountResolver {
         `loginWithPassword called with invalid password`
       );
     }
-    return plainToClass(Account, await context.db.getAccount(SINGLE_USER_UUID));
+    return plainToInstance(Account, await context.db.getAccount(SINGLE_USER_UUID));
   }
 
   @Mutation((_returns) => Account)
@@ -97,9 +97,9 @@ export class AccountResolver {
     const [domain, subject] = payload.sub.split("|");
     const uuid = makeAccountUUID(subject, domain);
     try {
-      return plainToClass(Account, await context.db.getAccount(uuid));
+      return plainToInstance(Account, await context.db.getAccount(uuid));
     } catch {
-      return plainToClass(
+      return plainToInstance(
         Account,
         await context.db.makeAccount(uuid, payload.name)
       );

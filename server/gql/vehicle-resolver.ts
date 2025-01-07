@@ -31,7 +31,7 @@ import {
 } from "./vehicle-type";
 import { log, LogLevel, makePublicID } from "@shared/utils";
 import { ApolloError } from "apollo-server-core";
-import { plainToClass } from "class-transformer";
+import { plainToInstance } from "class-transformer";
 import { DBSchedule } from "@server/db-schema";
 import { ScheduleType } from "@shared/sc-types";
 
@@ -47,14 +47,14 @@ export class VehicleResolver {
     const dblist = await context.db.getVehicles(
       accountFilter(context.accountUUID)
     );
-    return plainToClass(Vehicle, dblist);
+    return plainToInstance(Vehicle, dblist);
   }
   @Query((_returns) => Vehicle)
   async vehicle(
     @Arg("id") id: string,
     @Ctx() context: IContext
   ): Promise<Vehicle> {
-    return plainToClass(
+    return plainToInstance(
       Vehicle,
       await context.db.getVehicle(accountFilter(context.accountUUID), id)
     );
@@ -89,7 +89,7 @@ export class VehicleResolver {
         context.accountUUID === INTERNAL_SERVICE_UUID ||
           context.accountUUID === payload.account_uuid
       );
-      return plainToClass(
+      return plainToInstance(
         Vehicle,
         await context.db.getVehicle(
           accountFilter(payload.account_uuid),
@@ -98,7 +98,7 @@ export class VehicleResolver {
       );
     } else {
       // This happens when called without websockets
-      return plainToClass(
+      return plainToInstance(
         Vehicle,
         await context.db.getVehicle(accountFilter(context.accountUUID), id)
       );

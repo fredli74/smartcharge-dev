@@ -24,7 +24,7 @@ import { AuthenticationError, ApolloError } from "apollo-server-core";
 
 import { VehicleDebugInput, UpdateVehicleDataInput } from "./vehicle-type";
 import { ServiceProvider } from "./service-type";
-import { plainToClass } from "class-transformer";
+import { plainToInstance } from "class-transformer";
 import { UpdatePriceInput } from "./price-type";
 
 function authorizeService(context: IContext) {
@@ -41,7 +41,7 @@ export class ServiceResolver {
     @Ctx() context: IContext
   ): Promise<ServiceProvider[]> {
     authorizeService(context);
-    return plainToClass(
+    return plainToInstance(
       ServiceProvider,
       await context.db.getServiceProviders(undefined, undefined, accept)
     );

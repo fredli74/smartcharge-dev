@@ -10,13 +10,13 @@ import { IContext, accountFilter } from "@server/gql/api";
 import { UpdateLocationInput, Location } from "./location-type";
 import { makePublicID, LogLevel, log } from "@shared/utils";
 import { ApolloError } from "apollo-server-express";
-import { plainToClass } from "class-transformer";
+import { plainToInstance } from "class-transformer";
 
 @Resolver()
 export class LocationResolver {
   @Query((_returns) => [Location])
   async locations(@Ctx() context: IContext): Promise<Location[]> {
-    return plainToClass(
+    return plainToInstance(
       Location,
       await context.db.getLocations(accountFilter(context.accountUUID))
     );
@@ -26,7 +26,7 @@ export class LocationResolver {
     @Arg("id") id: string,
     @Ctx() context: IContext
   ): Promise<Location> {
-    return plainToClass(
+    return plainToInstance(
       Location,
       await context.db.getLocation(accountFilter(context.accountUUID), id)
     );
@@ -39,7 +39,7 @@ export class LocationResolver {
   ): Promise<Location> {
     // verify Location ownage
     await context.db.getLocation(accountFilter(context.accountUUID), input.id);
-    return plainToClass(
+    return plainToInstance(
       Location,
       await context.db.updateLocation(input.id, {
         name: input.name,

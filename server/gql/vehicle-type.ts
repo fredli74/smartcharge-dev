@@ -29,7 +29,7 @@ import {
   ScheduleType,
 } from "@shared/sc-types";
 import { DBVehicle, DBSchedule } from "@server/db-schema";
-import { plainToClass, Type } from "class-transformer";
+import { plainToInstance, Type } from "class-transformer";
 import { IContext } from "./api";
 import { LocationResolver } from "./location-resolver";
 import { DBInterface } from "@server/db-interface";
@@ -190,7 +190,7 @@ export class VehicleTypeResolver {
     @Root() vehicle: Vehicle,
     @Ctx() context: IContext
   ): Promise<Schedule[]> {
-    return plainToClass(
+    return plainToInstance(
       Schedule,
       await context.db.getSchedule(vehicle.vehicle_uuid)
     );
@@ -199,7 +199,7 @@ export class VehicleTypeResolver {
     description: `location settings`,
   })
   locationSettings(@Root() vehicle: Vehicle): VehicleLocationSettings[] {
-    return plainToClass(
+    return plainToInstance(
       VehicleLocationSettings,
       Object.entries(vehicle.location_settings).map(
         ([key, values]: [
@@ -279,7 +279,7 @@ export class VehicleTypeResolver {
       return null;
     }
     return (vehicle.charge_plan as ChargePlan[]).map((f) =>
-      plainToClass(ChargePlan, f)
+      plainToInstance(ChargePlan, f)
     );
   }
   @FieldResolver((_returns) => GraphQLISODateTime)

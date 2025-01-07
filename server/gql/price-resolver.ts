@@ -8,14 +8,14 @@
 import { Resolver, Query, Ctx, Arg, Mutation, ID } from "type-graphql";
 import { IContext, accountFilter } from "@server/gql/api";
 import { PriceList, UpdatePriceListInput } from "./price-type";
-import { plainToClass } from "class-transformer";
+import { plainToInstance } from "class-transformer";
 import { ApolloError } from "apollo-server-core";
 
 @Resolver()
 export class PriceResolver {
   @Query((_returns) => [PriceList])
   async priceLists(@Ctx() context: IContext): Promise<PriceList[]> {
-    return plainToClass(
+    return plainToInstance(
       PriceList,
       await context.db.getPriceLists(accountFilter(context.accountUUID))
     );
@@ -26,7 +26,7 @@ export class PriceResolver {
     @Arg("id") id: string,
     @Ctx() context: IContext
   ): Promise<PriceList> {
-    return plainToClass(
+    return plainToInstance(
       PriceList,
       await context.db.getPriceList(accountFilter(context.accountUUID), id)
     );
@@ -43,7 +43,7 @@ export class PriceResolver {
     @Arg("id", (_type) => ID, { nullable: true }) id: string,
     @Ctx() context: IContext
   ): Promise<PriceList> {
-    return plainToClass(
+    return plainToInstance(
       PriceList,
       await context.db.newPriceList(context.accountUUID, name, isPublic, id)
     );
@@ -61,7 +61,7 @@ export class PriceResolver {
       // Because we can list public lists, but no edit them
       throw new ApolloError("Update access denied");
     }
-    return plainToClass(
+    return plainToInstance(
       PriceList,
       await context.db.updatePriceList(input.id, {
         name: input.name,
