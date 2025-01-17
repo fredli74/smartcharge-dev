@@ -6,7 +6,6 @@ module.exports = {
   extends: [
     "eslint:recommended",
     "plugin:vue/recommended",
-    "@vue/prettier",
     "@vue/typescript",
   ],
   rules: {
@@ -20,6 +19,7 @@ module.exports = {
         ignoreRestSiblings: false,
       },
     ],
+    "indent": ["warn", 2, { "SwitchCase": 1, "flatTernaryExpressions": true }],
     "no-console": process.env.NODE_ENV === "// production" ? "warn" : "off",
     "no-debugger": process.env.NODE_ENV === "production" ? "error" : "off",
   },
