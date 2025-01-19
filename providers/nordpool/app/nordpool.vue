@@ -28,7 +28,7 @@
             ><template v-slot:message="{ message, key }">
               <a
                 :key="key"
-                href="https://www.nordpoolgroup.com/maps#/nordic"
+                href="https://data.nordpoolgroup.com/map"
                 target="_blank"
                 >{{ message }}</a
               >

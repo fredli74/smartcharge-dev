@@ -8,11 +8,7 @@
 
 import { SCClient } from "@shared/sc-client";
 import { log, LogLevel } from "@shared/utils";
-import {
-  AbstractAgent,
-  IProviderAgent,
-  AgentWork,
-} from "@providers/provider-agent";
+import { AbstractAgent, IProviderAgent, AgentWork, } from "@providers/provider-agent";
 import provider from ".";
 import config from "./nordpool-config";
 import nordpoolAPI from "./nordpool-api";
@@ -31,9 +27,7 @@ interface PollResult {
 
 export class NordpoolAgent extends AbstractAgent {
   public name: string = provider.name;
-  constructor(scClient: SCClient) {
-    super(scClient);
-  }
+  constructor(scClient: SCClient) { super(scClient); }
 
   public newState() {
     return {};
@@ -43,20 +37,20 @@ export class NordpoolAgent extends AbstractAgent {
   private todaysPollResult: PollResult | undefined;
   private tomorrowsPollResult: PollResult | undefined;
 
-  public async pollDate(pollDate:DateTime): Promise<PollResult | undefined> {
+  public async pollDate(pollDate: DateTime): Promise<PollResult | undefined> {
     const pollDateString = pollDate.toISODate();
     try {
-      const res:{
-        updatedAt: string,
+      const res: {
+        updatedAt: string;
         multiAreaEntries: {
-          deliveryStart: string,                // "2024-12-31T00:00:00Z"
-          deliveryEnd: string,                  // "2024-12-31T01:00:00Z"
-          entryPerArea: Record<string, number>  // "SE1": 420.69
-        }[],
+          deliveryStart: string; // "2024-12-31T00:00:00Z"
+          deliveryEnd: string; // "2024-12-31T01:00:00Z"
+          entryPerArea: Record<string, number>; // "SE1": 420.69
+        }[];
         areaStates: {
-          state: string,
-          areas: string[]
-        }[]
+          state: string;
+          areas: string[];
+        }[];
       } = await nordpoolAPI.getPrices(pollDateString, config.AREAS, config.CURRENCY);
 
       const areas: Record<string, GQLUpdatePriceInput> = {};
@@ -107,7 +101,7 @@ export class NordpoolAgent extends AbstractAgent {
 
       // Send updates to server
       let allFinal = true;
-      const serverUpdates: Promise<boolean>[] = [];      
+      const serverUpdates: Promise<boolean>[] = [];
       for (const [name, update] of Object.entries(areas)) {
         if (update.prices.length === 0) {
           log(LogLevel.Warning, `No prices for ${name}`);
@@ -115,7 +109,9 @@ export class NordpoolAgent extends AbstractAgent {
         }
         log(
           LogLevel.Info,
-          `Sending ${areaStates[name].toLowerCase()} updatePrice for ${name} => ${JSON.stringify(update)}`
+          `Sending ${areaStates[
+            name
+          ].toLowerCase()} updatePrice for ${name} => ${JSON.stringify(update)}`
         );
         if (areaStates[name] !== "Final") {
           allFinal = false;
@@ -144,28 +140,28 @@ export class NordpoolAgent extends AbstractAgent {
             prices: [],
           };
           for (const entry of update.prices) {
-            const localStartAt = DateTime.fromISO(entry.startAt, { zone: "utc" }).setZone("Europe/Stockholm");
+            const localStartAt = DateTime.fromISO(entry.startAt, { zone: "utc", }).setZone("Europe/Stockholm");
             ellevioUpdate.prices.push({
               startAt: entry.startAt,
-              price: localStartAt.hour >= 6 && localStartAt.hour < 22 ? Math.max(4.20, maxPrice * 1.5 / 1e3) : entry.price,
+              price: localStartAt.hour >= 6 && localStartAt.hour < 22
+                ? Math.max(4.2, (maxPrice * 1.5) / 1e3)
+                : entry.price,
             });
           }
-          log(
-            LogLevel.Info,
-            `Sending ${areaStates[name].toLowerCase()} updatePrice for ${ellevioArea} => ${JSON.stringify(ellevioUpdate)}`
+          log(LogLevel.Info, `Sending ${areaStates[name].toLowerCase()} updatePrice for ${ellevioArea} => ${JSON.stringify(ellevioUpdate)}`
           );
           serverUpdates.push(this.scClient.updatePrice(ellevioUpdate));
         }
       }
       await Promise.all(serverUpdates);
 
-      const updatedAt = DateTime.fromISO(res.updatedAt, { zone: "utc" });  
+      const updatedAt = DateTime.fromISO(res.updatedAt, { zone: "utc" });
       if (allFinal) {
         log(LogLevel.Info, `All areas were final for ${pollDateString}, last update at ${updatedAt.toISO()}`);
       } else {
         log(LogLevel.Info, `Some areas were not final for ${pollDateString}, will poll again`);
       }
-      return { date:pollDate, updatedAt, allFinal };
+      return { date: pollDate, updatedAt, allFinal };
     } catch (e: any) {
       if (e instanceof RestClientError && e.code === 204) {
         // No content = no prices set yet
@@ -207,7 +203,10 @@ export class NordpoolAgent extends AbstractAgent {
 
     if (this.tomorrowsPollResult.allFinal) {
       // We have prices for today and tomorrow, set next poll to 22 hours after tomorrows update
-      const nextUpdate = (this.tomorrowsPollResult.updatedAt.plus({ hours: 22 }).startOf("hour").toMillis() + 60e3);
+      const nextUpdate = this.tomorrowsPollResult.updatedAt
+        .plus({ hours: 22 })
+        .startOf("hour")
+        .toMillis() + 60e3;
       log(LogLevel.Info, `Scheduling next update at ${new Date(nextUpdate).toISOString()}`);
       job.interval = Math.max(60, (nextUpdate - now) / 1e3);
     } else {
