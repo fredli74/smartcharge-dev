@@ -183,4 +183,7 @@ export class RestClient {
   public async patch(url: string, data?: any, bearerToken?: string) {
     return (await this.request("PATCH", url, data, bearerToken)).data;
   }
+  public async delete(url: string, bearerToken?: string) {
+    return (await this.request("DELETE", url, undefined, bearerToken)).data;
+  }
 }
