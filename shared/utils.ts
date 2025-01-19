@@ -194,7 +194,7 @@ export function secondsToString(
   const pretty = decompose.map((f, i) => {
     return f > 0 ? `${f} ${units[i]}${f > 1 ? "s" : ""}` : "";
   });
-  return pretty.join(" ").trim() || "now";
+  return pretty.join(" ").trim() || "";
 }
 
 import md5 from "md5";
@@ -209,21 +209,15 @@ export type OpenDate = Date | null | number | string | undefined;
 
 // Functions for comparing start and stop times that can be a Date or null
 export function numericStartTime(nstart: OpenDate): number {
-  return nstart instanceof Date
-    ? nstart.getTime()
-    : typeof nstart === "string"
-    ? new Date(nstart).getTime()
-    : typeof nstart === "number"
-    ? nstart
+  return nstart instanceof Date ? nstart.getTime()
+    : typeof nstart === "string" ? new Date(nstart).getTime()
+    : typeof nstart === "number" ? nstart
     : -Infinity;
 }
 export function numericStopTime(nstop: OpenDate): number {
-  return nstop instanceof Date
-    ? nstop.getTime()
-    : typeof nstop === "string"
-    ? new Date(nstop).getTime()
-    : typeof nstop === "number"
-    ? nstop
+  return nstop instanceof Date ? nstop.getTime()
+    : typeof nstop === "string" ? new Date(nstop).getTime()
+    : typeof nstop === "number" ? nstop
     : Infinity;
 }
 export function compareStartTimes(a: OpenDate, b: OpenDate): number {
@@ -232,15 +226,8 @@ export function compareStartTimes(a: OpenDate, b: OpenDate): number {
 export function compareStopTimes(a: OpenDate, b: OpenDate): number {
   return numericStopTime(b) - numericStopTime(a);
 }
-export function compareStartStopTimes(
-  a_start: OpenDate,
-  a_stop: OpenDate,
-  b_start: OpenDate,
-  b_stop: OpenDate
-): number {
-  return (
-    compareStartTimes(a_start, b_start) || compareStopTimes(a_stop, b_stop)
-  );
+export function compareStartStopTimes(a_start: OpenDate, a_stop: OpenDate, b_start: OpenDate, b_stop: OpenDate): number {
+  return (compareStartTimes(a_start, b_start) || compareStopTimes(a_stop, b_stop));
 }
 
 export async function asyncFilter<T>(

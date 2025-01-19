@@ -50,7 +50,7 @@ export default class RelativeTime extends Vue {
         this.relativeTime = "";
         this.relativeShow = false;
       } else {
-        this.relativeTime = secondsToString(span, this.units, this.until);
+        this.relativeTime = secondsToString(span, this.units, this.until) || "now";
         this.relativeShow = true;
       }
 

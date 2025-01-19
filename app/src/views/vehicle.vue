@@ -206,23 +206,6 @@ import { vehicleFragment, GQLLocationFragment } from "@shared/sc-client";
       },
 
       update(data) {
-        // TODO REMOVE
-        /*
-        if (data.vehicle && data.vehicle.pausedUntil) {
-          const when = new Date(data.vehicle.pausedUntil).getTime();
-          const now = Date.now();
-          if (when <= now) {
-            data.vehicle.pausedUntil = null;
-          }
-        }
-        // TODO REMOVE
-        if (data.vehicle && data.vehicle.tripSchedule) {
-          const when = new Date(data.vehicle.tripSchedule.time).getTime();
-          const now = Date.now();
-          if (when + 3600e3 <= now) {
-            data.vehicle.tripSchedule = null;
-          }
-        }*/
         this.updateFreshness(data.vehicle);
         return data.vehicle;
       },
