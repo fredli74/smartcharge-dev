@@ -76,6 +76,8 @@ export class ChartData {
   prices!: PriceData[] | null;
   @Field((_type) => [ChargePlan], { nullable: true })
   chargePlan!: ChargePlan[] | null;
+  @Field((_type) => ID)
+  chargePlanLocationID!: string | null;
   @Field((_type) => [StateMap])
   stateMap!: StateMap[];
   @Field((_type) => [EventList])

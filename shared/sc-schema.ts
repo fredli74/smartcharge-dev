@@ -83,6 +83,7 @@ export interface GQLChartData {
   thresholdPrice: number | null;
   prices: Array<GQLPriceData> | null;
   chargePlan: Array<GQLChargePlan> | null;
+  chargePlanLocationID: string;
   stateMap: Array<GQLStateMap>;
   eventList: Array<GQLEventList>;
 }
@@ -701,6 +702,7 @@ export interface GQLChartDataTypeResolver<TParent = GQLChartData> {
   thresholdPrice?: ChartDataToThresholdPriceResolver<TParent>;
   prices?: ChartDataToPricesResolver<TParent>;
   chargePlan?: ChartDataToChargePlanResolver<TParent>;
+  chargePlanLocationID?: ChartDataToChargePlanLocationIDResolver<TParent>;
   stateMap?: ChartDataToStateMapResolver<TParent>;
   eventList?: ChartDataToEventListResolver<TParent>;
 }
@@ -738,6 +740,10 @@ export interface ChartDataToPricesResolver<TParent = GQLChartData, TResult = Arr
 }
 
 export interface ChartDataToChargePlanResolver<TParent = GQLChartData, TResult = Array<GQLChargePlan> | null> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface ChartDataToChargePlanLocationIDResolver<TParent = GQLChartData, TResult = string> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 

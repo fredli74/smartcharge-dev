@@ -48,6 +48,7 @@ type ChartData {
   batteryLevel: Int!
   chargeCurve: JSONObject!
   chargePlan: [ChargePlan!]
+  chargePlanLocationID: ID!
   directLevel: Int!
   eventList: [EventList!]!
   locationID: ID
