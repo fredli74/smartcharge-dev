@@ -286,6 +286,15 @@ export class TeslaAgent extends AbstractAgent {
       await this.refreshToken(job);
     }
   }
+  
+  public async callTeslaAPI<T extends any[], R>(
+    job: TeslaAgentJob,
+    fn: (...args: [...T, TeslaToken]) => Promise<R>,
+    ...args: T
+  ): Promise<R> {
+    await this.maintainToken(job);
+    return fn(...args, job.serviceData.token);
+  }
 
   private vehicleEntry(vin: string): VehicleEntry {
     if (!this.vehicles[vin]) {
@@ -421,11 +430,9 @@ export class TeslaAgent extends AbstractAgent {
       assert(vehicle !== undefined, "vehicle is undefined");
 
       // Handle telemetry config
-      const telemetryConfig = vehicle.telemetryConfig ? vehicle.telemetryConfig
-        : (await (async () => {
-          await this.maintainToken(job);
-          return (await teslaAPI.getFleetTelemetryConfig(vehicle.vin, job.serviceData.token)).response;
-        })());
+      const telemetryConfig =
+        vehicle.telemetryConfig ? vehicle.telemetryConfig :
+        (await this.callTeslaAPI(job, teslaAPI.getFleetTelemetryConfig, vehicle.vin)).response;
       const telemetryExpires = telemetryConfig.config && telemetryConfig.config.exp ? telemetryConfig.config.exp : 0;
 
       if (vehicle.dbData.providerData.disabled) {
@@ -461,27 +468,20 @@ export class TeslaAgent extends AbstractAgent {
 
     for (const vin of clearTelemetryConfigFor) {
       log(LogLevel.Info, `Deleting telemetry config for ${vin}`);
-      await this.maintainToken(job);
-      waitFor.push(teslaAPI.deleteFleetTelemetryConfig(vin, job.serviceData.token));
+      waitFor.push(this.callTeslaAPI(job, teslaAPI.deleteFleetTelemetryConfig, vin));
     }
     if (setTelemetryConfigFor.length > 0) {
       log(LogLevel.Info, `Creating telemetry config for ${setTelemetryConfigFor.join(", ")}`);
-      await this.maintainToken(job);
-      const telemetry = (
-        await teslaAPI.createFleetTelemetryConfig(
-          {
-            vins: setTelemetryConfigFor,
-            config: {
-              hostname: config.TESLA_TELEMETRY_HOST,
-              port: parseInt(config.TESLA_TELEMETRY_PORT),
-              ca: config.TESLA_TELEMETRY_CA.replace(/\\n/g, "\n"),
-              fields: telemetryFields,
-              exp: Math.trunc(Date.now() / 1e3 + 60 * 60 * 24 * 7), // 7 days
-            },
-          },
-          job.serviceData.token
-        )
-      ).response;
+      const telemetry = (await this.callTeslaAPI(job, teslaAPI.createFleetTelemetryConfig, {
+        vins: setTelemetryConfigFor,
+        config: {
+          hostname: config.TESLA_TELEMETRY_HOST,
+          port: parseInt(config.TESLA_TELEMETRY_PORT),
+          ca: config.TESLA_TELEMETRY_CA.replace(/\\n/g, "\n"),
+          fields: telemetryFields,
+          exp: Math.trunc(Date.now() / 1e3 + 60 * 60 * 24 * 7), // 7 days
+        },
+      })).response;
       log(LogLevel.Debug, `Telemetry successfully created for ${telemetry.updated_vehicles} vehicles`);
       if (telemetry.skipped_vehicles) {
         log(LogLevel.Debug, `Skipped vehicles: ${JSON.stringify(telemetry)}`);
@@ -586,7 +586,7 @@ export class TeslaAgent extends AbstractAgent {
           vehicle.network = {};
           await this.updateOnlineStatus(vehicle);
         } else if (vehicle.charge_schedules === undefined || vehicle.precondition_schedules === undefined) {
-          const schedules = (await teslaAPI.getVehicleSchedules(vehicle.vin, job.serviceData.token)).response;
+          const schedules = (await this.callTeslaAPI(job, teslaAPI.getVehicleSchedules, vehicle.vin)).response;
           // Map charge_schedule_data.charge_schedules to { [id: number]: TeslaChargeSchedule }
           vehicle.charge_schedules = {};
           for (const s of schedules.charge_schedule_data.charge_schedules) {
@@ -767,26 +767,26 @@ export class TeslaAgent extends AbstractAgent {
               || currentPrecon.precondition_time !== preconditionSchedule.precondition_time
               || currentPrecon.days_of_week !== preconditionSchedule.days_of_week) {
               log(LogLevel.Info, `${vehicle.vin} updating precondition schedule`);
-              await teslaAPI.addPreconditionSchedule(vehicle.vin, preconditionSchedule, job.serviceData.token);
+              await this.callTeslaAPI(job, teslaAPI.addPreconditionSchedule, vehicle.vin, preconditionSchedule);
               vehicle.precondition_schedules[197499] = preconditionSchedule;
             } else {
               log(LogLevel.Debug, `${vehicle.vin} precondition schedule is correct`);
             }
           } else if (currentPrecon !== undefined) {
             log(LogLevel.Info, `${vehicle.vin} removing precondition schedule`);
-            await teslaAPI.removePreconditionSchedule(vehicle.vin, 197499, job.serviceData.token);
+            await this.callTeslaAPI(job, teslaAPI.removePreconditionSchedule, vehicle.vin, 197499);
             delete vehicle.precondition_schedules[197499];
           }
 
           for (const s of scheduleUpdates) {
             assert(s.id !== undefined, "Invalid schedule ID");
             log(LogLevel.Info, `${vehicle.vin} updating schedule ${s.id} to start at ${s.start_time} and end at ${s.end_time}`);
-            await teslaAPI.addChargeSchedule(vehicle.vin, s, job.serviceData.token);
+            await this.callTeslaAPI(job, teslaAPI.addChargeSchedule, vehicle.vin, s);
             vehicle.charge_schedules[s.id] = s;
           }
           for (const s of removeScheduleIDs) {
             log(LogLevel.Info, `${vehicle.vin} removing schedule ${s}`);
-            await teslaAPI.removeChargeSchedule(vehicle.vin, s, job.serviceData.token);
+            await this.callTeslaAPI(job, teslaAPI.removeChargeSchedule, vehicle.vin, s);
             delete vehicle.charge_schedules[s];
           }
 
@@ -795,7 +795,7 @@ export class TeslaAgent extends AbstractAgent {
             const limitedWantedSoc = Math.max(parseInt(config.LOWEST_POSSIBLE_CHARGETO), Math.min(wantedSoc, 100));
             if (vehicle.telemetryData.ChargeLimitSoc !== limitedWantedSoc) {
               log(LogLevel.Info, `${vehicle.vin} setting charge limit to ${limitedWantedSoc}%`);
-              await teslaAPI.setChargeLimit(vehicle.vin, limitedWantedSoc, job.serviceData.token);
+              await this.callTeslaAPI(job, teslaAPI.setChargeLimit, vehicle.vin, limitedWantedSoc);
             }
           }
         }
