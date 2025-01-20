@@ -1,10 +1,5 @@
 import { IContext, accountFilter } from "@server/gql/api";
-import provider, {
-  TeslaProviderMutates,
-  TeslaProviderQueries,
-  TeslaProviderData,
-  TeslaToken,
-} from "./index";
+import provider, { TeslaProviderMutates, TeslaProviderQueries, TeslaProviderData, TeslaToken } from "./index";
 import { ApolloError } from "apollo-server-express";
 import { DBInterface } from "@server/db-interface";
 import teslaAPI, { TeslaAPI } from "./tesla-api";
@@ -49,10 +44,7 @@ export async function maintainServiceToken(
   // Flag in database that we are refreshing the token and only one thread should do it
   const updateService = await db.pg.oneOrNone(
     `UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $2) WHERE service_uuid=$1 AND NOT (service_data ? 'renewing_token') RETURNING *;`,
-    [
-      service.service_uuid,
-      { updated: Date.now(), renewing_token: Date.now() },
-    ]
+    [service.service_uuid, { updated: Date.now(), renewing_token: Date.now() }]
   );
   // If we got a row back, we are the only thread that is refreshing the token
   if (updateService) {
@@ -62,23 +54,28 @@ export async function maintainServiceToken(
       // Update the token in the database
       log(LogLevel.Trace, `Token ${service.service_data.token.access_token} renewed to ${newToken.access_token}`);
       log(LogLevel.Info, `Updating service_provider ${service.service_uuid} with new token`);
-      await db.pg.none(`
-        UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $2) WHERE service_uuid=$1;
-        UPDATE vehicle SET provider_data = jsonb_strip_nulls(provider_data || $3) WHERE service_uuid=$1;`,
+      await db.pg.none(
+        `UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $2) WHERE service_uuid=$1;
+         UPDATE vehicle SET provider_data = jsonb_strip_nulls(provider_data || $3) WHERE service_uuid=$1;`,
         [
           service.service_uuid,
-          { updated: Date.now(), token: newToken, renewing_token: null, invalid_token: null },
+          {
+            updated: Date.now(),
+            token: newToken,
+            renewing_token: null,
+            invalid_token: null,
+          },
           { invalid_token: null },
         ]
       );
       return newToken;
     } catch (err: any) {
-      if (err && err.message === "login_required") {
-        log(LogLevel.Warning, `Refresh token ${service.service_data.token.refresh_token} is invalid (login_required)`);
+      if (err && (err.message === "login_required" || err.message === "server_error")) {
+        log(LogLevel.Warning, `Refresh token ${service.service_data.token.refresh_token} is invalid (${err.message})`);
         log(LogLevel.Info, `Setting service_provider ${service.service_uuid} as invalid token status`);
-        await db.pg.none(`
-          UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $2) WHERE service_uuid=$1;
-          UPDATE vehicle SET provider_data = jsonb_strip_nulls(provider_data || $3) WHERE service_uuid=$1;`,
+        await db.pg.none(
+          `UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $2) WHERE service_uuid=$1;
+           UPDATE vehicle SET provider_data = jsonb_strip_nulls(provider_data || $3) WHERE service_uuid=$1;`,
           [
             service.service_uuid,
             { updated: Date.now(), invalid_token: true, renewing_token: null },
@@ -129,11 +126,7 @@ const server: IProviderServer = {
           await context.db.getVehicles(accountFilter(context.accountUUID))
         ).reduce((a, v) => {
           const provider_data = v.provider_data as TeslaProviderData;
-          if (
-            provider_data &&
-            provider_data.provider === "tesla" &&
-            provider_data.vin
-          ) {
+          if (provider_data && provider_data.provider === "tesla" && provider_data.vin) {
             a[provider_data.vin] = v;
           }
           return a;
@@ -160,12 +153,13 @@ const server: IProviderServer = {
                 const vehicle = controlled[vin];
                 if (vehicle) {
                   l.vehicle_uuid = vehicle.vehicle_uuid;
+                  l.display_name = vehicle.name || vin;
                   if (vehicle.service_uuid !== l.service_uuid) {
                     // Wrong service_uuid in database
                     vehicle.service_uuid = l.service_uuid;
                     await context.db.pg.none(
                       `UPDATE vehicle SET service_uuid=$1, provider_data = provider_data - 'invalid_token' WHERE vehicle_uuid=$2;
-                      UPDATE service_provider SET service_data = jsonb_merge(service_data, $3) WHERE service_uuid=$1;`,
+                       UPDATE service_provider SET service_data = jsonb_merge(service_data, $3) WHERE service_uuid=$1;`,
                       [
                         vehicle.service_uuid,
                         vehicle.vehicle_uuid,
@@ -173,10 +167,7 @@ const server: IProviderServer = {
                         // TODO: updated should be a DB field instead
                       ]
                     );
-                    log(
-                      LogLevel.Info,
-                      `Set service_uuid on ${vin}:${vehicle.vehicle_uuid} to ${vehicle.service_uuid}`
-                    );
+                    log(LogLevel.Info, `Set service_uuid on ${vin}:${vehicle.vehicle_uuid} to ${vehicle.service_uuid}`);
                   }
                 }
               }
@@ -216,10 +207,8 @@ const server: IProviderServer = {
       }
       case TeslaProviderMutates.NewVehicle: {
         const input = data.input as TeslaNewListEntry;
-        log(
-          LogLevel.Trace,
-          `TeslaProviderMutates.NewVehicle(${JSON.stringify(input)})`
-        );
+        log(LogLevel.Trace, `TeslaProviderMutates.NewVehicle(${JSON.stringify(input)})`);
+        assert(context.accountUUID !== undefined);
         const vehicle = await context.db.newVehicle(
           context.accountUUID,
           input.name,
@@ -233,15 +222,13 @@ const server: IProviderServer = {
         );
         await context.db.pg.none(
           `UPDATE service_provider SET service_data = jsonb_merge(service_data, $1)
-            WHERE service_uuid=$2;`,
+           WHERE service_uuid=$2;`,
           [{ updated: Date.now() }, input.service_uuid]
         );
         return vehicle;
       }
       default:
-        throw new Error(
-          `Invalid mutation ${data.mutation} sent to tesla-server`
-        );
+        throw new Error(`Invalid mutation ${data.mutation} sent to tesla-server`);
     }
   },
 };

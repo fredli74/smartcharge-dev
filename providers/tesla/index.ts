@@ -16,6 +16,8 @@ export interface TeslaProviderData {
   auto_port?: boolean;
   car_type?: string;
   option_codes?: string;
+  network?: any;
+  telemetryData?: any;
 }
 
 // agent side info

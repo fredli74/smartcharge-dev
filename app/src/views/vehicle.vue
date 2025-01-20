@@ -126,7 +126,14 @@
         <v-col v-if="location" class="body-1"
           >Price per kWh when charging at {{ location.name }}</v-col
         >
-        <v-col v-else class="body-1">No price data</v-col>
+        <v-col v-else class="body-1"
+          >No price data
+          <router-link v-if="vehicleAtUnknownLocation" :to="addLocationURL">
+            <v-card-actions class="justify-center">
+              <v-btn text x-small color="primary">add location</v-btn>
+            </v-card-actions>
+          </router-link>
+        </v-col>
       </v-row>
       <v-row class="pt-0">
         <v-col class="pl-0 pt-0">
@@ -239,8 +246,8 @@ export default class VehicleVue extends Vue {
 
   updateFreshness(vehicle: GQLVehicle | undefined) {
     this.freshInfo = Boolean(
-      vehicle && Date.now() - new Date(vehicle.updated).getTime() < 300e3
-    ); // five minutes
+      vehicle && Date.now() - new Date(vehicle.updated).getTime() < 600e3
+    ); // ten minutes
   }
 
   timer?: any;
@@ -292,13 +299,15 @@ export default class VehicleVue extends Vue {
     }
     return "";
   }
-  get vehicleConnectedAtUnknownLocation(): boolean {
-    return (
+  get vehicleAtUnknownLocation(): boolean {
+    return Boolean(
       this.vehicle !== undefined &&
-      this.vehicle.isConnected &&
-      this.vehicle.geoLocation !== null &&
-      this.vehicle.locationID === null
+        this.vehicle.geoLocation !== null &&
+        this.vehicle.locationID === null
     );
+  }
+  get vehicleConnectedAtUnknownLocation(): boolean {
+    return Boolean(this.vehicleAtUnknownLocation && this.vehicle!.isConnected);
   }
   get addLocationURL(): RawLocation {
     assert(this.vehicle !== undefined);

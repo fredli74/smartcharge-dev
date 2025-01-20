@@ -1,0 +1,16 @@
+{
+  "name": "tesla-utils",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build:protos": "npx ts-node compile-protos.ts"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@bufbuild/protoc-gen-es": "^2.2.3",
+    "@types/node": "^22.10.5",
+    "ts-node": "^10.9.2"
+  }
+}

@@ -1,6 +1,11 @@
 const config = {
   TESLA_COMMAND_PROXY: ``, // 'https://user:pass@localhost:4443',
 
+  TESLA_TELEMETRY_HOST: ``, // public hostname
+  TESLA_TELEMETRY_PORT: `${443}`,
+  TESLA_TELEMETRY_CA: `-----BEGIN CERTIFICATE-----\ncert\n-----END CERTIFICATE-----\n`,
+  TESLA_TELEMETRY_KAFKA_BROKER: `kafka:9092`,
+
   TESLA_API_BASE_URL: `https://fleet-api.prd.eu.vn.cloud.tesla.com`,
   TESLA_API_PROXY: ``,
 

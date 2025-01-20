@@ -1,20 +1,12 @@
 /**
  * @file GraphQL API Stats resolver for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
 import "reflect-metadata";
-import {
-  Field,
-  ObjectType,
-  Int,
-  ID,
-  Float,
-  registerEnumType,
-  GraphQLISODateTime,
-} from "type-graphql";
+import { Field, ObjectType, Int, ID, Float, registerEnumType, GraphQLISODateTime } from "type-graphql";
 import { GraphQLJSONObject } from "graphql-type-json";
 import { ChargePlan } from "./vehicle-type";
 import { Arg, Resolver, Query, Ctx } from "type-graphql";
@@ -22,14 +14,7 @@ import { IContext, accountFilter } from "./api";
 import { plainToInstance } from "class-transformer";
 import { PriceData } from "./price-type";
 import { DBInterface } from "@server/db-interface";
-import {
-  PlainObject,
-  DBPriceData,
-  DBStatsMap,
-  DBSleep,
-  DBCharge,
-  DBTrip,
-} from "@server/db-schema";
+import { PlainObject, DBPriceData, DBStatsMap, DBSleep, DBCharge, DBTrip } from "@server/db-schema";
 import { EventType } from "@shared/sc-types";
 
 registerEnumType(EventType, { name: "EventType" });
@@ -104,19 +89,13 @@ export class StatsResolver {
     @Arg("vehicleID") vehicle_uuid: string,
     @Arg("from", (_type) => GraphQLISODateTime) from: Date,
     @Arg("period", (_type) => Int, { nullable: true, defaultValue: 60 })
-    period: number,
+      period: number,
     @Arg("locationID", { nullable: true }) location_uuid: string | null,
     @Ctx() context: IContext
   ): Promise<ChartData> {
-    const vehicle = await context.db.getVehicle(
-      accountFilter(context.accountUUID),
-      vehicle_uuid
-    );
+    const vehicle = await context.db.getVehicle(accountFilter(context.accountUUID), vehicle_uuid);
 
-    const chargecurve = await context.db.getChargeCurve(
-      vehicle_uuid,
-      location_uuid
-    );
+    const chargecurve = await context.db.getChargeCurve(vehicle_uuid, location_uuid);
 
     const stateMap = (await context.db.pg.manyOrNone(
       `SELECT * FROM state_map
@@ -126,56 +105,44 @@ export class StatsResolver {
     )) as DBStatsMap[];
 
     const eventList: EventList[] = [];
-    (
-      (await context.db.pg.manyOrNone(
-        `SELECT * FROM sleep WHERE vehicle_uuid = $1 AND end_ts >= $2`,
-        [vehicle_uuid, from]
-      )) as DBSleep[]
-    ).forEach((f) => {
-      eventList.push({
-        eventType: EventType.Sleep,
-        start: f.start_ts,
-        end: f.end_ts,
-        data: { active: f.active },
+    ((await context.db.pg.manyOrNone(`SELECT * FROM sleep WHERE vehicle_uuid = $1 AND end_ts >= $2`, [vehicle_uuid, from])) as DBSleep[])
+      .forEach((f) => {
+        eventList.push({
+          eventType: EventType.Sleep,
+          start: f.start_ts,
+          end: f.end_ts,
+          data: { active: f.active },
+        });
       });
-    });
-    (
-      (await context.db.pg.manyOrNone(
-        `SELECT * FROM charge WHERE vehicle_uuid = $1 AND end_ts >= $2`,
-        [vehicle_uuid, from]
-      )) as DBCharge[]
-    ).forEach((f) => {
-      eventList.push({
-        eventType: EventType.Charge,
-        start: f.start_ts,
-        end: f.end_ts,
-        data: {
-          startLevel: f.start_level,
-          endLevel: f.end_level,
-          charger: f.type,
-          addedLevel: f.end_level - f.start_level,
-          addedEnergy: (f.end_added - f.start_added) / 60e3,
-          energyUsed: f.energy_used / 60e3,
-        },
+    ((await context.db.pg.manyOrNone(`SELECT * FROM charge WHERE vehicle_uuid = $1 AND end_ts >= $2`, [vehicle_uuid, from])) as DBCharge[])
+      .forEach((f) => {
+        eventList.push({
+          eventType: EventType.Charge,
+          start: f.start_ts,
+          end: f.end_ts,
+          data: {
+            startLevel: f.start_level,
+            endLevel: f.end_level,
+            charger: f.type,
+            addedLevel: f.end_level - f.start_level,
+            addedEnergy: (f.end_added - f.start_added) / 60e3,
+            energyUsed: f.energy_used / 60e3,
+          },
+        });
       });
-    });
-    (
-      (await context.db.pg.manyOrNone(
-        `SELECT * FROM trip WHERE vehicle_uuid = $1 AND end_ts >= $2`,
-        [vehicle_uuid, from]
-      )) as DBTrip[]
-    ).forEach((f) => {
-      eventList.push({
-        eventType: EventType.Trip,
-        start: f.start_ts,
-        end: f.end_ts,
-        data: {
-          startLevel: f.start_level,
-          endLevel: f.end_level,
-          distance: f.distance,
-        },
+    ((await context.db.pg.manyOrNone(`SELECT * FROM trip WHERE vehicle_uuid = $1 AND end_ts >= $2`, [vehicle_uuid, from])) as DBTrip[])
+      .forEach((f) => {
+        eventList.push({
+          eventType: EventType.Trip,
+          start: f.start_ts,
+          end: f.end_ts,
+          data: {
+            startLevel: f.start_level,
+            endLevel: f.end_level,
+            distance: f.distance,
+          },
+        });
       });
-    });
 
     const chartData: ChartData = plainToInstance(ChartData, {
       locationID: location_uuid,
@@ -184,16 +151,9 @@ export class StatsResolver {
       thresholdPrice: null,
       chargeCurve: chargecurve,
       prices: null,
-      chargePlan:
-        (vehicle.charge_plan &&
-          (vehicle.charge_plan as ChargePlan[]).map((f) =>
-            plainToInstance(ChargePlan, f)
-          )) ||
-        null,
-      directLevel: (
-        (location_uuid && vehicle.location_settings[location_uuid]) ||
-        DBInterface.DefaultVehicleLocationSettings()
-      ).directLevel,
+      chargePlan: (vehicle.charge_plan && (vehicle.charge_plan as ChargePlan[]).map((f) => plainToInstance(ChargePlan, f))) || null,
+      chargePlanLocationID: vehicle.charge_plan_location_uuid,
+      directLevel: ((location_uuid && vehicle.location_settings[location_uuid]) || DBInterface.DefaultVehicleLocationSettings()).directLevel,
       maximumLevel: vehicle.maximum_charge,
       stateMap: stateMap.map((f) =>
         plainToInstance(StateMap, {
@@ -215,8 +175,8 @@ export class StatsResolver {
     if (location_uuid) {
       const priceData = (await context.db.pg.manyOrNone(
         `SELECT p.* FROM price_data p JOIN location l ON (l.price_list_uuid = p.price_list_uuid)
-     WHERE location_uuid = $1 AND ts >= $2
-     ORDER BY ts;`,
+          WHERE location_uuid = $1 AND ts >= $2
+          ORDER BY ts;`,
         [location_uuid, from]
       )) as DBPriceData[];
       chartData.prices = priceData.map(
@@ -228,16 +188,9 @@ export class StatsResolver {
       );
 
       const stats = await context.logic.currentStats(vehicle, location_uuid);
-      if (
-        stats &&
-        stats.weekly_avg7_price &&
-        stats.weekly_avg21_price &&
-        stats.threshold
-      ) {
+      if (stats && stats.weekly_avg7_price && stats.weekly_avg21_price && stats.threshold) {
         const averagePrice =
-          stats.weekly_avg7_price +
-          (stats.weekly_avg7_price - stats.weekly_avg21_price) / 2;
-
+          stats.weekly_avg7_price + (stats.weekly_avg7_price - stats.weekly_avg21_price) / 2;
         chartData.thresholdPrice =
           Math.trunc((averagePrice * stats.threshold) / 100) / 1e5;
       }

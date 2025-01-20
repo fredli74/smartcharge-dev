@@ -2,83 +2,167 @@
 /**
  * @file TeslaAPI agent for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
 import { strict as assert } from "assert";
-
-import * as fs from "fs";
 import {
   log,
-  logFormat,
   LogLevel,
   numericStopTime,
   numericStartTime,
+  diffObjects,
+  delay,
+  compareStartStopTimes,
+  compareStopTimes,
 } from "@shared/utils";
-import { SCClient } from "@shared/sc-client";
+import { GQLLocationFragment, SCClient, UpdateVehicleParams } from "@shared/sc-client";
 import config from "./tesla-config";
-import teslaAPI, { TeslaAPI } from "./tesla-api";
-import {
-  AgentJob,
-  AbstractAgent,
-  IProviderAgent,
-  AgentAction,
-} from "@providers/provider-agent";
-import provider, {
-  TeslaServiceData,
-  TeslaProviderMutates,
-  TeslaProviderQueries,
-  TeslaToken,
-} from ".";
-import {
-  GQLVehicle,
-  GQLUpdateVehicleDataInput,
-  GQLChargeConnection,
-  GQLChargePlan,
-  GQLChargeType,
-  GQLAction,
-  GQLScheduleType,
-} from "@shared/sc-schema";
-import { scheduleMap } from "@shared/sc-utils";
+import teslaAPI, { TeslaAPI, TeslaChargeSchedule, TeslaPreconditionSchedule, TeslaScheduleTimeToDate } from "./tesla-api";
+import { AgentJob, AbstractAgent, IProviderAgent } from "@providers/provider-agent";
+import provider, { TeslaServiceData, TeslaProviderMutates, TeslaProviderQueries, TeslaToken } from ".";
+import { GQLVehicle, GQLUpdateVehicleDataInput, GQLChargeConnection, GQLChargeType, GQLGeoLocation, GQLScheduleType } from "@shared/sc-schema";
+import { Consumer, Kafka, LogEntry, logLevel } from "kafkajs";
+import * as protobuf from "@bufbuild/protobuf";
+import * as telemetryConnectivity from "./telemetry-protos/vehicle_connectivity_pb";
+import * as telemetryData from "./telemetry-protos/vehicle_data_pb";
+import * as telemetryError from "./telemetry-protos/vehicle_error_pb";
+import { RestClientError } from "@shared/restclient";
 
-type PollState = "polling" | "tired" | "offline" | "asleep";
-enum ChargeControl {
-  Starting,
-  Started,
-  Stopping,
-  Stopped,
+// Telemetry data that is not directly mapped to a vehicle database field
+interface TeslaTelemetryData {
+  Location: GQLGeoLocation;
+  Soc: number;
+  Odometer: number;
+  OutsideTemp: number;
+  InsideTemp: number;
+  TimeToFullCharge: number;
+
+  HvacPower: telemetryData.HvacPowerState;
+  Gear: string;
+  FastChargerPresent: boolean;
+  FastChargerType: string;
+  ChargeState: string;
+  DetailedChargeState: telemetryData.DetailedChargeStateValue;
+  ChargeAmps: number;
+  ChargeCurrentRequest: number;
+  ChargeCurrentRequestMax: number;
+  ChargeEnableRequest: boolean;
+  ChargeLimitSoc: number;
+  ChargerPhases: number;
+  //ChargerVoltage: number; // TODO: remove because of bug in Tesla API
+  ACChargingEnergyIn: number;
+  ACChargingPower: number;
+  DCChargingEnergyIn: number;
+  DCChargingPower: number;
+  ScheduledChargingMode: string;
+  ScheduledChargingStartTime: string;
+  ScheduledChargingPending: boolean;
+  ScheduledDepartureTime: string;
+
+  DriverSeatOccupied: boolean;
+  HvacAutoMode: telemetryData.HvacAutoModeState;
+  ClimateKeeperMode: telemetryData.ClimateKeeperModeState;
+  SentryMode: telemetryData.SentryModeState;
+
+  VehicleName: string;
+  CarType: string;
+  Trim: string;
+  ExteriorColor: string;
+  RoofColor: string;
+  WheelType: string;
+}
+type TelemetryFields = { [K in keyof TeslaTelemetryData]: { interval_seconds: number }; };
+const telemetryFields: TelemetryFields = {
+  Location: { interval_seconds: 60 },
+  Soc: { interval_seconds: 60 },
+  Odometer: { interval_seconds: 15 },
+  OutsideTemp: { interval_seconds: 60 },
+  InsideTemp: { interval_seconds: 30 },
+  TimeToFullCharge: { interval_seconds: 10 },
+
+  VehicleName: { interval_seconds: 60 },
+
+  HvacPower: { interval_seconds: 5 },
+  Gear: { interval_seconds: 15 },
+  FastChargerPresent: { interval_seconds: 5 },
+  FastChargerType: { interval_seconds: 5 },
+  ChargeState: { interval_seconds: 5 },
+  DetailedChargeState: { interval_seconds: 5 },
+  ChargeAmps: { interval_seconds: 5 },
+  ChargeCurrentRequest: { interval_seconds: 5 },
+  ChargeCurrentRequestMax: { interval_seconds: 5 },
+  ChargeEnableRequest: { interval_seconds: 5 },
+  ChargeLimitSoc: { interval_seconds: 5 },
+  ChargerPhases: { interval_seconds: 5 },
+  //ChargerVoltage: { interval_seconds: 5 },
+  ACChargingEnergyIn: { interval_seconds: 10 },
+  ACChargingPower: { interval_seconds: 10 },
+  DCChargingEnergyIn: { interval_seconds: 10 },
+  DCChargingPower: { interval_seconds: 10 },
+  ScheduledChargingMode: { interval_seconds: 60 },
+  ScheduledChargingStartTime: { interval_seconds: 60 },
+  ScheduledChargingPending: { interval_seconds: 60 },
+  ScheduledDepartureTime: { interval_seconds: 60 },
+
+  DriverSeatOccupied: { interval_seconds: 5 },
+  HvacAutoMode: { interval_seconds: 10 },
+  ClimateKeeperMode: { interval_seconds: 10 },
+  SentryMode: { interval_seconds: 60 },
+
+  CarType: { interval_seconds: 600 },
+  Trim: { interval_seconds: 600 },
+  ExteriorColor: { interval_seconds: 600 },
+  RoofColor: { interval_seconds: 600 },
+  WheelType: { interval_seconds: 600 },
+};
+
+interface NumericChargePlan {
+  scheduleID?: number;
+  chargeType?: GQLChargeType;
+  level?: number;
+  chargeStart: number | null;
+  chargeStop: number | null;
 }
 
-interface TeslaSubject {
-  vehicleUUID: string;
+interface ChargePlanSchedule {
+  sourceHash: string;
+  expires: number;
+  chargeSchedule: { [id: number]: TeslaChargeSchedule & { charge_limit?: number } };
+  preconditionSchedule: { [id: number]: TeslaPreconditionSchedule };
+}
+
+interface VehicleEntry {
   vin: string;
-  data?: GQLVehicle;
-  online: boolean;
-  pollerror: number | undefined;
-  pollstate: PollState | undefined;
-  statestart: number;
-  status: string;
-  keepAwake?: number; // last event where we wanted to stay awake
-  debugSleep?: any; // TODO: remove?
-  climateEnabled?: boolean; // remember it because we can't poll it if asleep
-  chargeLimit?: number; // remember it because we can't poll it if asleep
-  chargeEnabled?: boolean; // remember it because we can't poll it if asleep
-  chargeControl?: ChargeControl; // keep track of last charge command to enable user charge control overrides
-  portOpen?: boolean; // is charge port open
-  parked?: number; // are we parked
-  triedOpen?: number; // timestamp when we tried to open the port
-  hvacOn?: number; // timestamp when we tried to turn on hvac
-  hvacOverride?: number; // timestamp when user interacted with vehicle
-  calibrating?: {
-    next: number;
-    level: number;
-    duration: number;
-  };
+  vehicleUUID: string | null;
+  job: TeslaAgentJob | null;
+  telemetryConfig: Record<string, any> | null;
+  dbData: GQLVehicle | null;
+
+  telemetryData: Partial<TeslaTelemetryData>;
+  lastTelemetryData: Partial<TeslaTelemetryData>;
+
+  network: { [connectionId: string]: string };
+
+  vehicleDataInput: Partial<GQLUpdateVehicleDataInput>;
+  lastVehicleDataInput: Partial<GQLUpdateVehicleDataInput>;
+
+  isUpdating: boolean;
+  updatePromise: Promise<void> | null;
+
+  tsUpdate: number;
+
+  isSleepy: boolean;
+  isOnline: boolean;
+
+  charge_schedules?: { [id: number]: TeslaChargeSchedule }; // Cached charge schedules
+  precondition_schedules?: { [id: number]: TeslaPreconditionSchedule }; // Cached precondition schedules
+  chargePlan?: ChargePlanSchedule;
 }
 
 interface TeslaAgentState {
-  [teslaID: string]: TeslaSubject;
+  [vehicleUUID: string]: string;  // vehicleUUID -> vin
 }
 interface TeslaAgentJob extends AgentJob {
   serviceData: TeslaServiceData;
@@ -86,27 +170,96 @@ interface TeslaAgentJob extends AgentJob {
   state: TeslaAgentState;
 }
 
+function mapTelemetryNumber(v: telemetryData.Value["value"]): number {
+  switch (v.case) {
+    case "stringValue": case "intValue": case "floatValue": case "doubleValue":
+      return +v.value;
+    default:
+      log(LogLevel.Warning, `Tesla Telmetry invalid number value: ${v} (${v.case})`);
+      return NaN;
+  }
+}
+
 export class TeslaAgent extends AbstractAgent {
   public name: string = provider.name;
+  public kafkaClient: Kafka;
+  public kafkaConsumer: Consumer;
   constructor(scClient: SCClient) {
     super(scClient);
+    this.kafkaClient = new Kafka({
+      clientId: "smartcharge-broker",
+      brokers: [config.TESLA_TELEMETRY_KAFKA_BROKER],
+      logLevel: logLevel.INFO,
+      logCreator: (_level: logLevel) => (entry: LogEntry) => {
+        log(entry.level === logLevel.ERROR ? LogLevel.Error
+          : entry.level === logLevel.WARN ? LogLevel.Warning
+          : entry.level === logLevel.INFO ? LogLevel.Info
+          : LogLevel.Debug, `Kafka ${entry.namespace}: ${entry.log.message}`
+        );
+      },
+    });
+    this.kafkaConsumer = this.kafkaClient.consumer({
+      groupId: "smartcharge-broker",
+    });
+    this.kafkaConsumer.connect();
+    this.kafkaConsumer.subscribe({
+      topics: ["tesla_connectivity", "tesla_error", "tesla_V"],
+      fromBeginning: true,
+    });
+    this.kafkaConsumer.run({
+      eachMessage: async ({ topic, message }) => {
+        if (message.value === null) {
+          log(LogLevel.Error, `Tesla Telmetry message value is null`);
+          return;
+        }
+        if (topic === "tesla_connectivity") {
+          const data = protobuf.fromBinary(
+            telemetryConnectivity.VehicleConnectivitySchema,
+            new Uint8Array(message.value)
+          );
+          await this.telemetryConnectivityMessage(data);
+        } else if (topic === "tesla_V") {
+          const data = protobuf.fromBinary(
+            telemetryData.PayloadSchema,
+            new Uint8Array(message.value)
+          );
+          for (const d of data.data) {
+            await this.telemetryDataMessage(data.vin, d);
+          }
+        } else if (topic === "tesla_error") {
+          const data = protobuf.fromBinary(
+            telemetryError.VehicleErrorsSchema,
+            new Uint8Array(message.value)
+          );
+          for (const error of data.errors) {
+            log(LogLevel.Error, `Tesla Telmetry error ${error.name} (${JSON.stringify(error.tags)}): ${error.body}`);
+          }
+        } else {
+          log(LogLevel.Error, `Unknown Tesla Telmetry topic: ${topic}`);
+        }
+      },
+    });
+    process.on("SIGINT", this.shutdown);
+    process.on("SIGTERM", this.shutdown);
   }
+  public async shutdown() {
+    log(LogLevel.Info, `Gracefully shutting down`);
+    if (this.kafkaConsumer) {
+      await this.kafkaConsumer.disconnect();
+    }
+    if (this.vehicles) {
+      for (const v of Object.values(this.vehicles)) {
+        if (v.updatePromise) {
+          await v.updatePromise;
+        }
+      }
+    }
+  }
+
+  public vehicles: { [vin: string]: VehicleEntry } = {};
 
   public newState(): TeslaAgentState {
     return {};
-  }
-  private changePollstate(subject: TeslaSubject, state: PollState) {
-    if (subject.pollstate === state) return;
-    subject.pollstate = state;
-    subject.statestart = Date.now();
-    subject.online = state !== "offline" && state !== "asleep";
-  }
-
-  public async setStatus(subject: TeslaSubject, status: string) {
-    if (subject.status !== status) {
-      this.scClient.updateVehicle({ id: subject.vehicleUUID, status: status });
-      subject.status = status;
-    }
   }
 
   public async refreshToken(job: TeslaAgentJob) {
@@ -114,6 +267,10 @@ export class TeslaAgent extends AbstractAgent {
       mutation: TeslaProviderMutates.RefreshToken,
       service_uuid: job.serviceID,
     });
+    if (token === null) {
+      log(LogLevel.Warning, `TeslaProviderMutates.RefreshToken returned null`);
+      throw new Error("TeslaProviderMutates.RefreshToken returned null");
+    }
     job.serviceData.token = token as TeslaToken;
     delete job.serviceData.invalid_token;
     log(LogLevel.Debug, `Updated token for ${job.serviceID} to ${token.access_token}`);
@@ -130,806 +287,823 @@ export class TeslaAgent extends AbstractAgent {
     }
   }
 
-  private async wentOffline(subject: TeslaSubject) {
-    if (subject.debugSleep !== undefined) {
-      subject.debugSleep.now = Date.now();
-      subject.debugSleep.success = true;
-      await this.scClient.vehicleDebug({
-        id: subject.vehicleUUID,
-        category: "sleep",
-        timestamp: new Date().toISOString(),
-        data: subject.debugSleep,
-      });
+  private vehicleEntry(vin: string): VehicleEntry {
+    if (!this.vehicles[vin]) {
+      this.vehicles[vin] = {
+        vin: vin,
+        vehicleUUID: null,
+        job: null,
+        telemetryConfig: null,
+        telemetryData: {},
+        network: {},
+        lastTelemetryData: {},
+        dbData: null,
+        vehicleDataInput: {},
+        lastVehicleDataInput: {},
+        isUpdating: false,
+        updatePromise: null,
+        isOnline: false,
+        isSleepy: false,
+        tsUpdate: Date.now(),
+      };
     }
+    return this.vehicles[vin];
   }
 
-  private stayOnline(subject: TeslaSubject) {
-    this.changePollstate(subject, "polling"); // Active polling
-    subject.keepAwake = Date.now() + parseInt(config.TIME_BEFORE_TIRED);
+  // We can cache location, because it is not expected to change
+  private locationCache: { [locationID: string]: GQLLocationFragment } = {};
+  private async getLocation(locationID: string): Promise<GQLLocationFragment> {
+    if (!this.locationCache[locationID]) {
+      this.locationCache[locationID] = await this.scClient.getLocation(locationID);
+    }
+    return this.locationCache[locationID];
   }
 
-  private async vehicleInteraction(
-    job: TeslaAgentJob,
-    subject: TeslaSubject,
-    wakeup: boolean,
-    userInteraction: boolean
-  ): Promise<boolean> {
-    if (job.serviceData.invalid_token) return false; // provider requires a valid token
-    if (!subject.online && !wakeup) return false; // offline and we should not wake it up
-
-    await this.maintainToken(job);
-    if (!subject.online) {
-      log(
-        LogLevel.Info,
-        `${subject.vin} waking up ${
-          (subject.data && subject.data.name) || subject.vehicleUUID
-        }`
-      );
-      const data = await teslaAPI.wakeUp(subject.vin, job.serviceData.token);
-      if (data && data.response && data.response.state === "online") {
-        subject.online = true;
-      }
-      this.adjustInterval(job, 120); // poll more often after wakeup
-    }
-    if (subject.online) {
-      this.stayOnline(subject);
-      if (userInteraction) {
-        this.adjustInterval(job, 0); // poll directly after an interaction
-      }
-      return true;
-    }
-    // this.adjustInterval(job, 10); // poll more often after an interaction
-    return false;
+  private locationTimezoneOffset(location: GQLLocationFragment, d: Date): number {
+    // Ignore location for now, let's assume every location has Europe/Stockholm timezone
+    // TODO: Implement location timezone from getLocation(locationUUID) data
+    const utcTime = new Date(d.toLocaleString("sv-SE", { timeZone: "UTC" }));
+    const localTime = new Date(d.toLocaleString("sv-SE", { timeZone: "Europe/Stockholm" }));
+    return localTime.getTime() - utcTime.getTime();
   }
 
-  private async poll(job: TeslaAgentJob, subject: TeslaSubject): Promise<void> {
-    try {
-      const now = Date.now();
+  // Converts UTC time to local time at location
+  private ConvertUTCtoLocationTime(location: GQLLocationFragment, d: Date): Date {
+    return new Date(d.getTime() + this.locationTimezoneOffset(location, d));
+  }
 
-      if (!subject.data || subject.data.providerData.disabled) {
-        subject.data = await this.scClient.getVehicle(subject.vehicleUUID);
-        if (subject.data.providerData.disabled) {
-          log(
-            LogLevel.Trace,
-            `${subject.vin} disabled by user for ${subject.data.name}`
-          );
-          return;
-        }
-      }
-
-      await this.maintainToken(job);
-
-      const timeTryingToSleep =
-        subject.data.providerData.time_tired || config.TIME_BEING_TIRED;
-
-      // API Poll
-      if (
-        subject.pollstate === "polling" || // Poll vehicle data if we are in polling state
-        (subject.pollstate === "tired" &&
-          now >= subject.statestart + timeTryingToSleep) // or if we've been trying to sleep for TIME_BEING_TIRED seconds
-      ) {
-        const data = (
-          await teslaAPI.getVehicleData(subject.vin, job.serviceData.token)
-        ).response;
-        log(
-          LogLevel.Debug,
-          `${subject.vin} full poll : ${JSON.stringify(data)}`
-        );
-        if (config.AGENT_SAVE_TO_TRACEFILE === "true") {
-          const s = logFormat(LogLevel.Trace, data);
-          fs.writeFileSync(config.AGENT_TRACE_FILENAME, `${s}\n`, {
-            flag: "as",
-          });
-        }
-
-        // Work-around for the strange trickle charge behavior
-        // added for Model S in 2020.16.2.1 upgrade
-        if (
-          (subject.data.providerData.car_type === "models" ||
-            subject.data.providerData.car_type === "models2" ||
-            subject.data.providerData.car_type === "modelx") &&
-          data.charge_state.charging_state === "Complete" &&
-          data.charge_state.user_charge_enable_request !== false
-        ) {
-          if (subject.chargeControl === ChargeControl.Stopped) {
-            log(
-              LogLevel.Debug,
-              `${subject.vin} trickle-charge fix stop of ${subject.data.name} overridden by user interaction`
-            );
-          } else {
-            // known location or force disable
-            log(
-              LogLevel.Info,
-              `${subject.vin} trickle-charge fix stop charging ${subject.data.name}`
-            );
-            teslaAPI.chargeStop(subject.vin, job.serviceData.token);
-            subject.chargeControl = ChargeControl.Stopping;
-          }
-        }
-
-        subject.pollerror = undefined;
-        subject.chargeLimit = data.charge_state.charge_limit_soc;
-        subject.climateEnabled = data.climate_state.is_climate_on;
-        // data.climate_state.remote_heater_control_enabled;    found situations where this was true while climate was turned off
-        subject.chargeEnabled =
-          data.charge_state.user_charge_enable_request !== null
-            ? data.charge_state.user_charge_enable_request
-            : data.charge_state.charging_state === "Stopped"
-            ? false
-            : data.charge_state.charge_enable_request;
-        subject.portOpen = data.charge_state.charge_port_door_open;
-        subject.online = true;
-
-        const chargingTo =
-          data.charge_state.charging_state === "Charging"
-            ? Math.trunc(data.charge_state.charge_limit_soc)
-            : null;
-
-        // charger_phases seems to be reported wrong, or I simply don't understand and someone could explain it?
-        // Tesla Wall Connector in Sweden reports 2 phases, 16 amps, and 230 volt = 2*16*230 = 7kW,
-        // the correct number should be 11 kW on 3 phases (3*16*230).
-        const phases =
-          data.charge_state.charger_actual_current > 0 &&
-          data.charge_state.charger_voltage > 1
-            ? Math.round(
-                (data.charge_state.charger_power * 1e3) /
-                  data.charge_state.charger_actual_current /
-                  data.charge_state.charger_voltage
-              )
-            : 0;
-        // const phases = data.charge_state.charger_phases;
-
-        // Own power use calculation because tesla API only gives us integers which is crap when slow amp charging
-        const powerUse =
-          phases > 0 // we get 0 phases when DC charging because current is 0
-            ? (data.charge_state.charger_actual_current * // amp
-                phases * // * phases
-                data.charge_state.charger_voltage) /
-              1e3 // * voltage = watt / 1000 = kW
-            : data.charge_state.charger_power; // fallback to API reported power
-
-        // Update info
-        const input: GQLUpdateVehicleDataInput = {
-          id: subject.vehicleUUID,
-          geoLocation: {
-            latitude: data.drive_state.latitude,
-            longitude: data.drive_state.longitude,
-          },
-          batteryLevel: Math.trunc(data.charge_state.usable_battery_level), // battery level in %
-          odometer: Math.trunc(data.vehicle_state.odometer * 1609.344), // 1 mile = 1.609344 km
-          outsideTemperature: data.climate_state.outside_temp, // in celcius
-          insideTemperature: data.climate_state.inside_temp, // in celcius
-          climateControl: data.climate_state.is_climate_on,
-          isDriving:
-            data.drive_state.shift_state === "D" || // Driving if shift_state is in Drive
-            data.drive_state.shift_state === "R", // ... or in Reverse
-          // Set connection type
-          connectedCharger: data.charge_state.fast_charger_present
-            ? GQLChargeConnection.DC // fast charger
-            : data.charge_state.charging_state !== "Disconnected"
-            ? GQLChargeConnection.AC
-            : null, // any other charger or no charger
-          chargingTo: chargingTo,
-          estimatedTimeLeft: Math.round(
-            data.charge_state.time_to_full_charge * 60
-          ), // 1 hour = 60 minutes
-          powerUse: chargingTo !== null ? powerUse : null,
-          energyAdded: data.charge_state.charge_energy_added, // added kWh
-        };
-
-        const isGettingTired =
-          (data.climate_state.outside_temp === null &&
-            data.climate_state.inside_temp === null) || // Model S does this
-          (subject.keepAwake || 0) < now;
-
-        let insomnia = false; // Are we in a state where sleep is not possible
-
-        // Set status
-        if (input.chargingTo) {
-          await this.setStatus(subject, "Charging"); // We are charging
-          insomnia = true; // Can not sleep while charging
-          // this.adjustInterval(job, 10); // Poll more often when charging
-          this.adjustInterval(job, parseInt(config.TESLA_POLL_INTERVAL)); // not allowed to poll more than 5 minutes now
-        } else if (input.isDriving) {
-          await this.setStatus(subject, "Driving"); // We are driving
-          insomnia = true; // Can not sleep while driving
-          // this.adjustInterval(job, 10); // Poll more often when driving
-          this.adjustInterval(job, parseInt(config.TESLA_POLL_INTERVAL)); // not allowed to poll more than 5 minutes now
-        } else {
-          this.adjustInterval(job, parseInt(config.TESLA_POLL_INTERVAL));
-          if (data.vehicle_state.is_user_present) {
-            await this.setStatus(subject, "Idle (user present)");
-            insomnia = true;
-          } else if (data.climate_state.climate_keeper_mode === "dog") {
-            await this.setStatus(subject, "Idle (dog mode on)");
-            insomnia = true;
-          } else if (data.climate_state.is_climate_on) {
-            await this.setStatus(subject, "Idle (climate on)");
-            insomnia = true;
-          } else if (data.vehicle_state.sentry_mode) {
-            await this.setStatus(subject, "Idle (sentry on)");
-            insomnia = true;
-          } else if (subject.pollstate === "tired") {
-            if (subject.debugSleep !== undefined) {
-              subject.debugSleep.now = now;
-              subject.debugSleep.success = false;
-              await this.scClient.vehicleDebug({
-                id: subject.vehicleUUID,
-                category: "sleep",
-                timestamp: new Date().toISOString(),
-                data: subject.debugSleep,
-              });
-              subject.debugSleep.info = data;
-            }
-            subject.statestart = now; // Reset state start to only poll once every TIME_BEING_TIRED
-          } else if (isGettingTired) {
-            await this.setStatus(subject, "Waiting to sleep"); // We were idle for TIME_BEFORE_TIRED
-            this.changePollstate(subject, "tired");
-            subject.debugSleep = {
-              now: now,
-              start: now,
-              success: false,
-              info: data,
-            }; // Save current state to debug sleep tries
-          } else {
-            await this.setStatus(subject, "Idle");
-          }
-        }
-        if (insomnia) {
-          this.stayOnline(subject);
-        }
-        await this.scClient.updateVehicleData(input);
-
-        // Set car_type and option_codes if missing
-        if (
-          subject.data.providerData.unknown_image ||
-          subject.data.providerData.car_type === undefined ||
-          subject.data.providerData.option_codes === undefined
-        ) {
-          const option_codes = [];
-          const options = await teslaAPI.getVehicleOptions(
-            subject.vin,
-            job.serviceData.token
-          );
-          let unknown_image;
-          if (Array.isArray(options.codes)) {
-            unknown_image = null;
-            for (const entry of options.codes) {
-              if (entry.isActive) {
-                option_codes.push(entry.code);
-              }
-            }
-          } else {
-            unknown_image = true;
-          }
-          await this.scClient.updateVehicle({
-            id: subject.vehicleUUID,
-            providerData: {
-              car_type: data.vehicle_config.car_type,
-              unknown_image,
-              option_codes,
-            },
-          });
-        }
-
-        // Charge calibration
-        if (
-          subject.calibrating &&
-          powerUse > 0 &&
-          now > subject.calibrating.next
-        ) {
-          const thisLimit = data.charge_state.charge_limit_soc;
-          const lastLimit = subject.calibrating.level;
-          const levelNow = data.charge_state.usable_battery_level;
-          if (thisLimit <= levelNow) {
-            subject.calibrating.level = levelNow;
-            subject.calibrating.duration = 0;
-          } else if (thisLimit > lastLimit) {
-            const thisTime = data.charge_state.time_to_full_charge * 3600;
-            const lastDuration = subject.calibrating.duration;
-            let duration = thisTime / (thisLimit - levelNow);
-
-            if (lastDuration > 0 && levelNow < lastLimit) {
-              const lastTime =
-                (lastLimit - levelNow) * subject.calibrating.duration;
-              duration = Math.max(
-                duration,
-                (thisTime - lastTime) / (thisLimit - lastLimit)
-              );
-            }
-            subject.calibrating.level = thisLimit;
-            subject.calibrating.duration = duration;
-            await this.scClient.chargeCalibration(
-              subject.vehicleUUID,
-              subject.calibrating.level,
-              Math.round(subject.calibrating.duration),
-              powerUse
-            );
-          }
-        }
-
-        if (
-          !subject.hvacOverride &&
-          (data.climate_state.climate_keeper_mode !== "off" ||
-            data.climate_state.smart_preconditioning ||
-            data.drive_state.shift_state === "D" ||
-            data.drive_state.shift_state === "R" ||
-            data.vehicle_state.is_user_present ||
-            data.vehicle_state.df > 0 ||
-            data.vehicle_state.dr > 0 ||
-            data.vehicle_state.pf > 0 ||
-            data.vehicle_state.pr > 0 ||
-            data.vehicle_state.ft > 0 ||
-            data.vehicle_state.rt > 0)
-        ) {
-          // User has interacted with the car so leave the hvac alone
-          subject.hvacOverride = now;
-        }
-      } else {
-        // Poll vehicle list to avoid keeping it awake
-        const data = (
-          await teslaAPI.listVehicle(subject.vin, job.serviceData.token)
-        ).response;
-        if (config.AGENT_SAVE_TO_TRACEFILE === "true") {
-          const s = logFormat(LogLevel.Trace, data);
-          fs.writeFileSync(config.AGENT_TRACE_FILENAME, `${s}\n`, {
-            flag: "as",
-          });
-        }
-        log(
-          LogLevel.Debug,
-          `${subject.vin} list poll : ${JSON.stringify(data)}`
-        );
-
-        this.adjustInterval(job, parseInt(config.TESLA_POLL_INTERVAL));
-        switch (data.state) {
-          case "online":
-            if (
-              subject.pollstate === undefined ||
-              subject.pollstate === "asleep" ||
-              subject.pollstate === "offline"
-            ) {
-              // We were offline or sleeping
-              log(
-                LogLevel.Info,
-                `${subject.vin} is ${data.state} (${subject.pollstate} -> polling)`
-              );
-              if (subject.pollerror) {
-                this.changePollstate(subject, "polling"); // Active polling
-              } else {
-                this.stayOnline(subject);
-                this.adjustInterval(job, 0); // Woke up, poll right away
-              }
-              return;
-            }
-            break;
-          case "offline":
-            if (subject.pollstate !== "offline") {
-              log(
-                LogLevel.Info,
-                `${subject.vin} is ${data.state} (${subject.pollstate} -> offline)`
-              );
-
-              this.changePollstate(subject, "offline");
-              await this.setStatus(subject, "Offline");
-              await this.wentOffline(subject);
-            }
-            break;
-          case "asleep":
-            if (subject.pollstate !== "asleep") {
-              log(
-                LogLevel.Info,
-                `${subject.vin} is ${data.state} (${subject.pollstate} -> asleep)`
-              );
-
-              this.changePollstate(subject, "asleep");
-              await this.setStatus(subject, "Sleeping");
-              await this.wentOffline(subject);
-            }
-            break;
-          default: {
-            const s = logFormat(
-              LogLevel.Error,
-              `${subject.vin} unknown state: ${JSON.stringify(data)}`
-            );
-            fs.writeFileSync(config.AGENT_TRACE_FILENAME, `${s}\n`, {
-              flag: "as",
-            });
-            console.error(s);
-          }
-        }
-      }
-
-      if (subject.data.providerData.invalid_token) {
-        await this.scClient.updateVehicle({
-          id: subject.vehicleUUID,
-          providerData: { invalid_token: null },
-        });
-      }
-
-      const previousData = subject.data;
-      subject.data = await this.scClient.getVehicle(subject.vehicleUUID);
-
-      const wasDriving = Boolean(
-        previousData &&
-          (previousData.isDriving ||
-            subject.data.odometer - previousData.odometer >= 200) // Vehicle moved 200 meters
-      );
-
-      if (subject.data.isDriving) {
-        subject.triedOpen = undefined;
-        subject.parked = undefined;
-        subject.chargeControl = undefined;
-      } else if (wasDriving) {
-        subject.parked = now;
-        subject.chargeControl = undefined;
-      }
-
-      log(LogLevel.Debug, `${subject.vin} ${JSON.stringify(subject)}`);
-
-      // Reduce the array to a map with only the first upcoming event of each type
-      const schedule = scheduleMap(subject.data.schedule);
-      const disabled = schedule[GQLScheduleType.Disable];
-      if (disabled && now < numericStopTime(disabled.time)) {
-        // Command disabled
-        return;
-      }
-
-      // Command logic
-      if (subject.data.isConnected) {
-        // did we control the charge?
-        if (
-          subject.chargeEnabled === true &&
-          subject.chargeControl === ChargeControl.Starting
-        ) {
-          subject.chargeControl = ChargeControl.Started;
-        } else if (
-          subject.chargeEnabled === false &&
-          subject.chargeControl === ChargeControl.Stopping
-        ) {
-          subject.chargeControl = ChargeControl.Stopped;
-        }
-
-        // do we have a charge plan
-        let shouldCharge: GQLChargePlan | undefined = undefined;
-        let disableCharge: boolean = false;
-        if (subject.data.chargePlan) {
-          for (const p of subject.data.chargePlan) {
-            if (p.chargeType === GQLChargeType.Disable) {
-              disableCharge = true;
-            } else if (
-              (p.chargeType === GQLChargeType.Manual &&
-                p.chargeStart === null) ||
-              (now >= numericStartTime(p.chargeStart) &&
-                now < numericStopTime(p.chargeStop))
-            ) {
-              shouldCharge = p;
-              break;
-            }
-          }
-        }
-
-        // are we following the plan
-        if (
-          shouldCharge === undefined &&
-          subject.online &&
-          subject.chargeEnabled === true &&
-          subject.data.chargingTo !== null &&
-          subject.data.batteryLevel < subject.data.chargingTo // keep it running if we're above or on target
-        ) {
-          if (subject.chargeControl === ChargeControl.Stopped) {
-            log(
-              LogLevel.Debug,
-              `${subject.vin} charge stop of ${subject.data.name} overridden by user interaction`
-            );
-          } else if (
-            (subject.data.locationID !== null || disableCharge) &&
-            (await this.vehicleInteraction(job, subject, false, false))
-          ) {
-            // known location or force disable
-            log(
-              LogLevel.Info,
-              `${subject.vin} stop charging ${subject.data.name}`
-            );
-            teslaAPI.chargeStop(subject.vin, job.serviceData.token);
-            subject.chargeControl = ChargeControl.Stopping;
-            this.stayOnline(subject);
-          }
-        } else if (shouldCharge !== undefined) {
-          if (subject.chargeEnabled !== true) {
-            if (subject.chargeControl === ChargeControl.Started) {
-              log(
-                LogLevel.Debug,
-                `${subject.vin} charge start of ${subject.data.name} overridden by user interaction`
-              );
-            } else if (
-              subject.data.batteryLevel < shouldCharge.level &&
-              (await this.vehicleInteraction(job, subject, true, false))
-            ) {
-              log(
-                LogLevel.Info,
-                `${subject.vin} start charging ${subject.data.name}`
-              );
-              await teslaAPI.chargeStart(subject.vin, job.serviceData.token);
-              subject.chargeControl = ChargeControl.Starting;
-              this.stayOnline(subject);
-            }
-          }
-
-          let setLevel = shouldCharge.level;
-          if (shouldCharge.chargeType === GQLChargeType.Calibrate) {
-            if (!subject.calibrating) {
-              subject.calibrating = {
-                level: Math.max(
-                  parseInt(config.LOWEST_POSSIBLE_CHARGETO),
-                  subject.data.batteryLevel
-                ),
-                duration: 0,
-                next: now + 30e3,
-              };
-            }
-            if (subject.calibrating.level >= shouldCharge.level) {
-              // done!
-              setLevel = 0;
-            } else {
-              setLevel = subject.calibrating.level + 1;
-              if (subject.chargeLimit !== setLevel) {
-                subject.calibrating.next = Math.max(
-                  now + 15e3,
-                  subject.calibrating.next
-                );
-              }
-            }
-          } else if (subject.calibrating) {
-            delete subject.calibrating;
-          }
-
-          const chargeto = Math.max(
-            parseInt(config.LOWEST_POSSIBLE_CHARGETO),
-            setLevel
-          ); // Minimum allowed charge for Tesla is 50
-
-          if (
-            subject.chargeLimit !== undefined && // Only controll if polled at least once
-            (subject.chargeLimit < chargeto ||
-              (subject.chargeLimit > chargeto &&
-                (shouldCharge.chargeType === GQLChargeType.Manual ||
-                  subject.data.locationID !== null)))
-          ) {
-            if (await this.vehicleInteraction(job, subject, true, false)) {
-              log(
-                LogLevel.Info,
-                `${subject.vin} setting charge limit for ${subject.data.name} to ${chargeto}%`
-              );
-              await teslaAPI.setChargeLimit(
-                subject.vin,
-                chargeto,
-                job.serviceData.token
-              );
-              this.stayOnline(subject);
-            }
-          }
-        }
-      } else {
-        if (
-          subject.data.locationID !== null &&
-          subject.data.providerData.auto_port &&
-          subject.parked !== undefined &&
-          subject.data.chargePlan &&
-          subject.data.chargePlan.findIndex(
-            (f) =>
-              f.chargeType !== GQLChargeType.Disable &&
-              f.chargeType !== GQLChargeType.Fill &&
-              f.chargeType !== GQLChargeType.Manual &&
-              f.chargeType !== GQLChargeType.Prefered
-          ) >= 0
-        ) {
-          if (
-            now < subject.parked + 1 * 60e3 && // only open during the first minute
-            !subject.portOpen &&
-            subject.triedOpen === undefined
-          ) {
-            if (await this.vehicleInteraction(job, subject, false, false)) {
-              // if port is closed and we did not try to open it yet
-              await teslaAPI.openChargePort(subject.vin, job.serviceData.token);
-            }
-            subject.triedOpen = now;
-          } else if (
-            now > subject.parked + 3 * 60e3 && // keep port open for 3 minutes
-            subject.portOpen &&
-            subject.triedOpen !== undefined
-          ) {
-            if (await this.vehicleInteraction(job, subject, false, false)) {
-              await teslaAPI.closeChargePort(
-                subject.vin,
-                job.serviceData.token
-              );
-            }
-            subject.triedOpen = undefined;
-          }
-        }
-      }
-      // Should we turn on hvac?
-      if (subject.data.providerData.auto_hvac) {
-        const trip = schedule[GQLScheduleType.Trip];
-        const after =
-          !trip ||
-          now >
-            numericStopTime(trip.time) + parseInt(config.TRIP_HVAC_ON_DURATION);
-        const inWindow =
-          trip &&
-          now >=
-            numericStartTime(trip.time) -
-              parseInt(config.TRIP_HVAC_ON_WINDOW) &&
-          !after;
-
-        if (inWindow && !subject.hvacOn && !subject.hvacOverride) {
-          // we're inside hvac window, we did not turn it on, and we were not told to leave it alone
-          if (subject.climateEnabled) {
-            subject.hvacOn = subject.hvacOn || now;
-          } else {
-            log(
-              LogLevel.Info,
-              `${subject.vin} starting climate control on ${subject.data.name}`
-            );
-            await this[AgentAction.ClimateControl](job, {
-              data: { id: subject.vehicleUUID, enable: true },
-            } as any);
-          }
-        } else if (
-          after &&
-          subject.hvacOn &&
-          subject.climateEnabled &&
-          !subject.hvacOverride
-        ) {
-          // we're after hvac window, we did turn it on, it's still on, and we were not told to leave it alone
-          log(
-            LogLevel.Info,
-            `${subject.vin} stopping climate control on ${subject.data.name}`
-          );
-          await this[AgentAction.ClimateControl](job, {
-            data: { id: subject.vehicleUUID, enable: false },
-          } as any);
-        } else if (!inWindow && !subject.climateEnabled) {
-          // we're outside of hvac window, hvac is turned off, reset state
-          delete subject.hvacOn;
-          delete subject.hvacOverride;
-        }
-      }
-    } catch (err: any) {
-      if (config.AGENT_SAVE_TO_TRACEFILE === "true") {
-        const s = logFormat(LogLevel.Error, err);
-        fs.writeFileSync(config.AGENT_TRACE_FILENAME, `${s}\n`, { flag: "as" });
-      }
-
-      subject.pollerror = err.code;
-      this.adjustInterval(job, parseInt(config.TESLA_POLL_INTERVAL)); // avoid spam polling an interface that is down
-
-      // this.changePollstate(subject, "offline");
-      // this.adjustInterval(job, 10); // Try again
-
-      // TODO: handle different errors?
-      if (err.code === 401) {
-        log(
-          LogLevel.Debug,
-          `${subject.vin} tesla-agent polling error 401 for ${JSON.stringify(
-            job.serviceData
-          )}`
-        );
-        try {
-          await this.refreshToken(job);
-        } catch (err) {
-          log(
-            LogLevel.Error,
-            `${subject.vin} unable to refresh teslaAPI token for ${
-              subject.vin
-            }: ${JSON.stringify(err)}`
-          );
-          job.serviceData.invalid_token = true; // client side update to match server
-        }
-      } else if (err.code === 404) {
-        // Vehicle ID does not exist, trigger a remap
-        job.mapped = 0;
-      } else if (err.code === 405) {
-        this.changePollstate(subject, "offline");
-      } else if (err.code === 408) {
-        this.changePollstate(subject, "offline");
-      }
-
-      if (err.response && err.response.data) {
-        log(
-          LogLevel.Error,
-          `${subject.vin} ${JSON.stringify(err.response.data)}`
-        );
-        if (err.response.data.error) {
-          await this.setStatus(subject, err.response.data.error);
-        }
-      } else {
-        log(LogLevel.Error, `${subject.vin} ${JSON.stringify(err)}`);
-      }
-      throw new Error(err);
-    }
+  // Converts local time at location to UTC time
+  private ConvertLocationTimeToUTC(location: GQLLocationFragment, d: Date): Date {
+    return new Date(d.getTime() - this.locationTimezoneOffset(location, d));
   }
 
   public async serviceWork(job: TeslaAgentJob) {
+    job.interval = 60;
+
     if (job.serviceData.invalid_token) {
-      log(
-        LogLevel.Trace,
-        `Service ${job.serviceID} has an invalid token, skipping work`
-      );
+      log(LogLevel.Trace, `Service ${job.serviceID} has an invalid token, skipping work`);
       return;
     }
 
-    if (
-      !job.mapped ||
-      (job.serviceData.updated && job.mapped < job.serviceData.updated)
-    ) {
-      job.state = {};
+    const clearTelemetryConfigFor = [];
+    const setTelemetryConfigFor = [];
+
+    // Map service to vehicles
+    if (!job.mapped || (job.serviceData.updated && job.mapped < job.serviceData.updated)) {
+      const unmapped = { ...job.state };
       const list = await this.scClient.providerQuery("tesla", {
         query: TeslaProviderQueries.Vehicles,
         service_uuid: job.serviceID,
       });
       for (const v of list) {
-        if (v.vehicle_uuid && !job.state[v.vehicle_uuid]) {
-          job.state[v.vehicle_uuid] = {
-            vehicleUUID: v.vehicle_uuid,
-            vin: v.vin,
-            online: false,
-            pollerror: undefined,
-            pollstate: undefined,
-            statestart: Date.now(),
-            status: "",
-          };
-          log(
-            LogLevel.Debug,
-            `Service ${job.serviceID} mapping VIN ${v.vin} -> UUID ${v.vehicle_uuid}`
-          );
+        if (v.vehicle_uuid) {
+          job.state[v.vehicle_uuid] = v.vin;
+          log(LogLevel.Debug, `Service ${job.serviceID} found vehicle ${v.vin} (${v.vehicle_uuid})`);
         } else {
-          log(
-            LogLevel.Debug,
-            `Service ${job.serviceID} ignoring VIN ${v.vin} -> UUID ${v.vehicle_uuid}`
-          );
+          log(LogLevel.Debug, `Service ${job.serviceID} ignoring vehicle ${v.vin} (no vehicle_uuid)`);
+          // Just always trigger a telemetry config clear for uncontolled vehicles
+          clearTelemetryConfigFor.push(v.vin);
         }
+        delete unmapped[v.vehicle_uuid];
       }
       job.mapped = Date.now();
-    }
-
-    for (const s of Object.values(job.state)) {
-      await this.poll(job, s);
-    }
-  }
-
-  public async [AgentAction.Refresh](
-    job: TeslaAgentJob,
-    action: GQLAction
-  ): Promise<any> {
-    for (const subject of Object.values(job.state)) {
-      if (subject.vehicleUUID === action.data.id) {
-        return this.vehicleInteraction(job, subject, true, true);
+      for (const uuid of Object.keys(unmapped)) {
+        const vin = job.state[uuid];
+        log(LogLevel.Debug, `Service ${job.serviceID} unmapping vehicle ${vin} (no longer found)`);
+        delete job.state[uuid];
+        delete this.vehicles[vin];
+        // Just always trigger a telemetry config clear for unmapped vehicles
+        clearTelemetryConfigFor.push(vin);
       }
     }
-  }
-  public async [AgentAction.ClimateControl](
-    job: TeslaAgentJob,
-    action: GQLAction
-  ): Promise<any> {
-    if (!action || job.serviceData.invalid_token) return false; // provider requires a valid token
 
-    for (const subject of Object.values(job.state)) {
-      if (subject.vehicleUUID === action.data.id) {
-        if (!(await this.vehicleInteraction(job, subject, true, true)))
-          return false; // Not ready for interaction
-        if (subject.data && subject.climateEnabled === action.data.enable)
-          return true; // Already correct
+    const waitFor: Promise<any>[] = [];
 
-        if (action.data.enable) {
-          await teslaAPI.climateOn(subject.vin, job.serviceData.token);
+    // Go through all vehicles and poll database data and handle telemetry config
+    for (const uuid of Object.keys(job.state)) {
+      const data = await this.scClient.getVehicle(uuid);
+      const vehicle = this.vehicleEntry(job.state[uuid]);
+
+      if (vehicle.vehicleUUID === null) {
+        // Not loaded yet
+        vehicle.vehicleUUID = uuid;
+        vehicle.job = job;
+        vehicle.dbData = data;
+
+        const t = data.providerData.telemetryData;
+        const d = {
+          id: uuid,
+          geoLocation: data.geoLocation,
+          batteryLevel: data.batteryLevel,
+          odometer: data.odometer,
+          outsideTemperature: data.outsideTemperature,
+          insideTemperature: data.insideTemperature,
+          climateControl: data.climateControl,
+          isDriving: data.isDriving,
+          connectedCharger: (data.isConnected ? t.FastChargerPresent ? GQLChargeConnection.DC : GQLChargeConnection.AC : null),
+          chargingTo: data.chargingTo,
+          estimatedTimeLeft: data.estimatedTimeLeft,
+          powerUse: t.ACChargingPower || null,
+          energyUsed: t.ACChargingEnergyIn || null,
+          energyAdded: t.DCChargingEnergyIn || null,
+        };
+        vehicle.telemetryData = { ...t, ...vehicle.telemetryData };
+        vehicle.lastTelemetryData = { ...t };
+        vehicle.vehicleDataInput = { ...d, ...vehicle.vehicleDataInput };
+        vehicle.lastVehicleDataInput = { ...d };
+        vehicle.network = { ...data.providerData.network, ...vehicle.network };
+        await this.updateOnlineStatus(vehicle);
+      } else {
+        vehicle.dbData = data;
+        // Do not update vehicleDataInput or telemetryData here, because we might be in the middle of an update
+      }
+
+      assert(vehicle !== undefined, "vehicle is undefined");
+
+      // Handle telemetry config
+      const telemetryConfig = vehicle.telemetryConfig ? vehicle.telemetryConfig
+        : (await (async () => {
+          await this.maintainToken(job);
+          return (await teslaAPI.getFleetTelemetryConfig(vehicle.vin, job.serviceData.token)).response;
+        })());
+      const telemetryExpires = telemetryConfig.config && telemetryConfig.config.exp ? telemetryConfig.config.exp : 0;
+
+      if (vehicle.dbData.providerData.disabled) {
+        if (telemetryConfig.config) {
+          log(LogLevel.Info, `Vehicle ${vehicle.vin} is disabled, but has telemetry config, deleting`);
+          clearTelemetryConfigFor.push(vehicle.vin);
+          vehicle.telemetryConfig = null; // re-trigger a config read
+          continue;
+        }
+      } else if (!telemetryConfig.config) {
+        log(LogLevel.Info, `No telemetry config for ${vehicle.vin}, creating`);
+        setTelemetryConfigFor.push(vehicle.vin);
+        vehicle.telemetryConfig = null; // re-trigger a config read
+        continue;
+      } else if (telemetryExpires < Date.now() / 1e3) {
+        log(LogLevel.Info, `Telemetry config for ${vehicle.vin} expired, refreshing`);
+        setTelemetryConfigFor.push(vehicle.vin);
+        vehicle.telemetryConfig = null; // re-trigger a config read
+        continue;
+      } else {
+        // From here we consider the telemetry config to be working so we can handle vehicle commands
+        if (telemetryExpires < Date.now() / 1e3 + 60 * 60 * 24) {
+          log(LogLevel.Info, `Telemetry config for ${vehicle.vin} expires soon, refreshing`);
+          setTelemetryConfigFor.push(vehicle.vin);
+          vehicle.telemetryConfig = null;
         } else {
-          await teslaAPI.climateOff(subject.vin, job.serviceData.token);
+          vehicle.telemetryConfig = telemetryConfig;
+        }
+
+        waitFor.push(this.vehicleWork(job, vehicle));
+      }
+    }
+
+    for (const vin of clearTelemetryConfigFor) {
+      log(LogLevel.Info, `Deleting telemetry config for ${vin}`);
+      await this.maintainToken(job);
+      waitFor.push(teslaAPI.deleteFleetTelemetryConfig(vin, job.serviceData.token));
+    }
+    if (setTelemetryConfigFor.length > 0) {
+      log(LogLevel.Info, `Creating telemetry config for ${setTelemetryConfigFor.join(", ")}`);
+      await this.maintainToken(job);
+      const telemetry = (
+        await teslaAPI.createFleetTelemetryConfig(
+          {
+            vins: setTelemetryConfigFor,
+            config: {
+              hostname: config.TESLA_TELEMETRY_HOST,
+              port: parseInt(config.TESLA_TELEMETRY_PORT),
+              ca: config.TESLA_TELEMETRY_CA.replace(/\\n/g, "\n"),
+              fields: telemetryFields,
+              exp: Math.trunc(Date.now() / 1e3 + 60 * 60 * 24 * 7), // 7 days
+            },
+          },
+          job.serviceData.token
+        )
+      ).response;
+      log(LogLevel.Debug, `Telemetry successfully created for ${telemetry.updated_vehicles} vehicles`);
+      if (telemetry.skipped_vehicles) {
+        log(LogLevel.Debug, `Skipped vehicles: ${JSON.stringify(telemetry)}`);
+        if (telemetry.skipped_vehicles.missing_key) {
+          for (const vin of telemetry.skipped_vehicles.missing_key) {
+            const v = this.vehicles[vin];
+            if (v.vehicleUUID) {
+              log(LogLevel.Warning, `Missing key for ${vin} (${v.vehicleUUID})`);
+              v.dbData = await this.scClient.updateVehicle({
+                id: v.vehicleUUID,
+                status: "Missing virual key",
+                providerData: { error: "No virtual key", disabled: true },
+              });
+            }
+          }
+        }
+        if (telemetry.skipped_vehicles.unsupported_hardware) {
+          for (const vin of telemetry.skipped_vehicles.unsupported_hardware) {
+            const v = this.vehicles[vin];
+            if (v.vehicleUUID) {
+              log(LogLevel.Warning, `Unsupported hardware for ${vin} (${v.vehicleUUID})`);
+              v.dbData = await this.scClient.updateVehicle({
+                id: v.vehicleUUID,
+                status: "Unsupported hardware",
+                providerData: { error: "Unsupported hardware", disabled: true },
+              });
+            }
+          }
+        }
+        if (telemetry.skipped_vehicles.unsupported_firmware) {
+          for (const vin of telemetry.skipped_vehicles.unsupported_firmware) {
+            const v = this.vehicles[vin];
+            if (v.vehicleUUID) {
+              log(LogLevel.Warning, `Unsupported firmware for ${vin} (${v.vehicleUUID})`);
+              v.dbData = await this.scClient.updateVehicle({
+                id: v.vehicleUUID,
+                status: "Unsupported firmware",
+                providerData: { error: "Unsupported firmware", disabled: true },
+              });
+            }
+          }
+        }
+      }
+    } else {
+      job.interval = 5 * 60; // Poll every 5 minutes
+    }
+
+    await Promise.all(waitFor);
+  }
+
+  // Convert a Tesla charge schedule to the a numeric charge plan
+  public convertFromTeslaSchedule(schedule: Partial<TeslaChargeSchedule>, location: GQLLocationFragment): NumericChargePlan {
+    schedule.start_time = schedule.start_time || 0;
+    schedule.end_time = schedule.end_time || 0;
+    let start = null;
+    let stop = null;
+    if (schedule.start_enabled && schedule.days_of_week) {
+      start = TeslaScheduleTimeToDate(schedule.days_of_week, schedule.start_time);
+      assert(start !== null, "Invalid start time");
+      if (schedule.end_enabled) {
+        // Copy start to stop
+        stop = new Date(start.getTime());
+        stop.setHours(Math.floor(schedule.end_time / 60), schedule.end_time % 60, 0, 0);
+      }
+    } else if (schedule.end_enabled && schedule.days_of_week) {
+      stop = TeslaScheduleTimeToDate(schedule.days_of_week, schedule.end_time);
+      assert(stop !== null, "Invalid stop time");
+    }
+    return {
+      scheduleID: schedule.id,
+      chargeStart: start ? this.ConvertLocationTimeToUTC(location, start).getTime() : null,
+      chargeStop: stop ? this.ConvertLocationTimeToUTC(location, stop).getTime() : null,
+      level: schedule.charge_limit
+    };
+  }
+  public convertToTeslaSchedule(plan: NumericChargePlan, location: GQLLocationFragment): TeslaChargeSchedule {
+    const start = plan.chargeStart ? this.ConvertUTCtoLocationTime(location, new Date(plan.chargeStart)) : null;
+    const stop = plan.chargeStop ? this.ConvertUTCtoLocationTime(location, new Date(plan.chargeStop)) : null;
+    const days = start ? 1 << start.getUTCDay() : stop ? 1 << stop!.getUTCDay() : 0;
+    const start_time = start ? start.getUTCHours() * 60 + start.getUTCMinutes() : 0;
+    const end_time = stop ? stop.getUTCHours() * 60 + stop.getUTCMinutes() : 0;
+    return {
+      id: plan.scheduleID || undefined,
+      days_of_week: days,
+      start_time: start_time,
+      start_enabled: start !== null,
+      end_time: end_time,
+      end_enabled: stop !== null,
+      one_time: true,
+      enabled: true,
+      charge_limit: plan.level,
+      latitude: location.geoLocation.latitude,
+      longitude: location.geoLocation.longitude
+    };
+  }
+  public async vehicleWork(job: TeslaAgentJob, vehicle: VehicleEntry) {
+    assert(vehicle.dbData !== null, "vehicle.dbData is null");
+    try {
+      if (vehicle.isOnline) {
+        if (vehicle.tsUpdate < Date.now() - 24 * 60 * 1e3) {
+          log(LogLevel.Info, `Vehicle ${vehicle.vin} is offline (stale connection)`);
+          vehicle.network = {};
+          await this.updateOnlineStatus(vehicle);
+        } else if (vehicle.charge_schedules === undefined || vehicle.precondition_schedules === undefined) {
+          const schedules = (await teslaAPI.getVehicleSchedules(vehicle.vin, job.serviceData.token)).response;
+          // Map charge_schedule_data.charge_schedules to { [id: number]: TeslaChargeSchedule }
+          vehicle.charge_schedules = {};
+          for (const s of schedules.charge_schedule_data.charge_schedules) {
+            vehicle.charge_schedules[s.id] = s;
+          }
+          vehicle.precondition_schedules = {};
+          for (const s of schedules.preconditioning_schedule_data.precondition_schedules) {
+            vehicle.precondition_schedules[s.id] = s;
+          }
+        }
+      }
+
+      if (vehicle.charge_schedules && vehicle.precondition_schedules) {
+        const scheduleUpdates: TeslaChargeSchedule[] = [];
+        const removeScheduleIDs: number[] = [];
+        let preconditionSchedule: TeslaPreconditionSchedule | undefined = undefined;
+        let wantedSoc: number | undefined = undefined;
+
+        if (vehicle.dbData.chargePlan && vehicle.dbData.chargePlanLocationID) {
+          const location = await this.getLocation(vehicle.dbData.chargePlanLocationID);
+          const chargePlan: NumericChargePlan[] = vehicle.dbData.chargePlan
+            .filter((p) => p.chargeType !== GQLChargeType.Disable && (p.chargeStart || p.chargeStop))
+            .sort((a, b) => compareStartStopTimes(a.chargeStart, a.chargeStop, b.chargeStart, b.chargeStop))
+            .reduce((acc, p) => {
+              assert(vehicle.dbData !== null, "vehicle.dbData is null");
+              if (wantedSoc === undefined && p.level) {
+                wantedSoc = p.level
+              }
+              if (p.chargeStop && numericStopTime(p.chargeStop) < Date.now()) {
+                return acc; // Skip plans that have already ended
+              }
+              if (acc.length > 0) {
+                const last = acc[acc.length - 1];
+                // If less than 5 minutes between plans, consolidate
+                if (numericStartTime(p.chargeStart) - numericStopTime(last.chargeStop) < 5 * 60e3) {
+                  last.chargeStop = p.chargeStop ? new Date(p.chargeStop).getTime() : null;
+                  return acc;
+                }
+              }
+              acc.push({
+                chargeType: p.chargeType,
+                chargeStart: p.chargeStart ? new Date(p.chargeStart).getTime() : null,
+                chargeStop: p.chargeStop ? new Date(p.chargeStop).getTime() : null,
+              });
+              return acc;
+            }, [] as NumericChargePlan[]);
+
+          // Convert all existing vehicle schedules to a format that makes sense
+          const vehicleSchedules: { [id: number]: (NumericChargePlan & { scheduleID: number }) } = {};
+          for (const s of Object.values(vehicle.charge_schedules)) {
+            assert(s.id !== undefined, "Invalid schedule ID");
+            // Filter out any schedule entry that is not ours
+            if (!s.one_time || (s.id < 197400 || s.id > 197498)) continue;
+            vehicleSchedules[s.id] = { ...this.convertFromTeslaSchedule(s, location), scheduleID: s.id };
+          }
+
+          log(LogLevel.Debug, `${vehicle.vin} existing schedules: ${JSON.stringify(vehicleSchedules)}`);
+          log(LogLevel.Debug, `${vehicle.vin} charge plan: ${JSON.stringify(chargePlan)}`);
+
+          const firstCharge = chargePlan.length > 0 ? chargePlan[0] : null;
+          const lastCharge = chargePlan.length > 0 ? chargePlan[chargePlan.length - 1] : null;
+
+          // Always make the last charge open-ended if level is set ok
+          if (lastCharge && wantedSoc && wantedSoc >= parseInt(config.LOWEST_POSSIBLE_CHARGETO)) {
+            lastCharge.chargeStop = null;
+          }
+          // Back-date first charge if we're connected, but not charging
+          if (firstCharge
+            && Date.now() >= numericStartTime(firstCharge.chargeStart) && Date.now() < numericStopTime(firstCharge.chargeStop)
+            && vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateStopped) {
+            firstCharge.chargeStart = Date.now() - 15 * 60e3;
+          }
+          if (firstCharge && firstCharge.chargeStart === null && firstCharge.chargeStop === null) {
+            // Open-ended first charge, do not set any schedules at all
+          } else {
+            const usedScheduleIDs = new Set<number>();
+
+            // Compare existing vehicle schedules with charge plan
+            for (const p of chargePlan) {
+              assert(p.chargeStart || p.chargeStop, "Invalid charge plan");
+              const wantedStart = p.chargeStart ? Math.floor(p.chargeStart / (15 * 60e3)) * 15 * 60e3 : null;
+              const wantedStop = p.chargeStop ? Math.ceil(p.chargeStop / (15 * 60e3)) * 15 * 60e3 : null;
+              for (const s of Object.values(vehicleSchedules)) {
+                // Are we inside this schedule?
+                if (Date.now() >= numericStartTime(s.chargeStart) && Date.now() < numericStopTime(s.chargeStop)) {
+                  // Adopt it and just change the stop time (since start time is irrelevant)
+                  p.scheduleID = s.scheduleID;
+                  if (s.chargeStop !== wantedStop) {
+                    log(LogLevel.Info, `${vehicle.vin} updating schedule ${s.scheduleID} to end at ${wantedStop} (was ${s.chargeStop})`);
+                    s.chargeStop = wantedStop;
+                    scheduleUpdates.push(this.convertToTeslaSchedule(s, location));
+                  }
+                  usedScheduleIDs.add(s.scheduleID);
+                  delete vehicleSchedules[s.scheduleID]; // We adopted this schedule
+                  break;
+                } else if (s.chargeStart === wantedStart && s.chargeStop === wantedStop) {
+                  // We already have this schedule, just adopt it
+                  p.scheduleID = s.scheduleID;
+                  usedScheduleIDs.add(s.scheduleID);
+                  delete vehicleSchedules[s.scheduleID]; // We adopted this schedule
+                  break;
+                }
+              }
+              if (p.scheduleID === undefined) {
+                log(LogLevel.Info, `${vehicle.vin} creating new schedule to start at ${p.chargeStart ? new Date(p.chargeStart).toISOString() : "now"} and end at ${p.chargeStop ? new Date(p.chargeStop).toISOString() : "whenever"}`);
+                scheduleUpdates.push(this.convertToTeslaSchedule({ chargeStart: wantedStart, chargeStop: wantedStop }, location));
+              }
+            }
+
+            // TODO: Add charge blockers
+            // Tesla vehicles will only care about schedules that are 18 hours in the future or 6 hours in the past
+            // It will default to charging, and we want it the other way around
+
+            // Fill in missing schedule IDs
+            {
+              let findid = 197400;
+              for (const s of scheduleUpdates) {
+                if (s.days_of_week === 0) {
+                  // This is an invalid (open-ended schedule), it should not be set, just treated differently
+                } else if (s.id === undefined) {
+                  if (Object.keys(vehicleSchedules).length > 0) {
+                    // hijack an existing schedule ID
+                    s.id = parseInt(Object.keys(vehicleSchedules)[0]);
+                    usedScheduleIDs.add(s.id);
+                    delete vehicleSchedules[s.id];
+                  } else {
+                    for (; findid <= 197498; findid++) {
+                      if (!usedScheduleIDs.has(findid)) {
+                        s.id = findid;
+                        usedScheduleIDs.add(findid);
+                        findid++;
+                        break;
+                      }
+                    }
+                  }
+                  assert(s.id !== undefined, "Failed to find a schedule ID");
+                }
+              }
+            }
+          }
+
+          // Remove any remaining schedules
+          for (const s of Object.values(vehicleSchedules)) {
+            log(LogLevel.Debug, `${vehicle.vin} removing old schedule ${s.scheduleID}`);
+            removeScheduleIDs.push(s.scheduleID);
+          }
+
+          // Check smartcharge schedule if we need to setup a precondition
+          const scSchedule = vehicle.dbData.schedule
+            .filter((f) => f.type === GQLScheduleType.Trip && f.time && new Date(f.time).getTime() > Date.now())
+            .sort((a, b) => compareStopTimes(a.time, b.time));
+          if (scSchedule.length > 0) {
+            const departure = this.ConvertUTCtoLocationTime(location, new Date(scSchedule[0].time!));
+            preconditionSchedule = {
+              id: 197499,
+              days_of_week: 1 << departure.getUTCDay(),
+              enabled: true,
+              latitude: location.geoLocation.latitude,
+              longitude: location.geoLocation.longitude,
+              precondition_time: (departure.getUTCHours() * 60 + departure.getUTCMinutes()),
+              one_time: true,
+            };
+          }
+        }
+
+        log(LogLevel.Debug, `${vehicle.vin} schedule updates: ${JSON.stringify(scheduleUpdates)}`);
+
+        if (vehicle.isOnline) {
+          // TODO: Add a check between vehicle.telemetryData.Scheduled* field and what we want
+          // then re-poll schedules with the data api if it doesn't match
+
+          // Apply schedule updates
+          const currentPrecon = vehicle.precondition_schedules[197499];
+          if (preconditionSchedule !== undefined) {
+            if (currentPrecon === undefined
+              || currentPrecon.latitude !== preconditionSchedule.latitude
+              || currentPrecon.longitude !== preconditionSchedule.longitude
+              || currentPrecon.precondition_time !== preconditionSchedule.precondition_time
+              || currentPrecon.days_of_week !== preconditionSchedule.days_of_week) {
+              log(LogLevel.Info, `${vehicle.vin} updating precondition schedule`);
+              await teslaAPI.addPreconditionSchedule(vehicle.vin, preconditionSchedule, job.serviceData.token);
+              vehicle.precondition_schedules[197499] = preconditionSchedule;
+            } else {
+              log(LogLevel.Debug, `${vehicle.vin} precondition schedule is correct`);
+            }
+          } else if (currentPrecon !== undefined) {
+            log(LogLevel.Info, `${vehicle.vin} removing precondition schedule`);
+            await teslaAPI.removePreconditionSchedule(vehicle.vin, 197499, job.serviceData.token);
+            delete vehicle.precondition_schedules[197499];
+          }
+
+          for (const s of scheduleUpdates) {
+            assert(s.id !== undefined, "Invalid schedule ID");
+            log(LogLevel.Info, `${vehicle.vin} updating schedule ${s.id} to start at ${s.start_time} and end at ${s.end_time}`);
+            await teslaAPI.addChargeSchedule(vehicle.vin, s, job.serviceData.token);
+            vehicle.charge_schedules[s.id] = s;
+          }
+          for (const s of removeScheduleIDs) {
+            log(LogLevel.Info, `${vehicle.vin} removing schedule ${s}`);
+            await teslaAPI.removeChargeSchedule(vehicle.vin, s, job.serviceData.token);
+            delete vehicle.charge_schedules[s];
+          }
+
+          // Update vehicle max charge level (but only if we are connected)
+          if (this.isConnected(vehicle) && wantedSoc !== undefined) {
+            const limitedWantedSoc = Math.max(parseInt(config.LOWEST_POSSIBLE_CHARGETO), Math.min(wantedSoc, 100));
+            if (vehicle.telemetryData.ChargeLimitSoc !== limitedWantedSoc) {
+              log(LogLevel.Info, `${vehicle.vin} setting charge limit to ${limitedWantedSoc}%`);
+              await teslaAPI.setChargeLimit(vehicle.vin, limitedWantedSoc, job.serviceData.token);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      // Check if err is RestClientError
+      if (err instanceof RestClientError) {
+        if (err.code === 408) { // Request timeout
+          log(LogLevel.Warning, `Request timeout for ${vehicle.vin} (${err.message})`);
+          vehicle.network = {};
+          await this.updateOnlineStatus(vehicle);
+          return;
+        }
+      }
+      log(LogLevel.Error, `Failed to get charge schedules for ${vehicle.vin}: ${err}`);
+    }
+  }
+
+  public isConnected(vehicle: VehicleEntry): boolean {
+    return Boolean(vehicle.telemetryData
+      && vehicle.telemetryData.DetailedChargeState
+      && vehicle.telemetryData.DetailedChargeState !== telemetryData.DetailedChargeStateValue.DetailedChargeStateDisconnected
+    );
+  }
+
+  public async updateOnlineStatus(vehicle: VehicleEntry) {
+    assert(vehicle.vehicleUUID !== null, "vehicle.vehicleUUID is null");
+
+    const update: UpdateVehicleParams = { id: vehicle.vehicleUUID, providerData: { network: {} } };
+    // Compare vehicle.dbData.providerData.network with vehicle.network
+    // 1. Any entry in vehicle.dbData.providerData.network not in vehicle.network is a disconnect, set it to null
+    if (vehicle.dbData && vehicle.dbData.providerData && vehicle.dbData.providerData.network) {
+      for (const connectionId of Object.keys(vehicle.dbData.providerData.network)) {
+        if (!vehicle.network[connectionId]) {
+          update.providerData.network[connectionId] = null;
         }
       }
     }
-    return false;
+
+    // 2. Any entry in vehicle.network not in vehicle.dbData.providerData is a new connection
+    for (const connectionId of Object.keys(vehicle.network)) {
+      if (!vehicle.dbData || !vehicle.dbData.providerData || !vehicle.dbData.providerData.network
+        || !vehicle.dbData.providerData.network[connectionId]) {
+        update.providerData.network[connectionId] = vehicle.network[connectionId];
+      }
+    }
+    // 3. If there are no changes, remove the network object
+    if (Object.keys(update.providerData.network).length === 0) {
+      delete update.providerData;
+    }
+
+    const isOnline = Object.keys(vehicle.network).length > 0;
+    if (vehicle.isOnline !== isOnline) {
+      vehicle.isOnline = isOnline;
+      if (isOnline) {
+        update.status = `Online (${Object.values(vehicle.network).join(", ")})`;
+      } else {
+        update.status = vehicle.isSleepy ? "Sleeping" : "Offline";
+      }
+    }
+    if (Object.keys(update).length > 1) {
+      log(LogLevel.Debug, `Updating vehicle ${vehicle.vin}: ${JSON.stringify(update)}`);
+      vehicle.dbData = await this.scClient.updateVehicle(update);
+    }
+  }
+
+  public async telemetryConnectivityMessage(
+    data: telemetryConnectivity.VehicleConnectivity
+  ) {
+    log(LogLevel.Info, `Tesla Telmetry connectivity ${data.vin} ${data.connectionId} ${data.networkInterface} ${telemetryConnectivity.ConnectivityEvent[data.status]}`);
+    const vehicle = this.vehicleEntry(data.vin);
+    vehicle.tsUpdate = Date.now();
+
+    if (data.status === telemetryConnectivity.ConnectivityEvent.DISCONNECTED) {
+      delete vehicle.network[data.connectionId];
+    } else if (data.status === telemetryConnectivity.ConnectivityEvent.CONNECTED) {
+      vehicle.network[data.connectionId] = data.networkInterface;
+    }
+    if (vehicle.vehicleUUID) {
+      await this.updateOnlineStatus(vehicle);
+    }
+  }
+
+  public async telemetryDataMessage(vin: string, datum: telemetryData.Datum) {
+    if (!datum.value) return;
+    const key = datum.key;
+    const value = datum.value && datum.value.value;
+
+    log(LogLevel.Trace, `Telemetry data for ${vin}: ${telemetryData.Field[key]} = ${value.value} (${value.case})`);
+
+    const vehicle = this.vehicleEntry(vin);
+    vehicle.tsUpdate = Date.now();
+
+    if (value.case === "invalid") {
+      // Specia case for invalid values
+      switch (key) {
+        case telemetryData.Field.DetailedChargeState:
+          vehicle.telemetryData.DetailedChargeState = telemetryData.DetailedChargeStateValue.DetailedChargeStateUnknown;
+          break;
+        case telemetryData.Field.HvacPower:
+          vehicle.telemetryData.HvacPower = telemetryData.HvacPowerState.HvacPowerStateUnknown;
+          break;
+        case telemetryData.Field.HvacAutoMode:
+          vehicle.telemetryData.HvacAutoMode = telemetryData.HvacAutoModeState.HvacAutoModeStateUnknown;
+          break;
+        case telemetryData.Field.ClimateKeeperMode:
+          vehicle.telemetryData.ClimateKeeperMode = telemetryData.ClimateKeeperModeState.ClimateKeeperModeStateUnknown;
+          break;
+        //        case telemetryData.Field.SentryMode:
+        //          vehicle.telemetryData.SentryMode = telemetryData.SentryModeState.SentryModeStateUnknown;
+        //          break;
+        case telemetryData.Field.Gear:
+          vehicle.isSleepy = true;
+          break;
+      }
+    } else {
+      switch (key) {
+        case telemetryData.Field.Gear:
+          vehicle.isSleepy = false;
+        // Allow switch case fall through
+        case telemetryData.Field.FastChargerType:
+        case telemetryData.Field.ChargeState:
+        case telemetryData.Field.ScheduledChargingMode:
+        case telemetryData.Field.ScheduledChargingStartTime:
+        case telemetryData.Field.ScheduledDepartureTime:
+        case telemetryData.Field.VehicleName:
+        case telemetryData.Field.CarType:
+        case telemetryData.Field.Trim:
+        case telemetryData.Field.ExteriorColor:
+        case telemetryData.Field.RoofColor:
+        case telemetryData.Field.WheelType:
+        case telemetryData.Field.SentryMode:
+          assert(value.case === "stringValue", `Invalid ${key} value type ${value.case}`);
+          (vehicle.telemetryData as any)[telemetryData.Field[key]] = value.value;
+          break;
+        case telemetryData.Field.FastChargerPresent:
+        case telemetryData.Field.ChargeEnableRequest:
+        case telemetryData.Field.DriverSeatOccupied:
+        case telemetryData.Field.ChargePortDoorOpen:
+        case telemetryData.Field.ScheduledChargingPending:
+          (vehicle.telemetryData as any)[telemetryData.Field[key]] = value.value === "true";
+          break;
+        case telemetryData.Field.Soc:
+        case telemetryData.Field.Odometer:
+        case telemetryData.Field.OutsideTemp:
+        case telemetryData.Field.InsideTemp:
+        case telemetryData.Field.TimeToFullCharge:
+        case telemetryData.Field.ChargeAmps:
+        case telemetryData.Field.ChargeCurrentRequest:
+        case telemetryData.Field.ChargeCurrentRequestMax:
+        case telemetryData.Field.ChargeLimitSoc:
+        case telemetryData.Field.ChargerPhases:
+        case telemetryData.Field.ACChargingEnergyIn:
+        case telemetryData.Field.ACChargingPower:
+        case telemetryData.Field.DCChargingEnergyIn:
+        case telemetryData.Field.DCChargingPower:
+          (vehicle.telemetryData as any)[telemetryData.Field[key]] = mapTelemetryNumber(value);
+          break;
+        case telemetryData.Field.Location:
+          assert(value.case === "locationValue", `Invalid Location value type ${value.case}`);
+          vehicle.telemetryData.Location = { latitude: value.value.latitude, longitude: value.value.longitude };
+          break;
+        case telemetryData.Field.HvacPower:
+          assert(value.case === "hvacPowerValue", `Invalid HvacPower value type ${value.case}`);
+          vehicle.telemetryData.HvacPower = value.value;
+          break;
+        case telemetryData.Field.DetailedChargeState:
+          assert(value.case === "detailedChargeStateValue", `Invalid DetailedChargeState value type ${value.case}`);
+          vehicle.telemetryData.DetailedChargeState = value.value;
+          break;
+        case telemetryData.Field.HvacAutoMode:
+          assert(value.case === "hvacAutoModeValue", `Invalid HvacAutoMode value type ${value.case}`);
+          vehicle.telemetryData.HvacAutoMode = value.value;
+          break;
+        case telemetryData.Field.ClimateKeeperMode:
+          assert(value.case === "climateKeeperModeValue", `Invalid ClimateKeeperMode value type ${value.case}`);
+          vehicle.telemetryData.ClimateKeeperMode = value.value;
+          break;
+        default:
+        // TODO: Add this when we remove the top trace that logs all telemetry data
+        //log(LogLevel.Trace, `Unhandled telemetry data for ${vin}: ${telemetryData.Field[key]} = ${value.value} (${value.case})`);
+        //break;
+      }
+      // charger_phases seems to be reported wrong, or I simply don't understand and someone could explain it?
+      // Tesla Wall Connector in Sweden reports 2 phases, 16 amps, and 230 volt = 2*16*230 = 7kW,
+      // the correct number should be 11 kW on 3 phases (3*16*230).
+      // I used the following formula to calculate the correct number of phases:
+      // (charger_power * 1e3) / (charger_actual_current * charger_voltage)
+    }
+
+    if (vehicle.vehicleUUID) {
+      if (vehicle.isUpdating) {
+        log(LogLevel.Warning, `Vehicle ${vin} is already updating, waiting for it to finish`);
+        assert(vehicle.updatePromise !== null, "updatePromise is null");
+        await vehicle.updatePromise;
+      }
+      if (vehicle.updatePromise === null) {
+        vehicle.updatePromise = (async () => {
+          await delay(1000);
+          vehicle.isUpdating = true;
+
+          try {
+            const innerPromises: Promise<any>[] = [];
+
+            // Extract only changed telemetry data
+            const telemetryDataUpdate = diffObjects(vehicle.telemetryData, vehicle.lastTelemetryData);
+            vehicle.telemetryData = { ...vehicle.lastTelemetryData, ...vehicle.telemetryData };
+            vehicle.lastTelemetryData = { ...vehicle.telemetryData };
+            if (Object.keys(telemetryDataUpdate).length > 0) {
+              assert(vehicle.vehicleUUID !== null, "vehicleUUID is null");
+
+              const vehicleUpdate: UpdateVehicleParams = {
+                id: vehicle.vehicleUUID,
+                providerData: { telemetryData: telemetryDataUpdate },
+              };
+
+              // Map telemetry updates to vehicle data updates
+              if (telemetryDataUpdate.Location !== undefined) {
+                vehicle.vehicleDataInput.geoLocation = telemetryDataUpdate.Location;
+              }
+              if (telemetryDataUpdate.Soc !== undefined) {
+                vehicle.vehicleDataInput.batteryLevel = Math.round(telemetryDataUpdate.Soc);
+              }
+              if (telemetryDataUpdate.Odometer !== undefined) {
+                vehicle.vehicleDataInput.odometer = Math.round(telemetryDataUpdate.Odometer * 1609.344); // 1 mile = 1.609344 km
+              }
+              if (telemetryDataUpdate.OutsideTemp !== undefined) {
+                vehicle.vehicleDataInput.outsideTemperature = telemetryDataUpdate.OutsideTemp;
+              }
+              if (telemetryDataUpdate.InsideTemp !== undefined) {
+                vehicle.vehicleDataInput.insideTemperature = telemetryDataUpdate.InsideTemp;
+              }
+              if (telemetryDataUpdate.TimeToFullCharge !== undefined) {
+                vehicle.vehicleDataInput.estimatedTimeLeft = Math.round(telemetryDataUpdate.TimeToFullCharge * 60); // Convert to minutes
+              }
+              if (telemetryDataUpdate.VehicleName !== undefined) {
+                vehicleUpdate.name = telemetryDataUpdate.VehicleName;
+              }
+              if (telemetryDataUpdate.HvacPower !== undefined) {
+                vehicle.vehicleDataInput.climateControl = (telemetryDataUpdate.HvacPower === telemetryData.HvacPowerState.HvacPowerStateOn);
+              }
+              if (telemetryDataUpdate.Gear !== undefined) {
+                vehicle.vehicleDataInput.isDriving = (telemetryDataUpdate.Gear === "D" || telemetryDataUpdate.Gear === "R" || telemetryDataUpdate.Gear === "N");
+              }
+              if (telemetryDataUpdate.ACChargingEnergyIn !== undefined) {
+                vehicle.vehicleDataInput.energyUsed = telemetryDataUpdate.ACChargingEnergyIn;
+              }
+              if (telemetryDataUpdate.ACChargingPower !== undefined) {
+                vehicle.vehicleDataInput.powerUse = telemetryDataUpdate.ACChargingPower;
+              }
+              if (telemetryDataUpdate.DCChargingEnergyIn !== undefined) {
+                vehicle.vehicleDataInput.energyAdded = telemetryDataUpdate.DCChargingEnergyIn;
+              }
+              if (telemetryDataUpdate.ChargeState !== undefined
+                || telemetryDataUpdate.DetailedChargeState !== undefined) {
+                const status =
+                  vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateCharging ? "Charging" :
+                  vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateComplete ? "Charging Complete" :
+                  vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateDisconnected ? "Charger Disconnected" :
+                  vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateNoPower ? "Charger Not Powered" :
+                  vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateStarting ? "Charging Starting" :
+                  vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateStopped ? "Charging Stopped" : "";
+                if (status) {
+                  vehicleUpdate.status = `${status}${vehicle.telemetryData.ChargeState === "" ||
+                    vehicle.telemetryData.ChargeState === "Idle" ||
+                    vehicle.telemetryData.ChargeState === "Enable" ? "" : ` (${vehicle.telemetryData.ChargeState})`}`;
+                }
+              }
+              if (vehicle.telemetryData.DetailedChargeState !== undefined
+                && vehicle.telemetryData.DetailedChargeState !== telemetryData.DetailedChargeStateValue.DetailedChargeStateUnknown) {
+                const isConnected = vehicle.telemetryData.DetailedChargeState !== telemetryData.DetailedChargeStateValue.DetailedChargeStateDisconnected;
+                vehicle.vehicleDataInput.connectedCharger = (isConnected ? vehicle.telemetryData.FastChargerPresent ? GQLChargeConnection.DC : GQLChargeConnection.AC : null);
+              }
+
+              if (vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateCharging) {
+                vehicle.vehicleDataInput.chargingTo = Math.round(vehicle.telemetryData.ChargeLimitSoc || 90);
+              } else {
+                vehicle.vehicleDataInput.chargingTo = null;
+              }
+              log(LogLevel.Debug, `Updating vehicle ${vehicle.vin} with ${JSON.stringify(vehicleUpdate)}`);
+              innerPromises.push((async () => {
+                vehicle.dbData = await this.scClient.updateVehicle(vehicleUpdate);
+              })());
+            }
+
+            const vehicleDataUpdate = diffObjects(vehicle.vehicleDataInput, vehicle.lastVehicleDataInput);
+            vehicle.vehicleDataInput = { ...vehicle.lastVehicleDataInput, ...vehicle.vehicleDataInput };
+            vehicle.lastVehicleDataInput = { ...vehicle.vehicleDataInput };
+            if (Object.keys(vehicleDataUpdate).length > 0) {
+              assert(vehicle.vehicleUUID !== null, "vehicleUUID is null");
+
+              log(LogLevel.Debug, `Updating vehicle data ${vehicle.vin} with ${JSON.stringify(vehicleDataUpdate)}`);
+              innerPromises.push(this.scClient.updateVehicleData({
+                id: vehicle.vehicleUUID,
+                ...vehicleDataUpdate,
+              }));
+            }
+
+            await Promise.all(innerPromises);
+          } catch (err) {
+            log(LogLevel.Error, `Error in updatePromise: ${err}`);
+          } finally {
+            vehicle.isUpdating = false;
+            vehicle.updatePromise = null;
+          }
+        })();
+      }
+    }
   }
 }
 

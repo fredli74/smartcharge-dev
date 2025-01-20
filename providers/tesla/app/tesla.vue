@@ -2,50 +2,44 @@
   <div class="provider.name">
     <div v-if="page === 'new' || page === 'auth'">
       <v-card-actions v-if="showAuthButton" class="justify-center">
-        <v-btn
-          color="primary"
-          :disabled="loading"
-          :loading="loading"
-          @click="authorize"
-          >Authorize Access<v-icon right>mdi-chevron-right</v-icon></v-btn
-        >
+        <v-btn color="primary" :disabled="loading" :loading="loading" @click="authorize">
+          Authorize Access<v-icon right>mdi-chevron-right</v-icon>
+        </v-btn>
       </v-card-actions>
       <div v-else>
         <v-card-actions class="justify-center">
-          <v-btn text small color="primary" @click="authorize"
-            >change Tesla account</v-btn
-          >
+          <v-btn text small color="primary" @click="authorize">change Tesla account</v-btn>
         </v-card-actions>
         <div v-if="loading" class="text-center">
-          <v-progress-circular
-            indeterminate
-            color="primary"
-          ></v-progress-circular>
+          <v-progress-circular indeterminate color="primary" />
         </div>
-        <TeslaNewVehicleList
-          v-if="newVehiclesNotConnected.length > 0"
-          :list="newVehiclesNotConnected"
-          @click-select="selectVehicle"
-        />
-        <TeslaNewVehicleList
-          v-if="newVehiclesConnected.length > 0"
-          :list="newVehiclesConnected"
-          subheader="Already added"
-        />
-      </div>
-      <div
-        class="
-          justify-center
-          text-center text-subtitle-2 text-uppercase
-          red--text
-          text--darken-4
-        "
-      >
-        Tesla
-        <a :href="teslaVirtualKeyUrl" target="_blank" rel="noopener noreferrer"
-          >Virtual Key</a
-        >
-        required to control charging.
+        <div v-else>
+          <div class="justify-center text-center text-subtitle-2 text-uppercase red--text text--darken-4">
+            Tesla
+            <a :href="teslaVirtualKeyUrl" target="_blank" rel="noopener noreferrer">Virtual Key</a>
+            required to control charging.
+          </div>
+          <div v-if="newVehiclesNotConnected.length > 0">
+            <TeslaNewVehicleList 
+              :list="newVehiclesNotConnected" @click-select="selectVehicle"
+            />
+            <TeslaNewVehicleList v-if="newVehiclesConnected.length > 0" 
+              :list="newVehiclesConnected" subheader="Already added"
+            />
+          </div>
+          <div v-else-if="newVehiclesConnected.length > 0">
+            <div class="text-center text-subtitle-2 my-7">
+              No new vehicles found, but the following have been re-connected to SmartCharge.
+            </div>
+            <TeslaNewVehicleList :list="newVehiclesConnected" />
+            <v-card-actions class="justify-center">
+              <v-btn text small color="primary" @click="$router.push('/')">go back</v-btn>
+            </v-card-actions>
+          </div>
+          <div v-else>
+            <div class="text-center text-subtitle-2">No vehicles found</div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -61,18 +55,13 @@ import { hashID } from "@shared/utils";
 import { TeslaNewListEntry } from "./tesla-helper";
 import TeslaNewVehicleList from "./components/tesla-new-list.vue";
 import { ProviderVuePage } from "@providers/provider-app";
-import provider, {
-  TeslaProviderQueries,
-  TeslaProviderMutates,
-  TeslaToken,
-} from "..";
+import provider, { TeslaProviderQueries, TeslaProviderMutates, TeslaToken } from "..";
 
 const AUTHORIZE_URL = "https://auth.tesla.com/oauth2/v3/authorize";
 const CLIENT_ID = "45618b860d7c-4186-89f4-2374bc1b1b83";
 const REDIRECT_URL = `${window.location.origin}/provider/tesla/auth`;
 const TESLA_VIRTUAL_KEY_URL = `https://tesla.com/_ak/${window.location.hostname}`;
-const SCOPE =
-  "openid offline_access vehicle_device_data vehicle_cmds vehicle_charging_cmds";
+const SCOPE = "openid offline_access vehicle_device_data vehicle_cmds vehicle_charging_cmds";
 
 @Component({
   components: {
@@ -168,7 +157,7 @@ export default class TeslaVue extends Vue {
         if (!entry) {
           entry = {
             vin: v.vin,
-            name: v.vin,
+            name: v.display_name || v.vin,
             vehicle_uuid: v.vehicle_uuid,
             service_uuid: v.service_uuid,
           } as TeslaNewListEntry;

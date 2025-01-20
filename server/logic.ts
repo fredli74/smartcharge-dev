@@ -1,7 +1,7 @@
 /**
  * @file Server Logic for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
@@ -27,6 +27,7 @@ import {
   numericStopTime,
   compareStartTimes,
   capitalize,
+  diffObjects
 } from "@shared/utils";
 import {
   UpdateVehicleDataInput,
@@ -40,220 +41,155 @@ import {
 } from "@shared/smartcharge-defines";
 
 export class Logic {
-  constructor(private db: DBInterface) {}
-  public init() {}
+  constructor(private db: DBInterface) { }
+  public init() { }
 
   public async updateVehicleData(
     input: UpdateVehicleDataInput,
     now: Date = new Date()
   ) {
-    // First lookup old record
-    const vehicle: DBVehicle = await this.db.getVehicle(undefined, input.id);
-    log(LogLevel.Trace, `vehicle: ${JSON.stringify(vehicle)}`);
+    // Lookup old record
+    const was: DBVehicle = await this.db.getVehicle(undefined, input.id);
+    log(LogLevel.Trace, `input: ${JSON.stringify(input)}`);
+    log(LogLevel.Trace, `vehicle: ${JSON.stringify(was)}`);
 
-    // Convert API values to database values
-    const data = {
-      latitude: input.geoLocation.latitude * 1e6, // 6 decimals precision to integer
-      longitude: input.geoLocation.longitude * 1e6, // 6 decimals precision to integer
-      level: input.batteryLevel, // in %
-      odometer: input.odometer, // in meter
-      outside_temp: input.outsideTemperature
-        ? input.outsideTemperature * 10 // celsius to deci-celsius (20.5 = 205)
-        : vehicle.outside_deci_temperature,
-      inside_temp: input.insideTemperature
-        ? input.insideTemperature * 10 // celsius to deci-celsius (20.5 = 205)
-        : vehicle.inside_deci_temperature,
-      climate_control: input.climateControl, // boolean
-      driving: input.isDriving, // boolean
-      connected: input.connectedCharger, // ac|dc|null
-      charging_to: input.chargingTo, // in %
-      estimate: input.estimatedTimeLeft || 0, // estimated time in minutes to complete charge
-      power: (input.powerUse || 0) * 1e3, // current power drain kW to W
-      added: (input.energyAdded || 0) * 60e3, // added kWh to Wm (1000 * 60)
-    };
-
-    // Setup stats record
-    const statsDelta = (now.getTime() - vehicle.updated.getTime()) / 1e3;
-    const statsData: DBStatsMap = {
-      vehicle_uuid: vehicle.vehicle_uuid,
-      period: MIN_STATS_PERIOD,
-      stats_ts: new Date(
-        Math.floor(now.getTime() / MIN_STATS_PERIOD) * MIN_STATS_PERIOD
-      ),
-      minimum_level: data.level,
-      maximum_level: data.level,
-      driven_seconds: data.driving ? statsDelta : 0,
-      driven_meters:
-        vehicle.odometer > 0 ? data.odometer - vehicle.odometer : 0,
-      // all charge info is filled in below
-      charged_seconds: 0,
-      charge_energy: 0,
-      charge_cost: 0,
-      charge_cost_saved: 0,
-    };
-
-    // Did we move?
-    const lastLocationUUID: string | null = vehicle.location_uuid;
-    let currentLocationUUID: string | null = vehicle.location_uuid;
-    {
-      const location = await this.db.lookupKnownLocation(
-        vehicle.account_uuid,
-        data.latitude,
-        data.longitude
-      );
-      if (location) {
-        currentLocationUUID = location.location_uuid;
-      } else {
-        currentLocationUUID = null;
-      }
-    }
-
-    // Update new values
-    {
-      await this.db.pg.one(
-        `UPDATE vehicle SET ($1:name) = ($1:csv) WHERE vehicle_uuid=$2 RETURNING *;`,
-        [
-          {
-            location_uuid: currentLocationUUID,
-            location_micro_latitude: data.latitude,
-            location_micro_longitude: data.longitude,
-            level: data.level,
-            odometer: data.odometer,
-            outside_deci_temperature: data.outside_temp,
-            inside_deci_temperature: data.inside_temp,
-            climate_control: data.climate_control,
-            driving: data.driving,
-            connected: data.connected !== null,
-            charging_to: data.charging_to,
-            estimate: data.estimate,
-            updated: now,
-          },
-          vehicle.vehicle_uuid,
-        ]
-      );
-    }
+    const vehicle = { ...was };
+    let connection: DBConnected | null = null;
+    let charge: DBCharge | null = null;
 
     let doPricePlan = false;
 
-    // Are we connected?
-    if (data.connected || vehicle.connected_id) {
-      let connection: DBConnected | null = null;
-      // Load current charge connection
-      if (vehicle.connected_id !== null) {
-        connection = await this.db.pg.oneOrNone(
-          `SELECT * FROM connected WHERE connected_id = $1`,
-          [vehicle.connected_id]
-        );
+    if (input.geoLocation !== undefined) {
+      vehicle.location_micro_latitude = input.geoLocation.latitude * 1e6;
+      vehicle.location_micro_longitude = input.geoLocation.longitude * 1e6;
+      const location = await this.db.lookupKnownLocation(was.account_uuid, vehicle.location_micro_latitude, vehicle.location_micro_longitude);
+      if (location !== null) {
+        vehicle.location_uuid = location.location_uuid;
+      } else {
+        vehicle.location_uuid = null;
       }
-
-      // Did we reconnect in the same location? (Trying to solve issue #430)
-      if (!connection) {
+    }
+    if (input.batteryLevel !== undefined) { vehicle.level = input.batteryLevel; }
+    if (input.odometer !== undefined) { vehicle.odometer = input.odometer; }
+    if (input.outsideTemperature !== undefined) { vehicle.outside_deci_temperature = input.outsideTemperature * 10; }
+    if (input.insideTemperature !== undefined) { vehicle.inside_deci_temperature = input.insideTemperature * 10; }
+    if (input.climateControl !== undefined) { vehicle.climate_control = input.climateControl; }
+    if (input.isDriving !== undefined) { vehicle.driving = input.isDriving; }
+    if (input.chargingTo !== undefined) {
+      vehicle.charging_to = input.chargingTo;
+      if (!vehicle.charging_to) {
+        vehicle.charge_id = null;
+      }
+    }
+    if (input.estimatedTimeLeft !== undefined) { vehicle.estimate = input.estimatedTimeLeft; }
+    if (input.connectedCharger !== undefined) {
+      vehicle.connected = input.connectedCharger !== null;
+      if (vehicle.connected) {
+    // Did we reconnect in the same location? (Trying to solve issue #430)
         // Allow for 200m odometer difference because of fluctuations when moving vehicle
         connection = await this.db.pg.oneOrNone(
           `SELECT * FROM connected 
             WHERE vehicle_uuid = $1 AND location_uuid = $2
               AND ABS(start_odometer - $3) < 200
             ORDER BY connected_id DESC LIMIT 1`,
-          [vehicle.vehicle_uuid, currentLocationUUID, data.odometer]
+          [was.vehicle_uuid, vehicle.location_uuid, vehicle.odometer]
         );
-      }
-
-      // New connection, create a record
-      if (!connection) {
-        // Remove manual charge entries if we have any
-        await this.db.pg.none(
-          `DELETE FROM schedule WHERE vehicle_uuid = $1 AND schedule_type = $2;`,
-          [vehicle.vehicle_uuid, ScheduleType.Manual]
-        );
-
-        connection = (await this.db.pg.one(
-          `INSERT INTO connected($[this:name]) VALUES($[this:csv]) RETURNING *;`,
-          {
-            vehicle_uuid: vehicle.vehicle_uuid,
-            type: data.connected,
-            location_uuid: currentLocationUUID,
-            start_ts: now,
-            start_level: data.level,
-            start_odometer: data.odometer,
-            end_ts: now,
-            end_level: data.level,
-            energy_used: 0,
-            cost: 0,
-            saved: 0,
-            connected: true,
-          }
-        )) as DBConnected;
-      }
-
-      assert(connection !== null);
-
-      if (vehicle.connected_id !== connection.connected_id) {
-        vehicle.connected_id = connection.connected_id;
-        await this.db.pg.none(
-          `UPDATE vehicle SET connected_id = $1 WHERE vehicle_uuid = $2`,
-          [vehicle.connected_id, vehicle.vehicle_uuid]
-        );
-        doPricePlan = true;
-      }
-
-      log(
-        LogLevel.Debug,
-        `Vehicle connected (connected_id=${connection.connected_id})`
-      );
-
-      if (data.charging_to || vehicle.charge_id) {
-        // Are we charging?
-        let charge: DBCharge | null;
-        if (vehicle.charge_id === null) {
-          // New charge, create a charge record
-          charge = (await this.db.pg.one(
-            `INSERT INTO charge($[this:name]) VALUES($[this:csv]) RETURNING *;`,
-            {
-              vehicle_uuid: vehicle.vehicle_uuid,
-              connected_id: vehicle.connected_id,
-              type: data.connected,
-              location_uuid: currentLocationUUID,
-              start_ts: now,
-              start_level: data.level,
-              start_added: data.added,
-              target_level: data.charging_to,
-              estimate: data.estimate,
-              end_ts: now,
-              end_level: data.level,
-              end_added: data.added,
-              energy_used: 0,
-            }
-          )) as DBCharge;
-          vehicle.charge_id = charge.charge_id;
-          log(LogLevel.Debug, `Started charge ${charge.charge_id}`);
+        if (!connection) {
+          // Remove manual charge entries if we have any
           await this.db.pg.none(
-            `UPDATE vehicle SET charge_id = $1 WHERE vehicle_uuid = $2`,
-            [vehicle.charge_id, vehicle.vehicle_uuid]
+            `DELETE FROM schedule WHERE vehicle_uuid = $1 AND schedule_type = $2;`,
+            [was.vehicle_uuid, ScheduleType.Manual]
           );
+
+          connection = (await this.db.pg.one(
+            `INSERT INTO connected($[this:name]) VALUES($[this:csv]) RETURNING *;`,
+            {
+              vehicle_uuid: was.vehicle_uuid,
+              type: input.connectedCharger,
+              location_uuid: vehicle.location_uuid,
+              start_ts: now,
+              start_level: vehicle.level,
+              start_odometer: vehicle.odometer,
+              end_ts: now,
+              end_level: vehicle.level,
+              energy_used: 0,
+              cost: 0,
+              saved: 0,
+              connected: true,
+            }
+          )) as DBConnected;
+          log(LogLevel.Debug, `Started connection ${connection.connected_id}`);
+          vehicle.connected_id = connection.connected_id;
+          if (connection.location_uuid !== null) {
+            await this.createNewStats(vehicle, connection.location_uuid);
+          }
         } else {
-          // or read charge record
-          charge = await this.db.pg.oneOrNone(
+          // Update connection record because we can not guarantee connectedCharger type is correct the first time
+          connection = (await this.db.pg.one(
+            `UPDATE connected SET type = $1, location_uuid = $2 WHERE connected_id = $3 RETURNING *;`,
+            [input.connectedCharger, vehicle.location_uuid, connection.connected_id]
+          )) as DBConnected;
+          log(LogLevel.Debug, `Reconnected to connection ${connection.connected_id}`);
+        }
+        doPricePlan = true;
+        vehicle.connected_id = connection.connected_id;
+        log(LogLevel.Debug, `Vehicle connected (connected_id=${connection.connected_id})`);
+      } else {
+        // We disconnected
+        if (was.connected_id !== null) {
+          log(LogLevel.Debug, `Ending connection ${was.connected_id}`);
+          await this.db.pg.none(
+            `UPDATE connected SET end_ts = $1, end_level = $2, connected = false WHERE connected_id = $3;`,
+            [now, vehicle.level, was.connected_id]
+          );
+          log(LogLevel.Debug, `Vehicle no longer connected (connected_id=${was.connected_id})`);
+          vehicle.connected_id = null;
+          vehicle.charge_id = null;
+        }
+      }
+      doPricePlan = true;
+    }
+
+    const statsDelta = (now.getTime() - was.updated.getTime()) / 1e3;
+    const statsData = (statsDelta > 0 && statsDelta < 60 * 60 && (
+      was.driving || was.charging_to || was.odometer !== vehicle.odometer || was.level !== vehicle.level
+    )) ? {
+      vehicle_uuid: was.vehicle_uuid,
+      period: MIN_STATS_PERIOD,
+      stats_ts: new Date(
+        Math.floor(now.getTime() / MIN_STATS_PERIOD) * MIN_STATS_PERIOD
+      ),
+      minimum_level: vehicle.level,
+      maximum_level: vehicle.level,
+      driven_seconds: vehicle.driving ? statsDelta : 0,
+      driven_meters: was.odometer > 0 ? vehicle.odometer - was.odometer : 0,
+      charged_seconds: vehicle.charging_to ? statsDelta : 0,
+      charge_energy: 0,
+      charge_cost: 0,
+      charge_cost_saved: 0,
+    } : null;
+
+    if (input.energyAdded) {
+      const energyAdded = Math.round(input.energyAdded * 60e3); // kWh to Wm
+      if (!connection && vehicle.connected_id !== null) {
+        connection = await this.db.pg.one(`SELECT * FROM connected WHERE connected_id = $1`, [vehicle.connected_id]);
+      }
+      if (connection) {
+        if (vehicle.charge_id !== null) {
+          charge = await this.db.pg.one(
             `SELECT * FROM charge WHERE charge_id = $1`,
             [vehicle.charge_id]
           );
+        }
+        if (charge) {
+          // TODO: Why didn't we just use charge.end_added - charge.start_added?
+          const deltaAdded = energyAdded - charge.end_added;
 
-          if (connection && charge) {
-            // Update charge record
-            const deltaChargeTime =
-              (now.getTime() - charge.end_ts.getTime()) / 1e3; // ms / 1000 = s
-            const deltaPowerUsed = Math.round(
-              Math.max(0, data.power * deltaChargeTime) / 60
-            ); // used = power (W) * time (s) = Ws / 60 = Wm
-            connection.energy_used += deltaPowerUsed;
-
-            {
-              let cost = 0;
-              let saved = 0;
-              const priceLookup: {
-                price_now: number;
-                price_then: number;
-              } = await this.db.pg.one(
-                `WITH wouldve AS (
+          // TODO: What if charge is scheduled, did we even generate a charge entry then or should we go on connected start instead?
+          let cost = 0;
+          let saved = 0;
+          const priceLookup: { price_now: number; price_then: number; } = await this.db.pg.one(
+            `WITH wouldve AS (
                   SELECT MIN(b.start_ts) as ts, SUM(a.end_ts - a.start_ts) as duration
                   FROM charge a JOIN connected b ON (a.connected_id = b.connected_id) WHERE b.connected_id = $1
               ), prices AS (
@@ -262,269 +198,216 @@ export class Logic {
               SELECT 
                   (SELECT price FROM prices WHERE ts < $3 ORDER BY ts DESC LIMIT 1) price_now,
                   (SELECT price FROM prices a, wouldve b WHERE a.ts < b.ts+duration ORDER BY a.ts DESC LIMIT 1) price_then;`,
-                [vehicle.connected_id, vehicle.location_uuid, new Date(now)]
-              );
-
-              if (priceLookup.price_now !== null) {
-                cost = Math.round(
-                  (priceLookup.price_now * deltaPowerUsed) / 60e3
-                ); // price in (kWh) * used in (Wm)   Wm / 60e3 => kWh
-
-                if (priceLookup.price_then !== null) {
-                  saved = Math.round(
-                    ((priceLookup.price_then - priceLookup.price_now) *
-                      deltaPowerUsed) /
-                      60e3
-                  );
-                }
-              }
-
-              connection.cost += cost;
-              connection.saved += saved;
-
-              // Update stats with charge information
-              if (deltaChargeTime < statsDelta * 2) {
-                // Just a sanity check that we do not update stats with old data
-                statsData.charge_cost = cost;
-                statsData.charge_cost_saved = saved;
-                statsData.charged_seconds = statsDelta;
-                statsData.charge_energy = deltaPowerUsed;
-              }
+            [vehicle.connected_id, vehicle.location_uuid, new Date(now)]
+          );
+          if (priceLookup.price_now !== null) {
+            cost = Math.round((priceLookup.price_now * deltaAdded) / 60e3); // price in (kWh) * used in (Wm)   Wm / 60e3 => kWh
+            if (priceLookup.price_then !== null) {
+              saved = Math.round(((priceLookup.price_then - priceLookup.price_now) * deltaAdded) / 60e3);
             }
+          }
 
-            {
-              const update: any = {
-                end_ts: now,
-                end_level: data.level,
-              };
-              if (data.charging_to) {
-                update.target_level = data.charging_to;
-                update.estimate = data.estimate;
-              }
-              if (data.connected) {
-                update.energy_used = charge.energy_used + deltaPowerUsed;
-                update.end_added = data.added;
-              }
-              log(
-                LogLevel.Debug,
-                `Updating charge ${vehicle.charge_id} with ${deltaPowerUsed} Wm used in ${deltaChargeTime}s`
-              );
-              charge = (await this.db.pg.one(
-                `UPDATE charge SET ($1:name) = ($1:csv) WHERE charge_id=$2 RETURNING *;`,
-                [update, vehicle.charge_id]
-              )) as DBCharge;
-              log(LogLevel.Trace, `charge: ${JSON.stringify(charge)}`);
-            }
+          log(LogLevel.Debug, `Updating charge ${charge.charge_id} with ${deltaAdded} Wm added`);
+          await this.db.pg.none(
+            `UPDATE connected SET ($1:name) = ($1:csv) WHERE connected_id=$2;`,
+            [{
+              energy_used: connection.energy_used + deltaAdded,
+              cost: connection.cost + cost,
+              saved: connection.saved + saved,
+            }, vehicle.connected_id,]
+          );
 
-            // charge_curve logic
-            if (data.level > charge.start_level) {
-              // Ignore first % since integer % lacks precision
-              const current: DBChargeCurrent | null =
-                await this.db.pg.oneOrNone(
-                  `SELECT * FROM charge_current WHERE charge_id = $1;`,
-                  [vehicle.charge_id]
-                );
-              if (!current || data.level > current.start_level) {
-                // reached a new level, create charge curve statistics
-                doPricePlan = true;
-                if (current && data.level === current.start_level + 1) {
-                  // only 1% changes, or we've been offline and it's unreliable
-                  const duration =
-                    (now.getTime() - current.start_ts.getTime()) / 1e3; // ms / 1000 = s
-                  const avgPower = arrayMean(current.powers); // Watt
-                  const energyUsed = (avgPower * duration) / 60; // power (W) * time (s) = Ws / 60 = Wm
-                  const energyAdded = data.added - current.start_added; // Wm
-                  const avgTemp = arrayMean(current.outside_deci_temperatures); // deci-celsius
-                  log(
-                    LogLevel.Debug,
-                    `Calculated charge curve between ${
-                      current.start_level
-                    }% and ${data.level}% is ${(energyUsed / 60.0).toFixed(
-                      2
-                    )}kWh in ${(duration / 60.0).toFixed(2)}m`
-                  );
-                  await this.db.setChargeCurve(
-                    vehicle.vehicle_uuid,
-                    vehicle.charge_id,
-                    current.start_level,
-                    duration,
-                    avgTemp,
-                    energyUsed,
-                    energyAdded
-                  );
-                }
+          if (statsData) {
+            statsData.charge_cost = cost;
+            statsData.charge_cost_saved = saved;
+            statsData.charge_energy = deltaAdded;
+          }
+
+          if (vehicle.level > charge.start_level) {
+          // Ignore first % since integer % lacks precision
+            const chargeCurrent: DBChargeCurrent | null = await this.db.pg.oneOrNone(
+              `SELECT * FROM charge_current WHERE charge_id = $1;`,
+              [charge.charge_id]
+            );
+            if (!chargeCurrent || vehicle.level > chargeCurrent.start_level) {
+              // reached a new level, create charge curve statistics
+              doPricePlan = true;
+              if (chargeCurrent && vehicle.level === chargeCurrent.start_level + 1) {
+              // only 1% changes, or we've been offline and it's unreliable
+                const duration = (now.getTime() - chargeCurrent.start_ts.getTime()) / 1e3; // ms / 1000 = s
+                const avgPower = arrayMean(chargeCurrent.powers); // Watt
+                const used = (avgPower * duration) / 60; // power (W) * time (s) = Ws / 60 = Wm
+                const added = energyAdded - chargeCurrent.start_added; // Wm
+                const avgTemp = arrayMean(chargeCurrent.outside_deci_temperatures); // deci-celsius
+                log(LogLevel.Debug, `Calculated charge curve between ${chargeCurrent.start_level}% and ${vehicle.level}% is ${(used / 60.0).toFixed(2)}kWh in ${(duration / 60.0).toFixed(2)}m`);
+                await this.db.setChargeCurve(
+                  vehicle.vehicle_uuid, charge.charge_id, chargeCurrent.start_level, duration, avgTemp, used, added);
                 await this.db.pg.none(
                   `INSERT INTO charge_current(charge_id) SELECT $[charge_id] WHERE NOT EXISTS (SELECT charge_id FROM charge_current WHERE charge_id = $[charge_id]);` +
-                    `UPDATE charge_current SET start_ts=$[start_ts], start_level=$[start_level], start_added=$[start_added], powers='{}', outside_deci_temperatures='{}' WHERE charge_id = $[charge_id];`,
+                  `UPDATE charge_current SET start_ts=$[start_ts], start_level=$[start_level], start_added=$[start_added], powers='{}', outside_deci_temperatures='{}' WHERE charge_id = $[charge_id];`,
                   {
-                    charge_id: vehicle.charge_id,
+                    charge_id: charge.charge_id,
                     start_ts: now,
-                    start_level: data.level,
-                    start_added: data.added,
+                    start_level: vehicle.level,
+                    start_added: energyAdded,
                   }
                 );
               }
-              const new_current = await this.db.pg.one(
-                `UPDATE charge_current SET powers = array_append(powers, $[power]), outside_deci_temperatures = array_append(outside_deci_temperatures, cast($[outside_temp] as smallint)) WHERE charge_id=$[charge_id] RETURNING *;`,
-                {
-                  charge_id: vehicle.charge_id,
-                  power: Math.trunc(data.power),
-                  outside_temp: Math.trunc(data.outside_temp),
-                }
-              );
-              log(LogLevel.Trace, `current: ${JSON.stringify(new_current)}`);
             }
           }
-        }
-
-        if (!connection || !charge || !data.charging_to) {
-          // We stopped charging
-          log(LogLevel.Debug, `Ending charge ${vehicle.charge_id}`);
+          const chargeUpdate: any = {
+            end_ts: now,
+            end_level: vehicle.level,
+            end_added: energyAdded,
+            energy_used: charge.energy_used + deltaAdded,
+          };
+          if (vehicle.charging_to) {
+            chargeUpdate.target_level = vehicle.charging_to;
+            chargeUpdate.estimate = vehicle.estimate;
+          }
           await this.db.pg.none(
-            `DELETE FROM charge_current WHERE charge_id=$1; UPDATE vehicle SET charge_id = null WHERE vehicle_uuid = $2`,
-            [vehicle.charge_id, vehicle.vehicle_uuid]
+            `UPDATE charge SET ($1:name) = ($1:csv) WHERE charge_id=$2;`,
+            [chargeUpdate, charge.charge_id]
           );
-        }
-      }
-
-      if (connection) {
-        // Update connection record
-        connection.end_ts = now;
-        connection.end_level = data.level;
-        await this.db.pg.one(
-          `UPDATE connected SET ($1:name) = ($1:csv) WHERE connected_id=$2 RETURNING *;`,
-          [
+        } else if (vehicle.charging_to) {
+          // New charge, create a charge record
+          charge = (await this.db.pg.one(
+            `INSERT INTO charge($[this:name]) VALUES($[this:csv]) RETURNING *;`,
             {
-              location_uuid: vehicle.location_uuid, // if a new location was added
+              vehicle_uuid: vehicle.vehicle_uuid,
+              connected_id: vehicle.connected_id,
+              type: connection.type,
+              location_uuid: vehicle.location_uuid,
+              start_ts: now,
+              start_level: vehicle.level,
+              start_added: energyAdded,
+              target_level: vehicle.charging_to,
+              estimate: vehicle.estimate,
               end_ts: now,
-              end_level: data.level,
-              energy_used: connection.energy_used,
-              cost: connection.cost,
-              saved: connection.saved,
-              connected: Boolean(data.connected),
-            },
-            vehicle.connected_id,
-          ]
-        );
-      }
-
-      if (!connection || !data.connected) {
-        // We disconnected
-        log(
-          LogLevel.Debug,
-          `Vehicle no longer connected (connected_id=${vehicle.connected_id})`
-        );
-        await this.db.pg.none(
-          `UPDATE vehicle SET connected_id = null, charge_plan = null WHERE vehicle_uuid = $1;`,
-          [vehicle.vehicle_uuid]
-        );
-
-        if (connection && connection.location_uuid !== null) {
-          await this.createNewStats(vehicle, connection.location_uuid);
+              end_level: vehicle.level,
+              end_added: energyAdded,
+              energy_used: 0,
+            }
+          )) as DBCharge;
+          vehicle.charge_id = charge.charge_id;
+          log(LogLevel.Debug, `Started charge ${charge.charge_id}`);
         }
       }
+    }
+
+    if (input.energyUsed && vehicle.charge_id !== null) {
+      const energyUsed = Math.round(input.energyUsed * 60e3); // kWh to Wm
+      // Set start_used if null and end_used always
+      const new_charge = await this.db.pg.one(
+        `UPDATE charge SET start_used = COALESCE(start_used, $1), end_used = $1 WHERE charge_id=$2 RETURNING *;`,
+        [energyUsed, vehicle.charge_id]
+      );
+      log(LogLevel.Trace, `charge: ${JSON.stringify(new_charge)}`);
+    }
+
+    if (input.powerUse && vehicle.charge_id !== null) {
+      const new_current = await this.db.pg.oneOrNone(
+        `UPDATE charge_current SET powers = array_append(powers, $[power]), outside_deci_temperatures = array_append(outside_deci_temperatures, cast($[outside_temp] as smallint)) WHERE charge_id=$[charge_id] RETURNING *;`,
+        {
+          charge_id: vehicle.charge_id,
+          power: Math.trunc(input.powerUse * 1e3),
+          outside_temp: Math.trunc(vehicle.outside_deci_temperature),
+        }
+      );
+      if (new_current) {
+        log(LogLevel.Trace, `charge_current: ${JSON.stringify(new_current)}`);
+      }
+    }
+
+    if (was.charge_id !== null && vehicle.charge_id === null) {
+      // We stopped charging
+      log(LogLevel.Debug, `Ending charge ${was.charge_id}`);
+      await this.db.pg.none(`DELETE FROM charge_current WHERE charge_id=$1;`, [was.charge_id]);
     }
 
     if (
-      lastLocationUUID !== currentLocationUUID ||
-      data.driving ||
-      vehicle.trip_id !== null
+      vehicle.location_uuid !== was.location_uuid || vehicle.driving !== was.driving ||
+      vehicle.odometer !== was.odometer || vehicle.level !== was.level
     ) {
-      // moved, driving or on a trip
-      let trip: DBTrip;
-      if (vehicle.trip_id === null) {
-        trip = await this.db.pg.one(
-          `INSERT INTO trip($[this:name]) VALUES($[this:csv]) RETURNING *;`,
-          {
-            vehicle_uuid: vehicle.vehicle_uuid,
-            start_ts: now,
-            start_level: data.level,
-            start_location_uuid: lastLocationUUID,
-            start_odometer: data.odometer,
-            start_outside_deci_temperature: data.outside_temp,
-            end_ts: now,
-            end_level: data.level,
-            end_location_uuid: currentLocationUUID,
-            distance: 0,
-          }
-        );
-        vehicle.trip_id = trip.trip_id;
-        log(LogLevel.Debug, `Started trip ${trip.trip_id}`);
-        await this.db.pg.none(
-          `UPDATE vehicle SET trip_id = $1 WHERE vehicle_uuid = $2`,
-          [vehicle.trip_id, vehicle.vehicle_uuid]
-        );
+      let trip: DBTrip | null = (vehicle.trip_id !== null) ? await this.db.pg.one(
+        `SELECT * FROM trip WHERE trip_id = $1`,
+        [vehicle.trip_id]
+      ) : null;
+
+      if (!trip) {
+        if (vehicle.driving) {
+          // trip_id should not be null if we are driving
+          trip = (await this.db.pg.one(
+            `INSERT INTO trip($[this:name]) VALUES($[this:csv]) RETURNING *;`,
+            {
+              vehicle_uuid: vehicle.vehicle_uuid,
+              start_ts: now,
+              start_level: vehicle.level,
+              start_location_uuid: vehicle.location_uuid,
+              start_odometer: vehicle.odometer,
+              start_outside_deci_temperature: vehicle.outside_deci_temperature,
+              end_ts: now,
+              end_level: vehicle.level,
+              end_location_uuid: vehicle.location_uuid,
+              distance: 0,
+            }
+          )) as DBTrip;
+          vehicle.trip_id = trip.trip_id;
+          log(LogLevel.Debug, `Started trip ${trip.trip_id}`);
+        }
       } else {
-        trip = await this.db.pg.one(`SELECT * FROM trip WHERE trip_id = $1`, [
-          vehicle.trip_id,
-        ]);
-      }
-
-      // Update trip record
-      const distance = data.odometer - trip.start_odometer;
-      const traveled = Math.round(distance - trip.distance);
-      if (traveled > 0) {
-        log(
-          LogLevel.Debug,
-          `Updating trip ${vehicle.trip_id} with ${traveled}m driven`
-        );
-        // TODO lookup location id
-        trip = await this.db.pg.one(
-          `UPDATE trip SET end_ts=$[ts], end_level=$[level], end_location_uuid=$[location_uuid], distance=$[distance] WHERE trip_id=$[trip_id] RETURNING *;`,
-          {
-            trip_id: vehicle.trip_id,
-            ts: now,
-            level: data.level,
-            location_uuid: currentLocationUUID,
-            distance: distance,
-          }
-        );
-      }
-
-      if (!data.driving) {
-        let stopTrip = false;
-        if (currentLocationUUID !== null) {
+        const distance = vehicle.odometer - trip.start_odometer;
+        const traveled = Math.round(distance - trip.distance);
+        if (traveled > 0) {
+          log(LogLevel.Debug, `Updating trip ${vehicle.trip_id} with ${traveled}m driven`);
+          trip = (await this.db.pg.one(
+            `UPDATE trip SET ($1:name) = ($1:csv) WHERE trip_id=$2 RETURNING *;`,
+            [{
+              end_ts: now,
+              end_level: vehicle.level,
+              end_location_uuid: vehicle.location_uuid,
+              distance: distance,
+            }, vehicle.trip_id,]
+          )) as DBTrip;
+        }
+        if (!vehicle.driving) {
+          let stopTrip = false;
+          if (vehicle.location_uuid !== null) {
           // We stopped driving at a location we know
-          log(
-            LogLevel.Debug,
-            `Vehicle at location ${currentLocationUUID} after driving ${
-              trip.distance / 1e3
-            } km, ending trip ${trip.trip_id}`
-          );
-          stopTrip = true;
-          if (trip.distance < 1e3) {
-            // totally ignore trips less than 1 km
-            log(
-              LogLevel.Debug,
-              `Removing trip ${trip.trip_id}, because it only recorded ${trip.distance} meters`
+            log(LogLevel.Debug,
+              `Vehicle at location ${vehicle.location_uuid} after driving ${trip.distance / 1e3} km, ending trip ${trip.trip_id}`
             );
-            await this.db.pg.none(`DELETE FROM trip WHERE trip_id=$1`, [
-              vehicle.trip_id,
-            ]);
+            stopTrip = true;
+            if (trip.distance < 1e3) {
+            // totally ignore trips less than 1 km
+              log(LogLevel.Debug, `Removing trip ${trip.trip_id}, because it only recorded ${trip.distance} meters`);
+              await this.db.pg.none(`DELETE FROM trip WHERE trip_id=$1;`, [
+                vehicle.trip_id,
+              ]);
+            }
+          } else if (vehicle.connected) {
+            log(LogLevel.Debug, `Vehicle connected after driving ${trip.distance / 1e3} km, ending trip ${trip.trip_id}`);
+            stopTrip = true;
           }
-        } else if (data.connected) {
-          log(
-            LogLevel.Debug,
-            `Vehicle connected after driving ${
-              trip.distance / 1e3
-            } km, ending trip ${trip.trip_id}`
-          );
-          stopTrip = true;
+          if (stopTrip) {
+            vehicle.trip_id = null;
+            doPricePlan = true;
+          }
         }
-        if (stopTrip) {
-          await this.db.pg.none(
-            `UPDATE vehicle SET trip_id = null WHERE trip_id = $1`,
-            [vehicle.trip_id]
-          );
-          doPricePlan = true;
-        }
+        log(LogLevel.Trace, `trip: ${JSON.stringify(trip)}`);
       }
-      log(LogLevel.Trace, `trip: ${JSON.stringify(trip)}`);
     }
 
-    // Update statsMap
-    if (statsDelta > 0 && statsDelta < 60 * 60) {
-      // Limit statsDelta to 1 hour for data sanity during polling loss
+    // Update new values to database
+    {
+      const update = diffObjects(vehicle, was);
+      if (Object.keys(update).length > 0) {
+        update.updated = now;
+        await this.db.pg.one(`UPDATE vehicle SET ($1:name) = ($1:csv) WHERE vehicle_uuid=$2 RETURNING *;`, [update, was.vehicle_uuid]);
+      }
+    }
+
+    if (statsData) {
       await Promise.all([
         this.updateStatsMap(statsData, 5), // 5 minute stats bucket
         this.updateStatsMap(statsData, 60), // hourly stats bucket
@@ -532,10 +415,40 @@ export class Logic {
       ]);
     }
 
-    // Update charge plan if needed
     if (doPricePlan) {
-      await this.refreshChargePlan(vehicle.vehicle_uuid);
+      await this.refreshChargePlan(was.vehicle_uuid);
     }
+
+    /*
+
+      {
+        location_uuid: currentLocationUUID,
+        location_micro_latitude: data.latitude,
+        location_micro_longitude: data.longitude,
+        level: data.level,
+        odometer: data.odometer,
+        outside_deci_temperature: data.outside_temp,
+        inside_deci_temperature: data.inside_temp,
+        climate_control: data.climate_control,
+        driving: data.driving,
+        connected: data.connected !== null,
+        charging_to: data.charging_to,
+        estimate: data.estimate,
+        updated: now,
+      },
+      vehicle.vehicle_uuid,
+        
+
+    // Update new values to database
+    if (Object.keys(update).length > 0) {
+      await this.db.pg.one(
+        `UPDATE vehicle SET ($1:name) = ($1:csv) WHERE vehicle_uuid=$2 RETURNING *;`,
+        [update, was.vehicle_uuid]
+      );
+    }
+*/
+
+
   }
 
   public async updateStatsMap(data: DBStatsMap, period: number) {
@@ -556,7 +469,7 @@ export class Logic {
         period: period,
         stats_ts: new Date(
           Math.floor(data.stats_ts.getTime() / (period * 60e3)) *
-            (period * 60e3)
+          (period * 60e3)
         ),
         minimum_level: data.minimum_level,
         maximum_level: data.maximum_level,
@@ -607,12 +520,7 @@ export class Logic {
     );
 
     // Exit if we have no price data for this location
-    if (
-      avg_prices.price_data_ts === null ||
-      avg_prices.avg7 === null ||
-      avg_prices.avg21 === null
-    )
-      return null;
+    if (avg_prices.price_data_ts === null || avg_prices.avg7 === null || avg_prices.avg21 === null) return null;
 
     let threshold = 1;
 
@@ -671,10 +579,7 @@ export class Logic {
         [vehicle.vehicle_uuid, location_uuid]
       );
       for (const h of history) {
-        if (
-          historyMap.length < 1 ||
-          historyMap[historyMap.length - 1].connected_id !== h.connected_id
-        ) {
+        if (historyMap.length < 1 || historyMap[historyMap.length - 1].connected_id !== h.connected_id) {
           historyMap.push({
             connected_id: h.connected_id,
             start_level: h.start_level,
@@ -733,11 +638,7 @@ export class Logic {
             }
           }
           let hours = [...historyMap[i].hours];
-          neededLevel = Math.min(
-            100,
-            minimum_charge +
-              (historyMap[i].needed > 0 ? historyMap[i].needed * 1.1 : needavg)
-          );
+          neededLevel = Math.min(100, minimum_charge + (historyMap[i].needed > 0 ? historyMap[i].needed * 1.1 : needavg));
 
           let smartCharging = false;
 
@@ -747,19 +648,10 @@ export class Logic {
               smartCharging = true;
             }
             const h = hours.shift()!;
-            const charge = Math.max(
-              h.threshold <= t ? maximum_charge - lvl : 0,
-              lvl < neededLevel ? neededLevel - lvl : 0
-            );
+            const charge = Math.max(h.threshold <= t ? maximum_charge - lvl : 0, lvl < neededLevel ? neededLevel - lvl : 0);
             if (charge > 0) {
-              const chargeTime = Math.min(
-                3600 * h.fraction,
-                charge * level_charge_time
-              );
-              const newLevel = Math.min(
-                100,
-                lvl + chargeTime / level_charge_time
-              );
+              const chargeTime = Math.min(3600 * h.fraction, charge * level_charge_time);
+              const newLevel = Math.min(100, lvl + chargeTime / level_charge_time);
               totalCharged += newLevel - lvl;
               totalCost += (chargeTime / 3600) * h.price;
               lvl = newLevel;
@@ -770,10 +662,7 @@ export class Logic {
         if (lvl > minimum_charge + needavg && f < bestCost * 0.95) {
           bestCost = f;
           threshold = t;
-          log(
-            LogLevel.Debug,
-            `Cost simulation ${vehicle.vehicle_uuid} t=${t} => ${f}`
-          );
+          log(LogLevel.Debug, `Cost simulation ${vehicle.vehicle_uuid} t=${t} => ${f}`);
         }
       }
     }
@@ -791,10 +680,7 @@ export class Logic {
     );
   }
 
-  public async currentStats(
-    vehicle: DBVehicle,
-    location_uuid: string
-  ): Promise<DBLocationStats | null> {
+  public async currentStats(vehicle: DBVehicle, location_uuid: string): Promise<DBLocationStats | null> {
     const stats = await this.db.pg.oneOrNone(
       `SELECT s.*, s.price_data_ts = (SELECT MAX(ts) FROM price_data p JOIN location l ON (l.price_list_uuid = p.price_list_uuid) 
       WHERE l.location_uuid = s.location_uuid) as fresh
@@ -808,32 +694,6 @@ export class Logic {
     }
   }
 
-  /**
-   * Estimated charge duration
-   * @returns duration (ms)
-   */
-  /* private async chargeDuration(
-    vehicleUUID: string,
-    locationUUID: string | null,
-    from: number,
-    to: number
-  ) {
-    let sum = 0;
-    if (to > from) {
-      // TODO: do we need to consider temperature?
-      const chargeCurve = await this.db.getChargeCurve(
-        vehicleUUID,
-        locationUUID
-      );
-      for (let level = from; level <= to; ++level) {
-        sum +=
-          chargeCurve[Math.min(100, Math.ceil(level))] *
-          (level < to ? 1.0 : 0.75); // remove 25% of the last % to not overshoot
-      }
-    }
-    return sum * 1e3;
-  }*/
-
   private static cleanupPlan(plan: ChargePlan[]): ChargePlan[] {
     const chargePrio = {
       [ChargeType.Disable]: 0,
@@ -845,14 +705,13 @@ export class Logic {
       [ChargeType.Prefered]: 6,
       [ChargeType.Fill]: 7,
     };
-    plan.sort(
-      (a, b) =>
-        compareStartStopTimes(
-          a.chargeStart,
-          a.chargeStop,
-          b.chargeStart,
-          b.chargeStop
-        ) || chargePrio[a.chargeType] - chargePrio[b.chargeType]
+    plan.sort((a, b) =>
+      compareStartStopTimes(
+        a.chargeStart,
+        a.chargeStop,
+        b.chargeStart,
+        b.chargeStop
+      ) || chargePrio[a.chargeType] - chargePrio[b.chargeType]
     );
 
     function consolidate() {
@@ -864,11 +723,7 @@ export class Logic {
             a.chargeType === b.chargeType ||
             numericStopTime(b.chargeStop) <= numericStopTime(a.chargeStop)
           ) {
-            if (
-              b.level > a.level &&
-              a.chargeStop === null &&
-              b.chargeStart !== null
-            ) {
+            if (b.level > a.level && a.chargeStop === null && b.chargeStart !== null) {
               // Cut off a free running charge if next charge has higher level
               a.chargeStop = b.chargeStart;
             } else {
@@ -909,15 +764,11 @@ export class Logic {
           // or maximum shift possible within the current hour
           // hour - (stop - start) => start - stop + hour
           numericStartTime(a.chargeStart) -
-            numericStopTime(a.chargeStop) +
-            3600e3
+          numericStopTime(a.chargeStop) +
+          3600e3
         );
 
-        if (
-          shift > 0 &&
-          numericStopTime(a.chargeStop) + shift >=
-            numericStartTime(b.chargeStart)
-        ) {
+        if (shift > 0 && numericStopTime(a.chargeStop) + shift >= numericStartTime(b.chargeStart)) {
           a.chargeStop = b.chargeStart;
           a.chargeStart = new Date(numericStartTime(a.chargeStart) + shift);
           shifted = true;
@@ -934,7 +785,7 @@ export class Logic {
   private async setSmartStatus(vehicle: DBVehicle, status: string) {
     if (vehicle.smart_status !== status) {
       await this.db.pg.none(
-        `UPDATE vehicle SET smart_status=$1 WHERE vehicle_uuid=$2`,
+        `UPDATE vehicle SET smart_status=$1 WHERE vehicle_uuid=$2;`,
         [status, vehicle.vehicle_uuid]
       );
     }
@@ -953,15 +804,13 @@ export class Logic {
       );
     } else {
       return this.db.pg.none(
-        `DELETE FROM schedule WHERE vehicle_uuid=$1 AND schedule_type=$2`,
+        `DELETE FROM schedule WHERE vehicle_uuid=$1 AND schedule_type=$2;`,
         [vehicle_uuid, ScheduleType.AI]
       );
     }
   }
 
-  private async generateAIschedule(
-    vehicle: DBVehicle
-  ): Promise<{ ts: number; level: number } | null> {
+  private async generateAIschedule(vehicle: DBVehicle): Promise<{ ts: number; level: number } | null> {
     /*
      ****** ANALYSE AND THINK ABOUT IT!  ******
      */
@@ -972,10 +821,7 @@ export class Logic {
       DBInterface.DefaultVehicleLocationSettings();
     const minimum_charge = locationSettings.directLevel;
 
-    const guess: {
-      charge: number;
-      before: number;
-    } | null = await this.db.pg.oneOrNone(
+    const guess: { charge: number; before: number; } | null = await this.db.pg.oneOrNone(
       `WITH connections AS (
         -- all connections for specific vehicle_uuid and location_uuid
         SELECT connected_id, start_ts, end_ts, connected, LEAST((end_ts-start_ts)/2, interval '8 hours') as duration_limit, end_level-start_level as charged,
@@ -1047,20 +893,25 @@ export class Logic {
         Math.round(minimum_charge + guess.charge + 5) // add 5% to avoid spiraling down
       );
       const before = guess.before * 1e3; // epoch to ms
-      return {
-        ts: before,
-        level: minimumLevel,
-      };
+      return { ts: before, level: minimumLevel, };
     }
   }
 
   private async refreshVehicleChargePlan(vehicle: DBVehicle) {
     log(LogLevel.Trace, `vehicle: ${JSON.stringify(vehicle)}`);
 
-    if (vehicle.location_uuid === null && !vehicle.connected) {
-      // Do not touch charge plan if not connected and not near known location
-      log(LogLevel.Trace, `Vehicle at unknown location`);
-      return this.setSmartStatus(vehicle, ``);
+    let location_uuid = vehicle.location_uuid;
+    if (location_uuid === null) {
+      if (vehicle.connected) {
+        // We are connected, but not at a known location
+        log(LogLevel.Debug, `Vehicle connected at unknown location`);
+      } else if (vehicle.location_micro_latitude && vehicle.location_micro_longitude) {
+        const closest = await this.db.lookupClosestLocation(vehicle.account_uuid, vehicle.location_micro_latitude, vehicle.location_micro_longitude);
+        if (closest) {
+          location_uuid = closest.location.location_uuid;
+          log(LogLevel.Debug, `Vehicle at unknown location, closest known location is ${location_uuid} (${closest.distance}m)`);
+        }
+      }
     }
 
     const now = Date.now();
@@ -1068,8 +919,8 @@ export class Logic {
     // TODO: Check current vehicle.charge_plan and see if it needs to be recalculated?
 
     const locationSettings =
-      (vehicle.location_uuid &&
-        vehicle.location_settings[vehicle.location_uuid]) ||
+      (location_uuid &&
+        vehicle.location_settings[location_uuid]) ||
       DBInterface.DefaultVehicleLocationSettings();
     const minimum_charge = locationSettings.directLevel;
 
@@ -1106,64 +957,31 @@ export class Logic {
       });
       smartStatus = `Charging disabled until next plug in`;
     } else {
-      const priceMap: { ts: Date; price: number }[] =
-        (vehicle.location_uuid &&
-          (await this.db.pg.manyOrNone(
-            `SELECT ts, price FROM price_data p JOIN location l ON (l.price_list_uuid = p.price_list_uuid) WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' ORDER BY price, ts`,
-            [vehicle.location_uuid]
-          ))) ||
-        [];
-      const priceAvailable: number =
-        priceMap.reduce((prev: number, current) => {
-          const d = current.ts.getTime();
-          return !prev || d > prev ? d : prev;
-        }, 0) +
-        60 * 60e3; // Assume the price is fixed for an hour
+      const priceMap: { ts: Date; price: number }[] = (location_uuid && (await this.db.pg.manyOrNone(
+        `SELECT ts, price FROM price_data p JOIN location l ON (l.price_list_uuid = p.price_list_uuid) WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' ORDER BY price, ts`,
+        [location_uuid]
+      ))) || [];
+      const priceAvailable: number = priceMap.reduce((prev: number, current) => {
+        const d = current.ts.getTime();
+        return !prev || d > prev ? d : prev;
+      }, 0) + 60 * 60e3; // Assume the price is fixed for an hour
 
-      const chargeCurve = await this.db.getChargeCurve(
-        vehicle.vehicle_uuid,
-        vehicle.location_uuid
-      );
+      const chargeCurve = await this.db.getChargeCurve(vehicle.vehicle_uuid, location_uuid);
       const ChargeDuration = (from: number, to: number): number => {
         let sum = 0;
         for (let l = from; l < to; ++l) {
-          sum +=
-            chargeCurve[Math.max(0, Math.min(100, Math.ceil(l)))] *
-            (l < to ? 1.0 : 0.75); // remove 25% of the last % to not overshoot
+          sum += chargeCurve[Math.max(0, Math.min(100, Math.ceil(l)))] * (l < to ? 1.0 : 0.75); // remove 25% of the last % to not overshoot
         }
         return sum * 1e3;
       };
-      /*
-    const RequiredStartLevel = (target: number, time: number): number => {
-      let l = target;
-      for (let timeLeft = time / 1e3; timeLeft > 0; ) {
-        const t = chargeCurve[Math.min(100, Math.ceil(l))];
-        assert(t > 0);
-        l -= t > timeLeft ? timeLeft / t : 1;
-        timeLeft -= t;
-      }
-      return l;
-    };
-*/
-
       let fillBefore: number = priceAvailable;
 
-      const GeneratePlan = (
-        chargeType: ChargeType,
-        comment: string,
-        level: number,
-        before_ts?: number,
-        maxPrice?: number
-      ): boolean => {
+      const GeneratePlan = (chargeType: ChargeType, comment: string, level: number, before_ts?: number, maxPrice?: number): boolean => {
         // Adjust before_ts if it's passed already
         before_ts = (before_ts || 0) <= now ? undefined : before_ts;
 
         // Only adjust if it's earlier than 6h before the one we alread had in mind
-        if (
-          before_ts &&
-          before_ts < priceAvailable &&
-          (fillBefore === priceAvailable || before_ts + 360 * 60e3 < fillBefore)
-        ) {
+        if (before_ts && before_ts < priceAvailable && (fillBefore === priceAvailable || before_ts + 360 * 60e3 < fillBefore)) {
           fillBefore = before_ts;
         }
 
@@ -1173,12 +991,7 @@ export class Logic {
           if (priceAvailable && before_ts > priceAvailable) {
             const timeNeeded = ChargeDuration(startLevel, level);
             const startDeadline = before_ts - timeNeeded * 1.5;
-            log(
-              LogLevel.Trace,
-              `${capitalize(chargeType)} charge time ${Math.round(
-                timeNeeded / 60e3
-              )} min, deadline ${new Date(startDeadline).toISOString()}`
-            );
+            log(LogLevel.Trace, `${capitalize(chargeType)} charge time ${Math.round(timeNeeded / 60e3)} min, deadline ${new Date(startDeadline).toISOString()}`);
             if (startDeadline > priceAvailable) {
               log(LogLevel.Trace, `deadline beyond price data, ignore charge`);
               return false;
@@ -1186,32 +999,19 @@ export class Logic {
               before_ts = priceAvailable;
               level = Math.floor(
                 startLevel +
-                  ((level - startLevel) * (priceAvailable - startDeadline)) /
-                    (timeNeeded * 1.5)
+                ((level - startLevel) * (priceAvailable - startDeadline)) /
+                (timeNeeded * 1.5)
               );
-              log(
-                LogLevel.Debug,
-                `${capitalize(
-                  chargeType
-                )} partial charge to ${level}% before ${new Date(
-                  before_ts
-                ).toISOString()}`
-              );
+              log(LogLevel.Debug, `${capitalize(chargeType)} partial charge to ${level}% before ${new Date(before_ts).toISOString()}`);
             }
           }
 
           // Do we need to topup charge above maximum
           if (level > vehicle.maximum_charge) {
-            const topupTime = ChargeDuration(
-              Math.max(startLevel, vehicle.maximum_charge),
-              level
-            );
+            const topupTime = ChargeDuration(Math.max(startLevel, vehicle.maximum_charge), level);
             const topupStart = before_ts - SCHEDULE_TOPUP_MARGIN - topupTime;
-            log(
-              LogLevel.Debug,
-              `${capitalize(chargeType)} topup charge from ${
-                vehicle.maximum_charge
-              }% to ${level}% start at ${new Date(topupStart).toISOString()}`
+            log(LogLevel.Debug,
+              `${capitalize(chargeType)} topup charge from ${vehicle.maximum_charge}% to ${level}% start at ${new Date(topupStart).toISOString()}`
             );
             chargePlan.push({
               chargeStart: new Date(topupStart),
@@ -1232,12 +1032,7 @@ export class Logic {
           assert(timeNeeded > 0);
 
           if (priceAvailable && before_ts !== undefined) {
-            log(
-              LogLevel.Trace,
-              `${capitalize(chargeType)} charge to ${level}% before ${new Date(
-                before_ts
-              ).toISOString()}`
-            );
+            log(LogLevel.Trace, `${capitalize(chargeType)} charge to ${level}% before ${new Date(before_ts).toISOString()}`);
 
             // Map priceMap prices to a list of hours to charge
             let timeLeft = timeNeeded;
@@ -1262,22 +1057,12 @@ export class Logic {
                 comment,
               });
               timeLeft -= duration;
-              log(
-                LogLevel.Trace,
-                `charge ${duration / 1e3}s ${JSON.stringify(price)} => ${
-                  timeLeft / 1e3
-                }s left`
-              );
+              log(LogLevel.Trace, `charge ${duration / 1e3}s ${JSON.stringify(price)} => ${timeLeft / 1e3}s left`);
             }
 
-            smartStatus =
-              smartStatus ||
-              `${capitalize(chargeType)} charge to ${level}% scheduled`;
+            smartStatus = smartStatus || `${capitalize(chargeType)} charge to ${level}% scheduled`;
           } else {
-            log(
-              LogLevel.Debug,
-              `${capitalize(chargeType)} charge directly to ${level}%`
-            );
+            log(LogLevel.Debug, `${capitalize(chargeType)} charge directly to ${level}%`);
             chargePlan.push({
               chargeStart: null,
               chargeStop: new Date(Date.now() + timeNeeded),
@@ -1285,17 +1070,12 @@ export class Logic {
               level,
               comment,
             });
-            smartStatus =
-              smartStatus ||
-              `${capitalize(chargeType)} charge directly to ${level}%`;
+            smartStatus = smartStatus || `${capitalize(chargeType)} charge directly to ${level}%`;
           }
 
           return true;
         } else {
-          log(
-            LogLevel.Debug,
-            `${level} <= ${startLevel}, no ${chargeType} charge plan added for ${comment}`
-          );
+          log(LogLevel.Debug, `${level} <= ${startLevel}, no ${chargeType} charge plan added for ${comment}`);
           return false;
         }
       };
@@ -1304,22 +1084,14 @@ export class Logic {
         if (trip) {
           assert(trip.level);
           assert(trip.schedule_ts);
-          GeneratePlan(
-            ChargeType.Trip,
-            `upcoming trip`,
-            trip.level,
-            trip.schedule_ts.getTime()
-          );
+          GeneratePlan(ChargeType.Trip, `upcoming trip`, trip.level, trip.schedule_ts.getTime());
         }
       };
 
       if (startLevel < minimum_charge) {
         // Emergency charge up to minimum level
         GeneratePlan(ChargeType.Minimum, `emergency charge`, minimum_charge);
-        smartStatus =
-          (vehicle.connected
-            ? `Direct charging to `
-            : `Connect charger to charge to `) + `${minimum_charge}%`;
+        smartStatus = (vehicle.connected ? `Direct charging to ` : `Connect charger to charge to `) + `${minimum_charge}%`;
       }
 
       // Manual schedule blocks everything
@@ -1350,8 +1122,8 @@ export class Logic {
         HandleTripCharge();
       } else {
         let stats: DBLocationStats | null = null;
-        if (vehicle.location_uuid) {
-          stats = await this.currentStats(vehicle, vehicle.location_uuid);
+        if (location_uuid) {
+          stats = await this.currentStats(vehicle, location_uuid);
           log(LogLevel.Trace, `stats: ${JSON.stringify(stats)}`);
         }
 
@@ -1367,19 +1139,15 @@ export class Logic {
           ts: number | null;
         };
 
-        if (vehicle.location_uuid) {
+        if (location_uuid) {
           if (startLevel < vehicle.maximum_charge) {
             // Generate an AI schedule
             const schedule = stats && (await this.generateAIschedule(vehicle));
 
             // If we have a trip and ai.ts and schedule.ts is more than 10 hours apart, we should still AI charge
-            if (
-              !trip ||
-              !trip.schedule_ts ||
-              (schedule &&
-                Math.abs(trip.schedule_ts.getTime() - schedule.ts) >
-                  10 * 60 * 60e3)
-            ) {
+            if (!trip || !trip.schedule_ts || (
+              schedule && Math.abs(trip.schedule_ts.getTime() - schedule.ts) > 10 * 60 * 60e3
+            )) {
               ai.charge = true;
 
               if (schedule) {
@@ -1388,8 +1156,7 @@ export class Logic {
               } else {
                 // Disable smart charging because without threshold and averages it can not make a good decision
                 log(LogLevel.Debug, `Missing stats for smart charging.`);
-                smartStatus =
-                  smartStatus || `Smart charging disabled (still learning)`;
+                smartStatus = smartStatus || `Smart charging disabled (still learning)`;
                 ai.learning = true;
               }
             }
@@ -1411,79 +1178,35 @@ export class Logic {
               assert(ai.ts);
               const neededCharge = ai.level - vehicle.level;
               const before = new Date(ai.ts);
-              smartStatus =
-                smartStatus ||
-                `Predicting battery level ${ai.level}% (${
-                  neededCharge > 0 ? Math.round(neededCharge) + "%" : "no"
-                } charge) is needed before ${before.toISOString()}`;
-              log(
-                LogLevel.Debug,
-                `Current level: ${vehicle.level}, predicting ${
-                  ai.level
-                }% (${minimum_charge}+${
-                  neededCharge - minimum_charge
-                }) is needed before ${before.toISOString()}`
-              );
-              GeneratePlan(
-                ChargeType.Routine,
-                `routine charge`,
-                ai.level,
-                ai.ts
-              );
+              smartStatus = smartStatus
+                || `Predicting battery level ${ai.level}% (${neededCharge > 0 ? Math.round(neededCharge) + "%" : "no"} charge) is needed before ${before.toISOString()}`;
+              log(LogLevel.Debug, `Current level: ${vehicle.level}, predicting ${ai.level}% (${minimum_charge}+${neededCharge - minimum_charge}) is needed before ${before.toISOString()}`);
+              GeneratePlan(ChargeType.Routine, `routine charge`, ai.level, ai.ts);
 
               // locations settings charging
               {
-                const goal =
-                  (locationSettings && locationSettings.goal) ||
-                  SmartChargeGoal.Balanced;
+                const goal = (locationSettings && locationSettings.goal) || SmartChargeGoal.Balanced;
                 const goalLevel =
-                  goal === SmartChargeGoal.Full
-                    ? vehicle.maximum_charge
-                    : goal === SmartChargeGoal.Low
-                    ? 0
-                    : Math.min(
+                  goal === SmartChargeGoal.Full ? vehicle.maximum_charge :
+                    goal === SmartChargeGoal.Low ? 0 :
+                      Math.min(
                         vehicle.maximum_charge,
-                        Math.max(
-                          ai.level,
-                          parseInt(goal) ||
-                            Math.round(
-                              ai.level + (vehicle.maximum_charge - ai.level) / 2
-                            )
-                        )
-                      );
+                    Math.max(ai.level, parseInt(goal) || Math.round(ai.level + (vehicle.maximum_charge - ai.level) / 2))
+                  );
 
                 if (goalLevel > ai.level) {
-                  GeneratePlan(
-                    ChargeType.Prefered,
-                    `charge setting`,
-                    goalLevel,
-                    ai.ts
-                  );
+                  GeneratePlan(ChargeType.Prefered, `charge setting`, goalLevel, ai.ts);
                 }
               }
             }
           }
 
           // Low price fill charging
-          if (
-            fillBefore &&
-            stats &&
-            stats.weekly_avg7_price &&
-            stats.weekly_avg21_price &&
-            stats.threshold
-          ) {
-            const averagePrice =
-              stats.weekly_avg7_price +
-              (stats.weekly_avg7_price - stats.weekly_avg21_price) / 2;
+          if (fillBefore && stats && stats.weekly_avg7_price && stats.weekly_avg21_price && stats.threshold) {
+            const averagePrice = stats.weekly_avg7_price + (stats.weekly_avg7_price - stats.weekly_avg21_price) / 2;
             const thresholdPrice = (averagePrice * stats.threshold) / 100;
 
-            GeneratePlan(
-              ChargeType.Fill,
-              `low price`,
-              vehicle.maximum_charge,
-              fillBefore,
-              thresholdPrice
-            );
+            GeneratePlan(ChargeType.Fill, `low price`, vehicle.maximum_charge, fillBefore, thresholdPrice);
           }
         }
       }
@@ -1498,8 +1221,8 @@ export class Logic {
       log(LogLevel.Trace, chargePlan);
     }
     await this.db.pg.one(
-      `UPDATE vehicle SET charge_plan = $1:json WHERE vehicle_uuid = $2 RETURNING *;`,
-      [chargePlan.length > 0 ? chargePlan : null, vehicle.vehicle_uuid]
+      `UPDATE vehicle SET charge_plan = $1:json, charge_plan_location_uuid = $2 WHERE vehicle_uuid = $3 RETURNING *;`,
+      [chargePlan.length > 0 ? chargePlan : null, chargePlan.length > 0 ? location_uuid : null, vehicle.vehicle_uuid]
     );
   }
 

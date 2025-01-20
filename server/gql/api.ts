@@ -1,7 +1,7 @@
 /**
  * @file GraphQL API for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
@@ -38,8 +38,8 @@ import { ServiceProviderTypeResolver } from "./service-type";
 export interface IContext {
   db: DBInterface;
   logic: Logic;
-  accountUUID: string;
-  account?: DBAccount;
+  accountUUID: string | undefined;
+  account: DBAccount | undefined;
 }
 
 export function accountFilter(

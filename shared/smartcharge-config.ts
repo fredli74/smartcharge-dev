@@ -1,16 +1,20 @@
 /**
  * @file config loader for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
 import { DEFAULT_PORT } from "./smartcharge-defines";
 
 const config = {
-  DATABASE_URL: `postgres://scserver:scserverpass@localhost:5432/smartcharge`,
-  DATABASE_SSL: `${false}`,
-  DATABASE_CONNECTIONS: `${10}`,
+  POSTGRES_DB: `smartcharge`,
+  POSTGRES_USER: `scserver`,
+  POSTGRES_PASSWORD: `scserverpass`,
+  POSTGRES_HOST: `db`,
+  POSTGRES_PORT: `${5432}`,
+  POSTGRES_SSL: `${false}`,
+  POSTGRES_CONNECTIONS: `${10}`,
   PUBLIC_URL: ``,
   HELP_URL: `https://github.com/fredli74/smartcharge-dev/issues`,
   SERVER_IP: `0.0.0.0`,
