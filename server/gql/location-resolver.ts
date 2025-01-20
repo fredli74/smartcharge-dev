@@ -9,8 +9,8 @@ import { Resolver, Query, Ctx, Arg, Mutation, ID } from "type-graphql";
 import { IContext, accountFilter } from "@server/gql/api";
 import { UpdateLocationInput, Location } from "./location-type";
 import { makePublicID, LogLevel, log } from "@shared/utils";
-import { ApolloError } from "apollo-server-express";
 import { plainToInstance } from "class-transformer";
+import { ApolloError } from "apollo-server-core";
 
 @Resolver()
 export class LocationResolver {

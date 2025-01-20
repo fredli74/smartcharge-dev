@@ -98,7 +98,7 @@ export class ProviderResolver {
     @Arg("serviceID", (_type) => ID) serviceID: string,
     @Arg("action") action: string,
     @Arg("data", (_type) => GraphQLJSONObject, { nullable: true })
-    data: any | null,
+      data: any | null,
     @Ctx() context: IContext
   ): Promise<Action> {
     const service = (await context.db.pg.oneOrNone(
@@ -168,9 +168,9 @@ export class ProviderResolver {
   async actionSubscription(
     @Root() payload: Action,
     @Arg("providerName", (_type) => String, { nullable: true })
-    _providerName: string | null,
+      _providerName: string | null,
     @Arg("serviceID", (_type) => ID, { nullable: true })
-    _serviceID: string | null,
+      _serviceID: string | null,
     @Ctx() _context: IContext
   ): Promise<Action> {
     return payload;

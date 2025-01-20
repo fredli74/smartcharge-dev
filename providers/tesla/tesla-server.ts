@@ -1,6 +1,5 @@
 import { IContext, accountFilter } from "@server/gql/api";
 import provider, { TeslaProviderMutates, TeslaProviderQueries, TeslaProviderData, TeslaToken } from "./index";
-import { ApolloError } from "apollo-server-express";
 import { DBInterface } from "@server/db-interface";
 import teslaAPI, { TeslaAPI } from "./tesla-api";
 import { log, LogLevel } from "@shared/utils";
@@ -9,6 +8,7 @@ import { TeslaNewListEntry } from "./app/tesla-helper";
 import config from "./tesla-config";
 import { DBServiceProvider } from "@server/db-schema";
 import { strict as assert } from "assert";
+import { ApolloError } from "apollo-server-core";
 
 export async function authorize(
   db: DBInterface,

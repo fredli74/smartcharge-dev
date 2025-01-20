@@ -39,10 +39,13 @@ export class PriceResolver {
       nullable: true,
       defaultValue: false,
     })
-    isPublic: boolean,
+      isPublic: boolean,
     @Arg("id", (_type) => ID, { nullable: true }) id: string,
     @Ctx() context: IContext
   ): Promise<PriceList> {
+    if (!context.accountUUID || !context.account) {
+      throw new ApolloError("Access denied, authentication required");
+    }
     return plainToInstance(
       PriceList,
       await context.db.newPriceList(context.accountUUID, name, isPublic, id)

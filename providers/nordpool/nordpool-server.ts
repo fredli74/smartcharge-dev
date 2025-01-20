@@ -2,6 +2,7 @@ import provider from "./index";
 import { IContext } from "@server/gql/api";
 import { IProviderServer } from "@providers/provider-server";
 import { DEFAULT_LOCATION_RADIUS } from "@shared/smartcharge-defines";
+import { ApolloError } from "apollo-server-core";
 
 const server: IProviderServer = {
   ...provider,
@@ -18,6 +19,9 @@ const server: IProviderServer = {
     }
   },
   mutation: async (data: any, context: IContext) => {
+    if (!context.accountUUID || !context.account) {
+      throw new ApolloError("Access denied, authentication required");
+    }
     switch (data.mutation) {
       case "newLocation": {
         const location = context.db.newLocation(
