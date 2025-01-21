@@ -293,7 +293,7 @@ export class TeslaAgent extends AbstractAgent {
     ...args: T
   ): Promise<R> {
     await this.maintainToken(job);
-    return fn(...args, job.serviceData.token);
+    return fn.apply(teslaAPI, [...args, job.serviceData.token]);
   }
 
   private vehicleEntry(vin: string): VehicleEntry {
