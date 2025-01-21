@@ -544,7 +544,10 @@ export class TeslaAgent extends AbstractAgent {
       if (schedule.end_enabled) {
         // Copy start to stop
         stop = new Date(start.getTime());
-        stop.setHours(Math.floor(schedule.end_time / 60), schedule.end_time % 60, 0, 0);
+        if (schedule.end_time < schedule.start_time) {
+          stop.setUTCDate(stop.getUTCDate() + 1);
+        }
+        stop.setUTCHours(Math.floor(schedule.end_time / 60), schedule.end_time % 60, 0, 0);
       }
     } else if (schedule.end_enabled && schedule.days_of_week) {
       stop = TeslaScheduleTimeToDate(schedule.days_of_week, schedule.end_time);
@@ -675,7 +678,7 @@ export class TeslaAgent extends AbstractAgent {
                   // Adopt it and just change the stop time (since start time is irrelevant)
                   p.scheduleID = s.scheduleID;
                   if (s.chargeStop !== wantedStop) {
-                    log(LogLevel.Info, `${vehicle.vin} updating schedule ${s.scheduleID} to end at ${wantedStop} (was ${s.chargeStop})`);
+                    log(LogLevel.Info, `${vehicle.vin} updating schedule ${s.scheduleID} to end at ${wantedStop ? new Date(wantedStop).toISOString() : "never"} (was ${s.chargeStop ? new Date(s.chargeStop).toISOString() : "never"})`);
                     s.chargeStop = wantedStop;
                     scheduleUpdates.push(this.convertToTeslaSchedule(s, location));
                   }
@@ -988,7 +991,7 @@ export class TeslaAgent extends AbstractAgent {
 
     if (vehicle.vehicleUUID) {
       if (vehicle.isUpdating) {
-        log(LogLevel.Warning, `Vehicle ${vin} is already updating, waiting for it to finish`);
+        log(LogLevel.Info, `Vehicle ${vin} is already updating, waiting for it to finish`);
         assert(vehicle.updatePromise !== null, "updatePromise is null");
         await vehicle.updatePromise;
       }
