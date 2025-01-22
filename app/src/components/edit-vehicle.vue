@@ -8,7 +8,7 @@
           label="Vehicle name"
           required
           :loading="saving.name"
-        ></v-text-field>
+        />
       </v-col>
       <v-col cols="6" sm="4">
         <v-text-field
@@ -43,7 +43,7 @@
           persistent-hint
           hint="Open after parking if charge is needed"
           :loading="saving.auto_port"
-        ></v-switch>
+        />
       </v-col>
       <v-col cols="12" sm="auto" align-self-sm="center">
         <v-switch
@@ -54,10 +54,10 @@
           persistent-hint
           hint="Turn on before scheduled trip"
           :loading="saving.auto_hvac"
-        ></v-switch>
+        />
       </v-col>
     </v-row>
-    <v-divider></v-divider>
+    <v-divider />
     <v-list v-if="locationSettings().length > 0" two-line subheader>
       <v-subheader class="px-0 mb-n3">Location settings</v-subheader>
 
@@ -67,9 +67,9 @@
         :name="l.name"
         :settings="l.settings"
         :vehicle="vehicle"
-      ></EditVehicleLocationSettings>
+      />
     </v-list>
-    <v-divider></v-divider>
+    <v-divider />
     <v-row class="mt-3" justify="space-between">
       <v-col cols="auto">
         <v-switch
@@ -88,13 +88,9 @@
           </template>
         </v-switch>
       </v-col>
-      <v-spacer></v-spacer>
+      <v-spacer />
       <v-col cols="auto">
-        <RemoveDialog
-          :id="vehicle.id"
-          label="vehicle"
-          @action="doConfirm"
-        ></RemoveDialog>
+        <RemoveDialog :id="vehicle.id" label="vehicle" @action="doConfirm" />
       </v-col>
     </v-row>
   </v-form>
@@ -119,8 +115,8 @@ import { UpdateVehicleParams } from "@shared/sc-client";
   components: { EditVehicleLocationSettings, RemoveDialog },
 })
 export default class EditVehicle extends Vue {
-  @Prop({ type: Object, required: true }) readonly vehicle!: GQLVehicle;
-  @Prop({ type: Array, required: true }) readonly locations!: GQLLocation[];
+  @Prop({ type: Object, required: true }) declare readonly vehicle: GQLVehicle;
+  @Prop({ type: Array, required: true }) declare readonly locations: GQLLocation[];
 
   saving!: { [key: string]: boolean };
 

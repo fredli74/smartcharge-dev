@@ -10,21 +10,21 @@
         :new-schedule="true"
         @cancel="newSchedule = undefined"
         @add="addSchedule"
-      ></ScheduleItem>
+      />
       <v-list-item v-else>
-        <v-spacer></v-spacer>
-        <v-btn outlined @click="addTrip"
-          ><v-icon left>mdi-plus</v-icon>add trip</v-btn
-        ><v-spacer></v-spacer>
+        <v-spacer />
+        <v-btn outlined @click="addTrip">
+          <v-icon left>mdi-plus</v-icon>add trip
+        </v-btn><v-spacer />
       </v-list-item>
 
       <template v-for="(schedule, index) in schedule">
-        <v-divider v-if="index > 0" :key="index"></v-divider>
+        <v-divider v-if="index > 0" :key="index" />
         <ScheduleItem
           :key="schedule.id"
           :schedule="schedule"
           :vehicle="vehicle"
-        ></ScheduleItem>
+        />
       </template>
     </v-list>
   </v-container>
@@ -39,7 +39,7 @@ import apollo from "@app/plugins/apollo";
 
 @Component({ components: { ScheduleItem } })
 export default class VehicleSchedule extends Vue {
-  @Prop({ type: Object, required: true }) readonly vehicle!: GQLVehicle;
+  @Prop({ type: Object, required: true }) declare readonly vehicle: GQLVehicle;
 
   formData!: any;
   trip!: boolean;

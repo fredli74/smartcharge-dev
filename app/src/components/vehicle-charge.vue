@@ -18,22 +18,14 @@
       <template v-if="chargeControl == 0">
         <v-row class="">
           <v-col class="text-center">
-            <v-icon
-              style="margin-top: 54px; font-size: 60px"
-              color="red darken-3"
-              >mdi-flash-off</v-icon
-            >
+            <v-icon style="margin-top: 54px; font-size: 60px" color="red darken-3">mdi-flash-off</v-icon>
           </v-col>
         </v-row>
       </template>
       <template v-if="chargeControl == 1">
         <v-row class="my-8">
           <v-col class="text-center">
-            <img
-              width="130"
-              class="ml-2"
-              src="/img/icons/android-chrome-192x192.png"
-            />
+            <img width="130" class="ml-2" src="/img/icons/android-chrome-192x192.png">
           </v-col>
         </v-row>
       </template>
@@ -55,9 +47,9 @@
               "
               @end="chargeLevel_onEnd"
               @click="chargeLevel_onClick"
-            >
-            </v-slider> </v-col
-        ></v-row>
+            />
+          </v-col>
+        </v-row>
         <v-row class="mt-n3" align="center" justify="center">
           <v-col v-if="!showDate" cols="auto">
             <v-menu
@@ -91,8 +83,7 @@
                   refreshKey++;
                   $refs.scheduleMenu.isActive = false;
                 "
-              >
-              </datetime-popup>
+              />
             </v-menu>
           </v-col>
           <template v-else>
@@ -104,8 +95,8 @@
                 min-width="290px"
               >
                 <template #activator="{ on }">
-                  <v-btn depressed v-on="on"
-                    ><v-icon left>mdi-calendar</v-icon>{{ pickerDate }}
+                  <v-btn depressed v-on="on">
+                    <v-icon left>mdi-calendar</v-icon>{{ pickerDate }}
                   </v-btn>
                 </template>
                 <datetime-popup
@@ -127,8 +118,7 @@
                     refreshKey++;
                     $refs.dateMenu.isActive = false;
                   "
-                >
-                </datetime-popup>
+                />
               </v-menu>
             </v-col>
             <v-col cols="auto">
@@ -139,10 +129,9 @@
                 min-width="290px"
               >
                 <template #activator="{ on }">
-                  <v-btn depressed @click="scrollFix" v-on="on"
-                    ><v-icon left class="mt-1">mdi-clock-end</v-icon
-                    >{{ pickerTime }}</v-btn
-                  >
+                  <v-btn depressed @click="scrollFix" v-on="on">
+                    <v-icon left class="mt-1">mdi-clock-end</v-icon>{{ pickerTime }}
+                  </v-btn>
                 </template>
                 <datetime-popup
                   :key="refreshKey"
@@ -164,8 +153,7 @@
                     refreshKey++;
                     $refs.timeMenu.isActive = false;
                   "
-                >
-                </datetime-popup>
+                />
               </v-menu>
             </v-col>
 
@@ -177,23 +165,21 @@
                   depressed
                   :color="hover ? `error` : ``"
                   @click="removeSchedule"
-                  ><v-icon>mdi-calendar-remove-outline</v-icon></v-btn
-                ></v-hover
-              >
+                >
+                  <v-icon>mdi-calendar-remove-outline</v-icon>
+                </v-btn>
+              </v-hover>
             </v-col>
           </template>
         </v-row>
       </template>
     </div>
-    <div
-      style="min-height: 40px"
-      class="text-center title grey--text text--darken-2"
-    >
+    <div style="min-height: 40px" class="text-center title grey--text text--darken-2">
       <v-progress-circular
         v-if="saving"
         indeterminate
         color="grey darken-2"
-      ></v-progress-circular>
+      />
       <span v-else>{{ smartText }}</span>
     </div>
   </v-container>
@@ -211,7 +197,7 @@ import { DatetimePopup } from "vue-datetime";
 
 @Component({ components: { DatetimePopup } })
 export default class VehicleCharge extends Vue {
-  @Prop({ type: Object, required: true }) readonly vehicle!: GQLVehicle;
+  @Prop({ type: Object, required: true }) declare readonly vehicle: GQLVehicle;
 
   saving!: boolean;
   chargeControl!: number;

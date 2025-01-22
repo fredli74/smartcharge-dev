@@ -7,20 +7,18 @@
           :disabled="loading"
           :loading="loading"
           @click="authorize"
-          >Authorize Access<v-icon right>mdi-chevron-right</v-icon></v-btn
         >
+          Authorize Access<v-icon right>mdi-chevron-right</v-icon>
+        </v-btn>
       </v-card-actions>
       <div v-else>
         <v-card-actions class="justify-center">
-          <v-btn text small color="primary" @click="authorize"
-            >change Tesla account</v-btn
-          >
+          <v-btn text small color="primary" @click="authorize">
+            change Tesla account
+          </v-btn>
         </v-card-actions>
         <div v-if="loading" class="text-center">
-          <v-progress-circular
-            indeterminate
-            color="primary"
-          ></v-progress-circular>
+          <v-progress-circular indeterminate color="primary" />
         </div>
         <TeslaNewVehicleList
           v-if="newVehiclesNotConnected.length > 0"
@@ -33,18 +31,9 @@
           subheader="Already added"
         />
       </div>
-      <div
-        class="
-          justify-center
-          text-center text-subtitle-2 text-uppercase
-          red--text
-          text--darken-4
-        "
-      >
+      <div class="justify-center text-center text-subtitle-2 text-uppercase red--text text--darken-4">
         Tesla
-        <a :href="teslaVirtualKeyUrl" target="_blank" rel="noopener noreferrer"
-          >Virtual Key</a
-        >
+        <a :href="teslaVirtualKeyUrl" target="_blank" rel="noopener noreferrer">Virtual Key</a>
         required to control charging.
       </div>
     </div>
@@ -80,8 +69,7 @@ const SCOPE =
   },
 })
 export default class TeslaVue extends Vue {
-  @Prop({ default: "view" })
-  page?: ProviderVuePage;
+  @Prop({ default: "view" }) declare readonly page?: ProviderVuePage;
 
   knownVehicleIDs: { [id: string]: string } = {};
 

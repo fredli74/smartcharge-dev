@@ -4,25 +4,25 @@
       <v-col cols="12" md="9">
         <v-text-field
           v-model="name"
-          :rules="[(v) => v.length > 0 || 'Required']"
+          :rules="[rules.required]"
           label="Location name"
           required
           :loading="saving.name"
-        ></v-text-field>
+        />
       </v-col>
-      <v-spacer></v-spacer>
-      <v-col cols="auto" align-self="center"></v-col>
+      <v-spacer />
+      <v-col cols="auto" align-self="center" />
     </v-row>
     <v-row>
       <v-col cols="12" md="9">
         <v-autocomplete
           v-model="pricelist"
-          :loading="$apollo.queries.priceLists.loading || saving.pricelist"
+          :loading="isPriceListLoading"
           :items="priceLists"
           cache-items
           label="Price list"
           placeholder="none"
-        ></v-autocomplete>
+        />
       </v-col>
     </v-row>
     <v-row justify="space-between">
@@ -35,13 +35,9 @@
       >
         <v-icon>mdi-map-marker</v-icon>
       </v-btn>
-      <v-spacer></v-spacer>
+      <v-spacer />
       <v-col cols="auto">
-        <RemoveDialog
-          :id="location.id"
-          label="location"
-          @action="doConfirm"
-        ></RemoveDialog>
+        <RemoveDialog :id="location.id" label="location" @action="removeLocation" />
       </v-col>
     </v-row>
   </v-form>
@@ -79,7 +75,7 @@ import { UpdateLocationParams } from "@shared/sc-client";
   },
 })
 export default class EditLocation extends Vue {
-  @Prop({ type: Object, required: true }) readonly location!: GQLLocation;
+  @Prop({ type: Object, required: true }) declare readonly location: GQLLocation;
 
   saving!: { [key: string]: boolean };
   priceLists?: GQLPriceList[];
@@ -98,9 +94,17 @@ export default class EditLocation extends Vue {
   }
   async created() {}
 
-  async doConfirm(code: string) {
+  async removeLocation(code: string) {
     await apollo.removeLocation(this.location.id, code);
     this.$emit("refresh");
+  }
+
+  rules = {
+    required: (v: string): true | string => v.length > 0 || 'Required',
+  };
+
+  get isPriceListLoading() {
+    return this.$apollo.queries.priceLists.loading || this.saving.pricelist;
   }
 
   get name(): string {

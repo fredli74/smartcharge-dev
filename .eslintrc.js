@@ -22,6 +22,9 @@ module.exports = {
     "indent": ["warn", 2, { "SwitchCase": 1, "flatTernaryExpressions": true }],
     "no-console": process.env.NODE_ENV === "// production" ? "warn" : "off",
     "no-debugger": process.env.NODE_ENV === "production" ? "error" : "off",
+    "vue/max-attributes-per-line": "off",
+    "vue/html-indent": ["warn", 2, { "alignAttributesVertically": false }],
+    "vue/singleline-html-element-content-newline": "off",
   },
   parserOptions: {
     parser: "@typescript-eslint/parser",

@@ -1,8 +1,8 @@
 <template>
   <span :style="{ visibility: relativeShow ? 'visible' : 'hidden' }">
-    <slot></slot>
+    <slot />
     {{ relativeTime }}
-    <slot name="suffix"></slot>
+    <slot name="suffix" />
   </span>
 </template>
 
@@ -12,10 +12,10 @@ import { secondsToString } from "@shared/utils";
 
 @Component({ components: {} })
 export default class RelativeTime extends Vue {
-  @Prop({ type: Date, required: true }) readonly time!: Date;
-  @Prop({ type: Number, default: undefined }) readonly hideBelow?: number;
-  @Prop({ type: Boolean, default: false }) readonly until!: boolean;
-  @Prop({ type: Number, default: 1 }) readonly units!: number;
+  @Prop({ type: Date, required: true }) declare readonly time: Date;
+  @Prop({ type: Number, default: undefined }) declare readonly hideBelow?: number;
+  @Prop({ type: Boolean, default: false }) declare readonly until: boolean;
+  @Prop({ type: Number, default: 1 }) declare readonly units: number;
   timer?: any;
   relativeShow!: boolean;
   relativeTime!: string;

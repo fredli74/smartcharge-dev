@@ -97,7 +97,7 @@
     "register-service-worker": "~1.7.2",
     "sass": "~1.49.11",
     "sass-loader": "~10.1.1",
-    "typescript": "4.2.4",
+    "typescript": "~4.3.5",
     "vue-apexcharts": "~1.6.2",
     "vue-apollo": "~3.1.2",
     "vue-chartjs": "~3.5.1",
@@ -112,10 +112,9 @@
     "weekstart": "~1.1.0"
   },
   "engines": {
-    "node": "12.7.x"
+    "node": "14.21.x"
   },
   "volta": {
-    "node": "12.22.12",
-    "npm": "6.14.18"
+    "node": "14.21.3"
   }
 }

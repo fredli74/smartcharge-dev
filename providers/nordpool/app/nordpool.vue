@@ -9,8 +9,8 @@
             :error="name.error !== undefined"
             :error-messages="name.error"
             label="Location name"
-          ></v-text-field
-        ></v-card-text>
+          />
+        </v-card-text>
         <v-card-text>
           <v-select
             v-model="area.value"
@@ -25,16 +25,12 @@
             outlined
             hint="show map"
             persistent-hint
-            ><template v-slot:message="{ message, key }">
-              <a
-                :key="key"
-                href="https://data.nordpoolgroup.com/map"
-                target="_blank"
-                >{{ message }}</a
-              >
-            </template></v-select
-          ></v-card-text
-        >
+          >
+            <template #message="{ message, key }">
+              <a :key="key" href="https://data.nordpoolgroup.com/map" target="_blank">{{ message }}</a>
+            </template>
+          </v-select>
+        </v-card-text>
         <v-card-actions class="justify-center">
           <v-btn
             :disabled="button.disabled || button.loading"
@@ -44,8 +40,8 @@
             @click="submit"
           >
             Add Location
-          </v-btn></v-card-actions
-        >
+          </v-btn>
+        </v-card-actions>
       </v-form>
     </template>
   </div>
@@ -70,8 +66,7 @@ interface InputState {
 }
 @Component({ components: {} })
 export default class NordpoolVue extends Vue {
-  @Prop({ default: "view" })
-  page?: ProviderVuePage;
+  @Prop({ default: "view" }) declare readonly page?: ProviderVuePage;
 
   // REACTIVE PROPERTIES
   area!: InputState;

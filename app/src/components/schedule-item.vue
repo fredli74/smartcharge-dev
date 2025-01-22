@@ -3,18 +3,13 @@
     <v-list-item class="my-2">
       <v-row align="center" justify="space-between" no-gutters>
         <v-col cols="6" sm="3" order="0" class="grey--text text--darken-2">
-          <v-icon large class="mr-1" color="grey-darken-2" left>{{
-            scheduleIcon
-          }}</v-icon>
+          <v-icon large class="mr-1" color="grey-darken-2" left>
+            {{ scheduleIcon }}
+          </v-icon>
           <div class="inline-middle">{{ schedule.type }}</div>
         </v-col>
         <v-col cols="6" sm="5" class order="2">
-          <v-menu
-            v-model="timeMenu"
-            :close-on-content-click="false"
-            top
-            min-width="290px"
-          >
+          <v-menu v-model="timeMenu" :close-on-content-click="false" top min-width="290px">
             <template #activator="{ on }">
               <v-btn depressed class="px-3" v-on="on">
                 <v-icon left class="mt-1">{{ timeIcon }}</v-icon>
@@ -40,15 +35,10 @@
                 refreshKey++;
                 timeMenu = false;
               "
-            ></datetime-popup>
+            />
           </v-menu>
         </v-col>
-        <v-col
-          cols="6"
-          :sm="newSchedule ? '4' : '3'"
-          class="text-right text-sm-left"
-          order="3"
-        >
+        <v-col cols="6" :sm="newSchedule ? '4' : '3'" class="text-right text-sm-left" order="3">
           <v-menu
             ref="levelMenu"
             v-model="levelMenu"
@@ -84,11 +74,11 @@
                     "
                     @start="capturing = true"
                     @end="stopCapture"
-                  ></v-slider>
+                  />
                 </v-col>
               </v-row>
               <v-card-actions>
-                <v-spacer></v-spacer>
+                <v-spacer />
 
                 <v-btn text @click="cancelLevel">Cancel</v-btn>
                 <v-btn color="primary" text @click="setLevel">Ok</v-btn>
@@ -127,21 +117,15 @@
 
         <v-col v-if="newSchedule" cols="6" sm="12" order="1" order-sm="12">
           <v-card-actions class="px-0 py-2">
-            <v-spacer></v-spacer>
+            <v-spacer />
             <v-btn text @click="$emit(`cancel`)">Cancel</v-btn>
-            <v-btn :loading="isSaving" color="primary" text @click="addSchedule"
-              >Add</v-btn
-            >
-            <v-spacer class="d-none d-sm-flex"></v-spacer>
+            <v-btn :loading="isSaving" color="primary" text @click="addSchedule">Add</v-btn>
+            <v-spacer class="d-none d-sm-flex" />
           </v-card-actions>
         </v-col>
       </v-row>
     </v-list-item>
-    <v-progress-linear
-      v-if="isSaving"
-      height="2"
-      indeterminate
-    ></v-progress-linear>
+    <v-progress-linear v-if="isSaving" height="2" indeterminate />
   </div>
 </template>
 
@@ -156,9 +140,9 @@ import apollo from "@app/plugins/apollo";
 
 @Component({ components: { DatetimePopup } })
 export default class ScheduleItem extends Vue {
-  @Prop({ type: Object, required: true }) readonly schedule!: GQLSchedule;
-  @Prop({ type: Object, required: true }) readonly vehicle!: GQLVehicle;
-  @Prop({ type: Boolean, default: false }) readonly newSchedule!: boolean;
+  @Prop({ type: Object, required: true }) declare readonly schedule: GQLSchedule;
+  @Prop({ type: Object, required: true }) declare readonly vehicle: GQLVehicle;
+  @Prop({ type: Boolean, default: false }) declare readonly newSchedule: boolean;
 
   refreshKey!: number; // workaround to reset date picker step
   timeMenu!: boolean;

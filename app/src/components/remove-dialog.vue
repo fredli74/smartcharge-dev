@@ -6,13 +6,7 @@
       </v-hover>
     </template>
     <v-card>
-      <v-progress-linear
-        value="100"
-        height="10"
-        striped
-        color="red"
-      ></v-progress-linear>
-
+      <v-progress-linear value="100" height="10" striped color="red" />
       <v-card-title class="headline">
         <v-icon class="mr-3" color="red" x-large>mdi-alert</v-icon>Are you sure?
       </v-card-title>
@@ -34,9 +28,9 @@
         :rules="[confirmCodeRules]"
         dense
         outlined
-      ></v-text-field>
+      />
       <v-card-actions align="center" class="pb-4">
-        <v-spacer></v-spacer>
+        <v-spacer />
         <v-btn color="green darken-2" text @click="doCancel">back</v-btn>
         <v-btn
           color="red darken-1"
@@ -44,9 +38,10 @@
           :disabled="!valid"
           :dark="valid"
           @click="doConfirm"
-          >remove</v-btn
         >
-        <v-spacer></v-spacer>
+          remove
+        </v-btn>
+        <v-spacer />
       </v-card-actions>
     </v-card>
   </v-dialog>
@@ -58,8 +53,8 @@ import { makePublicID } from "@shared/utils";
 
 @Component({ components: {} })
 export default class RemoveDialog extends Vue {
-  @Prop({ type: String, required: true }) readonly label!: string;
-  @Prop({ type: String, required: true }) readonly id!: string;
+  @Prop({ type: String, required: true }) declare readonly label: string;
+  @Prop({ type: String, required: true }) declare readonly id: string;
 
   dialog!: boolean;
   confirmCode!: string;

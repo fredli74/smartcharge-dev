@@ -10,7 +10,7 @@
           height="400px"
           :options="timeoptions"
           :series="timeseries"
-        ></apex>
+        />
       </v-col>
     </v-row>
     <v-row>
@@ -23,7 +23,7 @@
           height="160px"
           :options="eventoptions"
           :series="eventseries"
-        ></apex>
+        />
       </v-col>
     </v-row>
     <v-row
@@ -32,7 +32,7 @@
       justify="space-around"
     >
       <v-col cols="10">
-        <v-progress-linear indeterminate color="primary"></v-progress-linear>
+        <v-progress-linear indeterminate color="primary" />
       </v-col>
     </v-row>
   </v-container>
@@ -169,8 +169,8 @@ const Color = {
   },
 })
 export default class eventchart extends Vue {
-  @Prop({ type: Object, required: true }) readonly vehicle!: GQLVehicle;
-  @Prop({ type: String }) readonly location_id!: string | undefined;
+  @Prop({ type: Object, required: true }) declare readonly vehicle: GQLVehicle;
+  @Prop({ type: String }) declare readonly location_id: string | undefined;
   chartData?: GQLChartData;
   chartReady: boolean = false;
   minPrice?: number | undefined;
@@ -564,8 +564,8 @@ export default class eventchart extends Vue {
                 e.eventType === GQLEventType.Sleep
                   ? null // no data during sleep
                   : e.eventType === GQLEventType.Charge
-                  ? p.minimumLevel // during charge, the start of the time block is where level is least
-                  : p.maximumLevel; // during trips, the start of the time block is where level is most
+                    ? p.minimumLevel // during charge, the start of the time block is where level is least
+                    : p.maximumLevel; // during trips, the start of the time block is where level is most
             } else {
               level = null;
             }
@@ -652,14 +652,14 @@ export default class eventchart extends Vue {
       priceData.length > 0
         ? priceData[priceData.length - 1][0]
         : DateTime.fromMillis(
-            Math.max(
-              now,
-              predictData.length ? predictData[predictData.length - 1][0] : 0
-            )
+          Math.max(
+            now,
+            predictData.length ? predictData[predictData.length - 1][0] : 0
           )
-            .plus({ hours: 4 })
-            .startOf("hour")
-            .toMillis();
+        )
+          .plus({ hours: 4 })
+          .startOf("hour")
+          .toMillis();
 
     /***
      *  Interpolate all curves

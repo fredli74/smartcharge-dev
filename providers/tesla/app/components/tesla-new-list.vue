@@ -21,8 +21,8 @@ import { TeslaNewListEntry } from "../tesla-helper";
 
 @Component
 export default class TeslaNewVehicleList extends Vue {
-  @Prop({ required: true }) readonly list!: TeslaNewListEntry[];
-  @Prop({}) readonly subheader?: string;
+  @Prop({ required: true }) declare readonly list: TeslaNewListEntry[];
+  @Prop({}) declare readonly subheader?: string;
 }
 </script>
 

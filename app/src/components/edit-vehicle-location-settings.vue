@@ -5,10 +5,11 @@
         <v-list-item-title>{{ name }}</v-list-item-title>
         <v-list-item-subtitle
           class="font-light overline caption secondary--text text--lighten-2"
-          >({{ settings.locationID }})</v-list-item-subtitle
         >
+          ({{ settings.locationID }})
+        </v-list-item-subtitle>
       </v-col>
-      <v-spacer></v-spacer>
+      <v-spacer />
       <v-col cols="6" sm="3" md="3">
         <v-text-field
           v-model="directLevel"
@@ -84,10 +85,9 @@ import { UpdateVehicleParams } from "@shared/sc-client";
 
 @Component({})
 export default class EditVehicle extends Vue {
-  @Prop({ type: Object, required: true }) readonly vehicle!: GQLVehicle;
-  @Prop({ type: String, required: true }) readonly name!: String;
-  @Prop({ type: Object, required: true })
-  readonly settings!: GQLVehicleLocationSetting;
+  @Prop({ type: Object, required: true }) declare readonly vehicle: GQLVehicle;
+  @Prop({ type: String, required: true }) declare readonly name: String;
+  @Prop({ type: Object, required: true }) declare readonly settings: GQLVehicleLocationSetting;
 
   saving!: { [key: string]: boolean };
   goalCBList!: { text: string; value: string }[];

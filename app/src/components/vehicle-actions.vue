@@ -77,9 +77,7 @@
           v-on="on"
           @click="hvacClick()"
         >
-          <v-icon :large="!smallButton"
-            >mdi-fan{{ vehicle.climateControl ? "" : "-off" }}</v-icon
-          >
+          <v-icon :large="!smallButton">mdi-fan{{ vehicle.climateControl ? "" : "-off" }}</v-icon>
         </v-btn>
       </template>
       <span>Climate Control</span>
@@ -197,7 +195,7 @@ import { scheduleMap } from "@shared/sc-utils";
   },
 })
 export default class VehicleActions extends Vue {
-  @Prop({ type: Object, required: true }) readonly vehicle!: GQLVehicle;
+  @Prop({ type: Object, required: true }) declare readonly vehicle: GQLVehicle;
 
   changed!: boolean;
   saving!: boolean;
