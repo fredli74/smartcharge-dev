@@ -5,7 +5,7 @@
  * @license MIT (MIT)
  */
 
-import { SubscriptionTopic } from "./subscription";
+import { SubscriptionTopic } from "./subscription.js";
 import {
   Resolver,
   Ctx,
@@ -18,14 +18,14 @@ import {
   PubSub,
   PubSubEngine,
 } from "type-graphql";
-import { IContext } from "@server/gql/api";
-import { INTERNAL_SERVICE_UUID, DBInterface } from "@server/db-interface";
+import type { IContext } from "@server/gql/api.js";
+import { INTERNAL_SERVICE_UUID, DBInterface } from "@server/db-interface.js";
 import { AuthenticationError, ApolloError } from "apollo-server-core";
 
-import { VehicleDebugInput, UpdateVehicleDataInput } from "./vehicle-type";
-import { ServiceProvider } from "./service-type";
+import { VehicleDebugInput, UpdateVehicleDataInput } from "./vehicle-type.js";
+import { ServiceProvider } from "./service-type.js";
 import { plainToInstance } from "class-transformer";
-import { UpdatePriceInput } from "./price-type";
+import { UpdatePriceInput } from "./price-type.js";
 
 function authorizeService(context: IContext) {
   if (context.accountUUID !== INTERNAL_SERVICE_UUID) {

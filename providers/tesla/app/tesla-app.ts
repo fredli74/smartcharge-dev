@@ -1,11 +1,13 @@
-import { IProviderApp } from "@providers/provider-app";
+import { IProviderApp } from "@providers/provider-app.js";
 import provider from "../index";
 import TeslaVue from "./tesla.vue";
-import { vehicleImage } from "./tesla-helper";
+import { vehicleImage } from "./tesla-helper.js";
+
+import logo from "./tesla-logo.jpg";
 
 const app: IProviderApp = {
   ...provider,
-  logo: require("./tesla-logo.jpg"),
+  logo,
   image: vehicleImage,
   vue: TeslaVue,
 };

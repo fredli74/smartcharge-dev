@@ -7,7 +7,7 @@
 
 export const DB_VERSION = `1.0-beta`;
 
-export type PlainObject = Record<string, any>;
+export type UnstructuredData = Record<string, unknown>;
 
 export abstract class DBAccount {
   account_uuid!: string; // account uuid
@@ -33,7 +33,7 @@ export abstract class DBLocation {
   price_list_uuid!: string | null; // price list code (or null)
   // TODO: remove service and provider on locations?
   service_uuid!: string | null; // provider uuid
-  provider_data!: PlainObject; // provider custom data
+  provider_data!: UnstructuredData; // provider custom data
 }
 const DBLocation_TSQL = `CREATE TABLE scserver.location
     (
@@ -63,7 +63,7 @@ export abstract class DBPriceList {
   name!: string; // unique name of price list
   public_list!: boolean; // show up for everyone
   service_uuid!: string | null; // provider uuid
-  provider_data!: PlainObject; // provider custom data
+  provider_data!: UnstructuredData; // provider custom data
 }
 const DBPriceList_TSQL = `CREATE TABLE scserver.price_list
     (
@@ -104,11 +104,11 @@ export abstract class DBVehicle {
   service_uuid!: string | null; // provider uuid
   name!: string; // name of vehicle
   maximum_charge!: number; // maximum normal (non trip) charge
-  provider_data!: PlainObject; // provider custom data
+  provider_data!: UnstructuredData; // provider custom data
   location_micro_latitude!: number | null; // 6 decimal precision converted to integer
   location_micro_longitude!: number | null; // 6 decimal precision converted to integer
   location_uuid!: string | null; // known location id
-  location_settings!: PlainObject; // location settings (or null)
+  location_settings!: UnstructuredData; // location settings (or null)
   level!: number; // current battery charge level %
   odometer!: number; // odometer (in meter)
   outside_deci_temperature!: number; // temperature (deci-celsius)

@@ -1,18 +1,19 @@
-import { IContext, accountFilter } from "@server/gql/api";
+import { accountFilter } from "@server/gql/api.js";
+import type { IContext } from "@server/gql/api.js";
 import provider, {
   TeslaProviderMutates,
   TeslaProviderQueries,
   TeslaProviderData,
   TeslaToken,
-} from "./index";
+} from "./index.js";
 import { ApolloError } from "apollo-server-express";
-import { DBInterface } from "@server/db-interface";
-import teslaAPI, { TeslaAPI } from "./tesla-api";
-import { log, LogLevel } from "@shared/utils";
-import { IProviderServer } from "@providers/provider-server";
-import { TeslaNewListEntry } from "./app/tesla-helper";
-import config from "./tesla-config";
-import { DBServiceProvider } from "@server/db-schema";
+import { DBInterface } from "@server/db-interface.js";
+import teslaAPI, { TeslaAPI } from "./tesla-api.js";
+import { log, LogLevel } from "@shared/utils.js";
+import { IProviderServer } from "@providers/provider-server.js";
+import { TeslaNewListEntry } from "./app/tesla-helper.js";
+import config from "./tesla-config.js";
+import { DBServiceProvider } from "@server/db-schema.js";
 import { strict as assert } from "assert";
 
 export async function authorize(

@@ -6,8 +6,9 @@
  */
 
 import { Resolver, Query, Ctx, Arg, Mutation, ID } from "type-graphql";
-import { IContext, accountFilter } from "@server/gql/api";
-import { PriceList, UpdatePriceListInput } from "./price-type";
+import { accountFilter } from "@server/gql/api.js";
+import type { IContext } from "@server/gql/api.js";
+import { PriceList, UpdatePriceListInput } from "./price-type.js";
 import { plainToInstance } from "class-transformer";
 import { ApolloError } from "apollo-server-core";
 
@@ -43,6 +44,9 @@ export class PriceResolver {
     @Arg("id", (_type) => ID, { nullable: true }) id: string,
     @Ctx() context: IContext
   ): Promise<PriceList> {
+    if (!context.accountUUID) {
+      throw new ApolloError("Not logged in");
+    }
     return plainToInstance(
       PriceList,
       await context.db.newPriceList(context.accountUUID, name, isPublic, id)

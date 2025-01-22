@@ -151,7 +151,7 @@
 
 <script lang="ts">
 import { Component, Vue } from "vue-property-decorator";
-import apollo from "@app/plugins/apollo";
+import apollo from "@app/plugins/apollo.js";
 
 @Component({ components: {} })
 export default class About extends Vue {
@@ -202,7 +202,7 @@ export default class About extends Vue {
 </script>
 
 <style lang="scss">
-@import "~vuetify/src/styles/settings/_variables";
+@import "@vuetify/src/styles/settings/_variables";
 
 #topjumbo {
   h1 {

@@ -23,8 +23,8 @@
 
 <script lang="ts">
 import { Component, Vue } from "vue-property-decorator";
-import providers from "@providers/provider-apps";
-import apollo from "@app/plugins/apollo";
+import providers from "@providers/provider-apps.js";
+import apollo from "@app/plugins/apollo.js";
 
 @Component({
   components: {},

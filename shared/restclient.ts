@@ -10,7 +10,7 @@ import * as http from "http";
 import * as https_proxy_agent from "https-proxy-agent";
 import * as zlib from "zlib";
 
-import { mergeURL } from "./utils";
+import { mergeURL } from "./utils.js";
 
 const DEFAULT_AGENT = `RestClient/1.0 (Node.js)`;
 
@@ -37,7 +37,7 @@ export class RestClientError extends Error {
 export class RestClient {
   private httpAgent: http.Agent | undefined;
   private httpsAgent: https.Agent | undefined;
-  private httpsProxyAgent: https_proxy_agent.HttpsProxyAgent | undefined;
+  private httpsProxyAgent: https.Agent | undefined;
   constructor(private options: Options) {}
 
   private getAgent(secure: boolean): http.Agent | https.Agent {

@@ -7,7 +7,7 @@
 
 import { strict as assert } from "assert";
 
-import { DBInterface } from "./db-interface";
+import { DBInterface } from "./db-interface.js";
 import {
   DBVehicle,
   DBCharge,
@@ -17,7 +17,7 @@ import {
   DBLocationStats,
   DBStatsMap,
   DBSchedule,
-} from "./db-schema";
+} from "./db-schema.js";
 import {
   LogLevel,
   log,
@@ -27,17 +27,17 @@ import {
   numericStopTime,
   compareStartTimes,
   capitalize,
-} from "@shared/utils";
+} from "@shared/utils.js";
 import {
   UpdateVehicleDataInput,
   ChargePlan,
   Schedule,
-} from "./gql/vehicle-type";
-import { SmartChargeGoal, ChargeType, ScheduleType } from "@shared/sc-types";
+} from "./gql/vehicle-type.js";
+import { SmartChargeGoal, ChargeType, ScheduleType } from "@shared/sc-types.js";
 import {
   MIN_STATS_PERIOD,
   SCHEDULE_TOPUP_MARGIN,
-} from "@shared/smartcharge-defines";
+} from "@shared/smartcharge-defines.js";
 
 export class Logic {
   constructor(private db: DBInterface) {}

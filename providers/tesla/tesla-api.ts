@@ -5,9 +5,9 @@
  * @license MIT (MIT)
  */
 
-import { RestClient, RestClientError, Options } from "@shared/restclient";
-import config from "./tesla-config";
-import { log, LogLevel } from "@shared/utils";
+import { RestClient, RestClientError, Options } from "@shared/restclient.js";
+import config from "./tesla-config.js";
+import { log, LogLevel } from "@shared/utils.js";
 import { TeslaToken } from ".";
 
 function time(): number {

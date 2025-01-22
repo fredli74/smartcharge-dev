@@ -1,0 +1,15 @@
+{
+    "extends": "../tsconfig.json",
+    "compilerOptions": {
+        "types": [
+            "vite/client",
+            "vue",
+            "vue-router",
+            "vuetify"
+        ]
+    },
+    "include": [
+        "src/**/*",
+        "public/**/*"
+    ]
+}

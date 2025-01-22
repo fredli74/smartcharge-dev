@@ -11,12 +11,12 @@ import "./env";
 import { strict as assert } from "assert";
 
 import { Command } from "commander";
-import { log, LogLevel, delay } from "@shared/utils";
-import { SCClient } from "@shared/sc-client";
-import providers from "@providers/provider-agents";
-import { AbstractAgent } from "@providers/provider-agent";
+import { log, LogLevel, delay } from "@shared/utils.js";
+import { SCClient } from "@shared/sc-client.js";
+import providers from "@providers/provider-agents.js";
+import { AbstractAgent } from "@providers/provider-agent.js";
 import WebSocket from "ws";
-import { GQLServiceProvider } from "@shared/sc-schema";
+import { GQLServiceProvider } from "@shared/sc-schema.js";
 
 const APP_NAME = `smartcharge-agency`;
 const APP_VERSION = `1.0`;

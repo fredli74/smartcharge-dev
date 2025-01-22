@@ -17,7 +17,7 @@ import {
   Float,
   GraphQLISODateTime,
 } from "type-graphql";
-import { DBPriceList } from "@server/db-schema";
+import { DBPriceList } from "@server/db-schema.js";
 
 @ObjectType("PriceList")
 export class PriceList extends DBPriceList {}

@@ -69,8 +69,8 @@
 <script lang="ts">
 import { Component, Vue } from "vue-property-decorator";
 import { gql } from "apollo-boost";
-import providers from "@providers/provider-apps";
-import { GQLVehicle } from "@shared/sc-schema";
+import providers from "@providers/provider-apps.js";
+import { GQLVehicle } from "@shared/sc-schema.js";
 
 @Component({
   components: {},
@@ -121,17 +121,13 @@ export default class Home extends Vue {
   }
 
   vehiclePicture(vehicle: GQLVehicle) {
-    /*if (vehicle.providerData && vehicle.providerData.unknown_image) {
-      return require("../assets/unknown_vehicle.png");
-    } else*/ {
-      const provider = providers.find(
-        (p) => p.name === vehicle.providerData.provider
-      );
-      if (provider && provider.image) {
-        return provider.image(vehicle, false);
-      } else {
-        return "";
-      }
+    const provider = providers.find(
+      (p) => p.name === vehicle.providerData.provider
+    );
+    if (provider && provider.image) {
+      return provider.image(vehicle, false);
+    } else {
+      return "";
     }
   }
   selectVehicle(vehicle: GQLVehicle) {

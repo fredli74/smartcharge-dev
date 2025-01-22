@@ -7,7 +7,7 @@
 
 import "reflect-metadata";
 import { ObjectType, ID, Resolver, Root, FieldResolver } from "type-graphql";
-import { DBAccount } from "@server/db-schema";
+import { DBAccount } from "@server/db-schema.js";
 
 @ObjectType()
 export class Account extends DBAccount {}

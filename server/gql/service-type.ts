@@ -8,7 +8,7 @@
 import { ObjectType, ID, Root, Resolver, FieldResolver } from "type-graphql";
 import { GraphQLJSONObject } from "graphql-type-json";
 import "reflect-metadata";
-import { DBServiceProvider } from "@server/db-schema";
+import { DBServiceProvider } from "@server/db-schema.js";
 
 @ObjectType("ServiceProvider")
 export class ServiceProvider extends DBServiceProvider {}

@@ -7,11 +7,9 @@
  * @license MIT (MIT)
  */
 
-import "./env";
+import "./env.js";
 import { strict as assert } from "assert";
 
-import "core-js/stable";
-import "regenerator-runtime/runtime";
 import history from "connect-history-api-fallback";
 
 import http from "http";
@@ -20,18 +18,22 @@ import cors from "cors";
 import compression from "compression";
 import rateLimit from "express-rate-limit";
 import path from "path";
-import { log, LogLevel } from "@shared/utils";
-import gqlSchema, { IContext } from "./gql/api";
-import { DBInterface } from "./db-interface";
-import { Logic } from "./logic";
+import { log, LogLevel } from "@shared/utils.js";
+import gqlSchema from "./gql/api.js";
+import type { IContext } from "./gql/api.js";
+import { DBInterface } from "./db-interface.js";
+import { Logic } from "./logic.js";
 import { Command } from "commander";
 
-import config from "@shared/smartcharge-config";
+import config from "@shared/smartcharge-config.js";
 import { ApolloServer, AuthenticationError, ExpressContext } from "apollo-server-express";
 import { Context } from "apollo-server-core";
-import { DBAccount } from "./db-schema";
+import { DBAccount } from "./db-schema.js";
 import { execute, subscribe } from "graphql";
 import { ConnectionContext, SubscriptionServer } from "subscriptions-transport-ws";
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const APP_NAME = `smartcharge-server`;
 const APP_VERSION = `1.0`;

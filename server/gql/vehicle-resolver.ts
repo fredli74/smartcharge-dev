@@ -6,7 +6,7 @@
  */
 import { strict as assert } from "assert";
 
-import { SubscriptionTopic } from "./subscription";
+import { SubscriptionTopic } from "./subscription.js";
 import {
   Arg,
   Resolver,
@@ -21,19 +21,20 @@ import {
   ID,
   GraphQLISODateTime,
 } from "type-graphql";
-import { IContext, accountFilter } from "./api";
-import { INTERNAL_SERVICE_UUID } from "@server/db-interface";
+import { accountFilter } from "./api.js";
+import type { IContext } from "./api.js";
+import { INTERNAL_SERVICE_UUID } from "@server/db-interface.js";
 import {
   Vehicle,
   UpdateVehicleInput,
   VehicleLocationSettings,
   Schedule,
-} from "./vehicle-type";
-import { log, LogLevel, makePublicID } from "@shared/utils";
+} from "./vehicle-type.js";
+import { log, LogLevel, makePublicID } from "@shared/utils.js";
 import { ApolloError } from "apollo-server-core";
 import { plainToInstance } from "class-transformer";
-import { DBSchedule } from "@server/db-schema";
-import { ScheduleType } from "@shared/sc-types";
+import { DBSchedule } from "@server/db-schema.js";
+import { ScheduleType } from "@shared/sc-types.js";
 
 interface VehicleSubscriptionPayload {
   account_uuid: string;

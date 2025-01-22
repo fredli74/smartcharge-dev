@@ -51,7 +51,7 @@ import {
   numericStartTime,
   numericStopTime,
   secondsToString,
-} from "@shared/utils";
+} from "@shared/utils.js";
 import {
   GQLVehicle,
   GQLChartData,
@@ -59,7 +59,7 @@ import {
   GQLEventList,
   GQLChargeType,
   GQLChargePlan,
-} from "@shared/sc-schema";
+} from "@shared/sc-schema.js";
 import { DateTime } from "luxon";
 
 function pricePrecision(input: number): number {

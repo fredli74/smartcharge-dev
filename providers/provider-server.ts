@@ -5,7 +5,7 @@
  * @license MIT (MIT)
  */
 import { IProvider } from ".";
-import { IContext } from "@server/gql/api";
+import type { IContext } from "@server/gql/api.js";
 
 export interface IProviderServerQuery {
   (data: any, context: IContext): any;

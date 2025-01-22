@@ -99,10 +99,10 @@
 import { strict as assert } from "assert";
 
 import { Component, Vue } from "vue-property-decorator";
-import apollo from "./plugins/apollo";
-import eventBus, { BusEvent } from "./plugins/event-bus";
-import config from "@shared/smartcharge-config";
-import auth from "./plugins/auth0";
+import apollo from "./plugins/apollo.js";
+import eventBus, { BusEvent } from "./plugins/event-bus.js";
+import config from "@shared/smartcharge-config.js";
+import auth from "./plugins/auth0.js";
 
 import "vue-datetime/dist/vue-datetime.css";
 

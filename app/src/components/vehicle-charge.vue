@@ -187,12 +187,12 @@
 
 <script lang="ts">
 import { Component, Vue, Prop, Watch } from "vue-property-decorator";
-import { GQLVehicle, GQLScheduleType, GQLSchedule } from "@shared/sc-schema";
-import apollo from "@app/plugins/apollo";
+import { GQLVehicle, GQLScheduleType, GQLSchedule } from "@shared/sc-schema.js";
+import apollo from "@app/plugins/apollo.js";
 
 import { DateTime } from "luxon";
-import { relativeTime } from "@shared/utils";
-import { scheduleMap, getVehicleLocationSettings } from "@shared/sc-utils";
+import { relativeTime } from "@shared/utils.js";
+import { scheduleMap, getVehicleLocationSettings } from "@shared/sc-utils.js";
 import { DatetimePopup } from "vue-datetime";
 
 @Component({ components: { DatetimePopup } })

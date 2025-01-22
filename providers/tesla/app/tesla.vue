@@ -44,12 +44,12 @@
 import { strict as assert } from "assert";
 
 import { Component, Vue, Prop } from "vue-property-decorator";
-import apollo from "@app/plugins/apollo";
-import eventBus, { BusEvent } from "@app/plugins/event-bus";
-import { hashID } from "@shared/utils";
-import { TeslaNewListEntry } from "./tesla-helper";
+import apollo from "@app/plugins/apollo.js";
+import eventBus, { BusEvent } from "@app/plugins/event-bus.js";
+import { hashID } from "@shared/utils.js";
+import { TeslaNewListEntry } from "./tesla-helper.js";
 import TeslaNewVehicleList from "./components/tesla-new-list.vue";
-import { ProviderVuePage } from "@providers/provider-app";
+import { ProviderVuePage } from "@providers/provider-app.js";
 import provider, {
   TeslaProviderQueries,
   TeslaProviderMutates,

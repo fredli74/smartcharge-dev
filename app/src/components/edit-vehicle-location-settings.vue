@@ -78,10 +78,10 @@
 <script lang="ts">
 import { Component, Vue, Prop } from "vue-property-decorator";
 import deepmerge from "deepmerge";
-import apollo from "@app/plugins/apollo";
-import { GQLVehicle, GQLVehicleLocationSetting } from "@shared/sc-schema";
-import { SmartChargeGoal } from "@shared/sc-types";
-import { UpdateVehicleParams } from "@shared/sc-client";
+import apollo from "@app/plugins/apollo.js";
+import { GQLVehicle, GQLVehicleLocationSetting } from "@shared/sc-schema.js";
+import { SmartChargeGoal } from "@shared/sc-types.js";
+import { UpdateVehicleParams } from "@shared/sc-client.js";
 
 @Component({})
 export default class EditVehicle extends Vue {

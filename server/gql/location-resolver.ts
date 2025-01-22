@@ -6,9 +6,10 @@
  */
 
 import { Resolver, Query, Ctx, Arg, Mutation, ID } from "type-graphql";
-import { IContext, accountFilter } from "@server/gql/api";
-import { UpdateLocationInput, Location } from "./location-type";
-import { makePublicID, LogLevel, log } from "@shared/utils";
+import { accountFilter } from "@server/gql/api.js";
+import type { IContext } from "@server/gql/api.js";
+import { UpdateLocationInput, Location } from "./location-type.js";
+import { makePublicID, LogLevel, log } from "@shared/utils.js";
 import { ApolloError } from "apollo-server-express";
 import { plainToInstance } from "class-transformer";
 

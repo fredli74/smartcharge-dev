@@ -95,12 +95,6 @@ export function geoDistance(
   return radius * δ;
 }
 
-import { randomBytes } from "crypto";
-export function generateToken(bytes: number): string {
-  const token = randomBytes(bytes);
-  return token.toString("base64");
-}
-
 export class MemCache {
   private mem: { [key: string]: { expiry: number; data: any } } = {};
   public async get(

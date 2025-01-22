@@ -10,7 +10,7 @@
 
 import auth0 from "auth0-js";
 import EventEmitter from "eventemitter3";
-import config from "@shared/smartcharge-config";
+import config from "@shared/smartcharge-config.js";
 
 const webAuth = new auth0.WebAuth({
   domain: config.AUTH0_DOMAIN,

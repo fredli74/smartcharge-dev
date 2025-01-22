@@ -5,7 +5,7 @@
  * @license MIT (MIT)
  */
 
-import { SubscriptionTopic, apolloPubSub } from "./subscription";
+import { SubscriptionTopic, apolloPubSub } from "./subscription.js";
 import {
   Resolver,
   Ctx,
@@ -19,14 +19,14 @@ import {
   ObjectType,
   Field,
 } from "type-graphql";
-import { IContext } from "@server/gql/api";
+import type { IContext } from "@server/gql/api.js";
 import { GraphQLJSONObject } from "graphql-type-json";
-import { INTERNAL_SERVICE_UUID } from "@server/db-interface";
+import { INTERNAL_SERVICE_UUID } from "@server/db-interface.js";
 import { ApolloError } from "apollo-server-core";
 import { withFilter } from "graphql-subscriptions";
-import providers from "@providers/provider-servers";
-import { IProviderServer } from "@providers/provider-server";
-import { DBServiceProvider } from "@server/db-schema";
+import providers from "@providers/provider-servers.js";
+import { IProviderServer } from "@providers/provider-server.js";
+import { DBServiceProvider } from "@server/db-schema.js";
 
 const actionMemDatabase: { [id: string]: Action } = {};
 let actionMemDatabaseSN = 0;

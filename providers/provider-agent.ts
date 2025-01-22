@@ -5,9 +5,9 @@
  * @license MIT (MIT)
  */
 import { IProvider } from ".";
-import { SCClient } from "@shared/sc-client";
-import { log, LogLevel, delay } from "@shared/utils";
-import { GQLAction, GQLServiceProvider } from "@shared/sc-schema";
+import { SCClient } from "@shared/sc-client.js";
+import { log, LogLevel, delay } from "@shared/utils.js";
+import { GQLAction, GQLServiceProvider } from "@shared/sc-schema.js";
 
 export interface IProviderAgentInstantiator {
   (scClient: SCClient): AbstractAgent;

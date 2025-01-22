@@ -1,6 +1,9 @@
-module.exports = {
+export default {
   sourceMaps: "inline",
-  presets: ["@babel/env", "@babel/preset-typescript"],
+  presets: [
+    ["@babel/preset-env", { "modules": false }],
+    "@babel/preset-typescript"
+  ],
   plugins: [
     "babel-plugin-transform-typescript-metadata",
     ["@babel/proposal-decorators", { legacy: true }],
@@ -19,5 +22,9 @@ module.exports = {
         },
       },
     ],
+    [
+      "@babel/plugin-syntax-import-assertions",
+      { importAttributesKeyword: "assert" }, // Use "assert" to avoid issues
+    ]
   ],
 };

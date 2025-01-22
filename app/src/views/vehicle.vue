@@ -152,20 +152,20 @@ import { strict as assert } from "assert";
 
 import { Component, Vue, Watch } from "vue-property-decorator";
 import { gql } from "apollo-boost";
-import providers from "@providers/provider-apps";
+import providers from "@providers/provider-apps.js";
 import RelativeTime from "@app/components/relative-time.vue";
 import VehicleCharts from "@app/components/vehicle-charts.vue";
 import VehicleActions from "@app/components/vehicle-actions.vue";
-import { geoDistance } from "@shared/utils";
-import apollo from "@app/plugins/apollo";
+import { geoDistance } from "@shared/utils.js";
+import apollo from "@app/plugins/apollo.js";
 import { VueApolloComponentOptions } from "vue-apollo/types/options";
 import { RawLocation } from "vue-router";
 import moment from "moment";
-import config from "@shared/smartcharge-config";
-import { makePublicID } from "@shared/utils";
-import { GQLVehicle } from "@shared/sc-schema";
-import { getVehicleLocationSettings } from "@shared/sc-utils";
-import { vehicleFragment, GQLLocationFragment } from "@shared/sc-client";
+import config from "@shared/smartcharge-config.js";
+import { makePublicID } from "@shared/utils.js";
+import { GQLVehicle } from "@shared/sc-schema.js";
+import { getVehicleLocationSettings } from "@shared/sc-utils.js";
+import { vehicleFragment, GQLLocationFragment } from "@shared/sc-client.js";
 
 @Component({
   components: { VehicleActions, RelativeTime, VehicleCharts },
@@ -279,15 +279,11 @@ export default class VehicleVue extends Vue {
 
   get vehiclePicture() {
     if (this.vehicle !== undefined) {
-      /*if (this.vehiclePictureUnknown) {
-        return require("../assets/unknown_vehicle.png");
-      } else*/ {
-        const provider = providers.find(
-          (p) => p.name === this.vehicle!.providerData.provider
-        );
-        if (provider && provider.image) {
-          return provider.image(this.vehicle);
-        }
+      const provider = providers.find(
+        (p) => p.name === this.vehicle!.providerData.provider
+      );
+      if (provider && provider.image) {
+        return provider.image(this.vehicle);
       }
     }
     return "";

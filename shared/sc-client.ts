@@ -9,7 +9,7 @@ import { strict as assert } from "assert";
 
 import { gql, InMemoryCache } from "apollo-boost";
 import ApolloClient from "apollo-client";
-import { mergeURL, log, LogLevel } from "@shared/utils";
+import { mergeURL, log, LogLevel } from "@shared/utils.js";
 
 import fetch from "cross-fetch";
 
@@ -33,8 +33,8 @@ import {
   GQLScheduleType,
   GQLPriceList,
   GQLSchedule,
-} from "./sc-schema";
-import { API_PATH } from "./smartcharge-defines";
+} from "./sc-schema.js";
+import { API_PATH } from "./smartcharge-defines.js";
 
 // Strip __typename from input into mutations
 // import { classToPlain } from "class-transformer";

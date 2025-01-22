@@ -49,10 +49,10 @@
 
 <script lang="ts">
 import { Component, Vue, Prop } from "vue-property-decorator";
-import apollo from "@app/plugins/apollo";
-import { ProviderVuePage } from "@providers/provider-app";
+import apollo from "@app/plugins/apollo.js";
+import { ProviderVuePage } from "@providers/provider-app.js";
 import { NordpoolProviderData } from "..";
-import { GQLLocationFragment } from "@shared/sc-client";
+import { GQLLocationFragment } from "@shared/sc-client.js";
 
 interface NordpoolArea {
   price_code: string;

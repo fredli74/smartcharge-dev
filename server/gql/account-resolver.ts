@@ -6,31 +6,25 @@
  */
 
 import { Resolver, Ctx, Mutation, Arg, Query } from "type-graphql";
-import { IContext } from "@server/gql/api";
-import { Account } from "./account-type";
-import { SINGLE_USER_UUID, makeAccountUUID } from "@server/db-interface";
-import config from "@shared/smartcharge-config";
+import type { IContext } from "@server/gql/api.js";
+import { Account } from "./account-type.js";
+import { SINGLE_USER_UUID, makeAccountUUID } from "@server/db-interface.js";
+import config from "@shared/smartcharge-config.js";
 import { AuthenticationError } from "apollo-server-core";
 import { plainToInstance } from "class-transformer";
 
 const AUTH0_DOMAIN_URL = `https://${config.AUTH0_DOMAIN}/`;
 
-import {
-  verify,
-  JwtHeader,
-  SigningKeyCallback,
-  VerifyErrors,
-  JwtPayload,
-} from "jsonwebtoken";
+import JsonWebToken from "jsonwebtoken";
 import JwksClient from "jwks-rsa";
 const jwksClient = JwksClient({
   jwksUri: `${AUTH0_DOMAIN_URL}.well-known/jwks.json`,
 });
-async function jwkVerify(idToken: string): Promise<JwtPayload | string | undefined> {
+async function jwkVerify(idToken: string): Promise<JsonWebToken.JwtPayload | string | undefined> {
   return new Promise((resolve, reject) => {
-    verify(
+    JsonWebToken.verify(
       idToken,
-      (header: JwtHeader, callback: SigningKeyCallback) => {
+      (header: JsonWebToken.JwtHeader, callback: JsonWebToken.SigningKeyCallback) => {
         if (!header.kid) {
           reject("Internal error, invalid header in jwkVerify");
         }
@@ -40,7 +34,7 @@ async function jwkVerify(idToken: string): Promise<JwtPayload | string | undefin
         });
       },
       { audience: config.AUTH0_CLIENT_ID, issuer: AUTH0_DOMAIN_URL },
-      (err: VerifyErrors | null, decoded: JwtPayload | string | undefined) => {
+      (err: JsonWebToken.VerifyErrors | null, decoded: JsonWebToken.JwtPayload | string | undefined) => {
         if (err) {
           reject(err);
         } else {
@@ -55,6 +49,9 @@ async function jwkVerify(idToken: string): Promise<JwtPayload | string | undefin
 export class AccountResolver {
   @Query((_returns) => Account)
   async account(@Ctx() context: IContext): Promise<Account> {
+    if (!context.accountUUID) {
+      throw new AuthenticationError(`Not logged in`);
+    }
     return plainToInstance(
       Account,
       await context.db.getAccount(context.accountUUID)
