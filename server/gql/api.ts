@@ -45,11 +45,11 @@ export interface IContext {
 export function accountFilter(
   account_uuid?: string
 ): string | null | undefined {
-  return account_uuid === undefined
-    ? null // no access
-    : account_uuid === INTERNAL_SERVICE_UUID
-    ? undefined // all access
-    : account_uuid; // normal access
+  return (
+    account_uuid === undefined ? null
+    : account_uuid === INTERNAL_SERVICE_UUID ? undefined // all access
+    : account_uuid // normal access
+  );
 }
 
 @ObjectType()
@@ -98,6 +98,6 @@ export default function schema(emitFile?: string): Promise<GraphQLSchema> {
       StatsResolver,
     ],
     emitSchemaFile: !!emitFile && emitFile,
-    validate: false,
+    validate: { forbidUnknownValues: false },
   });
 }

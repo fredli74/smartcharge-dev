@@ -15,7 +15,7 @@ import "regenerator-runtime/runtime";
 import history from "connect-history-api-fallback";
 
 import http from "http";
-import express from "express";
+import express, { RequestHandler } from "express";
 import cors from "cors";
 import compression from "compression";
 import rateLimit from "express-rate-limit";
@@ -179,11 +179,7 @@ program
 
       app
         .use(express.static(path.resolve(__dirname, "../app")))
-        .use(
-          history({
-            index: "/index.html",
-          })
-        )
+        .use(history({ index: "/index.html" }) as RequestHandler)
         .use(express.static(path.resolve(__dirname, "../app")));
 
       // Add 404 handling

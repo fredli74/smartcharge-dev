@@ -20,12 +20,13 @@ import {
   JwtHeader,
   SigningKeyCallback,
   VerifyErrors,
+  JwtPayload,
 } from "jsonwebtoken";
 import JwksClient from "jwks-rsa";
 const jwksClient = JwksClient({
   jwksUri: `${AUTH0_DOMAIN_URL}.well-known/jwks.json`,
 });
-async function jwkVerify(idToken: string): Promise<any> {
+async function jwkVerify(idToken: string): Promise<JwtPayload | string | undefined> {
   return new Promise((resolve, reject) => {
     verify(
       idToken,
@@ -33,13 +34,13 @@ async function jwkVerify(idToken: string): Promise<any> {
         if (!header.kid) {
           reject("Internal error, invalid header in jwkVerify");
         }
-        jwksClient.getSigningKey(header.kid!, (err, key: any) => {
+        jwksClient.getSigningKey(header.kid!, (_err, key: any) => {
           const signingKey = key.publicKey || key.rsaPublicKey;
           callback(null, signingKey);
         });
       },
       { audience: config.AUTH0_CLIENT_ID, issuer: AUTH0_DOMAIN_URL },
-      (err: VerifyErrors | null, decoded: object | undefined) => {
+      (err: VerifyErrors | null, decoded: JwtPayload | string | undefined) => {
         if (err) {
           reject(err);
         } else {
@@ -88,8 +89,8 @@ export class AccountResolver {
         `loginWithIDToken not allowed in SINGLE_USER mode`
       );
     }
-    const payload = await jwkVerify(idToken);
-    if (!payload || !payload.iss || !payload.sub || !payload.name) {
+    const payload = await jwkVerify(idToken); 
+    if (typeof payload !== "object" || !payload.iss || !payload.sub || !payload.name) {
       throw new AuthenticationError(
         `Invalid token, required payload is iss, sub and name`
       );
