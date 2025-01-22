@@ -4,7 +4,7 @@
       <v-col cols="12" md="9">
         <v-text-field
           v-model="name"
-          :rules="[rules.required]"
+          :rules="[nameRules]"
           label="Location name"
           required
           :loading="saving.name"
@@ -99,14 +99,16 @@ export default class EditLocation extends Vue {
     this.$emit("refresh");
   }
 
-  rules = {
-    required: (v: string): true | string => v.length > 0 || 'Required',
-  };
-
   get isPriceListLoading() {
     return this.$apollo.queries.priceLists.loading || this.saving.pricelist;
   }
 
+  nameRules(value: string) {
+    if (value && value.length > 0) {
+      return true;
+    }
+    return `Required`;
+  }
   get name(): string {
     return this.location.name;
   }

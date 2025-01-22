@@ -65,7 +65,11 @@ export default class RemoveDialog extends Vue {
     };
   }
   confirmCodeRules(value: string) {
-    return !value || this.valid || `incorrect code`;
+    if (value && value.length > 0) {
+      if (this.valid) return true;
+      return `incorrect code`;
+    }
+    return `required`;
   }
 
   get publicID(): string {

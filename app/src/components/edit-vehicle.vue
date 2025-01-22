@@ -134,7 +134,10 @@ export default class EditVehicle extends Vue {
   async created() {}
 
   nameRules(value: string) {
-    return (value && value.length) || `Required`;
+    if (value && value.length > 0) {
+      return true;
+    }
+    return `Required`;
   }
 
   maximumLevelRules(value: string) {
