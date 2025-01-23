@@ -38,7 +38,7 @@ import { ServiceProviderTypeResolver } from "./service-type";
 export interface IContext {
   db: DBInterface;
   logic: Logic;
-  accountUUID: string;
+  accountUUID?: string;
   account?: DBAccount;
 }
 

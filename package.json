@@ -13,7 +13,6 @@
     "_create:schema": "node dist/server/gql/build-schema-files.js",
     "build:app": "vue-cli-service build",
     "build:server": "npm run _babel:shared && npm run _babel:providers && npm run _babel:server && npm run _create:schema",
-    "prepare": "patch-package",
     "start:server": "node dist/server/server.js",
     "start:worker": "node dist/server/agency.js -d INTERNAL_SERVICE_TOKEN http://localhost:3000"
   },
@@ -93,7 +92,6 @@
     "eslint-plugin-vue": "~7.20.0",
     "graphql-schema-typescript": "~1.5.2",
     "moment": "~2.29.4",
-    "patch-package": "~6.4.7",
     "register-service-worker": "~1.7.2",
     "sass": "~1.49.11",
     "sass-loader": "~10.1.1",

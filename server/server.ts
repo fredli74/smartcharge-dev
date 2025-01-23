@@ -27,8 +27,11 @@ import { Logic } from "./logic";
 import { Command } from "commander";
 
 import config from "@shared/smartcharge-config";
-import { ApolloServer, AuthenticationError } from "apollo-server-express";
+import { ApolloServer, AuthenticationError, ExpressContext } from "apollo-server-express";
+import { Context } from "apollo-server-core";
 import { DBAccount } from "./db-schema";
+import { execute, subscribe } from "graphql";
+import { ConnectionContext, SubscriptionServer } from "subscriptions-transport-ws";
 
 const APP_NAME = `smartcharge-server`;
 const APP_VERSION = `1.0`;
@@ -119,7 +122,7 @@ program
           try {
             res.locals.account = await authorize(req.get("Authorization"));
             if (res.locals.account) {
-              log(LogLevel.Trace, `Authorized as ${res.locals.account.name}`);
+              log(LogLevel.Trace, `Authorized as ${res.locals.account.name} (${res.locals.account.account_uuid})`);
             }
           } catch (err: any) {
             assert(err.message !== undefined); // Only real errors expected
@@ -128,54 +131,74 @@ program
           }
           next();
         });
-
-      // GraphQL Server
-      const apiServer = new ApolloServer({
-        playground: true,
-        introspection: true,
-        schema: await gqlSchema(),
-        context: ({ res, connection }) => {
-          if (connection) {
-            assert(connection.context !== undefined);
-            return connection.context;
-          }
-          assert(res !== undefined);
-          return <IContext>{
-            db,
-            logic,
-            accountUUID:
-              (res.locals.account && res.locals.account.account_uuid) ||
-              undefined,
-            account: res.locals.account,
-          };
-        },
-        subscriptions: {
-          keepAlive: 20000,
-          path: "/api/gql",
-          onConnect: async (connectionParams: any, _webSocket, context) => {
-            const account = await authorize(connectionParams.Authorization);
-            log(
-              LogLevel.Info,
-              `WS ${context.request.connection.remoteAddress}:${
-                context.request.connection.remotePort
-              } Connected with ${JSON.stringify(connectionParams)}`
-            );
-            return <IContext>{
+      
+      const contextFromAuthorization = async (auth: string | undefined): Promise<IContext> => {
+        if (auth) {
+          const account = await authorize(auth);
+          if (account) {
+            log(LogLevel.Debug, `Bearer authorization successful for account_uuid: ${account.account_uuid}`);
+            return {
               db,
               logic,
-              accountUUID: (account && account.account_uuid) || undefined,
+              accountUUID: account.account_uuid,
               account: account,
             };
-          },
-          onDisconnect: (_websocket, context) => {
-            log(
-              LogLevel.Info,
-              `WS ${context.request.connection.remoteAddress}:${context.request.connection.remotePort} Disconnected`
-            );
-          },
+          }
+        }
+        return {
+          db,
+          logic,
+        };
+      };
+              
+      const httpServer = http.createServer(app);
+
+      const schema = await gqlSchema();
+      // GraphQL Server
+      const apiServer = new ApolloServer({
+        introspection: true,
+        schema: schema,
+        plugins: [{
+          async serverWillStart() {
+            return {
+              async drainServer() {
+                subscriptionServer.close();
+              }
+            };
+          }
+        }],
+        context: (e: ExpressContext) => {
+          return contextFromAuthorization(e.req.get("Authorization"));
         },
       });
-      apiServer.applyMiddleware({ app, path: "/api/gql" });
+      const subscriptionServer = SubscriptionServer.create({
+        schema,
+        execute,
+        subscribe,
+        keepAlive: 20000,
+        async onConnect(connectionParams: any, webSocket: WebSocket, context: ConnectionContext) {
+          try {
+            const ctx = await contextFromAuthorization(connectionParams.Authorization);
+            log(LogLevel.Info, `WS ${context.request.connection.remoteAddress} Connected - ${ctx.accountUUID ? `Authorized as ${ctx.account?.name} (${ctx.accountUUID})` : `Unauthorized`}`);
+            return ctx;
+          } catch (err: any) {
+            log(LogLevel.Error, `WS Error: ${err.message}`);
+          }
+        },
+        async onDisconnect(webSocket: WebSocket, context: ConnectionContext) {
+          try {
+            const ctx = (await context.initPromise) as IContext;
+            log(LogLevel.Info, `WS ${context.request.connection.remoteAddress} Disconnected - ${ctx.accountUUID ? `Authorized as ${ctx.account?.name} (${ctx.accountUUID})` : `Unauthorized`}}`);
+          } catch (err: any) {
+            log(LogLevel.Error, `WS Error: ${err.message}`);
+          }
+        }
+      }, {
+        server: httpServer,
+        path: "/api/gql",
+      });
+      await apiServer.start()
+      apiServer.applyMiddleware({ app: app as any, path: "/api/gql" });
 
       app
         .use(express.static(path.resolve(__dirname, "../app")))
@@ -190,9 +213,6 @@ program
             `<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'><title>Error 404</title></head><body><pre>You're lost.</pre></body></html>`
           );
       });
-
-      const httpServer = http.createServer(app);
-      apiServer.installSubscriptionHandlers(httpServer);
 
       const PORT = Number(program.opts().port || config.SERVER_PORT);
       const IP = Number(program.opts().ip || config.SERVER_IP);
