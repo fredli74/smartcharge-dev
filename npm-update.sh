@@ -9,79 +9,116 @@ fi
 # on error or exit, set it back
 trap 'npm config set save-prefix="$prefix"' EXIT
 
-# Function to get the release date of a package version
-get_release_date() {
+# Function to fetch all versions and their release dates for a package
+get_version_dates() {
   local package=$1
-  local version=$2
-  # Strip the leading ^ or ~ from the version string
-  version=${version//[^0-9.]/}
-  # Fetch the package's release dates
-  npm info "$package" time --json 2>/dev/null | grep "\"$version\"" | awk -F '"' '{print $4}'
+  npm info "$package" time --json 2>/dev/null | grep -Eo '"([^"@]+)":\s*"([^"]+)"' | sed 's/"//g' | awk -F: '{print $1 "|" $2}'
 }
 
-# Function to update dependencies based on the target (patch, minor, latest)
-update_dependencies() {
-  local target=$1  # patch, minor, latest, newest, etc.
-  local testcmd=$2    # test or empty
+# Take two versions and return true if the first one is greater
+version_is_greater() {
+  local version1=$1
+  local version2=$2
 
-  echo "==== Running ncu to check for $target updates ===="
+  # Trim spaces and strip -suffix from the versions
+  version1=$(echo "$version1" | sed -E 's/\s*[~^]//g' | sed -E 's/\s//g' | sed -E 's/-.*//g')
+  version2=$(echo "$version2" | sed -E 's/\s*[~^]//g' | sed -E 's/\s//g' | sed -E 's/-.*//g')
 
-  # Run ncu to check for updates
-  ncu_output=$(ncu --target "$target")
+  # compare versions and return true if the first one is greater (but not equal)
+  # which is the same as first row of reverse sorted versions is not equal to the second version
+  [[ $(echo -e "$version1\n$version2" | sort -Vr | head -n1) != "$version2" ]]
+}
 
-  if [ -z "$ncu_output" ]; then
-    echo "No $target updates available."
-    return
+# Process dependencies globally in date order
+update_packages_globally() {
+  local testcmd=$1
+
+  # Ensure a test command is provided
+  if [ -z "$testcmd" ]; then
+    echo "Error: Test command must be provided."
+    exit 1
   fi
 
-  # Temporary file to store updates with release dates
+  # Temporary file to store package release dates globally
   temp_file=$(mktemp)
-  
-  # Extract the current and updated versions from the ncu output
-  echo "$ncu_output" | grep -E "→" | while read -r line; do
-      # Extract the package name and version details
-      package=$(echo "$line" | awk '{print $1}')
-      current_version=$(echo "$line" | awk '{print $2}')
+  failed_packages=()
 
-      # Check if the current version contains ~ or ^, meaning it's updatable
-      if [[ "$current_version" =~ [~^] ]]; then
-        updated_version=$(echo "$line" | awk '{print $4}')
+  set +x
+
+  # Collect release dates for all dependencies
+  grep -E '"dependencies":|"devDependencies":' -A 100 package.json | \
+    grep -Eo '"([^"@]+)":\s*"([^"]+)"' | \
+    sed 's/"//g' | \
+    awk -F: '{print $1 "|" $2}' | while IFS='|' read -r package current_version; do
+      # Skip fixed versions (no ^ or ~)
+      if [[ ! "$current_version" =~ [~^] ]]; then
+        echo "Skipping fixed version: $package@$current_version"
+        failed_packages+=("$package")
+        continue
+      fi
+
+      # Get all versions and release dates for this package
+      get_version_dates "$package" | while IFS='|' read -r version release_date; do
+        # Skip anything that is not a valid version x.x.x ...
+        if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
+          continue
+        fi
+
+        # Skip versions with null release dates (unexpected edge case)
+        if [[ "$release_date" == null ]]; then
+          continue
+        fi
+
+        # Skip versions older than or equal to the current one
+        if ! version_is_greater "$version" "$current_version"; then
+          continue
+        fi
         
-        release_date=$(get_release_date "$package" "$updated_version")
-        # If no release date is found, set to a very old date to prevent breaking
-        [[ -z "$release_date" ]] && release_date="1970-01-01T00:00:00.000Z"
+        # Skip versions with pre-release tags
+        if [[ "$version" =~ -([a-zA-Z0-9]+) ]]; then
+          echo "Skipping $package@$version because it is a '${BASH_REMATCH[1]}' version."
+          continue
+        fi
 
-        # Write to the temp file: date|package|updated_version
-        echo "$release_date|$package|$current_version|$updated_version" >> "$temp_file"
-      else
-        echo "Skipping $package (fixed version: $current_version)"
-      fi
+        # Add valid versions to the processing queue
+        echo "$release_date|$package|$current_version|$version" >> "$temp_file"
+      done
   done
 
-  # Sort updates by release date and process them
+  set -x
+  
+  # Sort updates globally by release date and process them
   sort "$temp_file" | while IFS='|' read -r release_date package current_version updated_version; do
-      echo "Updating $package from $current_version to $updated_version ($target)"
-      
-      # Install updated package
-      npm install "$package@$updated_version"
+    # Skip previously failed packages or pinned packages
+    if [[ " ${failed_packages[*]} " =~ " $package " ]]; then
+      echo "Skipping $package due to previous failure or pinned version."
+      continue
+    fi
 
-      # Run the second argument as a command if it is included and abort if it fails
-      if [ -n "$testcmd" ]; then
-        $testcmd || exit 1
-      fi
-   
-      # Check if there are any changes to commit
-      if [[ -n $(git diff --name-only) ]]; then
-        # Commit the changes with version numbers in the message
-        echo "Committing changes for $package $current_version → $updated_version"
-        git add package.json package-lock.json
-        git commit -m "$package $current_version → $updated_version"
-      else
-        echo "No changes detected for $package."
-      fi
+    echo "Updating $package to $updated_version (released: $release_date)"
+    npm install "$package@$updated_version"
+
+    # Run test command
+    echo "Running test command: $testcmd"
+    if ! eval "$testcmd"; then
+      echo "Failed upgrade $package $current_version → $updated_version"
+      echo "Test command failed for $package@$updated_version. Blocking further updates for this package."
+      failed_packages+=("$package")
+      git reset --hard
+      continue
+    fi
+
+    # Commit changes for this update
+    if [[ -n $(git diff --name-only) ]]; then
+      echo "Committing changes for $package $current_version → $updated_version"
+      git add package.json package-lock.json
+      git commit -m "$package $current_version → $updated_version"
+    else
+      echo "No changes detected for $package at $updated_version."
+    fi
   done
 
-  # Run npm audit fix to apply security patches
+  # Run npm audit fix and commit if necessary
   echo "Running npm audit fix"
   npm audit fix
   if [[ -n $(git diff --name-only) ]]; then
@@ -90,28 +127,17 @@ update_dependencies() {
   fi
 
   # Clean up
-  rm -f "$temp_file" 
+  rm -f "$temp_file"
 }
 
-# Step 1: Silently create or overwrite the npm-update branch
+# Switch to the npm-update branch
 echo "Switching to branch 'npm-update' (or creating it if it doesn't exist)"
 git checkout -B npm-update
 
-# Step 2: Perform updates (patch, minor, latest) based on the first script argument
-# if "patch" or none, run update_dependencies "patch"
-if [ "$1" == "patch" ] || [ -z "$1" ]; then
-  update_dependencies "patch" "$2"
-fi
-# if "minor" or none, run update_dependencies "minor"
-if [ "$1" == "minor" ] || [ -z "$1" ]; then
-  update_dependencies "minor" "$2"
-fi
-# if "latest" or none, run update_dependencies "latest"
-if [ "$1" == "latest" ] || [ -z "$1" ]; then
-  update_dependencies "latest" "$2"
-fi
+# Run the update process
+update_packages_globally "$1"
 
-# Step 3: Instructions for squashing commits and merging
+# Instructions for squashing commits and merging
 echo "==== Update process completed ===="
 echo "You can now squash and merge the 'npm-update' branch into your main branch."
 echo ""
