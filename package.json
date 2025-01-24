@@ -54,8 +54,8 @@
   "devDependencies": {
     "@babel/cli": "~7.17.10",
     "@babel/core": "~7.17.12",
-    "@babel/plugin-proposal-object-rest-spread": "7.20.7",
-    "@babel/plugin-transform-object-rest-spread": "7.25.9",
+    "@babel/plugin-proposal-object-rest-spread": "~7.20.7",
+    "@babel/plugin-transform-object-rest-spread": "~7.25.9",
     "@babel/preset-typescript": "~7.16.7",
     "@mdi/font": "~6.9.96",
     "@types/auth0-js": "~9.14.7",

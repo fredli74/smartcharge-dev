@@ -101,7 +101,7 @@ update_packages_globally() {
     # Run test command
     echo "Running test command: $testcmd"
     if ! eval "$testcmd"; then
-      echo "Failed upgrade $package $current_version → $updated_version"
+      echo "Failed upgrade $package $current_version → ~$updated_version"
       echo "Test command failed for $package@$updated_version. Blocking further updates for this package."
       failed_packages+=("$package")
       git reset --hard
@@ -110,9 +110,9 @@ update_packages_globally() {
 
     # Commit changes for this update
     if [[ -n $(git diff --name-only) ]]; then
-      echo "Committing changes for $package $current_version → $updated_version"
+      echo "Committing changes for $package $current_version → ~$updated_version"
       git add package.json package-lock.json
-      git commit -m "$package $current_version → $updated_version"
+      git commit -m "$package $current_version → ~$updated_version"
     else
       echo "No changes detected for $package at $updated_version."
     fi
