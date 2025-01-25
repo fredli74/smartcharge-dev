@@ -15,6 +15,10 @@
     "sourceMap": true,
     "noEmit": true,
     "baseUrl": ".",
+    "types": [
+      "vite/client",
+      "vue",
+    ],
     "paths": {
       "@app/*": [
         "app/src/*"

@@ -3,7 +3,7 @@
 /**
  * @file TeslaAPI agent command line utility
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 

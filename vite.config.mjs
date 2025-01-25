@@ -1,16 +1,20 @@
 import { defineConfig } from 'vite';
-import path from 'path';
 import { viteStaticCopy } from 'vite-plugin-static-copy';
-import globals from './shared/smartcharge-globals.json'; // Adjusted to resolve from `shared`
+import vue2 from '@vitejs/plugin-vue2'
+import Components from 'unplugin-vue-components/vite'
+import { VuetifyResolver } from 'unplugin-vue-components/resolvers'
+
 import { execSync } from 'child_process';
-import { createVuePlugin as vue } from 'vite-plugin-vue2';
 import { fileURLToPath, URL } from 'node:url';
+import path from 'path';
+import globals from './shared/smartcharge-globals.json'; // Adjusted to resolve from `shared`
 
 const commitHash = process.env.SOURCE_VERSION || execSync('git rev-parse --short HEAD').toString().trim();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
     root: 'app', // Root directory for the Vue app
+    envDir: '../', // Backing out of the Vue app root to the project root
     build: {
         outDir: '../dist/app', // Output directory
         emptyOutDir: true,
@@ -38,15 +42,8 @@ export default defineConfig({
         },
     },
     plugins: [
-        vue(), // Vue 2 plugin
-        viteStaticCopy({
-            targets: [
-                {
-                    src: 'public/*',
-                    dest: '.',
-                    rename: (fileName) => (fileName.match(/index\.html|\.DS_Store/) ? null : fileName),
-                },
-            ],
-        }),
+        vue2(), // Vue 2 plugins
+        Components({ resolvers: [VuetifyResolver()] }),
+        viteStaticCopy({ targets: [{ src: 'public/*', dest: '.' }] }),
     ],
 });

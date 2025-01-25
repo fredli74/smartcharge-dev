@@ -1,10 +1,10 @@
 /**
  * @file Provider app definitions for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
-import { IProvider } from ".";
+import { IProvider } from "./index.js";
 import { VueConstructor } from "vue";
 import { Vue } from "vue-property-decorator";
 

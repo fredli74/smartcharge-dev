@@ -3,11 +3,11 @@
 /**
  * @file Agency CLI for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  * @description Agency coordinates with the server which agent jobs to run
  */
-import "./env";
+import "./env.js";
 import { strict as assert } from "assert";
 
 import { Command } from "commander";

@@ -1,7 +1,7 @@
 /**
  * @file Provider app loading for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 import { IProviderApp } from "./provider-app.js";

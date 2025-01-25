@@ -1,10 +1,10 @@
 /**
  * @file Provider agent definitions for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
-import { IProvider } from ".";
+import { IProvider } from "./index.js";
 import { SCClient } from "@shared/sc-client.js";
 import { log, LogLevel, delay } from "@shared/utils.js";
 import { GQLAction, GQLServiceProvider } from "@shared/sc-schema.js";

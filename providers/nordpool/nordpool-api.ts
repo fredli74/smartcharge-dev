@@ -1,13 +1,13 @@
 /**
  * @file Nordpool API helper for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
 import { RestClient } from "@shared/restclient.js";
 import config from "./nordpool-config.js";
-import provider from ".";
+import provider from "./index.js";
 import { PROJECT_AGENT } from "@shared/smartcharge-defines.js";
 
 export class NordpoolAPI extends RestClient {
