@@ -1,9 +1,23 @@
 #!/bin/bash
 set -x -e -o pipefail
 
+# Check script arguments
+#  1. (patch|minor|major) - the version bump to apply
+#  2. (test command) - the command to run to test the changes
+if [ "$#" -ne 2 ]; then
+  echo "Usage: $0 (patch|minor|major) 'test command'"
+  exit 1
+fi
+
+target=$1
+testcmd=$2
+
 # Set the save-prefix to "~" to avoid caret (^) in package.json
 prefix=$(npm config get save-prefix)
-if [ "$prefix" != "~" ]; then
+# Set prefix to patch:~, minor:^, major:~
+if [ "$target" == "minor" ]; then
+  npm config set save-prefix="^"
+else 
   npm config set save-prefix="~"
 fi
 # on error or exit, set it back
@@ -15,30 +29,8 @@ get_version_dates() {
   npm info "$package" time --json 2>/dev/null | grep -Eo '"([^"@]+)":\s*"([^"]+)"' | sed 's/"//g' | awk -F: '{print $1 "|" $2}'
 }
 
-# Take two versions and return true if the first one is greater
-version_is_greater() {
-  local version1=$1
-  local version2=$2
-
-  # Trim spaces and strip -suffix from the versions
-  version1=$(echo "$version1" | sed -E 's/\s*[~^]//g' | sed -E 's/\s//g' | sed -E 's/-.*//g')
-  version2=$(echo "$version2" | sed -E 's/\s*[~^]//g' | sed -E 's/\s//g' | sed -E 's/-.*//g')
-
-  # compare versions and return true if the first one is greater (but not equal)
-  # which is the same as first row of reverse sorted versions is not equal to the second version
-  [[ $(echo -e "$version1\n$version2" | sort -Vr | head -n1) != "$version2" ]]
-}
-
 # Process dependencies globally in date order
 update_packages_globally() {
-  local testcmd=$1
-
-  # Ensure a test command is provided
-  if [ -z "$testcmd" ]; then
-    echo "Error: Test command must be provided."
-    exit 1
-  fi
-
   # Temporary file to store package release dates globally
   temp_file=$(mktemp)
   failed_packages=()
@@ -57,20 +49,36 @@ update_packages_globally() {
         continue
       fi
 
+      # Split current version into major, minor, patch
+      IFS='.' read -r current_major current_minor current_patch <<< $(echo "$current_version" | sed -E 's/\s*[~^]//g' | sed -E 's/\s//g' | sed -E 's/-.*//g')
+
       # Get all versions and release dates for this package
       get_version_dates "$package" | while IFS='|' read -r version release_date; do
         # Skip anything that is not a valid version x.x.x ...
         if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+ ]]; then
           continue
         fi
-
         # Skip versions with null release dates (unexpected edge case)
         if [[ "$release_date" == null ]]; then
           continue
         fi
 
-        # Skip versions older than or equal to the current one
-        if ! version_is_greater "$version" "$current_version"; then
+        # Split version into major, minor, patch
+        IFS='.' read -r new_major new_minor new_patch <<< "$version"
+
+        # Filter out versions based on the target
+        if [ "$target" == "patch" ] && { [ "$new_major" != "$current_major" ] || [ "$new_minor" != "$current_minor" ]; }; then
+          continue
+        fi
+
+        if [ "$target" == "minor" ] && [ "$new_major" != "$current_major" ]; then
+          continue
+        fi
+
+        # Skip versions older or equal to the current version
+        if [ "$current_major" -lt "$new_major" ] ||
+          { [ "$current_major" -eq "$new_major" ] && [ "$current_minor" -lt "$new_minor" ]; } ||
+          { [ "$current_major" -eq "$new_major" ] && [ "$current_minor" -eq "$new_minor" ] && [ "$current_patch" -ge "$new_patch" ]; }; then
           continue
         fi
         
@@ -135,7 +143,7 @@ echo "Switching to branch 'npm-update' (or creating it if it doesn't exist)"
 git checkout -B npm-update
 
 # Run the update process
-update_packages_globally "$1"
+update_packages_globally
 
 # Instructions for squashing commits and merging
 echo "==== Update process completed ===="
