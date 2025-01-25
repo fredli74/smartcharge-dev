@@ -42,6 +42,8 @@ update_packages_globally() {
     grep -Eo '"([^"@]+)":\s*"([^"]+)"' | \
     sed 's/"//g' | \
     awk -F: '{print $1 "|" $2}' | while IFS='|' read -r package current_version; do
+      echo "Looking for updates for $package@$current_version"
+
       # Skip fixed versions (no ^ or ~)
       if [[ ! "$current_version" =~ [~^] ]]; then
         echo "Skipping fixed version: $package@$current_version"
@@ -63,8 +65,15 @@ update_packages_globally() {
           continue
         fi
 
-        # Split version into major, minor, patch
-        IFS='.' read -r new_major new_minor new_patch <<< "$version"
+        # Split version into major, minor, patch 
+        IFS='.' read -r new_major new_minor new_patch <<< $(echo "$version" | sed -E 's/\s*[~^]//g' | sed -E 's/\s//g' | sed -E 's/-.*//g')
+
+        # Skip versions older or equal to the current version
+        if [ "$new_major" -lt "$current_major" ] ||
+          { [ "$new_major" -eq "$current_major" ] && [ "$new_minor" -lt "$current_minor" ]; } ||
+          { [ "$new_major" -eq "$current_major" ] && [ "$new_minor" -eq "$current_minor" ] && [ "$new_patch" -le "$current_patch" ]; }; then
+          continue
+        fi
 
         # Filter out versions based on the target
         if [ "$target" == "patch" ] && { [ "$new_major" != "$current_major" ] || [ "$new_minor" != "$current_minor" ]; }; then
@@ -74,21 +83,15 @@ update_packages_globally() {
         if [ "$target" == "minor" ] && [ "$new_major" != "$current_major" ]; then
           continue
         fi
-
-        # Skip versions older or equal to the current version
-        if [ "$current_major" -lt "$new_major" ] ||
-          { [ "$current_major" -eq "$new_major" ] && [ "$current_minor" -lt "$new_minor" ]; } ||
-          { [ "$current_major" -eq "$new_major" ] && [ "$current_minor" -eq "$new_minor" ] && [ "$current_patch" -ge "$new_patch" ]; }; then
-          continue
-        fi
         
         # Skip versions with pre-release tags
         if [[ "$version" =~ -([a-zA-Z0-9]+) ]]; then
-          echo "Skipping $package@$version because it is a '${BASH_REMATCH[1]}' version."
+          # echo "Skipping $package@$version because it is a '${BASH_REMATCH[1]}' version."
           continue
         fi
 
         # Add valid versions to the processing queue
+        echo "Found update: $package@$version (released: $release_date)"
         echo "$release_date|$package|$current_version|$version" >> "$temp_file"
       done
   done
