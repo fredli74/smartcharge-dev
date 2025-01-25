@@ -5,13 +5,13 @@
  * @license MIT (MIT)
  */
 
-import { Resolver, Ctx, Mutation, Arg, Query } from "type-graphql";
+import { Resolver, Ctx, Mutation, Arg, Query, Extensions } from "type-graphql";
 import type { IContext } from "@server/gql/api.js";
 import { Account } from "./account-type.js";
 import { SINGLE_USER_UUID, makeAccountUUID } from "@server/db-interface.js";
 import config from "@shared/smartcharge-config.js";
-import { AuthenticationError } from "apollo-server-core";
 import { plainToInstance } from "class-transformer";
+import { GraphQLError } from 'graphql';
 
 const AUTH0_DOMAIN_URL = `https://${config.AUTH0_DOMAIN}/`;
 
@@ -50,7 +50,9 @@ export class AccountResolver {
   @Query((_returns) => Account)
   async account(@Ctx() context: IContext): Promise<Account> {
     if (!context.accountUUID) {
-      throw new AuthenticationError(`Not logged in`);
+      throw new GraphQLError("Not logged in",
+        undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
+      );
     }
     return plainToInstance(
       Account,
@@ -64,13 +66,15 @@ export class AccountResolver {
     @Ctx() context: IContext
   ): Promise<Account> {
     if (config.SINGLE_USER !== "true") {
-      throw new AuthenticationError(
-        `loginWithPassword only allowed in SINGLE_USER mode`
+      throw new GraphQLError(
+        "loginWithPassword only allowed in SINGLE_USER mode",
+        undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
       );
     }
     if (password !== config.SINGLE_USER_PASSWORD) {
-      throw new AuthenticationError(
-        `loginWithPassword called with invalid password`
+      throw new GraphQLError(
+        `loginWithPassword called with invalid password`,
+        undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
       );
     }
     return plainToInstance(Account, await context.db.getAccount(SINGLE_USER_UUID));
@@ -82,14 +86,16 @@ export class AccountResolver {
     @Ctx() context: IContext
   ): Promise<Account> {
     if (config.SINGLE_USER === "true") {
-      throw new AuthenticationError(
-        `loginWithIDToken not allowed in SINGLE_USER mode`
+      throw new GraphQLError(
+        `loginWithIDToken not allowed in SINGLE_USER mode`,
+        undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
       );
     }
     const payload = await jwkVerify(idToken); 
     if (typeof payload !== "object" || !payload.iss || !payload.sub || !payload.name) {
-      throw new AuthenticationError(
-        `Invalid token, required payload is iss, sub and name`
+      throw new GraphQLError(
+        `Invalid token, required payload is iss, sub and name`,
+        undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
       );
     }
     const [domain, subject] = payload.sub.split("|");

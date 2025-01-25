@@ -68,9 +68,9 @@
 
 <script lang="ts">
 import { Component, Vue } from "vue-property-decorator";
-import { gql } from "apollo-boost";
 import providers from "@providers/provider-apps.js";
 import { GQLVehicle } from "@shared/sc-schema.js";
+import gql from "graphql-tag";
 
 @Component({
   components: {},

@@ -6,7 +6,6 @@ import provider, {
   TeslaProviderData,
   TeslaToken,
 } from "./index.js";
-import { ApolloError } from "apollo-server-express";
 import { DBInterface } from "@server/db-interface.js";
 import teslaAPI, { TeslaAPI } from "./tesla-api.js";
 import { log, LogLevel } from "@shared/utils.js";
@@ -15,6 +14,7 @@ import { TeslaNewListEntry } from "./app/tesla-helper.js";
 import config from "./tesla-config.js";
 import { DBServiceProvider } from "@server/db-schema.js";
 import { strict as assert } from "assert";
+import { GraphQLError } from "graphql";
 
 export async function authorize(
   db: DBInterface,
@@ -26,7 +26,9 @@ export async function authorize(
     return await teslaAPI.authorize(code, callbackURI);
   } catch (err) {
     log(LogLevel.Error, err);
-    throw new ApolloError("Invalid token", "INVALID_TOKEN");
+    throw new GraphQLError("Invalid token", 
+      undefined, undefined, undefined, undefined, undefined, { code: "INVALID_TOKEN" }
+    );
   }
 }
 
@@ -93,7 +95,9 @@ export async function maintainServiceToken(
         );
         log(LogLevel.Error, `Unexpected error raised when renewing token ${JSON.stringify(err)}`);
       }
-      throw new ApolloError("Invalid token", "INVALID_TOKEN");
+      throw new GraphQLError("Invalid token",
+        undefined, undefined, undefined, undefined, undefined, { code: "INVALID_TOKEN" }
+      );
     }
   } else {
     log(LogLevel.Debug, `Token ${service.service_data.token.access_token} is already being refreshed, ignoring`);
@@ -129,7 +133,7 @@ const server: IProviderServer = {
         const controlled = (
           await context.db.getVehicles(accountFilter(context.accountUUID))
         ).reduce((a, v) => {
-          const provider_data = v.provider_data as TeslaProviderData;
+          const provider_data = v.provider_data as unknown as TeslaProviderData;
           if (
             provider_data &&
             provider_data.provider === "tesla" &&
@@ -201,17 +205,23 @@ const server: IProviderServer = {
       case TeslaProviderMutates.RefreshToken: {
         log(LogLevel.Trace, `TeslaProviderMutates.RefreshToken ${JSON.stringify(data)}`);
         if (!data.service_uuid) {
-          throw new ApolloError("Invalid call to RefreshToken", "INVALID_CALL");
+          throw new GraphQLError("Invalid call to RefreshToken",
+            undefined, undefined, undefined, undefined, undefined, { code: "BAD_USER_INPUT" }
+          );
         }
         const service = await context.db.pg.oneOrNone(
           `SELECT * FROM service_provider WHERE service_uuid=$1;`,
           [data.service_uuid]
         );
         if (!service) {
-          throw new ApolloError("Service not found", "SERVICE_NOT_FOUND");
+          throw new GraphQLError("Service not found",
+            undefined, undefined, undefined, undefined, undefined, { code: "BAD_USER_INPUT" }
+          );
         }
         if (!service.service_data.token) {
-          throw new ApolloError("Service does not have a token", "NO_TOKEN");
+          throw new GraphQLError("Service does not have a token",
+            undefined, undefined, undefined, undefined, undefined, { code: "INVALID_TOKEN" }
+          );
         }
         return await maintainServiceToken(context.db, service);
       }
@@ -221,6 +231,11 @@ const server: IProviderServer = {
           LogLevel.Trace,
           `TeslaProviderMutates.NewVehicle(${JSON.stringify(input)})`
         );
+        if (context.accountUUID === undefined) {
+          throw new GraphQLError("No accountUUID in context",
+            undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
+          );
+        }      
         const vehicle = await context.db.newVehicle(
           context.accountUUID,
           input.name,

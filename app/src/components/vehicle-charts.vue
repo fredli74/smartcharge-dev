@@ -44,7 +44,7 @@ import { strict as assert } from "assert";
 import { Component, Vue, Prop, Watch } from "vue-property-decorator";
 import ApexCharts from "apexcharts";
 import VueApexCharts from "vue-apexcharts";
-import { gql } from "apollo-boost";
+import gql from "graphql-tag";
 import {
   log,
   LogLevel,

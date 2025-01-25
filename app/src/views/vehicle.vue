@@ -151,7 +151,7 @@
 import { strict as assert } from "assert";
 
 import { Component, Vue, Watch } from "vue-property-decorator";
-import { gql } from "apollo-boost";
+import gql from "graphql-tag";
 import providers from "@providers/provider-apps.js";
 import RelativeTime from "@app/components/relative-time.vue";
 import VehicleCharts from "@app/components/vehicle-charts.vue";

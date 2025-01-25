@@ -45,7 +45,7 @@
 
 <script lang="ts">
 import { Component, Vue, Prop } from "vue-property-decorator";
-import { gql } from "apollo-boost";
+import gql from "graphql-tag";
 
 import EditVehicleLocationSettings from "@app/components/edit-vehicle-location-settings.vue";
 import RemoveDialog from "@app/components/remove-dialog.vue";

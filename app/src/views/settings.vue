@@ -98,7 +98,7 @@
 
 <script lang="ts">
 import { Component, Vue } from "vue-property-decorator";
-import { gql } from "apollo-boost";
+import gql from "graphql-tag";
 import EditVehicle from "@app/components/edit-vehicle.vue";
 import EditLocation from "@app/components/edit-location.vue";
 import { GQLVehicle, GQLLocation } from "@shared/sc-schema.js";

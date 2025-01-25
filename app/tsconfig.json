@@ -2,10 +2,8 @@
     "extends": "../tsconfig.json",
     "compilerOptions": {
         "types": [
-            "vite/client",
-            "vue",
             "vue-router",
-            "vuetify"
+            "vuetify",
         ]
     },
     "include": [

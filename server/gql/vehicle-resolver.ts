@@ -31,10 +31,10 @@ import {
   Schedule,
 } from "./vehicle-type.js";
 import { log, LogLevel, makePublicID } from "@shared/utils.js";
-import { ApolloError } from "apollo-server-core";
 import { plainToInstance } from "class-transformer";
 import { DBSchedule } from "@server/db-schema.js";
 import { ScheduleType } from "@shared/sc-types.js";
+import { GraphQLError } from "graphql";
 
 interface VehicleSubscriptionPayload {
   account_uuid: string;
@@ -121,7 +121,9 @@ export class VehicleResolver {
 
     const publicID = makePublicID(vehicle.vehicle_uuid);
     if (confirm.toLowerCase() !== publicID) {
-      throw new ApolloError("Incorrect confirmation code");
+      throw new GraphQLError("Incorrect confirmation code",
+        undefined, undefined, undefined, undefined, undefined, { code: "BAD_USER_INPUT" }
+      );
     }
 
     await context.db.removeVehicle(id);

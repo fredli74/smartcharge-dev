@@ -10,7 +10,7 @@ import { accountFilter } from "@server/gql/api.js";
 import type { IContext } from "@server/gql/api.js";
 import { PriceList, UpdatePriceListInput } from "./price-type.js";
 import { plainToInstance } from "class-transformer";
-import { ApolloError } from "apollo-server-core";
+import { GraphQLError } from "graphql";
 
 @Resolver()
 export class PriceResolver {
@@ -45,7 +45,9 @@ export class PriceResolver {
     @Ctx() context: IContext
   ): Promise<PriceList> {
     if (!context.accountUUID) {
-      throw new ApolloError("Not logged in");
+      throw new GraphQLError("Not logged in",
+        undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
+      );
     }
     return plainToInstance(
       PriceList,
@@ -63,7 +65,9 @@ export class PriceResolver {
     const list = await context.db.getPriceList(accountID, input.id);
     if (accountID === undefined || list.account_uuid === accountID) {
       // Because we can list public lists, but no edit them
-      throw new ApolloError("Update access denied");
+      throw new GraphQLError("Update access denied",
+        undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHORIZED" }
+      );
     }
     return plainToInstance(
       PriceList,

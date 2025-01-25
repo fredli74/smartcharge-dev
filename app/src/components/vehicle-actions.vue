@@ -134,7 +134,7 @@
 
 <script lang="ts">
 import { Component, Vue, Prop } from "vue-property-decorator";
-import { gql } from "apollo-boost";
+import gql from "graphql-tag";
 import { AgentAction } from "@providers/provider-agent.js";
 import apollo from "@app/plugins/apollo.js";
 import { delay } from "@shared/utils.js";
