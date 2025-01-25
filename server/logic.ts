@@ -32,6 +32,7 @@ import {
   UpdateVehicleDataInput,
   ChargePlan,
   Schedule,
+  VehicleLocationSettings,
 } from "./gql/vehicle-type.js";
 import { SmartChargeGoal, ChargeType, ScheduleType } from "@shared/sc-types.js";
 import {
@@ -570,6 +571,13 @@ export class Logic {
     );
   }
 
+  public getVehicleLocationSettings(vehicle: DBVehicle | null, location_uuid: string | null): VehicleLocationSettings {
+    if (location_uuid && vehicle && vehicle.location_settings && vehicle.location_settings[location_uuid]) {
+      return vehicle.location_settings[location_uuid] as VehicleLocationSettings;
+    }
+    return DBInterface.DefaultVehicleLocationSettings();
+  }
+
   public async createNewStats(
     vehicle: DBVehicle,
     location_uuid: string
@@ -696,10 +704,7 @@ export class Logic {
 
     if (historyMap.length > 0) {
       // Charge simulation
-      const locationSettings =
-        vehicle.location_settings[location_uuid] ||
-        DBInterface.DefaultVehicleLocationSettings();
-
+      const locationSettings = this.getVehicleLocationSettings(vehicle, location_uuid);
       const minimum_charge = locationSettings.directLevel;
       const maximum_charge = vehicle.maximum_charge;
 
@@ -966,10 +971,7 @@ export class Logic {
      ****** ANALYSE AND THINK ABOUT IT!  ******
      */
 
-    const locationSettings =
-      (vehicle.location_uuid &&
-        vehicle.location_settings[vehicle.location_uuid]) ||
-      DBInterface.DefaultVehicleLocationSettings();
+    const locationSettings = this.getVehicleLocationSettings(vehicle, vehicle.location_uuid);
     const minimum_charge = locationSettings.directLevel;
 
     const guess: {
@@ -1067,10 +1069,7 @@ export class Logic {
 
     // TODO: Check current vehicle.charge_plan and see if it needs to be recalculated?
 
-    const locationSettings =
-      (vehicle.location_uuid &&
-        vehicle.location_settings[vehicle.location_uuid]) ||
-      DBInterface.DefaultVehicleLocationSettings();
+    const locationSettings = this.getVehicleLocationSettings(vehicle, vehicle.location_uuid);
     const minimum_charge = locationSettings.directLevel;
 
     // Cleanup schedule remove all entries 1 hour after the end time
