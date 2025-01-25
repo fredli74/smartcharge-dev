@@ -1,8 +1,8 @@
 import "./plugins/hooks";
 import Vue from "vue";
-import apollo, { apolloProvider } from "./plugins/apollo";
-import vuetify from "./plugins/vuetify";
-import router from "./router";
+import apollo, { apolloProvider } from "./plugins/apollo.js";
+import vuetify from "./plugins/vuetify.js";
+import router from "./router.js";
 import "./register-service-worker";
 import "./plugins/visible";
 import App from "./app.vue";

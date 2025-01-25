@@ -3,7 +3,7 @@
 /**
  * @file TeslaAPI agent command line utility
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
@@ -25,7 +25,7 @@ import { TeslaAgent, teslaAPI } from "../tesla-agent";
 import * as os from "os";
 import * as path from "path";
 import * as fs from "fs";
-import { IRestToken } from "@shared/restclient";
+import { IRestToken } from "@shared/restclient.js";
 
 const tokenFileName = ".teslatoken";
 const tokenFilePath = path.join(os.homedir(), tokenFileName);

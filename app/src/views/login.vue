@@ -30,10 +30,10 @@
 
 <script lang="ts">
 import { Component, Vue } from "vue-property-decorator";
-import apollo from "@app/plugins/apollo";
-import eventBus, { BusEvent } from "@app/plugins/event-bus";
+import apollo from "@app/plugins/apollo.js";
+import eventBus, { BusEvent } from "@app/plugins/event-bus.js";
 import { strict as assert } from "assert";
-import config from "@shared/smartcharge-config";
+import config from "@shared/smartcharge-config.js";
 import auth from "../plugins/auth0";
 
 @Component({

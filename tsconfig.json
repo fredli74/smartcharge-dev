@@ -10,13 +10,14 @@
     "experimentalDecorators": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
+    "declaration": true,
     "resolveJsonModule": true,
     "sourceMap": true,
     "noEmit": true,
     "baseUrl": ".",
     "types": [
-      "webpack-env",
-      "vuetify"
+      "vite/client",
+      "vue",
     ],
     "paths": {
       "@app/*": [
@@ -42,8 +43,5 @@
   "exclude": [
     "node_modules",
     "dist"
-  ],
-  "vueCompilerOptions": {
-    "strictTemplates": false
-  }
+  ]
 }

@@ -3,19 +3,21 @@
 /**
  * @file Simple schema build util for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
 import fs from "fs";
 import path from "path";
-import gqlSchema from "./api";
+import { fileURLToPath } from "url";
+import gqlSchema from "./api.js";
 import { generateTSTypesAsString } from "graphql-schema-typescript";
 
-const schemaFileName = path.resolve(
-  __dirname,
-  "../../../shared/sc-schema.graphql"
-);
+// Simulate __dirname using import.meta.url
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const schemaFileName = path.resolve(__dirname, "../../../shared/sc-schema.graphql");
 const typeFileName = path.resolve(__dirname, "../../../shared/sc-schema.ts");
 // note: we're not exporting to .d.ts file because that makes enums const and babel did not support it
 (async () => {

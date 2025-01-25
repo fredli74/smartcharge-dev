@@ -131,12 +131,12 @@
 
 <script lang="ts">
 import { Component, Vue, Prop } from "vue-property-decorator";
-import { GQLSchedule, GQLScheduleType, GQLVehicle } from "@shared/sc-schema";
+import { GQLSchedule, GQLScheduleType, GQLVehicle } from "@shared/sc-schema.js";
 import { DateTime } from "luxon";
 import { DatetimePopup } from "vue-datetime";
-import { relativeTime } from "@shared/utils";
-import { getVehicleLocationSettings } from "@shared/sc-utils";
-import apollo from "@app/plugins/apollo";
+import { relativeTime } from "@shared/utils.js";
+import { getVehicleLocationSettings } from "@shared/sc-utils.js";
+import apollo from "@app/plugins/apollo.js";
 
 @Component({ components: { DatetimePopup } })
 export default class ScheduleItem extends Vue {

@@ -1,10 +1,12 @@
-import { IProviderApp } from "@providers/provider-app";
+import { IProviderApp } from "@providers/provider-app.js";
 import provider from "../index";
 import NordpoolVue from "./nordpool.vue";
 
+import logo from "./nordpool-logo.png";
+
 const app: IProviderApp = {
   ...provider,
-  logo: require("./nordpool-logo.png"),
+  logo,
   vue: NordpoolVue,
 };
 export default app;

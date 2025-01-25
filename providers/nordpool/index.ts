@@ -1,4 +1,4 @@
-import { IProvider, ProviderType } from "..";
+import { IProvider, ProviderType } from "../index.js";
 
 export interface NordpoolProviderData {
   provider: "nordpool";

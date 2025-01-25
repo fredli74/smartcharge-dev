@@ -3,17 +3,17 @@
 /**
  * @file Utility to import tesla data from an old trace file
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  * @description I used this utility for testing
  */
 
 import fs from "fs";
-import { delay, LogLevel, setLogLevel } from "@shared/utils";
-import { Logic } from "./logic";
-import { DBInterface } from "./db-interface";
-import { UpdateVehicleDataInput } from "./gql/vehicle-type";
-import { ChargeConnection } from "@shared/sc-types";
+import { delay, LogLevel, setLogLevel } from "@shared/utils.js";
+import { Logic } from "./logic.js";
+import { DBInterface } from "./db-interface.js";
+import { UpdateVehicleDataInput } from "./gql/vehicle-type.js";
+import { ChargeConnection } from "@shared/sc-types.js";
 
 if (process.argv.length < 3) {
   console.log(`Missing argument`);

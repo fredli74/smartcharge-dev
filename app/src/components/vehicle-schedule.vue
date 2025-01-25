@@ -33,9 +33,9 @@
 <script lang="ts">
 import { Component, Vue, Prop, Watch } from "vue-property-decorator";
 import { DateTime } from "luxon";
-import { GQLVehicle, GQLSchedule, GQLScheduleType } from "@shared/sc-schema";
+import { GQLVehicle, GQLSchedule, GQLScheduleType } from "@shared/sc-schema.js";
 import ScheduleItem from "./schedule-item.vue";
-import apollo from "@app/plugins/apollo";
+import apollo from "@app/plugins/apollo.js";
 
 @Component({ components: { ScheduleItem } })
 export default class VehicleSchedule extends Vue {

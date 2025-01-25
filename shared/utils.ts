@@ -1,7 +1,7 @@
 /**
  * @file Utilities for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
@@ -93,12 +93,6 @@ export function geoDistance(
     Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
   const δ = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return radius * δ;
-}
-
-import { randomBytes } from "crypto";
-export function generateToken(bytes: number): string {
-  const token = randomBytes(bytes);
-  return token.toString("base64");
 }
 
 export class MemCache {

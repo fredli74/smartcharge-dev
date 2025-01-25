@@ -134,17 +134,17 @@
 
 <script lang="ts">
 import { Component, Vue, Prop } from "vue-property-decorator";
-import { gql } from "apollo-boost";
-import { AgentAction } from "@providers/provider-agent";
-import apollo from "@app/plugins/apollo";
-import { delay } from "@shared/utils";
+import gql from "graphql-tag";
+import { AgentAction } from "@providers/provider-agent.js";
+import apollo from "@app/plugins/apollo.js";
+import { delay } from "@shared/utils.js";
 import { VueConstructor } from "vue";
-import eventBus, { BusEvent } from "@app/plugins/event-bus";
+import eventBus, { BusEvent } from "@app/plugins/event-bus.js";
 import deepmerge from "deepmerge";
 import VehicleCharge from "./vehicle-charge.vue";
 import VehicleSchedule from "./vehicle-schedule.vue";
-import { GQLAction, GQLVehicle, GQLScheduleType } from "@shared/sc-schema";
-import { scheduleMap } from "@shared/sc-utils";
+import { GQLAction, GQLVehicle, GQLScheduleType } from "@shared/sc-schema.js";
+import { scheduleMap } from "@shared/sc-utils.js";
 
 @Component({
   components: {

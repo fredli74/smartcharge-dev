@@ -1,24 +1,22 @@
 /**
  * @file Smart charge client for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
 import { strict as assert } from "assert";
+import { ApolloClient , gql} from "@apollo/client/core/core.cjs";
+import { HttpLink } from "@apollo/client/link/http/http.cjs";
+import { InMemoryCache } from "@apollo/client/cache/cache.cjs";
 
-import { gql, InMemoryCache } from "apollo-boost";
-import ApolloClient from "apollo-client";
-import { mergeURL, log, LogLevel } from "@shared/utils";
+import { onError } from "@apollo/client/link/error/error.cjs";
+import { setContext } from '@apollo/client/link/context/context.cjs';
+import { GraphQLWsLink } from "@apollo/client/link/subscriptions/subscriptions.cjs";
+import { Client, createClient } from "graphql-ws";
 
+import { mergeURL, log, LogLevel } from "@shared/utils.js";
 import fetch from "cross-fetch";
-
-import { ApolloLink } from "apollo-link";
-import { WebSocketLink } from "apollo-link-ws";
-import { onError } from "apollo-link-error";
-import { setContext } from "apollo-link-context";
-import { HttpLink } from "apollo-link-http";
-import { SubscriptionClient } from "subscriptions-transport-ws";
 import {
   GQLAccount,
   GQLLocation,
@@ -33,8 +31,8 @@ import {
   GQLScheduleType,
   GQLPriceList,
   GQLSchedule,
-} from "./sc-schema";
-import { API_PATH } from "./smartcharge-defines";
+} from "./sc-schema.js";
+import { API_PATH } from "./smartcharge-defines.js";
 
 // Strip __typename from input into mutations
 // import { classToPlain } from "class-transformer";
@@ -116,7 +114,7 @@ updated`;
 export class SCClient extends ApolloClient<any> {
   public account?: GQLAccount;
   private token?: string;
-  private wsClient?: SubscriptionClient;
+  private wsClient?: Client;
   constructor(
     server_url: string,
     subscription_url?: string,
@@ -144,55 +142,44 @@ export class SCClient extends ApolloClient<any> {
         console.log(`[Network error]: ${networkError}`);
       }
     });
-    const httpLink = ApolloLink.from([
-      setContext((_, { headers }) => {
-        return {
-          headers: this.token
-            ? {
-                ...headers,
-                authorization: `Bearer ${this.token}`,
-              }
-            : headers,
-        };
-      }),
-      new HttpLink({
-        // You should use an absolute URL here
+
+    let wsClient;
+    let link;
+    if (subscription_url) {
+      wsClient = createClient({
+        url: mergeURL(subscription_url, API_PATH),
+        connectionParams: () => {
+          return this.token ? { Authorization: `Bearer ${this.token}` } : {};
+        },
+        shouldRetry: () => true,
+        webSocketImpl: webSocketImpl,
+      });
+      link = errorLink.concat(new GraphQLWsLink(wsClient));
+    } else {
+      const httpLink = new HttpLink({
         uri: mergeURL(server_url, API_PATH),
         fetch: fetch,
-      }),
-    ]);
-
-    if (subscription_url) {
-      const wsClient = new SubscriptionClient(
-        mergeURL(subscription_url, API_PATH),
-        {
-          connectionParams: () => {
-            return this.token ? { Authorization: `Bearer ${this.token}` } : {};
-          },
-          reconnect: true,
-        },
-        webSocketImpl
-      );
-
-      super({
-        connectToDevTools: true,
-        link: errorLink.concat(new WebSocketLink(wsClient)),
-        cache: new InMemoryCache(),
       });
-      this.wsClient = wsClient;
-    } else {
-      super({
-        connectToDevTools: true,
-        link: errorLink.concat(httpLink),
-        cache: new InMemoryCache(),
+      const authLink = setContext((_, { headers }) => {
+        return {
+          headers: this.token
+            ? { ...headers, authorization: `Bearer ${this.token}` }
+            : headers,
+        };
       });
+      link = errorLink.concat(authLink.concat(httpLink));
     }
-
-    this.defaultOptions = {
-      watchQuery: { fetchPolicy: "no-cache", errorPolicy: "none" },
-      query: { fetchPolicy: "no-cache", errorPolicy: "none" },
-      mutate: { fetchPolicy: "no-cache", errorPolicy: "none" },
-    };
+    super({
+      // devtools: { enabled: true },
+      link,
+      cache: new InMemoryCache(),
+      defaultOptions: {
+        watchQuery: { fetchPolicy: "no-cache", errorPolicy: "none" },
+        query: { fetchPolicy: "no-cache", errorPolicy: "none" },
+        mutate: { fetchPolicy: "no-cache", errorPolicy: "none" },
+      }
+    });
+    this.wsClient = wsClient;
   }
 
   static accountFragment = `id name token`;
@@ -210,7 +197,8 @@ export class SCClient extends ApolloClient<any> {
     this.token = this.account.token;
     localStorage.setItem("token", this.account.token);
     if (this.wsClient) {
-      this.wsClient.close(false, true);
+      this.wsClient.dispose();
+      this.wsClient = undefined;
     }
   }
   public async loginWithAPIToken(token: string) {
@@ -235,7 +223,8 @@ export class SCClient extends ApolloClient<any> {
     this.token = this.account.token;
     localStorage.setItem("token", this.account.token);
     if (this.wsClient) {
-      this.wsClient.close(false, true);
+      this.wsClient.dispose();
+      this.wsClient = undefined;
     }
   }
 
@@ -248,7 +237,8 @@ export class SCClient extends ApolloClient<any> {
     this.account = undefined;
     this.cache.reset();
     if (this.wsClient) {
-      this.wsClient.close(false, true);
+      this.wsClient.dispose();
+      this.wsClient = undefined;
     }
   }
 

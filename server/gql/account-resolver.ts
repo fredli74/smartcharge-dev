@@ -1,36 +1,30 @@
 /**
  * @file GraphQL API Account resolver for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
-import { Resolver, Ctx, Mutation, Arg, Query } from "type-graphql";
-import { IContext } from "@server/gql/api";
-import { Account } from "./account-type";
-import { SINGLE_USER_UUID, makeAccountUUID } from "@server/db-interface";
-import config from "@shared/smartcharge-config";
-import { AuthenticationError } from "apollo-server-core";
+import { Resolver, Ctx, Mutation, Arg, Query, Extensions } from "type-graphql";
+import type { IContext } from "@server/gql/api.js";
+import { Account } from "./account-type.js";
+import { SINGLE_USER_UUID, makeAccountUUID } from "@server/db-interface.js";
+import config from "@shared/smartcharge-config.js";
 import { plainToInstance } from "class-transformer";
+import { GraphQLError } from 'graphql';
 
 const AUTH0_DOMAIN_URL = `https://${config.AUTH0_DOMAIN}/`;
 
-import {
-  verify,
-  JwtHeader,
-  SigningKeyCallback,
-  VerifyErrors,
-  JwtPayload,
-} from "jsonwebtoken";
+import JsonWebToken from "jsonwebtoken";
 import JwksClient from "jwks-rsa";
 const jwksClient = JwksClient({
   jwksUri: `${AUTH0_DOMAIN_URL}.well-known/jwks.json`,
 });
-async function jwkVerify(idToken: string): Promise<JwtPayload | string | undefined> {
+async function jwkVerify(idToken: string): Promise<JsonWebToken.JwtPayload | string | undefined> {
   return new Promise((resolve, reject) => {
-    verify(
+    JsonWebToken.verify(
       idToken,
-      (header: JwtHeader, callback: SigningKeyCallback) => {
+      (header: JsonWebToken.JwtHeader, callback: JsonWebToken.SigningKeyCallback) => {
         if (!header.kid) {
           reject("Internal error, invalid header in jwkVerify");
         }
@@ -40,7 +34,7 @@ async function jwkVerify(idToken: string): Promise<JwtPayload | string | undefin
         });
       },
       { audience: config.AUTH0_CLIENT_ID, issuer: AUTH0_DOMAIN_URL },
-      (err: VerifyErrors | null, decoded: JwtPayload | string | undefined) => {
+      (err: JsonWebToken.VerifyErrors | null, decoded: JsonWebToken.JwtPayload | string | undefined) => {
         if (err) {
           reject(err);
         } else {
@@ -55,6 +49,11 @@ async function jwkVerify(idToken: string): Promise<JwtPayload | string | undefin
 export class AccountResolver {
   @Query((_returns) => Account)
   async account(@Ctx() context: IContext): Promise<Account> {
+    if (!context.accountUUID) {
+      throw new GraphQLError("Not logged in",
+        undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
+      );
+    }
     return plainToInstance(
       Account,
       await context.db.getAccount(context.accountUUID)
@@ -67,13 +66,15 @@ export class AccountResolver {
     @Ctx() context: IContext
   ): Promise<Account> {
     if (config.SINGLE_USER !== "true") {
-      throw new AuthenticationError(
-        `loginWithPassword only allowed in SINGLE_USER mode`
+      throw new GraphQLError(
+        "loginWithPassword only allowed in SINGLE_USER mode",
+        undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
       );
     }
     if (password !== config.SINGLE_USER_PASSWORD) {
-      throw new AuthenticationError(
-        `loginWithPassword called with invalid password`
+      throw new GraphQLError(
+        `loginWithPassword called with invalid password`,
+        undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
       );
     }
     return plainToInstance(Account, await context.db.getAccount(SINGLE_USER_UUID));
@@ -85,14 +86,16 @@ export class AccountResolver {
     @Ctx() context: IContext
   ): Promise<Account> {
     if (config.SINGLE_USER === "true") {
-      throw new AuthenticationError(
-        `loginWithIDToken not allowed in SINGLE_USER mode`
+      throw new GraphQLError(
+        `loginWithIDToken not allowed in SINGLE_USER mode`,
+        undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
       );
     }
     const payload = await jwkVerify(idToken); 
     if (typeof payload !== "object" || !payload.iss || !payload.sub || !payload.name) {
-      throw new AuthenticationError(
-        `Invalid token, required payload is iss, sub and name`
+      throw new GraphQLError(
+        `Invalid token, required payload is iss, sub and name`,
+        undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
       );
     }
     const [domain, subject] = payload.sub.split("|");

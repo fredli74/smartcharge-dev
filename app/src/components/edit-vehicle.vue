@@ -101,15 +101,15 @@ import { Component, Vue, Prop } from "vue-property-decorator";
 import EditVehicleLocationSettings from "@app/components/edit-vehicle-location-settings.vue";
 import RemoveDialog from "@app/components/remove-dialog.vue";
 import deepmerge from "deepmerge";
-import apollo from "@app/plugins/apollo";
+import apollo from "@app/plugins/apollo.js";
 import equal from "fast-deep-equal";
 import {
   GQLVehicle,
   GQLLocation,
   GQLVehicleLocationSetting,
-} from "@shared/sc-schema";
-import { DefaultVehicleLocationSettings } from "@shared/sc-utils";
-import { UpdateVehicleParams } from "@shared/sc-client";
+} from "@shared/sc-schema.js";
+import { DefaultVehicleLocationSettings } from "@shared/sc-utils.js";
+import { UpdateVehicleParams } from "@shared/sc-client.js";
 
 @Component({
   components: { EditVehicleLocationSettings, RemoveDialog },

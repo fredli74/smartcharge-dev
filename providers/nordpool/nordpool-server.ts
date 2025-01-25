@@ -1,7 +1,7 @@
-import provider from "./index";
-import { IContext } from "@server/gql/api";
-import { IProviderServer } from "@providers/provider-server";
-import { DEFAULT_LOCATION_RADIUS } from "@shared/smartcharge-defines";
+import provider from "./index.js";
+import type { IContext } from "@server/gql/api.js";
+import { IProviderServer } from "@providers/provider-server.js";
+import { DEFAULT_LOCATION_RADIUS } from "@shared/smartcharge-defines.js";
 
 const server: IProviderServer = {
   ...provider,

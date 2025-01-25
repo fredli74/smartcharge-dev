@@ -2,14 +2,14 @@ import Vue from "vue";
 import Router from "vue-router";
 import Home from "./views/home.vue";
 import About from "./views/about.vue";
-import apollo from "./plugins/apollo";
-import eventBus, { BusEvent } from "./plugins/event-bus";
+import apollo from "./plugins/apollo.js";
+import eventBus, { BusEvent } from "./plugins/event-bus.js";
 
 Vue.use(Router);
 
 const router = new Router({
   mode: "history",
-  base: process.env.BASE_URL,
+  base: import.meta.env.BASE_URL,
   routes: [
     {
       path: "/index.html",
@@ -32,38 +32,32 @@ const router = new Router({
     {
       path: "/login",
       name: "login",
-      component: () =>
-        import(/* webpackChunkName: "login" */ "./views/login.vue"),
+      component: () => import("./views/login.vue"),
       meta: { root: true },
     },
 
     {
       path: "/add/:type",
       name: "add",
-      component: () => import(/* webpackChunkName: "add" */ "./views/add.vue"),
+      component: () => import("./views/add.vue"),
       meta: { login: true },
     },
     {
       path: "/provider/:provider/:page",
       name: "provider",
-      component: () =>
-        import(
-          /* webpackChunkName: "providerwrapper" */ "./views/provider-wrapper.vue"
-        ),
+      component: () => import("./views/provider-wrapper.vue"),
       meta: { login: true },
     },
     {
       path: "/settings",
       name: "settings",
-      component: () =>
-        import(/* webpackChunkName: "settings" */ "./views/settings.vue"),
+      component: () => import("./views/settings.vue"),
       meta: { login: true },
     },
     {
       path: "/vehicle/:id",
       name: "vehicle",
-      component: () =>
-        import(/* webpackChunkName: "vehicle" */ "./views/vehicle.vue"),
+      component: () => import("./views/vehicle.vue"),
       meta: { login: true },
     },
     {

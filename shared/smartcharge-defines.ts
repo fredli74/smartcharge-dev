@@ -1,12 +1,11 @@
 /**
  * @file Defines for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
-// Keeping globals file because I had problems using this .ts from vue.config.js
-const globals = require("./smartcharge-globals.json");
+import globals from "./smartcharge-globals.json" assert { type: "json" };
 export const API_PATH = globals.API_PATH;
 export const DEFAULT_PORT = globals.DEFAULT_PORT;
 

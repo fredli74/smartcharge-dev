@@ -1,4 +1,4 @@
-import { IProvider, ProviderType } from "..";
+import { IProvider, ProviderType } from "../index.js";
 
 // tesla API token
 export type TeslaToken = {

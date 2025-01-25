@@ -1,13 +1,13 @@
 /**
  * @file GraphQL API Account types for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
 import "reflect-metadata";
 import { ObjectType, ID, Resolver, Root, FieldResolver } from "type-graphql";
-import { DBAccount } from "@server/db-schema";
+import { DBAccount } from "@server/db-schema.js";
 
 @ObjectType()
 export class Account extends DBAccount {}

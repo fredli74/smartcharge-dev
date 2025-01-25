@@ -3,15 +3,13 @@
 /**
  * @file Server coordinator for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
-import "./env";
+import "./env.js";
 import { strict as assert } from "assert";
 
-import "core-js/stable";
-import "regenerator-runtime/runtime";
 import history from "connect-history-api-fallback";
 
 import http from "http";
@@ -20,18 +18,25 @@ import cors from "cors";
 import compression from "compression";
 import rateLimit from "express-rate-limit";
 import path from "path";
-import { log, LogLevel } from "@shared/utils";
-import gqlSchema, { IContext } from "./gql/api";
-import { DBInterface } from "./db-interface";
-import { Logic } from "./logic";
+import { log, LogLevel } from "@shared/utils.js";
+import gqlSchema from "./gql/api.js";
+import type { IContext } from "./gql/api.js";
+import { DBInterface } from "./db-interface.js";
+import { Logic } from "./logic.js";
 import { Command } from "commander";
 
-import config from "@shared/smartcharge-config";
-import { ApolloServer, AuthenticationError, ExpressContext } from "apollo-server-express";
-import { Context } from "apollo-server-core";
-import { DBAccount } from "./db-schema";
-import { execute, subscribe } from "graphql";
-import { ConnectionContext, SubscriptionServer } from "subscriptions-transport-ws";
+import config from "@shared/smartcharge-config.js";
+import { ApolloServer } from "@apollo/server"
+import { expressMiddleware } from "@apollo/server/express4";
+import { ApolloServerPluginDrainHttpServer } from "@apollo/server/plugin/drainHttpServer";
+import { DBAccount } from "./db-schema.js";
+import { GraphQLError } from "graphql";
+import { fileURLToPath } from 'url';
+import { WebSocketServer } from 'ws';
+import { useServer } from 'graphql-ws/lib/use/ws';
+import { Context, SubscribeMessage } from "graphql-ws";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const APP_NAME = `smartcharge-server`;
 const APP_VERSION = `1.0`;
@@ -58,7 +63,8 @@ program
             return await db.lookupAccount(cred[1]);
           }
         } catch (error) {
-          throw new AuthenticationError("Authorization failed");
+          throw new GraphQLError("Authorization failed", undefined, undefined, undefined, undefined, undefined,
+            { code: "UNAUTHORIZED" });
         }
       };
 
@@ -132,8 +138,8 @@ program
           next();
         });
       
-      const contextFromAuthorization = async (auth: string | undefined): Promise<IContext> => {
-        if (auth) {
+      const contextFromAuthorization = async (auth: string | unknown): Promise<IContext> => {
+        if (typeof auth === "string") {
           const account = await authorize(auth);
           if (account) {
             log(LogLevel.Debug, `Bearer authorization successful for account_uuid: ${account.account_uuid}`);
@@ -153,20 +159,42 @@ program
               
       const httpServer = http.createServer(app);
 
+      // GraphQL Socket and Http Server
       const schema = await gqlSchema();
-      // GraphQL Server
-      const apiServer = new ApolloServer({
+      const wsServer = new WebSocketServer({ server: httpServer, path: "/api/gql" });
+      const serverCleanup = useServer({
+        schema,
+        context: async (ctx: Context, msg: SubscribeMessage, args: any) => {
+          return (ctx.extra as any).scContext;
+        },
+        onConnect: async (ctx: Context) => {
+          const c = await contextFromAuthorization(ctx.connectionParams && ctx.connectionParams["Authorization"]);
+          (ctx.extra as any).scContext = c;
+          log(LogLevel.Trace, `WS ${(ctx.extra as any)?.socket?._socket?.remoteAddress} Connected - ${ c.accountUUID ? `Authorized as ${c.account?.name} (${c.accountUUID})` : `Unauthorized` }`);
+        },
+        onDisconnect: async (ctx: Context) => {
+          const c = (ctx.extra as any).scContext;
+          log(LogLevel.Trace, `WS ${(ctx.extra as any)?.socket?._socket?.remoteAddress} Disconnected - ${ c && c.accountUUID ? `Authorized as ${c.account?.name} (${c.accountUUID})` : `Unauthorized` }`);
+        }
+      }, wsServer);
+      const apolloServer = new ApolloServer<IContext>({
         introspection: true,
         schema: schema,
-        plugins: [{
-          async serverWillStart() {
-            return {
-              async drainServer() {
-                subscriptionServer.close();
-              }
-            };
+        plugins: [
+          ApolloServerPluginDrainHttpServer({ httpServer }),
+          {
+            async serverWillStart() {
+              return {
+                async drainServer() {
+                  await serverCleanup.dispose();
+                }
+              };
+            }
           }
-        }],
+        ],
+      });
+      
+      /*
         context: (e: ExpressContext) => {
           return contextFromAuthorization(e.req.get("Authorization"));
         },
@@ -196,10 +224,17 @@ program
       }, {
         server: httpServer,
         path: "/api/gql",
-      });
-      await apiServer.start()
-      apiServer.applyMiddleware({ app: app as any, path: "/api/gql" });
-
+      });*/
+      await apolloServer.start()
+      app.use(`/api/gql`,
+        cors<cors.CorsRequest>(),
+        expressMiddleware(apolloServer, {
+          context: async ({ req }):Promise<IContext> => {
+            const auth = req.headers.authorization;
+            return contextFromAuthorization(auth);
+          }
+        })
+      );
       app
         .use(express.static(path.resolve(__dirname, "../app")))
         .use(history({ index: "/index.html" }) as RequestHandler)

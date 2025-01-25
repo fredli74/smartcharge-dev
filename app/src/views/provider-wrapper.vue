@@ -6,7 +6,7 @@
 
 <script lang="ts">
 import { Component, Vue } from "vue-property-decorator";
-import providers from "@providers/provider-apps";
+import providers from "@providers/provider-apps.js";
 
 const components = providers.reduce((map, obj) => {
   map[obj.name] = obj.vue;

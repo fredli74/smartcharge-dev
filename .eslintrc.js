@@ -2,6 +2,7 @@ module.exports = {
   root: true,
   env: {
     node: true,
+    es2020: true,
   },
   extends: [
     "eslint:recommended",
@@ -25,6 +26,7 @@ module.exports = {
     "vue/max-attributes-per-line": "off",
     "vue/html-indent": ["warn", 2, { "alignAttributesVertically": false }],
     "vue/singleline-html-element-content-newline": "off",
+    "vue/multi-word-component-names": "off",
   },
   parserOptions: {
     parser: "@typescript-eslint/parser",

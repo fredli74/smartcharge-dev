@@ -1,4 +1,4 @@
-import { GQLVehicle } from "@shared/sc-schema";
+import { GQLVehicle } from "@shared/sc-schema.js";
 
 // List entry when adding a new Tesla vehicle
 export interface TeslaNewListEntry {

@@ -1,11 +1,11 @@
 /**
  * @file GraphQL API Provider resolver for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
-import { SubscriptionTopic, apolloPubSub } from "./subscription";
+import { SubscriptionTopic, apolloPubSub } from "./subscription.js";
 import {
   Resolver,
   Ctx,
@@ -19,14 +19,14 @@ import {
   ObjectType,
   Field,
 } from "type-graphql";
-import { IContext } from "@server/gql/api";
+import type { IContext } from "@server/gql/api.js";
 import { GraphQLJSONObject } from "graphql-type-json";
-import { INTERNAL_SERVICE_UUID } from "@server/db-interface";
-import { ApolloError } from "apollo-server-core";
+import { INTERNAL_SERVICE_UUID } from "@server/db-interface.js";
 import { withFilter } from "graphql-subscriptions";
-import providers from "@providers/provider-servers";
-import { IProviderServer } from "@providers/provider-server";
-import { DBServiceProvider } from "@server/db-schema";
+import providers from "@providers/provider-servers.js";
+import { IProviderServer } from "@providers/provider-server.js";
+import { DBServiceProvider } from "@server/db-schema.js";
+import { GraphQLError } from "graphql";
 
 const actionMemDatabase: { [id: string]: Action } = {};
 let actionMemDatabaseSN = 0;
@@ -61,11 +61,13 @@ export class ProviderResolver {
   ): Promise<any> {
     const provider = providerMap[name];
     if (provider === undefined) {
-      throw new ApolloError("Invalid provider name specified");
+      throw new GraphQLError("Invalid provider name specified",
+        undefined, undefined, undefined, undefined, undefined, { code: "PROVIDER_ERROR" }
+      );
     }
     if (provider.query === undefined) {
-      throw new ApolloError(
-        "Query not implemented in provider " + provider.name
+      throw new GraphQLError(`Query not implemented in provider ${provider.name}`,
+        undefined, undefined, undefined, undefined, undefined, { code: "PROVIDER_ERROR" }
       );
     }
     return {
@@ -80,11 +82,13 @@ export class ProviderResolver {
   ): Promise<any> {
     const provider = providerMap[name];
     if (provider === undefined) {
-      throw new ApolloError("Invalid provider name specified");
+      throw new GraphQLError(`Invalid provider name (${name}) specified`,
+        undefined, undefined, undefined, undefined, undefined, { code: "PROVIDER_ERROR" }
+      );
     }
     if (provider.mutation === undefined) {
-      throw new ApolloError(
-        "Mutation not implemented in provider " + provider.name
+      throw new GraphQLError(`Mutation not implemented in provider ${provider.name}`,
+        undefined, undefined, undefined, undefined, undefined, { code: "PROVIDER_ERROR" }
       );
     }
     return {
@@ -111,7 +115,9 @@ export class ProviderResolver {
       (context.accountUUID !== INTERNAL_SERVICE_UUID &&
         service.account_uuid !== context.accountUUID)
     ) {
-      throw new ApolloError("Invalid service id specified");
+      throw new GraphQLError("Invalid service id specified",
+        undefined, undefined, undefined, undefined, undefined, { code: "BAD_USER_INPUT" }
+      );
     }
 
     const id =
@@ -140,16 +146,22 @@ export class ProviderResolver {
     subscribe: withFilter(
       (_payload?: Action, args?: any, context?: IContext) => {
         if (!args || !context) {
-          throw new ApolloError("Internal error");
+          throw new GraphQLError("Internal error",
+            undefined, undefined, undefined, undefined, undefined, { code: "PROVIDER_ERROR" }
+          );
         }
         if (args.providerName === undefined && args.serviceID === undefined) {
-          throw new ApolloError("Argument error");
+          throw new GraphQLError("Argument error",
+            undefined, undefined, undefined, undefined, undefined, { code: "PROVIDER_ERROR" }
+          );
         }
         if (
           args.serviceID === undefined &&
           context.accountUUID !== INTERNAL_SERVICE_UUID
         ) {
-          throw new ApolloError("Permission denied");
+          throw new GraphQLError("Permission denied",
+            undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
+          );
         }
         return apolloPubSub.asyncIterator(SubscriptionTopic.ActionUpdate);
       },

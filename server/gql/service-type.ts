@@ -1,14 +1,14 @@
 /**
  * @file GraphQL API Service types for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
 import { ObjectType, ID, Root, Resolver, FieldResolver } from "type-graphql";
 import { GraphQLJSONObject } from "graphql-type-json";
 import "reflect-metadata";
-import { DBServiceProvider } from "@server/db-schema";
+import { DBServiceProvider } from "@server/db-schema.js";
 
 @ObjectType("ServiceProvider")
 export class ServiceProvider extends DBServiceProvider {}

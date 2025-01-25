@@ -1,7 +1,7 @@
 /**
  * @file GraphQL API for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
@@ -17,23 +17,23 @@ import {
   Resolver,
   ResolverInterface,
 } from "type-graphql";
-import { AccountResolver } from "./account-resolver";
-import { AccountTypeResolver } from "./account-type";
-import { DBAccount } from "@server/db-schema";
-import { DBInterface, INTERNAL_SERVICE_UUID } from "@server/db-interface";
+import { AccountResolver } from "./account-resolver.js";
+import { AccountTypeResolver } from "./account-type.js";
+import { DBAccount } from "@server/db-schema.js";
+import { DBInterface, INTERNAL_SERVICE_UUID } from "@server/db-interface.js";
 import { GraphQLSchema } from "graphql";
-import { LocationResolver } from "./location-resolver";
-import { LocationTypeResolver } from "./location-type";
-import { Logic } from "@server/logic";
-import { PriceResolver } from "./price-resolver";
-import { ProviderResolver } from "./provider-resolver";
-import { ServiceResolver } from "./service-resolver";
-import { StatsResolver } from "./stats-resolver";
-import { VehicleResolver } from "./vehicle-resolver";
-import { VehicleTypeResolver, ScheduleTypeResolver } from "./vehicle-type";
-import { PingResolver } from "./subscription";
-import { PriceListTypeResolver } from "./price-type";
-import { ServiceProviderTypeResolver } from "./service-type";
+import { LocationResolver } from "./location-resolver.js";
+import { LocationTypeResolver } from "./location-type.js";
+import { Logic } from "@server/logic.js";
+import { PriceResolver } from "./price-resolver.js";
+import { ProviderResolver } from "./provider-resolver.js";
+import { ServiceResolver } from "./service-resolver.js";
+import { StatsResolver } from "./stats-resolver.js";
+import { VehicleResolver } from "./vehicle-resolver.js";
+import { VehicleTypeResolver, ScheduleTypeResolver } from "./vehicle-type.js";
+import { PingResolver } from "./subscription.js";
+import { PriceListTypeResolver } from "./price-type.js";
+import { ServiceProviderTypeResolver } from "./service-type.js";
 
 export interface IContext {
   db: DBInterface;

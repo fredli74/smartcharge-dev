@@ -1,7 +1,7 @@
 import Vue from "vue";
 import VueApollo from "vue-apollo";
-import config from "@shared/smartcharge-config";
-import { SCClient } from "@shared/sc-client";
+import config from "@shared/smartcharge-config.js";
+import { SCClient } from "@shared/sc-client.js";
 
 Vue.use(VueApollo);
 

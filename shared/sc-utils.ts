@@ -1,7 +1,7 @@
 /**
  * @file Client utilities for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
@@ -9,10 +9,10 @@ import {
   GQLSchedule,
   GQLVehicleLocationSetting,
   GQLVehicle,
-} from "./sc-schema";
-import { compareStartTimes } from "./utils";
-import { DEFAULT_DIRECTLEVEL } from "./smartcharge-defines";
-import { SmartChargeGoal } from "./sc-types";
+} from "./sc-schema.js";
+import { compareStartTimes } from "./utils.js";
+import { DEFAULT_DIRECTLEVEL } from "./smartcharge-defines.js";
+import { SmartChargeGoal } from "./sc-types.js";
 
 export function scheduleMap(
   schedule: GQLSchedule[]

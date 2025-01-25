@@ -1,7 +1,7 @@
 /**
  * @file Data handler (core server) for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
@@ -20,19 +20,25 @@ import {
   DBChargeCurve,
   DBPriceList,
   DBSchedule,
-} from "./db-schema";
-import { log, LogLevel, geoDistance, generateToken } from "@shared/utils";
-import config from "@shared/smartcharge-config";
+} from "./db-schema.js";
+import { log, LogLevel, geoDistance } from "@shared/utils.js";
+import config from "@shared/smartcharge-config.js";
 import { v5 as uuidv5 } from "uuid";
-import { SmartChargeGoal } from "@shared/sc-types";
-import { DEFAULT_DIRECTLEVEL } from "@shared/smartcharge-defines";
+import { SmartChargeGoal } from "@shared/sc-types.js";
+import { DEFAULT_DIRECTLEVEL } from "@shared/smartcharge-defines.js";
 import {
   VehicleLocationSettings,
   VehicleDebugInput,
   Schedule,
-} from "./gql/vehicle-type";
+} from "./gql/vehicle-type.js";
 
 export const DB_OPTIONS: pgp.IInitOptions = {};
+
+import { randomBytes } from "crypto";
+export function generateToken(bytes: number): string {
+  const token = randomBytes(bytes);
+  return token.toString("base64");
+}
 
 const SMARTCHARGE_NAMESPACE = uuidv5("account.smartcharge.dev", uuidv5.DNS);
 export function makeAccountUUID(subject: string, domain: string): string {

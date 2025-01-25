@@ -1,14 +1,14 @@
 /**
  * @file TeslaAPI helper for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
-import { RestClient, RestClientError, Options } from "@shared/restclient";
-import config from "./tesla-config";
-import { log, LogLevel } from "@shared/utils";
-import { TeslaToken } from ".";
+import { RestClient, RestClientError, Options } from "@shared/restclient.js";
+import config from "./tesla-config.js";
+import { log, LogLevel } from "@shared/utils.js";
+import { TeslaToken } from "./index.js";
 
 function time(): number {
   return Math.floor(new Date().valueOf() / 1e3);

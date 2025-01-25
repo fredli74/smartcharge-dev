@@ -49,7 +49,7 @@
 
 <script lang="ts">
 import { Component, Vue, Prop } from "vue-property-decorator";
-import { makePublicID } from "@shared/utils";
+import { makePublicID } from "@shared/utils.js";
 
 @Component({ components: {} })
 export default class RemoveDialog extends Vue {

@@ -1,15 +1,16 @@
 /**
  * @file GraphQL API Location resolver for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
 import { Resolver, Query, Ctx, Arg, Mutation, ID } from "type-graphql";
-import { IContext, accountFilter } from "@server/gql/api";
-import { PriceList, UpdatePriceListInput } from "./price-type";
+import { accountFilter } from "@server/gql/api.js";
+import type { IContext } from "@server/gql/api.js";
+import { PriceList, UpdatePriceListInput } from "./price-type.js";
 import { plainToInstance } from "class-transformer";
-import { ApolloError } from "apollo-server-core";
+import { GraphQLError } from "graphql";
 
 @Resolver()
 export class PriceResolver {
@@ -43,6 +44,11 @@ export class PriceResolver {
     @Arg("id", (_type) => ID, { nullable: true }) id: string,
     @Ctx() context: IContext
   ): Promise<PriceList> {
+    if (!context.accountUUID) {
+      throw new GraphQLError("Not logged in",
+        undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
+      );
+    }
     return plainToInstance(
       PriceList,
       await context.db.newPriceList(context.accountUUID, name, isPublic, id)
@@ -59,7 +65,9 @@ export class PriceResolver {
     const list = await context.db.getPriceList(accountID, input.id);
     if (accountID === undefined || list.account_uuid === accountID) {
       // Because we can list public lists, but no edit them
-      throw new ApolloError("Update access denied");
+      throw new GraphQLError("Update access denied",
+        undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHORIZED" }
+      );
     }
     return plainToInstance(
       PriceList,

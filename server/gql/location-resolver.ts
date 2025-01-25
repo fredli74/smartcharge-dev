@@ -1,16 +1,17 @@
 /**
  * @file GraphQL API Location resolver for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
 import { Resolver, Query, Ctx, Arg, Mutation, ID } from "type-graphql";
-import { IContext, accountFilter } from "@server/gql/api";
-import { UpdateLocationInput, Location } from "./location-type";
-import { makePublicID, LogLevel, log } from "@shared/utils";
-import { ApolloError } from "apollo-server-express";
+import { accountFilter } from "@server/gql/api.js";
+import type { IContext } from "@server/gql/api.js";
+import { UpdateLocationInput, Location } from "./location-type.js";
+import { makePublicID, LogLevel, log } from "@shared/utils.js";
 import { plainToInstance } from "class-transformer";
+import { GraphQLError } from "graphql";
 
 @Resolver()
 export class LocationResolver {
@@ -74,7 +75,9 @@ export class LocationResolver {
 
     const publicID = makePublicID(location.location_uuid);
     if (confirm.toLowerCase() !== publicID) {
-      throw new ApolloError("Incorrect confirmation code");
+      throw new GraphQLError("Incorrect confirmation code", undefined, undefined, undefined, undefined, undefined, {
+        code: "BAD_USER_INPUT",
+      });
     }
 
     await context.db.removeLocation(id);

@@ -2,20 +2,20 @@
 /**
  * @file NordpoolAPI agent for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
-import { SCClient } from "@shared/sc-client";
-import { log, LogLevel } from "@shared/utils";
-import { AbstractAgent, IProviderAgent, AgentWork, } from "@providers/provider-agent";
-import provider from ".";
-import config from "./nordpool-config";
-import nordpoolAPI from "./nordpool-api";
+import { SCClient } from "@shared/sc-client.js";
+import { log, LogLevel } from "@shared/utils.js";
+import { AbstractAgent, IProviderAgent, AgentWork, } from "@providers/provider-agent.js";
+import provider from "./index.js";
+import config from "./nordpool-config.js";
+import nordpoolAPI from "./nordpool-api.js";
 import { DateTime } from "luxon";
-import { GQLUpdatePriceInput } from "@shared/sc-schema";
+import { GQLUpdatePriceInput } from "@shared/sc-schema.js";
 import { v5 as uuidv5 } from "uuid";
-import { RestClientError } from "@shared/restclient";
+import { RestClientError } from "@shared/restclient.js";
 
 const NORDPOOL_NAMESPACE = uuidv5("agent.nordpool.smartcharge.dev", uuidv5.DNS);
 

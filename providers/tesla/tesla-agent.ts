@@ -2,7 +2,7 @@
 /**
  * @file TeslaAPI agent for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
@@ -15,22 +15,22 @@ import {
   LogLevel,
   numericStopTime,
   numericStartTime,
-} from "@shared/utils";
-import { SCClient } from "@shared/sc-client";
-import config from "./tesla-config";
-import teslaAPI, { TeslaAPI } from "./tesla-api";
+} from "@shared/utils.js";
+import { SCClient } from "@shared/sc-client.js";
+import config from "./tesla-config.js";
+import teslaAPI, { TeslaAPI } from "./tesla-api.js";
 import {
   AgentJob,
   AbstractAgent,
   IProviderAgent,
   AgentAction,
-} from "@providers/provider-agent";
+} from "@providers/provider-agent.js";
 import provider, {
   TeslaServiceData,
   TeslaProviderMutates,
   TeslaProviderQueries,
   TeslaToken,
-} from ".";
+} from "./index.js";
 import {
   GQLVehicle,
   GQLUpdateVehicleDataInput,
@@ -39,8 +39,8 @@ import {
   GQLChargeType,
   GQLAction,
   GQLScheduleType,
-} from "@shared/sc-schema";
-import { scheduleMap } from "@shared/sc-utils";
+} from "@shared/sc-schema.js";
+import { scheduleMap } from "@shared/sc-utils.js";
 
 type PollState = "polling" | "tired" | "offline" | "asleep";
 enum ChargeControl {

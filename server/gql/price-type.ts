@@ -1,7 +1,7 @@
 /**
  * @file GraphQL API Location types for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
@@ -17,7 +17,7 @@ import {
   Float,
   GraphQLISODateTime,
 } from "type-graphql";
-import { DBPriceList } from "@server/db-schema";
+import { DBPriceList } from "@server/db-schema.js";
 
 @ObjectType("PriceList")
 export class PriceList extends DBPriceList {}

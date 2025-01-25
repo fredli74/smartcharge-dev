@@ -1,7 +1,7 @@
 /**
  * @file GraphQL API Stats resolver for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
@@ -16,21 +16,22 @@ import {
   GraphQLISODateTime,
 } from "type-graphql";
 import { GraphQLJSONObject } from "graphql-type-json";
-import { ChargePlan } from "./vehicle-type";
+import { ChargePlan, VehicleLocationSettings } from "./vehicle-type.js";
 import { Arg, Resolver, Query, Ctx } from "type-graphql";
-import { IContext, accountFilter } from "./api";
+import { accountFilter } from "./api.js";
+import type { IContext } from "./api.js";
 import { plainToInstance } from "class-transformer";
-import { PriceData } from "./price-type";
-import { DBInterface } from "@server/db-interface";
+import { PriceData } from "./price-type.js";
+import { DBInterface } from "@server/db-interface.js";
 import {
-  PlainObject,
   DBPriceData,
   DBStatsMap,
   DBSleep,
   DBCharge,
   DBTrip,
-} from "@server/db-schema";
-import { EventType } from "@shared/sc-types";
+} from "@server/db-schema.js";
+import type { UnstructuredData } from "@server/db-schema.js";
+import { EventType } from "@shared/sc-types.js";
 
 registerEnumType(EventType, { name: "EventType" });
 
@@ -43,7 +44,7 @@ export class EventList {
   @Field((_type) => GraphQLISODateTime)
   end!: Date;
   @Field((_type) => GraphQLJSONObject, { nullable: true })
-  data!: PlainObject | null;
+  data!: UnstructuredData | null;
 }
 
 @ObjectType()
@@ -191,7 +192,7 @@ export class StatsResolver {
           )) ||
         null,
       directLevel: (
-        (location_uuid && vehicle.location_settings[location_uuid]) ||
+        location_uuid && vehicle.location_settings[location_uuid] ? vehicle.location_settings[location_uuid] as VehicleLocationSettings :
         DBInterface.DefaultVehicleLocationSettings()
       ).directLevel,
       maximumLevel: vehicle.maximum_charge,

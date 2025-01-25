@@ -45,15 +45,15 @@
 
 <script lang="ts">
 import { Component, Vue, Prop } from "vue-property-decorator";
-import { gql } from "apollo-boost";
+import gql from "graphql-tag";
 
 import EditVehicleLocationSettings from "@app/components/edit-vehicle-location-settings.vue";
 import RemoveDialog from "@app/components/remove-dialog.vue";
 import deepmerge from "deepmerge";
-import apollo from "@app/plugins/apollo";
+import apollo from "@app/plugins/apollo.js";
 import equal from "fast-deep-equal";
-import { GQLLocation, GQLPriceList } from "@shared/sc-schema";
-import { UpdateLocationParams } from "@shared/sc-client";
+import { GQLLocation, GQLPriceList } from "@shared/sc-schema.js";
+import { UpdateLocationParams } from "@shared/sc-client.js";
 
 @Component({
   components: { EditVehicleLocationSettings, RemoveDialog },

@@ -8,7 +8,7 @@
 
 <script lang="ts">
 import { Component, Vue, Prop, Watch } from "vue-property-decorator";
-import { secondsToString } from "@shared/utils";
+import { secondsToString } from "@shared/utils.js";
 
 @Component({ components: {} })
 export default class RelativeTime extends Vue {

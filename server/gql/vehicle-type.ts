@@ -1,7 +1,7 @@
 /**
  * @file GraphQL API Vehicle types for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
@@ -21,18 +21,18 @@ import {
   GraphQLISODateTime,
 } from "type-graphql";
 import { GraphQLJSONObject } from "graphql-type-json";
-import { GeoLocation, Location } from "./location-type";
+import { GeoLocation, Location } from "./location-type.js";
 import {
   SmartChargeGoal,
   ChargeType,
   ChargeConnection,
   ScheduleType,
-} from "@shared/sc-types";
-import { DBVehicle, DBSchedule } from "@server/db-schema";
+} from "@shared/sc-types.js";
+import { DBVehicle, DBSchedule } from "@server/db-schema.js";
 import { plainToInstance, Type } from "class-transformer";
-import { IContext } from "./api";
-import { LocationResolver } from "./location-resolver";
-import { DBInterface } from "@server/db-interface";
+import type { IContext } from "./api.js";
+import { LocationResolver } from "./location-resolver.js";
+import { DBInterface } from "@server/db-interface.js";
 
 /*******************************
  *    VehicleLocationSetting   *

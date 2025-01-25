@@ -1,11 +1,11 @@
 /**
  * @file GraphQL API Service resolver for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
-import { SubscriptionTopic } from "./subscription";
+import { SubscriptionTopic } from "./subscription.js";
 import {
   Resolver,
   Ctx,
@@ -18,18 +18,19 @@ import {
   PubSub,
   PubSubEngine,
 } from "type-graphql";
-import { IContext } from "@server/gql/api";
-import { INTERNAL_SERVICE_UUID, DBInterface } from "@server/db-interface";
-import { AuthenticationError, ApolloError } from "apollo-server-core";
-
-import { VehicleDebugInput, UpdateVehicleDataInput } from "./vehicle-type";
-import { ServiceProvider } from "./service-type";
+import type { IContext } from "@server/gql/api.js";
+import { INTERNAL_SERVICE_UUID, DBInterface } from "@server/db-interface.js";
+import { VehicleDebugInput, UpdateVehicleDataInput } from "./vehicle-type.js";
+import { ServiceProvider } from "./service-type.js";
 import { plainToInstance } from "class-transformer";
-import { UpdatePriceInput } from "./price-type";
+import { UpdatePriceInput } from "./price-type.js";
+import { GraphQLError } from "graphql";
 
 function authorizeService(context: IContext) {
   if (context.accountUUID !== INTERNAL_SERVICE_UUID) {
-    throw new AuthenticationError("Access denied");
+    throw new GraphQLError("Access denied",
+      undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
+    );
   }
 }
 
@@ -100,8 +101,9 @@ export class ServiceResolver {
 
     if (vehicle.charge_id === null) {
       // TODO: what happens if it just stopped charging? should charge_id be sent with the query instead?
-      throw new ApolloError(
-        "sending _chargeCalibration on a vehicle not charging"
+      throw new GraphQLError(
+        "sending _chargeCalibration on a vehicle not charging",
+        undefined, undefined, undefined, undefined, undefined, { code: "BAD_USER_INPUT" }
       );
     }
 

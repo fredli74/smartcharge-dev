@@ -1,7 +1,7 @@
 /**
  * @file GraphQL API Location types for smartcharge.dev project
  * @author Fredrik Lidström
- * @copyright 2020 Fredrik Lidström
+ * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
  */
 
@@ -20,11 +20,11 @@ import {
 import { GraphQLJSONObject } from "graphql-type-json";
 
 import "reflect-metadata";
-import { DBLocation } from "@server/db-schema";
-import { PriceList } from "./price-type";
-import { IContext } from "./api";
+import { DBLocation } from "@server/db-schema.js";
+import { PriceList } from "./price-type.js";
+import type { IContext } from "./api.js";
 import { plainToInstance } from "class-transformer";
-import { PriceResolver } from "./price-resolver";
+import { PriceResolver } from "./price-resolver.js";
 
 @ObjectType()
 @InputType("GeoLocationInput")
