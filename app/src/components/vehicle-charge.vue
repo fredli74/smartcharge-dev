@@ -285,7 +285,7 @@ export default class VehicleCharge extends Vue {
   @Watch("vehicle", { deep: false, immediate: true })
   loadData() {
     // Create state
-    const map = scheduleMap(this.vehicle.schedule);
+    const map = scheduleMap([...this.vehicle.schedule]);
     const manual = map[GQLScheduleType.Manual];
     const settings = getVehicleLocationSettings(this.vehicle);
     const state = {

@@ -241,7 +241,7 @@ export default class VehicleActions extends Vue {
   }
 
   get manualChargeState() {
-    const schedule = scheduleMap(this.vehicle.schedule);
+    const schedule = scheduleMap([...this.vehicle.schedule]);
     const manual = schedule[GQLScheduleType.Manual];
     if (manual) {
       if (manual.level) {
