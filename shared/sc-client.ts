@@ -6,7 +6,7 @@
  */
 
 import { strict as assert } from "assert";
-import { ApolloClient , gql} from "@apollo/client/core/core.cjs";
+import { ApolloClient, gql } from "@apollo/client/core/core.cjs";
 import { HttpLink } from "@apollo/client/link/http/http.cjs";
 import { InMemoryCache } from "@apollo/client/cache/cache.cjs";
 
@@ -152,6 +152,7 @@ export class SCClient extends ApolloClient<any> {
           return this.token ? { Authorization: `Bearer ${this.token}` } : {};
         },
         shouldRetry: () => true,
+        keepAlive: 10000,
         webSocketImpl: webSocketImpl,
       });
       link = errorLink.concat(new GraphQLWsLink(wsClient));
