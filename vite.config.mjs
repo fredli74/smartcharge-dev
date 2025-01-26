@@ -3,6 +3,7 @@ import { viteStaticCopy } from 'vite-plugin-static-copy';
 import vue2 from '@vitejs/plugin-vue2'
 import Components from 'unplugin-vue-components/vite'
 import { VuetifyResolver } from 'unplugin-vue-components/resolvers'
+import { nodePolyfills } from 'vite-plugin-node-polyfills'
 
 import { execSync } from 'child_process';
 import { fileURLToPath, URL } from 'node:url';
@@ -44,6 +45,7 @@ export default defineConfig({
     plugins: [
         vue2(), // Vue 2 plugins
         Components({ resolvers: [VuetifyResolver()] }),
+        nodePolyfills(),
         viteStaticCopy({ targets: [{ src: 'public/*', dest: '.' }] }),
     ],
 });
