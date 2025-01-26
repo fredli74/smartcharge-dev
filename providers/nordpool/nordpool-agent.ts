@@ -40,6 +40,9 @@ export class NordpoolAgent extends AbstractAgent {
   public async pollDate(pollDate: DateTime): Promise<PollResult | undefined> {
     const pollDateString = pollDate.toISODate();
     try {
+      if (!pollDateString) {
+        throw "Invalid date";
+      }
       const res: {
         updatedAt: string;
         multiAreaEntries: {

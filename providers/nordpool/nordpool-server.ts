@@ -20,6 +20,9 @@ const server: IProviderServer = {
   mutation: async (data: any, context: IContext) => {
     switch (data.mutation) {
       case "newLocation": {
+        if (context.accountUUID === undefined) {
+          throw new Error("No accountUUID in context");
+        }
         const location = context.db.newLocation(
           context.accountUUID,
           data.name,

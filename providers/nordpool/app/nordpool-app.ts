@@ -1,5 +1,5 @@
 import { IProviderApp } from "@providers/provider-app.js";
-import provider from "../index";
+import provider from "../index.js";
 import NordpoolVue from "./nordpool.vue";
 
 import logo from "./nordpool-logo.png";

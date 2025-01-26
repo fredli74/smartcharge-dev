@@ -249,7 +249,7 @@ export function relativeTime(when: Date): { date: string; time: string } {
     datestr = "today";
   } else if (dayDiff === 1) {
     datestr = "tomorrow";
-  } else if (dayDiff > 0 && dayDiff < 7) {
+  } else if (dayDiff > 0 && dayDiff < 7 && thenLocal.weekdayLong) {
     datestr = thenLocal.weekdayLong.toLowerCase();
   } else if (dayDiff > 0 && dayDiff < 260) {
     datestr = thenLocal.toFormat("MMM dd");
