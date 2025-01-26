@@ -32,9 +32,10 @@ import { ApolloServerPluginDrainHttpServer } from "@apollo/server/plugin/drainHt
 import { DBAccount } from "./db-schema.js";
 import { GraphQLError } from "graphql";
 import { fileURLToPath } from 'url';
-import { WebSocketServer } from 'ws';
 import { useServer } from 'graphql-ws/lib/use/ws';
 import { Context, SubscribeMessage } from "graphql-ws";
+import WebSocket, { WebSocketServer } from "ws";
+
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -115,8 +116,7 @@ program
           res.on("finish", () =>
             log(
               LogLevel.Debug,
-              `${s} => ${res.statusCode} ${res.statusMessage}; ${
-                res.get("Content-Length") || 0
+              `${s} => ${res.statusCode} ${res.statusMessage}; ${res.get("Content-Length") || 0
               }b sent`
             )
           );
@@ -137,7 +137,7 @@ program
           }
           next();
         });
-      
+
       const contextFromAuthorization = async (auth: string | unknown): Promise<IContext> => {
         if (typeof auth === "string") {
           const account = await authorize(auth);
@@ -156,12 +156,12 @@ program
           logic,
         };
       };
-              
+
       const httpServer = http.createServer(app);
 
       // GraphQL Socket and Http Server
       const schema = await gqlSchema();
-      const wsServer = new WebSocketServer({ server: httpServer, path: "/api/gql" });
+      const wsServer = new WebSocketServer({ server: httpServer, path: "/api/gql", WebSocket });
       const serverCleanup = useServer({
         schema,
         context: async (ctx: Context, msg: SubscribeMessage, args: any) => {
@@ -170,11 +170,11 @@ program
         onConnect: async (ctx: Context) => {
           const c = await contextFromAuthorization(ctx.connectionParams && ctx.connectionParams["Authorization"]);
           (ctx.extra as any).scContext = c;
-          log(LogLevel.Trace, `WS ${(ctx.extra as any)?.socket?._socket?.remoteAddress} Connected - ${ c.accountUUID ? `Authorized as ${c.account?.name} (${c.accountUUID})` : `Unauthorized` }`);
+          log(LogLevel.Trace, `WS ${(ctx.extra as any)?.socket?._socket?.remoteAddress} Connected - ${c.accountUUID ? `Authorized as ${c.account?.name} (${c.accountUUID})` : `Unauthorized`}`);
         },
         onDisconnect: async (ctx: Context) => {
           const c = (ctx.extra as any).scContext;
-          log(LogLevel.Trace, `WS ${(ctx.extra as any)?.socket?._socket?.remoteAddress} Disconnected - ${ c && c.accountUUID ? `Authorized as ${c.account?.name} (${c.accountUUID})` : `Unauthorized` }`);
+          log(LogLevel.Trace, `WS ${(ctx.extra as any)?.socket?._socket?.remoteAddress} Disconnected - ${c && c.accountUUID ? `Authorized as ${c.account?.name} (${c.accountUUID})` : `Unauthorized`}`);
         }
       }, wsServer);
       const apolloServer = new ApolloServer<IContext>({
@@ -193,43 +193,11 @@ program
           }
         ],
       });
-      
-      /*
-        context: (e: ExpressContext) => {
-          return contextFromAuthorization(e.req.get("Authorization"));
-        },
-      });
-      const subscriptionServer = SubscriptionServer.create({
-        schema,
-        execute,
-        subscribe,
-        keepAlive: 20000,
-        async onConnect(connectionParams: any, webSocket: WebSocket, context: ConnectionContext) {
-          try {
-            const ctx = await contextFromAuthorization(connectionParams.Authorization);
-            log(LogLevel.Info, `WS ${context.request.connection.remoteAddress} Connected - ${ctx.accountUUID ? `Authorized as ${ctx.account?.name} (${ctx.accountUUID})` : `Unauthorized`}`);
-            return ctx;
-          } catch (err: any) {
-            log(LogLevel.Error, `WS Error: ${err.message}`);
-          }
-        },
-        async onDisconnect(webSocket: WebSocket, context: ConnectionContext) {
-          try {
-            const ctx = (await context.initPromise) as IContext;
-            log(LogLevel.Info, `WS ${context.request.connection.remoteAddress} Disconnected - ${ctx.accountUUID ? `Authorized as ${ctx.account?.name} (${ctx.accountUUID})` : `Unauthorized`}}`);
-          } catch (err: any) {
-            log(LogLevel.Error, `WS Error: ${err.message}`);
-          }
-        }
-      }, {
-        server: httpServer,
-        path: "/api/gql",
-      });*/
       await apolloServer.start()
       app.use(`/api/gql`,
         cors<cors.CorsRequest>(),
         expressMiddleware(apolloServer, {
-          context: async ({ req }):Promise<IContext> => {
+          context: async ({ req }): Promise<IContext> => {
             const auth = req.headers.authorization;
             return contextFromAuthorization(auth);
           }
@@ -237,7 +205,7 @@ program
       );
       app
         .use(express.static(path.resolve(__dirname, "../app")))
-        .use(history({ index: "/index.html" }) as RequestHandler)
+        .use(history({ index: "/index.html" }) as unknown as RequestHandler)
         .use(express.static(path.resolve(__dirname, "../app")));
 
       // Add 404 handling
