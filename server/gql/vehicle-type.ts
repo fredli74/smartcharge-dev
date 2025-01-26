@@ -91,7 +91,7 @@ export class ChargePlan {
 registerEnumType(ScheduleType, { name: "ScheduleType" });
 
 @ObjectType()
-export class Schedule extends DBSchedule {}
+export class Schedule extends DBSchedule { }
 
 @Resolver((_of) => Schedule)
 export class ScheduleTypeResolver {
@@ -122,7 +122,7 @@ export class ScheduleTypeResolver {
  *******************************/
 
 @ObjectType()
-export class Vehicle extends DBVehicle {}
+export class Vehicle extends DBVehicle { }
 
 @Resolver((_of) => Vehicle)
 export class VehicleTypeResolver {
@@ -202,12 +202,9 @@ export class VehicleTypeResolver {
     return plainToInstance(
       VehicleLocationSettings,
       Object.entries(vehicle.location_settings).map(
-        ([key, values]: [
-          string,
-          Partial<VehicleLocationSettings>
-        ]): VehicleLocationSettings => ({
+        ([key, values]: [string, unknown]): VehicleLocationSettings => ({
           ...DBInterface.DefaultVehicleLocationSettings(key),
-          ...values,
+          ...(values as Partial<VehicleLocationSettings>),
         })
       )
     );
