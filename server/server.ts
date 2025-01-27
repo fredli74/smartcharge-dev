@@ -93,11 +93,12 @@ program
 
 
       /** Setup backend api server **/
+      const GQL_PATH = "/api/gql";
       const httpServer = http.createServer(app);
 
       // GraphQL Socket and Http Server
       const schema = await gqlSchema();
-      const wsServer = new WebSocketServer({ server: httpServer, path: "/api/gql" });
+      const wsServer = new WebSocketServer({ server: httpServer, path: GQL_PATH });
       const serverCleanup = useServer({
         schema,
         context: async (ctx: Context, msg: SubscribeMessage, args: any) => {
@@ -132,7 +133,13 @@ program
       await apolloServer.start();
 
       app
-        .use(cors())
+        .use((req, res, next) => {
+          if (req.path === GQL_PATH && req.headers.upgrade === 'websocket') {
+            console.log('Skipping CORS for WebSocket handshake');
+            return next();
+          }
+          cors<cors.CorsRequest>()(req, res, next);
+        })
         .use(rateLimit({
           windowMs: 15 * 60e3, // 15 min
           max: 255,
@@ -176,7 +183,7 @@ program
           }
           next();
         })
-        .use(`/api/gql`,
+        .use(GQL_PATH,
           expressMiddleware(apolloServer, {
             context: async ({ req }): Promise<IContext> => {
               const auth = req.headers.authorization;
