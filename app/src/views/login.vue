@@ -1,7 +1,7 @@
 <template>
   <v-flex xs11 sm10 class="vga-limit login text-center">
     <template v-if="loading">
-      <v-progress-circular indeterminate color="primary"></v-progress-circular>
+      <v-progress-circular indeterminate color="primary" />
     </template>
     <template v-else-if="singleUserMode">
       <h2>LOGIN</h2>
@@ -18,7 +18,7 @@
           label="password"
           required
           autocomplete="current-password"
-        ></v-text-field>
+        />
         <v-btn type="submit" form="login-form">login</v-btn>
       </v-form>
     </template>

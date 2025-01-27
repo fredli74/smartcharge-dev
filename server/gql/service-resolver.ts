@@ -5,26 +5,16 @@
  * @license MIT (MIT)
  */
 
+import { Resolver, Ctx, Mutation, Arg, ID, Int, Query, Float, PubSub, PubSubEngine } from "type-graphql";
+import { GraphQLError } from "graphql";
 import { SubscriptionTopic } from "./subscription.js";
-import {
-  Resolver,
-  Ctx,
-  Mutation,
-  Arg,
-  ID,
-  Int,
-  Query,
-  Float,
-  PubSub,
-  PubSubEngine,
-} from "type-graphql";
 import type { IContext } from "@server/gql/api.js";
-import { INTERNAL_SERVICE_UUID, DBInterface } from "@server/db-interface.js";
-import { VehicleDebugInput, UpdateVehicleDataInput } from "./vehicle-type.js";
+import { INTERNAL_SERVICE_UUID } from "@server/db-interface.js";
+import { UpdateVehicleDataInput } from "./vehicle-type.js";
 import { ServiceProvider } from "./service-type.js";
 import { plainToInstance } from "class-transformer";
 import { UpdatePriceInput } from "./price-type.js";
-import { GraphQLError } from "graphql";
+import { log, LogLevel } from "@shared/utils.js";
 
 function authorizeService(context: IContext) {
   if (context.accountUUID !== INTERNAL_SERVICE_UUID) {
@@ -53,7 +43,7 @@ export class ServiceResolver {
     @Arg("input") input: UpdateVehicleDataInput,
     @Ctx() context: IContext,
     @PubSub() pubSub: PubSubEngine
-  ): Promise<Boolean> {
+  ): Promise<boolean> {
     authorizeService(context);
 
     try {
@@ -114,7 +104,7 @@ export class ServiceResolver {
   async _updatePrice(
     @Arg("input") input: UpdatePriceInput,
     @Ctx() context: IContext
-  ): Promise<Boolean> {
+  ): Promise<boolean> {
     authorizeService(context);
     for (const point of input.prices) {
       await context.db.updatePriceData(input.priceListID, point.startAt, point.price);

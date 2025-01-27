@@ -5,7 +5,7 @@
  * @license MIT (MIT)
  */
 
-import { Resolver, Ctx, Mutation, Arg, Query, Extensions } from "type-graphql";
+import { Resolver, Ctx, Mutation, Arg, Query } from "type-graphql";
 import type { IContext } from "@server/gql/api.js";
 import { Account } from "./account-type.js";
 import { SINGLE_USER_UUID, makeAccountUUID } from "@server/db-interface.js";

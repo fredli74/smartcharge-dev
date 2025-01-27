@@ -30,9 +30,9 @@ import { PriceResolver } from "./price-resolver.js";
 @InputType("GeoLocationInput")
 export class GeoLocation {
   @Field((_type) => Float)
-  latitude!: number;
+    latitude!: number;
   @Field((_type) => Float)
-  longitude!: number;
+    longitude!: number;
 }
 
 @ObjectType()
@@ -96,17 +96,17 @@ export class LocationTypeResolver {
 @InputType()
 export abstract class UpdateLocationInput {
   @Field((_type) => ID)
-  id!: string;
+    id!: string;
   @Field((_type) => String, { nullable: true })
-  name?: string;
+    name?: string;
   @Field((_type) => GeoLocation, { nullable: true })
-  geoLocation?: GeoLocation;
+    geoLocation?: GeoLocation;
   @Field((_type) => Int, { nullable: true, description: `Radius in meters` })
-  geoFenceRadius?: number;
+    geoFenceRadius?: number;
   @Field((_type) => ID, { nullable: true })
-  priceListID?: string;
+    priceListID?: string;
   @Field((_type) => ID, { nullable: true })
-  serviceID?: string;
+    serviceID?: string;
   @Field((_type) => GraphQLJSONObject, { nullable: true })
-  providerData?: any;
+    providerData?: any;
 }

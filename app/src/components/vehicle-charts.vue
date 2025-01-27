@@ -1,18 +1,21 @@
 <template>
   <v-container id="chartContainer" class="pl-0" fluid>
-    <v-progress-circular v-if="showChartLoader" id="chartProgress" indeterminate :size="18" :width="2"
+    <v-progress-circular
+      v-if="showChartLoader" id="chartProgress" indeterminate :size="18" :width="2"
       color="primary"
     />
     <v-row justify="space-around">
       <v-col cols="12" class="pa-0 ma-0">
-        <apex v-if="chartData" id="timechart" ref="timechart" class="chart pa-0 ma-0" height="400px"
+        <apex
+          v-if="chartData" id="timechart" ref="timechart" class="chart pa-0 ma-0" height="400px"
           :options="timeoptions" :series="timeseries"
         />
       </v-col>
     </v-row>
     <v-row>
       <v-col cols="12" class="pa-0 ma-0 mt-n9">
-        <apex v-if="chartData" id="eventchart" ref="eventchart" class="chart pa-0 ma-0" height="160px"
+        <apex
+          v-if="chartData" id="eventchart" ref="eventchart" class="chart pa-0 ma-0" height="160px"
           :options="eventoptions" :series="eventseries"
         />
       </v-col>

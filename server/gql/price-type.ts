@@ -45,11 +45,11 @@ export class PriceListTypeResolver {
 @InputType()
 export class UpdatePriceListInput {
   @Field((_type) => ID)
-  id!: string;
+    id!: string;
   @Field((_type) => String)
-  name!: string;
+    name!: string;
   @Field((_type) => Boolean)
-  isPublic!: boolean;
+    isPublic!: boolean;
 }
 
 @ObjectType("PriceData")
@@ -58,17 +58,17 @@ export class PriceData {
   @Field((_type) => GraphQLISODateTime, {
     description: `Price tariff start time`,
   })
-  startAt!: Date;
+    startAt!: Date;
   @Field((_type) => Float, {
     description: `Price in currency per kWh (5 decimal precision)`,
   })
-  price!: number;
+    price!: number;
 }
 
 @InputType()
 export abstract class UpdatePriceInput {
   @Field((_type) => ID)
-  priceListID!: string;
+    priceListID!: string;
   @Field((_type) => [PriceData])
-  prices!: PriceData[];
+    prices!: PriceData[];
 }

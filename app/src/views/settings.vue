@@ -2,20 +2,22 @@
   <v-flex xs12 sm11 class="xvga-limit home">
     <v-card xs12 sm10 md8 :loading="$apollo.loading">
       <v-card-title><span class="headline">Settings</span></v-card-title>
-      <v-spacer></v-spacer>
+      <v-spacer />
       <v-card-subtitle class="subtitle-1">Vehicles</v-card-subtitle>
       <v-card-text class="pb-0">
         <div v-if="$apollo.queries.vehicles.loading">
-          <v-progress-linear indeterminate color="primary"></v-progress-linear>
+          <v-progress-linear indeterminate color="primary" />
         </div>
         <v-expansion-panels
           v-else
           :value="vehicles && vehicles.length > 1 ? undefined : 0"
         >
           <v-expansion-panel v-for="vehicle in vehicles" :key="vehicle.id">
-            <v-expansion-panel-header>{{
-              vehicle.name
-            }}</v-expansion-panel-header>
+            <v-expansion-panel-header>
+              {{
+                vehicle.name
+              }}
+            </v-expansion-panel-header>
             <v-expansion-panel-content>
               <div
                 class="
@@ -34,7 +36,7 @@
                 :vehicle="vehicle"
                 :locations="locations"
                 @refresh="$apollo.queries.vehicles.refetch()"
-              ></EditVehicle>
+              />
             </v-expansion-panel-content>
           </v-expansion-panel>
         </v-expansion-panels>
@@ -44,20 +46,22 @@
           <v-icon left>mdi-plus</v-icon>add vehicle
         </v-btn>
       </v-card-actions>
-      <v-spacer></v-spacer>
+      <v-spacer />
       <v-card-subtitle class="subtitle-1">Locations</v-card-subtitle>
       <v-card-text class="pb-0">
         <div v-if="$apollo.queries.locations.loading">
-          <v-progress-linear indeterminate color="primary"></v-progress-linear>
+          <v-progress-linear indeterminate color="primary" />
         </div>
         <v-expansion-panels
           v-else
           :value="locations && locations.length > 1 ? undefined : 0"
         >
           <v-expansion-panel v-for="location in locations" :key="location.id">
-            <v-expansion-panel-header>{{
-              location.name
-            }}</v-expansion-panel-header>
+            <v-expansion-panel-header>
+              {{
+                location.name
+              }}
+            </v-expansion-panel-header>
             <v-expansion-panel-content>
               <div
                 class="
@@ -75,7 +79,7 @@
               <EditLocation
                 :location="location"
                 @refresh="$apollo.queries.locations.refetch()"
-              ></EditLocation>
+              />
             </v-expansion-panel-content>
           </v-expansion-panel>
         </v-expansion-panels>
@@ -91,7 +95,7 @@
           <v-icon left>mdi-plus</v-icon>add location
         </v-btn>
       </v-card-actions>
-      <v-spacer></v-spacer>
+      <v-spacer />
     </v-card>
   </v-flex>
 </template>

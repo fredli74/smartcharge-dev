@@ -158,7 +158,7 @@ export default class EditLocation extends Vue {
 
         await apollo.updateLocation(update);
 
-        for (let [key, value] of Object.entries(this.clearSaving)) {
+        for (const [key, value] of Object.entries(this.clearSaving)) {
           if (value) {
             this.$set(this.saving, key, false);
           }

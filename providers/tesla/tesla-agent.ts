@@ -193,8 +193,8 @@ export class TeslaAgent extends AbstractAgent {
       logCreator: (_level: logLevel) => (entry: LogEntry) => {
         log(entry.level === logLevel.ERROR ? LogLevel.Error
           : entry.level === logLevel.WARN ? LogLevel.Warning
-            : entry.level === logLevel.INFO ? LogLevel.Info
-              : LogLevel.Debug, `Kafka ${entry.namespace}: ${entry.log.message}`
+          : entry.level === logLevel.INFO ? LogLevel.Info
+          : LogLevel.Debug, `Kafka ${entry.namespace}: ${entry.log.message}`
         );
       },
     });
@@ -432,7 +432,7 @@ export class TeslaAgent extends AbstractAgent {
       // Handle telemetry config
       const telemetryConfig =
         vehicle.telemetryConfig ? vehicle.telemetryConfig :
-          (await this.callTeslaAPI(job, teslaAPI.getFleetTelemetryConfig, vehicle.vin)).response;
+        (await this.callTeslaAPI(job, teslaAPI.getFleetTelemetryConfig, vehicle.vin)).response;
       const telemetryExpires = telemetryConfig.config && telemetryConfig.config.exp ? telemetryConfig.config.exp : 0;
 
       if (vehicle.dbData.providerData.disabled) {
@@ -1056,11 +1056,11 @@ export class TeslaAgent extends AbstractAgent {
                 || telemetryDataUpdate.DetailedChargeState !== undefined) {
                 const status =
                   vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateCharging ? "Charging" :
-                    vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateComplete ? "Charging Complete" :
-                      vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateDisconnected ? "Charger Disconnected" :
-                        vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateNoPower ? "Charger Not Powered" :
-                          vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateStarting ? "Charging Starting" :
-                            vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateStopped ? "Charging Stopped" : "";
+                  vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateComplete ? "Charging Complete" :
+                  vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateDisconnected ? "Charger Disconnected" :
+                  vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateNoPower ? "Charger Not Powered" :
+                  vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateStarting ? "Charging Starting" :
+                  vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateStopped ? "Charging Stopped" : "";
                 if (status) {
                   vehicleUpdate.status = `${status}${vehicle.telemetryData.ChargeState === "" ||
                     vehicle.telemetryData.ChargeState === "Idle" ||

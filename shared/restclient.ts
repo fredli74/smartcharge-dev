@@ -148,7 +148,7 @@ export class RestClient {
               const message = data.message || data.error || JSON.stringify(data);
               console.log(`RestClientError: ${message}`);
               dispatchError(message, res.statusCode);
-            } catch (e: any) {
+            } catch {
               dispatchError(res.statusMessage, res.statusCode);
             }
           }

@@ -30,66 +30,66 @@ registerEnumType(EventType, { name: "EventType" });
 @ObjectType()
 export class EventList {
   @Field((_type) => EventType)
-  eventType!: EventType;
+    eventType!: EventType;
   @Field((_type) => GraphQLISODateTime)
-  start!: Date;
+    start!: Date;
   @Field((_type) => GraphQLISODateTime)
-  end!: Date;
+    end!: Date;
   @Field((_type) => GraphQLJSONObject, { nullable: true })
-  data!: UnstructuredData | null;
+    data!: UnstructuredData | null;
 }
 
 @ObjectType()
 export class StateMap {
   @Field((_type) => GraphQLISODateTime)
-  start!: Date;
+    start!: Date;
   @Field((_type) => Int)
-  period!: number;
+    period!: number;
 
   @Field((_type) => Int)
-  minimumLevel!: number;
+    minimumLevel!: number;
   @Field((_type) => Int)
-  maximumLevel!: number;
+    maximumLevel!: number;
   @Field((_type) => Int)
-  drivenSeconds!: number;
+    drivenSeconds!: number;
   @Field((_type) => Int)
-  drivenMeters!: number;
+    drivenMeters!: number;
   @Field((_type) => Int)
-  chargedSeconds!: number;
+    chargedSeconds!: number;
   @Field((_type) => Float)
-  chargedEnergy!: number;
+    chargedEnergy!: number;
   @Field((_type) => Float)
-  chargeCost!: number;
+    chargeCost!: number;
   @Field((_type) => Float)
-  chargeCostSaved!: number;
+    chargeCostSaved!: number;
 }
 
 @ObjectType()
 export class ChartData {
   @Field((_type) => ID)
-  vehicleID!: string;
+    vehicleID!: string;
   @Field((_type) => Int)
-  batteryLevel!: number;
+    batteryLevel!: number;
   @Field((_type) => GraphQLJSONObject)
-  chargeCurve!: any;
+    chargeCurve!: any;
   @Field((_type) => Int)
-  directLevel!: number;
+    directLevel!: number;
   @Field((_type) => Int)
-  maximumLevel!: number;
+    maximumLevel!: number;
   @Field((_type) => ID, { nullable: true })
-  locationID!: string | null;
+    locationID!: string | null;
   @Field((_type) => Float, { nullable: true })
-  thresholdPrice!: number | null;
+    thresholdPrice!: number | null;
   @Field((_type) => [PriceData], { nullable: true })
-  prices!: PriceData[] | null;
+    prices!: PriceData[] | null;
   @Field((_type) => [ChargePlan], { nullable: true })
-  chargePlan!: ChargePlan[] | null;
+    chargePlan!: ChargePlan[] | null;
   @Field((_type) => ID, { nullable: true })
-  chargePlanLocationID!: string | null;
+    chargePlanLocationID!: string | null;
   @Field((_type) => [StateMap])
-  stateMap!: StateMap[];
+    stateMap!: StateMap[];
   @Field((_type) => [EventList])
-  eventList!: EventList[];
+    eventList!: EventList[];
 }
 
 @Resolver()

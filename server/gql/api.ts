@@ -55,7 +55,7 @@ export function accountFilter(
 @ObjectType()
 export class ResolverTest {
   @Field()
-  isFieldResolverWorking: boolean = false;
+    isFieldResolverWorking: boolean = false;
 }
 
 @Resolver(() => ResolverTest)

@@ -1,5 +1,5 @@
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-import Vue, { VNode } from "vue";
+/*import Vue, { VNode } from "vue";
 
 declare global {
   namespace JSX {
@@ -12,3 +12,4 @@ declare global {
     }
   }
 }
+*/

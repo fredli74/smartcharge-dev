@@ -115,7 +115,7 @@ export class VehicleResolver {
     @Arg("id", (_type) => ID) id: string,
     @Arg("confirm") confirm: string,
     @Ctx() context: IContext
-  ): Promise<Boolean> {
+  ): Promise<boolean> {
     // verify vehicle ownage
     log(LogLevel.Debug, `removeVehicle: ${JSON.stringify(id)}`);
     const vehicle = await context.db.getVehicle(accountFilter(context.accountUUID), id);

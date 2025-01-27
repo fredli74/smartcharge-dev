@@ -86,7 +86,7 @@ import { UpdateVehicleParams } from "@shared/sc-client.js";
 @Component({})
 export default class EditVehicle extends Vue {
   @Prop({ type: Object, required: true }) declare readonly vehicle: GQLVehicle;
-  @Prop({ type: String, required: true }) declare readonly name: String;
+  @Prop({ type: String, required: true }) declare readonly name: string;
   @Prop({ type: Object, required: true }) declare readonly settings: GQLVehicleLocationSetting;
 
   saving!: { [key: string]: boolean };
@@ -183,7 +183,7 @@ export default class EditVehicle extends Vue {
 
         await apollo.updateVehicle(update);
 
-        for (let [key, value] of Object.entries(this.clearSaving)) {
+        for (const [key, value] of Object.entries(this.clearSaving)) {
           if (value) {
             this.$set(this.saving, key, false);
           }

@@ -39,15 +39,15 @@ const providerMap = providers.reduce((a, p) => {
 @ObjectType()
 export abstract class Action {
   @Field((_type) => Int)
-  actionID!: number;
+    actionID!: number;
   @Field((_type) => ID)
-  serviceID!: string;
+    serviceID!: string;
   @Field()
-  providerName!: string;
+    providerName!: string;
   @Field()
-  action!: string;
+    action!: string;
   @Field((_type) => GraphQLJSONObject)
-  data!: any;
+    data!: any;
 }
 
 @Resolver()

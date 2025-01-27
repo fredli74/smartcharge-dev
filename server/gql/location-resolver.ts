@@ -65,7 +65,7 @@ export class LocationResolver {
     @Arg("id", (_type) => ID) id: string,
     @Arg("confirm") confirm: string,
     @Ctx() context: IContext
-  ): Promise<Boolean> {
+  ): Promise<boolean> {
     // verify location ownage
     log(LogLevel.Debug, `removeLocation: ${JSON.stringify(id)}`);
     const location = await context.db.getLocation(

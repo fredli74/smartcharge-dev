@@ -7,8 +7,6 @@
 
 import { RestClient } from "@shared/restclient.js";
 import config from "./nordpool-config.js";
-import provider from "./index.js";
-import { PROJECT_AGENT } from "@shared/smartcharge-defines.js";
 
 export class NordpoolAPI extends RestClient {
   public async getPrices(date: string, deliveryArea: string, currency: string) {

@@ -256,7 +256,7 @@ export default class EditVehicle extends Vue {
 
         await apollo.updateVehicle(update);
 
-        for (let [key, value] of Object.entries(this.clearSaving)) {
+        for (const [key, value] of Object.entries(this.clearSaving)) {
           if (value) {
             this.$set(this.saving, key, false);
           }

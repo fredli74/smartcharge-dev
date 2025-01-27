@@ -2,7 +2,8 @@
   <v-container>
     <div style="min-height: 270px">
       <v-row justify="center" class="my-4">
-        <v-btn-toggle v-model="chargeControl" active-class="selected-charge" color="primary" label="charging" mandatory
+        <v-btn-toggle
+          v-model="chargeControl" active-class="selected-charge" color="primary" label="charging" mandatory
           @change="chargeControl_onChange"
         >
           <v-btn>Stop</v-btn>
@@ -20,7 +21,7 @@
       <template v-if="chargeControl == 1">
         <v-row class="my-8">
           <v-col class="text-center">
-            <img width="130" class="ml-2" src="/img/icons/android-chrome-192x192.png">
+            <img width="130" class="ml-2" src="/img/icons/android-chrome-192x192.png" />
           </v-col>
         </v-row>
       </template>
@@ -28,7 +29,8 @@
       <template v-if="chargeControl == 2">
         <v-row justify="space-around">
           <v-col cols="11" sm="10">
-            <v-slider v-model="chargeLevel" class="pt-8" thumb-label="always" :min="directLevel" :max="100"
+            <v-slider
+              v-model="chargeLevel" class="pt-8" thumb-label="always" :min="directLevel" :max="100"
               prepend-icon="mdi-battery-charging-30" append-icon="mdi-battery-charging-100"
               :color="chargeLevel > vehicle.maximumLevel ? 'deep-orange' : ''"
               :thumb-color="chargeLevel > vehicle.maximumLevel ? 'deep-orange darken-2' : ''"
@@ -44,7 +46,8 @@
                   <v-icon left>mdi-calendar-plus</v-icon> Schedule
                 </v-btn>
               </template>
-              <datetime-popup :key="refreshKey" class="vdatetime-static" type="datetime" :datetime="pickerDateTime"
+              <datetime-popup
+                :key="refreshKey" class="vdatetime-static" type="datetime" :datetime="pickerDateTime"
                 :minute-step="10" :week-start="1" :min-datetime="nowLocal.plus({ minutes: 1 })"
                 :max-datetime="nowLocal.plus({ months: 6 }).endOf(`month`)" :auto="true"
                 :phrases="{ cancel: `CANCEL`, ok: `OK` }"
@@ -68,7 +71,8 @@
                     <v-icon left>mdi-calendar</v-icon>{{ pickerDate }}
                   </v-btn>
                 </template>
-                <datetime-popup :key="refreshKey" class="vdatetime-static" type="date" :datetime="pickerDateTime"
+                <datetime-popup
+                  :key="refreshKey" class="vdatetime-static" type="date" :datetime="pickerDateTime"
                   :week-start="1" :min-datetime="nowLocal.plus({ minutes: 1 })"
                   :max-datetime="nowLocal.plus({ months: 6 }).endOf(`month`)" :auto="true"
                   :phrases="{ cancel: `CANCEL`, ok: `SAVE` }" 
@@ -91,7 +95,8 @@
                     <v-icon left class="mt-1">mdi-clock-end</v-icon>{{ pickerTime }}
                   </v-btn>
                 </template>
-                <datetime-popup :key="refreshKey" ref="timePicker" type="time" class="vdatetime-static"
+                <datetime-popup
+                  :key="refreshKey" ref="timePicker" type="time" class="vdatetime-static"
                   :datetime="pickerDateTime" :minute-step="10" :min-datetime="nowLocal.plus({ minutes: 1 })"
                   :max-datetime="nowLocal.plus({ months: 6 }).endOf(`month`)" :auto="true"
                   :phrases="{ cancel: `CANCEL`, ok: `SAVE` }" 

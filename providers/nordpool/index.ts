@@ -4,7 +4,7 @@ export interface NordpoolProviderData {
   provider: "nordpool";
   currency: string; // currency used for price points
 }
-export interface NordpoolServiceData {}
+// export interface NordpoolServiceData { }
 
 const provider: IProvider = {
   name: "nordpool",

@@ -1,7 +1,7 @@
 <template>
   <v-flex xs12 sm11 class="xvga-limit home">
     <div v-if="loading">
-      <v-progress-linear indeterminate color="primary"></v-progress-linear>
+      <v-progress-linear indeterminate color="primary" />
     </div>
     <v-card xs12 sm10 md8>
       <v-list-item
@@ -23,17 +23,20 @@
             </v-flex>
             <v-flex xs7 sm6>
               <v-list-item-content>
-                <v-list-item-title class="pb-1">{{
-                  vehicle.name
-                }}</v-list-item-title>
+                <v-list-item-title class="pb-1">
+                  {{
+                    vehicle.name
+                  }}
+                </v-list-item-title>
                 <v-list-item-subtitle class="text-lowercase">
                   {{ vehicle.status }}
                 </v-list-item-subtitle>
                 <v-list-item-subtitle
                   v-if="vehicleDisabled(vehicle) !== undefined"
                   class="text-lowercase caption"
-                  >{{ vehicleDisabled(vehicle) }}</v-list-item-subtitle
                 >
+                  {{ vehicleDisabled(vehicle) }}
+                </v-list-item-subtitle>
               </v-list-item-content>
             </v-flex>
             <v-flex xs1>
@@ -46,8 +49,8 @@
                   vehicle.batteryLevel > 20
                     ? 'green'
                     : vehicle.batteryLevel > 10
-                    ? 'orange'
-                    : 'red'
+                      ? 'orange'
+                      : 'red'
                 "
                 class="caption"
               >

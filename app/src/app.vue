@@ -14,14 +14,14 @@
       >
         <v-icon>mdi-chevron-left</v-icon>
       </v-btn>
-      <v-spacer v-if="authorized"></v-spacer>
+      <v-spacer v-if="authorized" />
       <v-toolbar-title class="headline text-uppercase">
         <router-link id="homelink" to="/">
           <span>smartcharge.d</span>
           <span class="font-weight-light">ev</span>
         </router-link>
       </v-toolbar-title>
-      <v-spacer></v-spacer>
+      <v-spacer />
       <v-menu v-if="authorized" bottom left offset-y>
         <template #activator="{ on }">
           <v-btn dark icon v-on="on">
@@ -29,20 +29,20 @@
           </v-btn>
         </template>
         <v-list>
-          <v-list-item to="/settings"
-            ><v-list-item-title>Settings</v-list-item-title>
+          <v-list-item to="/settings">
+            <v-list-item-title>Settings</v-list-item-title>
           </v-list-item>
           <v-list-item @click="appReload()">
             <v-list-item-content>
               <v-list-item-title>Reload</v-list-item-title>
-              <v-list-item-subtitle
-                >beta version {{ version }}</v-list-item-subtitle
-              >
+              <v-list-item-subtitle>
+                beta version {{ version }}
+              </v-list-item-subtitle>
             </v-list-item-content>
           </v-list-item>
-          <v-divider></v-divider>
-          <v-list-item v-if="help_url" :href="help_url" target="_blank"
-            ><v-list-item-title>Help</v-list-item-title>
+          <v-divider />
+          <v-list-item v-if="help_url" :href="help_url" target="_blank">
+            <v-list-item-title>Help</v-list-item-title>
           </v-list-item>
           <v-list-item @click="logout">
             <v-list-item-title>Sign out</v-list-item-title>
@@ -51,13 +51,13 @@
       </v-menu>
       <v-btn v-else color="primary" @click="login">
         <v-icon left>mdi-login</v-icon>
-        sign in</v-btn
-      >
+        sign in
+      </v-btn>
     </v-app-bar>
     <v-main id="app-content">
-      <template v-if="$route.meta && $route.meta.fullpage"
-        ><router-view></router-view
-      ></template>
+      <template v-if="$route.meta && $route.meta.fullpage">
+        <router-view />
+      </template>
       <v-container v-else fluid class="mt-sm-6">
         <v-layout
           v-if="error.show || warning.show || info.show"
@@ -72,23 +72,25 @@
               type="error"
               tile
               prominent
-              ><span v-html="error.message"></span
-            ></v-alert>
-            <v-alert v-model="warning.show" dismissible type="warning" tile
-              ><span v-html="warning.message"></span
-            ></v-alert>
+            >
+              <span v-html="error.message"></span>
+            </v-alert>
+            <v-alert v-model="warning.show" dismissible type="warning" tile>
+              <span v-html="warning.message"></span>
+            </v-alert>
             <v-alert
               v-model="info.show"
               dismissible
               type="info"
               tile
               @input="closedInfo"
-              ><span v-html="info.message"></span
-            ></v-alert>
+            >
+              <span v-html="info.message"></span>
+            </v-alert>
           </v-flex>
         </v-layout>
         <v-layout row justify-space-around>
-          <router-view></router-view>
+          <router-view />
         </v-layout>
       </v-container>
     </v-main>
@@ -106,7 +108,7 @@ import auth from "./plugins/auth0.js";
 
 import "vue-datetime/dist/vue-datetime.css";
 
-declare var COMMIT_HASH: string;
+declare let COMMIT_HASH: string;
 
 interface AlertMessage {
   show: boolean;

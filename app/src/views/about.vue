@@ -9,13 +9,13 @@
             justify="center"
             justify-content="space-between"
           >
-            <v-col cols="7" sm="3" md="4" lg="5" class="my-4"
-              ><v-img
+            <v-col cols="7" sm="3" md="4" lg="5" class="my-4">
+              <v-img
                 style="filter: drop-shadow(0 0 1rem #00000066)"
                 contain
                 src="/img/icons/android-chrome-512x512.png"
-              ></v-img
-            ></v-col>
+              />
+            </v-col>
             <v-col
               cols="12"
               sm="9"
@@ -40,7 +40,8 @@
                 border="left"
                 dense
                 icon="mdi-bus-stop-uncovered"
-                ><div>
+              >
+                <div>
                   Smart Charge is currently in beta with a limited number of
                   vehicle spots.
                 </div>
@@ -58,17 +59,14 @@
     <v-row style="background: #ddd" class="px-sm-12">
       <v-col>
         <v-container>
-          <v-row id="about" class="xvga-limit autosize flex-nowrap"
-            ><v-col>
+          <v-row id="about" class="xvga-limit autosize flex-nowrap">
+            <v-col>
               <h1>About</h1>
               <p>
                 After switching to the Swedish energy provider
                 <a href="https://tibber.com">tibber.com</a>&nbsp;
                 <small>
-                  <a href="https://invite.tibber.com/97b3d1fc"
-                    >(use bonus code 97b3d1fc)</a
-                  ></small
-                >
+                  <a href="https://invite.tibber.com/97b3d1fc">(use bonus code 97b3d1fc)</a></small>
                 that utilizes time-of-use pricing, I was inspired to create an
                 open-source system for charging my Tesla smarter. By connecting
                 to the Tesla API, it controls the charging to low-price hours,
@@ -83,14 +81,14 @@
                 could eventually be expanded with more vehicle providers and
                 international price lists.
               </p>
-            </v-col></v-row
-          >
+            </v-col>
+          </v-row>
         </v-container>
       </v-col>
     </v-row>
 
-    <v-row
-      ><v-col>
+    <v-row>
+      <v-col>
         <v-container>
           <v-row>
             <v-col v-for="(feature, i) in features" :key="i" cols="12" md="6">
@@ -102,20 +100,21 @@
                       class="elevation-2"
                       size="80"
                     >
-                      <v-avatar color="white" size="66" class=""
-                        ><v-icon large>{{ feature.icon }}</v-icon></v-avatar
-                      ></v-avatar
-                    ></v-col
-                  >
+                      <v-avatar color="white" size="66" class="">
+                        <v-icon large>{{ feature.icon }}</v-icon>
+                      </v-avatar>
+                    </v-avatar>
+                  </v-col>
                   <v-col>
-                    <v-card-title class="py-0 headline">{{
-                      feature.title
-                    }}</v-card-title
-                    ><v-card-text class="mt-1 body-1"
-                      >{{ feature.text }}
+                    <v-card-title class="py-0 headline">
+                      {{
+                        feature.title
+                      }}
+                    </v-card-title><v-card-text class="mt-1 body-1">
+                      {{ feature.text }}
                     </v-card-text>
-                  </v-col></v-row
-                >
+                  </v-col>
+                </v-row>
               </v-card>
             </v-col>
           </v-row>
@@ -138,15 +137,14 @@
             <a
               class="white--text"
               href="https://github.com/fredli74/smartcharge-dev"
-              >https://github.com/fredli74/smartcharge-dev</a
-            >
+            >https://github.com/fredli74/smartcharge-dev</a>
             <div>This project is open-sourced under the MIT License.</div>
             <div>&copy;{{ new Date().getFullYear() }} by Fredrik Lidström</div>
           </v-col>
-        </v-row></v-container
-      ></v-row
-    ></v-container
-  >
+        </v-row>
+      </v-container>
+    </v-row>
+  </v-container>
 </template>
 
 <script lang="ts">

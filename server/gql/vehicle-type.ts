@@ -29,11 +29,11 @@ import { DBInterface } from "@server/db-interface.js";
 @InputType("VehicleLocationSettingInput")
 export class VehicleLocationSettings {
   @Field((_type) => ID, { description: `location id` })
-  locationID!: string;
+    locationID!: string;
   @Field((_type) => Int, { description: `Minimum battery level to reach directly (%)` })
-  directLevel!: number;
+    directLevel!: number;
   @Field((_type) => String)
-  goal!: SmartChargeGoal | string;
+    goal!: SmartChargeGoal | string;
 }
 // Not used because we cannot union between enum and String in type-graphql
 registerEnumType(SmartChargeGoal, {
@@ -50,17 +50,17 @@ registerEnumType(ChargeType, { name: "ChargeType" });
 @ObjectType()
 export class ChargePlan {
   @Field((_type) => ChargeType)
-  chargeType!: ChargeType;
+    chargeType!: ChargeType;
   @Type(() => Date)
   @Field((_type) => GraphQLISODateTime, { nullable: true, description: `time to start or null for now` })
-  chargeStart!: Date | null;
+    chargeStart!: Date | null;
   @Type(() => Date)
   @Field((_type) => GraphQLISODateTime, { nullable: true, description: `time to end or null for never` })
-  chargeStop!: Date | null;
+    chargeStop!: Date | null;
   @Field((_type) => Int)
-  level!: number;
+    level!: number;
   @Field((_type) => String)
-  comment!: string;
+    comment!: string;
 }
 
 /*******************************
@@ -245,19 +245,19 @@ export class VehicleTypeResolver {
 @InputType()
 export abstract class UpdateVehicleInput {
   @Field((_type) => ID)
-  id!: string;
+    id!: string;
   @Field((_type) => String, { nullable: true })
-  name?: string;
+    name?: string;
   @Field((_type) => Int, { nullable: true })
-  maximumLevel?: number;
+    maximumLevel?: number;
   @Field((_type) => [VehicleLocationSettings], { nullable: true })
-  locationSettings?: VehicleLocationSettings[];
+    locationSettings?: VehicleLocationSettings[];
   @Field((_type) => String, { nullable: true })
-  status?: string;
+    status?: string;
   @Field((_type) => ID, { nullable: true })
-  serviceID?: string;
+    serviceID?: string;
   @Field((_type) => GraphQLJSONObject, { nullable: true })
-  providerData?: any;
+    providerData?: any;
 }
 
 registerEnumType(ChargeConnection, { name: "ChargeConnection" });
@@ -265,31 +265,31 @@ registerEnumType(ChargeConnection, { name: "ChargeConnection" });
 @InputType()
 export abstract class UpdateVehicleDataInput {
   @Field((_type) => ID)
-  id!: string;
+    id!: string;
   @Field((_type) => GeoLocation, { nullable: true })
-  geoLocation?: GeoLocation;
+    geoLocation?: GeoLocation;
   @Field((_type) => Int, { nullable: true, description: `battery level (%)` })
-  batteryLevel?: number;
+    batteryLevel?: number;
   @Field((_type) => Int, { nullable: true, description: `odometer (meters)` })
-  odometer?: number;
+    odometer?: number;
   @Field((_type) => Float, { nullable: true, description: `outside temperature (celcius)` })
-  outsideTemperature?: number;
+    outsideTemperature?: number;
   @Field((_type) => Float, { nullable: true, description: `inside temperature (celcius)` })
-  insideTemperature?: number;
+    insideTemperature?: number;
   @Field((_type) => Boolean, { nullable: true, description: `is climate control on` })
-  climateControl?: boolean;
+    climateControl?: boolean;
   @Field((_type) => Boolean, { nullable: true, description: `is someone driving` })
-  isDriving?: boolean;
+    isDriving?: boolean;
   @Field((_type) => ChargeConnection, { nullable: true, description: `charge connection` })
-  connectedCharger?: ChargeConnection | null;
+    connectedCharger?: ChargeConnection | null;
   @Field((_type) => Int, { nullable: true, description: `charging to level (%)` })
-  chargingTo?: number | null;
+    chargingTo?: number | null;
   @Field((_type) => Int, { nullable: true, description: `estimated time to complete charge (minutes)` })
-  estimatedTimeLeft?: number | null;
+    estimatedTimeLeft?: number | null;
   @Field((_type) => Float, { nullable: true, description: `current power use (kW)` })
-  powerUse?: number | null;
+    powerUse?: number | null;
   @Field((_type) => Float, { nullable: true, description: `charger energy used (kWh)` })
-  energyUsed?: number | null;
+    energyUsed?: number | null;
   @Field((_type) => Float, { nullable: true, description: `charge added (kWh)` })
-  energyAdded?: number | null;
+    energyAdded?: number | null;
 }

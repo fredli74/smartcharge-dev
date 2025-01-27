@@ -17,7 +17,8 @@
     <v-tooltip top :disabled="disableTooltips">
       <template #activator="{ on }">
         <div v-on="on">
-          <v-btn depressed fab :small="smallButton" :dark="manualChargeState.dark" :outlined="manualChargeState.outlined"
+          <v-btn
+            depressed fab :small="smallButton" :dark="manualChargeState.dark" :outlined="manualChargeState.outlined"
             :color="manualChargeState.color" @click="chargeClick()"
           >
             <v-icon :large="!smallButton">
@@ -30,7 +31,8 @@
     </v-tooltip>
     <v-tooltip top :disabled="disableTooltips">
       <template #activator="{ on }">
-        <v-btn depressed fab :small="smallButton" :outlined="!hasSchedule"
+        <v-btn
+          depressed fab :small="smallButton" :outlined="!hasSchedule"
           :color="hasSchedule ? vehicle.isConnected ? 'success darken-1' : 'warning' : ''" v-on="on"
           @click="scheduleClick()"
         >
