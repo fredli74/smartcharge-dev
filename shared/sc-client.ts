@@ -120,24 +120,18 @@ export class SCClient extends ApolloClient<any> {
     subscription_url?: string,
     webSocketImpl?: any
   ) {
-    let wsClient: Client | undefined = undefined;
-    const link = onError(({ graphQLErrors, networkError }) => {
+    let wsClient;
+    let link = onError(({ graphQLErrors, networkError }) => {
       if (graphQLErrors) {
         graphQLErrors.map(({ message, locations, path }) => {
-          console.log(
-            `[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`
-          );
+          console.log(`[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`);
           if (message === "Unauthorized") {
             this.logout();
           }
         });
       }
       if (networkError) {
-        if (
-          this.token &&
-          (networkError.message === "Authorization failed" ||
-            (networkError as any).statusCode === 401)
-        ) {
+        if (this.token && (networkError.message === "Authorization failed" || networkError.statusCode === 401)) {
           this.logout();
         }
         console.log(`[Network error]: ${networkError}`);
@@ -153,26 +147,25 @@ export class SCClient extends ApolloClient<any> {
         shouldRetry: () => true,
         on: { error: (err) => console.error("WebSocket error:", err) },
         keepAlive: 10000,
-        webSocketImpl: webSocketImpl,
+        webSocketImpl,
       });
-      link.concat(new GraphQLWsLink(wsClient));
+      link = link.concat(new GraphQLWsLink(wsClient));
     } else {
       const httpLink = new HttpLink({
         uri: mergeURL(server_url, API_PATH),
-        fetch: fetch,
+        fetch,
       });
       const authLink = setContext((_, { headers }) => {
         return {
           headers: this.token
             ? { ...headers, authorization: `Bearer ${this.token}` }
-            : headers,
+            : headers
         };
-      })
-      link.concat(authLink.concat(httpLink));
+      });
+      link = link.concat(authLink.concat(httpLink));
     }
 
     super({
-      // devtools: { enabled: true },
       link,
       cache: new InMemoryCache(),
       defaultOptions: {
