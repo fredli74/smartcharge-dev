@@ -25,7 +25,6 @@ import {
   GQLVehicle,
   GQLUpdateVehicleInput,
   GQLUpdateVehicleDataInput,
-  GQLVehicleDebugInput,
   GQLServiceProvider,
   GQLAction,
   GQLScheduleType,
@@ -44,6 +43,8 @@ export type UpdateLocationParams = Pick<GQLUpdateLocationInput, "id"> &
   Partial<GQLUpdateLocationInput>;
 export type UpdateVehicleParams = Pick<GQLUpdateVehicleInput, "id"> &
   Partial<GQLUpdateVehicleInput>;
+export type UpdateVehicleDataParams = Pick<GQLUpdateVehicleDataInput, "id"> &
+  Partial<GQLUpdateVehicleDataInput>;
 export type GQLLocationFragment = Pick<
   GQLLocation,
   | "id"
@@ -110,6 +111,7 @@ chargePlan {
   level
   comment
 }
+chargePlanLocationID
 updated`;
 export class SCClient extends ApolloClient<any> {
   public account?: GQLAccount;
@@ -299,7 +301,7 @@ export class SCClient extends ApolloClient<any> {
     const result = await this.query({ query });
     return result.data.vehicleLimit;
   }
-  public async updateVehicle(input: UpdateVehicleParams): Promise<boolean> {
+  public async updateVehicle(input: UpdateVehicleParams): Promise<GQLVehicle> {
     const mutation = gql`
       mutation UpdateVehicle($input: UpdateVehicleInput!) {
         updateVehicle(input: $input) { ${vehicleFragment}}
@@ -312,7 +314,7 @@ export class SCClient extends ApolloClient<any> {
     return result.data.updateVehicle;
   }
   public async updateVehicleData(
-    input: GQLUpdateVehicleDataInput
+    input: UpdateVehicleDataParams
   ): Promise<boolean> {
     // TODO: should be more flexible, returning just the fields you want into an <any> response instead
     const mutation = gql`
@@ -325,18 +327,6 @@ export class SCClient extends ApolloClient<any> {
       variables: { input },
     });
     return result.data._updateVehicleData;
-  }
-  public async vehicleDebug(input: GQLVehicleDebugInput): Promise<boolean> {
-    const mutation = gql`
-      mutation VehicleDebug($input: VehicleDebugInput!) {
-        _vehicleDebug(input: $input)
-      }
-    `;
-    const result = await this.mutate({
-      mutation: mutation,
-      variables: { input },
-    });
-    return result.data._vehicleDebug;
   }
 
   public async getServiceProviders(

@@ -8,11 +8,11 @@
 import { strict as assert } from "assert";
 
 import pgp from "pg-promise";
+import { v5 as uuidv5 } from "uuid";
 import {
   DBVehicle,
   DBLocation,
   DB_SETUP_TSQL,
-  DBVehicleDebug,
   DBAccount,
   DB_VERSION,
   DBPriceData,
@@ -23,14 +23,9 @@ import {
 } from "./db-schema.js";
 import { log, LogLevel, geoDistance } from "@shared/utils.js";
 import config from "@shared/smartcharge-config.js";
-import { v5 as uuidv5 } from "uuid";
 import { SmartChargeGoal } from "@shared/sc-types.js";
 import { DEFAULT_DIRECTLEVEL } from "@shared/smartcharge-defines.js";
-import {
-  VehicleLocationSettings,
-  VehicleDebugInput,
-  Schedule,
-} from "./gql/vehicle-type.js";
+import { VehicleLocationSettings, Schedule } from "./gql/vehicle-type.js";
 
 export const DB_OPTIONS: pgp.IInitOptions = {};
 
@@ -74,16 +69,12 @@ export interface ChargeCurve {
 export class DBInterface {
   public pg: pgp.IDatabase<unknown>;
   constructor() {
+    const connectionString = `postgres://${config.POSTGRES_USER}:${config.POSTGRES_PASSWORD}@${config.POSTGRES_HOST}:${config.POSTGRES_PORT}/${config.POSTGRES_DB}`;
     const pg = pgp(DB_OPTIONS);
     this.pg = pg({
-      connectionString: config.DATABASE_URL,
-      max: parseInt(config.DATABASE_CONNECTIONS) || 10,
-      ssl:
-        config.DATABASE_SSL === "true"
-          ? {
-              rejectUnauthorized: false,
-            }
-          : false,
+      connectionString: connectionString,
+      max: parseInt(config.POSTGRES_CONNECTIONS) || 10,
+      ssl: config.POSTGRES_SSL === "true" ? { rejectUnauthorized: false } : false
     });
   }
   public async init(): Promise<void> {
@@ -125,10 +116,7 @@ export class DBInterface {
             NOT EXISTS (SELECT * FROM location WHERE location.service_uuid = service_provider.service_uuid);`
           )) {
             if (orphanServices[o.service_uuid]) {
-              log(
-                LogLevel.Info,
-                `Deleting orphan ${o.provider_name} service_provider ${o.service_uuid}`
-              );
+              log(LogLevel.Info, `Deleting orphan ${o.provider_name} service_provider ${o.service_uuid}`);
               await this.pg.none(
                 `DELETE FROM service_provider WHERE service_uuid = $1;`,
                 [o.service_uuid]
@@ -154,9 +142,7 @@ export class DBInterface {
     }, 60e3);
   }
   public async getDatabaseVersion(): Promise<string> {
-    return (
-      await this.pg.one(`SELECT value FROM setting WHERE key = 'version';`)
-    ).value;
+    return (await this.pg.one(`SELECT value FROM setting WHERE key = 'version';`)).value;
   }
   public async setupDatabase(): Promise<void> {
     for (const q of DB_SETUP_TSQL) {
@@ -209,18 +195,14 @@ export class DBInterface {
     return result;
   }
 
-  public async lookupKnownLocation(
-    accountUUID: string,
-    latitude: number,
-    longitude: number
-  ): Promise<DBLocation | null> {
+  // Return the closest location to the given coordinates as an object with the location, distance in meters, and whether the location is within the geofence radius
+
+  public async lookupClosestLocation(accountUUID: string, latitude: number, longitude: number): Promise<{ location: DBLocation, distance: number, insideGeofence: boolean } | null> {
     const locations: DBLocation[] = await this.pg.manyOrNone(
-      `SELECT * FROM location WHERE account_uuid = $1 ORDER BY name, location_uuid;`,
-      [accountUUID]
+      `SELECT * FROM location WHERE account_uuid = $1 ORDER BY name, location_uuid;`, [accountUUID]
     );
     let bestLocation = null;
-    let bestDistance = Number.MAX_VALUE;
-    for (const loc of locations)
+    for (const loc of locations) {
       if (loc.location_uuid !== null) {
         const distance = geoDistance(
           latitude / 1e6,
@@ -228,27 +210,27 @@ export class DBInterface {
           loc.location_micro_latitude / 1e6,
           loc.location_micro_longitude / 1e6
         );
-        log(
-          LogLevel.Trace,
-          `Distance to location ${loc.name} is ${distance} meters`
-        );
-        if (distance < loc.radius && distance < bestDistance) {
-          bestLocation = loc;
-          bestDistance = distance;
+        log(LogLevel.Trace, `Distance to location ${loc.name} is ${distance} meters`);
+        if (!bestLocation || distance < bestLocation.distance) {
+          bestLocation = { location: loc, distance, insideGeofence: distance < loc.radius };
         }
       }
-    if (bestLocation === null) {
-      return null;
     }
     return bestLocation;
   }
+
+  public async lookupKnownLocation(accountUUID: string, latitude: number, longitude: number): Promise<DBLocation | null> {
+    const closest = await this.lookupClosestLocation(accountUUID, latitude, longitude);
+    if (closest && closest.insideGeofence) {
+      return closest.location;
+    }
+    return null;
+  }
+
   public async updateAllLocations(accountUUID: string): Promise<void> {
     for (const v of await this.getVehicles(accountUUID)) {
       let location = null;
-      if (
-        v.location_micro_latitude !== null &&
-        v.location_micro_longitude !== null
-      ) {
+      if (v.location_micro_latitude !== null && v.location_micro_longitude !== null) {
         location = await this.lookupKnownLocation(
           v.account_uuid,
           v.location_micro_latitude,
@@ -271,9 +253,7 @@ export class DBInterface {
       [account_uuid, `account_uuid = $2`],
     ]);
     return this.pg.manyOrNone(
-      `SELECT * FROM location ${queryWhere(
-        where
-      )} ORDER BY name, location_uuid;`,
+      `SELECT * FROM location ${queryWhere(where)} ORDER BY name, location_uuid;`,
       values
     );
   }
@@ -306,9 +286,7 @@ export class DBInterface {
     assert(set.length > 0);
 
     return this.pg.one(
-      `UPDATE location SET ${set.join(
-        ","
-      )} WHERE location_uuid = $1 RETURNING *;`,
+      `UPDATE location SET ${set.join(",")} WHERE location_uuid = $1 RETURNING *;`,
       values
     );
   }
@@ -320,7 +298,7 @@ export class DBInterface {
   ): Promise<DBPriceData> {
     const result = await this.pg.one(
       `INSERT INTO price_data(price_list_uuid, ts, price) VALUES($1, $2, $3) ` +
-        `ON CONFLICT (price_list_uuid,ts) DO UPDATE SET price=EXCLUDED.price RETURNING *;`,
+      `ON CONFLICT (price_list_uuid,ts) DO UPDATE SET price=EXCLUDED.price RETURNING *;`,
       [price_list_uuid, ts, price * 1e5]
     );
     return result;
@@ -400,14 +378,6 @@ export class DBInterface {
     return dblist[0];
   }
 
-  public async storeVehicleDebug(
-    record: DBVehicleDebug
-  ): Promise<DBVehicleDebug> {
-    return this.pg.one(
-      `INSERT INTO vehicle_debug(vehicle_uuid, ts, category, data) VALUES($1, $2, $3, $4) RETURNING *;`,
-      [record.vehicle_uuid, record.ts, record.category, record.data]
-    );
-  }
   public async updateVehicle(
     vehicle_uuid: string,
     input: Partial<DBVehicle>
@@ -416,10 +386,7 @@ export class DBInterface {
       vehicle_uuid,
       [input.name, `name = $2`],
       [input.maximum_charge, `maximum_charge = $3`],
-      [
-        input.location_settings,
-        `location_settings = jsonb_merge(location_settings, $4)`,
-      ],
+      [input.location_settings, `location_settings = jsonb_merge(location_settings, $4)`],
       [input.status, `status = $5`],
       [input.service_uuid, `service_uuid = $6`],
       [input.provider_data, `provider_data = jsonb_merge(provider_data, $7)`],
@@ -427,10 +394,7 @@ export class DBInterface {
     assert(set.length > 0);
 
     if (input.status !== undefined) {
-      if (
-        input.status.toLowerCase() === "offline" ||
-        input.status.toLowerCase() === "sleeping"
-      ) {
+      if (input.status.toLowerCase() === "offline" || input.status.toLowerCase() === "sleeping") {
         this.pg.none(
           `WITH upsert AS (UPDATE sleep SET end_ts=NOW() WHERE vehicle_uuid=$1 AND active RETURNING *)
           INSERT INTO sleep(vehicle_uuid, active, start_ts, end_ts) SELECT $1, true, NOW(), NOW() WHERE NOT EXISTS (SELECT * FROM upsert);`,
@@ -445,21 +409,9 @@ export class DBInterface {
     }
 
     return this.pg.one(
-      `UPDATE vehicle SET ${set.join(
-        ","
-      )} WHERE vehicle_uuid = $1 RETURNING *;`,
+      `UPDATE vehicle SET ${set.join(",")} WHERE vehicle_uuid = $1 RETURNING *;`,
       values
     );
-  }
-  public static VehicleDebugToDBVehicleDebug(
-    record: VehicleDebugInput
-  ): DBVehicleDebug {
-    return {
-      vehicle_uuid: record.id,
-      category: record.category,
-      ts: record.timestamp,
-      data: record.data,
-    };
   }
 
   public async getAccount(accountUUID: string): Promise<DBAccount> {
@@ -495,9 +447,7 @@ export class DBInterface {
     assert(where.length > 0);
 
     return this.pg.manyOrNone(
-      `SELECT * FROM service_provider WHERE ${where.join(
-        " AND "
-      )} ORDER BY 1,2;`,
+      `SELECT * FROM service_provider WHERE ${where.join(" AND ")} ORDER BY 1,2;`,
       values
     );
   }
@@ -523,33 +473,27 @@ export class DBInterface {
     let current;
 
     // Look for a curve for this location
-    const dbCurve =
-      (location_uuid &&
-        (await this.pg.manyOrNone(
-          `WITH curves AS (
-            SELECT level, duration FROM charge a JOIN charge_curve b ON (a.charge_id = b.charge_id)
-            WHERE a.vehicle_uuid = $1 AND location_uuid = $2
-            ORDER BY start_ts desc, level desc LIMIT 100
-          )
-          SELECT level, percentile_cont(0.5) WITHIN GROUP (ORDER BY duration) AS seconds
-          FROM curves GROUP BY level ORDER BY level`,
-          [vehicle_uuid, location_uuid]
-        ))) ||
-      [];
+    const dbCurve = (location_uuid && (await this.pg.manyOrNone(
+      `WITH curves AS (
+        SELECT level, duration FROM charge a JOIN charge_curve b ON (a.charge_id = b.charge_id)
+        WHERE a.vehicle_uuid = $1 AND location_uuid = $2
+        ORDER BY start_ts desc, level desc LIMIT 100
+      )
+      SELECT level, percentile_cont(0.5) WITHIN GROUP (ORDER BY duration) AS seconds
+      FROM curves GROUP BY level ORDER BY level`,
+      [vehicle_uuid, location_uuid]
+    ))) || [];
 
     if (dbCurve.length > 0) {
       current = dbCurve.shift().seconds;
     } else {
       // Check estimate for current connection
-      current =
-        (
-          await this.pg.one(
-            `SELECT AVG(60.0 * c.estimate / (c.target_level - c.end_level))
-        FROM charge c JOIN vehicle v ON (v.connected_id = c.connected_id)
-        WHERE v.vehicle_uuid = $1 AND c.target_level > c.end_level AND c.estimate > 0;`,
-            [vehicle_uuid]
-          )
-        ).avg || 20 * 60; // 20 min fallback
+      current = (await this.pg.one(
+        `SELECT AVG(60.0 * c.estimate / (c.target_level - c.end_level))
+          FROM charge c JOIN vehicle v ON (v.connected_id = c.connected_id)
+          WHERE v.vehicle_uuid = $1 AND c.target_level > c.end_level AND c.estimate > 0;`,
+        [vehicle_uuid]
+      )).avg || 20 * 60; // 20 min fallback
     }
     assert(current !== undefined && current !== null);
 
@@ -652,9 +596,7 @@ export class DBInterface {
       [account_uuid, `(account_uuid = $2 OR public_list IS TRUE)`],
     ]);
     return this.pg.manyOrNone(
-      `SELECT * FROM price_list ${queryWhere(
-        where
-      )} ORDER BY name, price_list_uuid;`,
+      `SELECT * FROM price_list ${queryWhere(where)} ORDER BY name, price_list_uuid;`,
       values
     );
   }
@@ -683,9 +625,7 @@ export class DBInterface {
     assert(set.length > 0);
 
     return this.pg.one(
-      `UPDATE price_list SET ${set.join(
-        ","
-      )} WHERE price_list_uuid = $1 RETURNING *;`,
+      `UPDATE price_list SET ${set.join(",")} WHERE price_list_uuid = $1 RETURNING *;`,
       values
     );
   }

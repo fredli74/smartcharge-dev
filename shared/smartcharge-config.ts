@@ -25,9 +25,13 @@ function getEnvVar(key: string, defaultValue: string) {
 
 // Config object
 const config = {
-  DATABASE_URL: getEnvVar('DATABASE_URL', `postgres://scserver:scserverpass@localhost:5432/smartcharge`),
-  DATABASE_SSL: getEnvVar('DATABASE_SSL', `${false}`),
-  DATABASE_CONNECTIONS: getEnvVar('DATABASE_CONNECTIONS', `${10}`),
+  POSTGRES_DB: getEnvVar('POSTGRES_DB', `smartcharge`),
+  POSTGRES_USER: getEnvVar('POSTGRES_USER', `scserver`),
+  POSTGRES_PASSWORD: getEnvVar('POSTGRES_PASSWORD', `scserverpass`),
+  POSTGRES_HOST: getEnvVar('POSTGRES_HOST', `db`),
+  POSTGRES_PORT: getEnvVar('POSTGRES_PORT', `${5432}`),
+  POSTGRES_SSL: getEnvVar('POSTGRES_SSL', `${false}`),
+  POSTGRES_CONNECTIONS: getEnvVar('POSTGRES_CONNECTIONS', `${10}`),
   PUBLIC_URL: getEnvVar('PUBLIC_URL', ``),
   HELP_URL: getEnvVar('HELP_URL', `https://github.com/fredli74/smartcharge-dev/issues`),
   SERVER_IP: getEnvVar('SERVER_IP', `0.0.0.0`),

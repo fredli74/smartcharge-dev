@@ -38,8 +38,8 @@ import { ServiceProviderTypeResolver } from "./service-type.js";
 export interface IContext {
   db: DBInterface;
   logic: Logic;
-  accountUUID?: string;
-  account?: DBAccount;
+  accountUUID: string | undefined;
+  account: DBAccount | undefined;
 }
 
 export function accountFilter(

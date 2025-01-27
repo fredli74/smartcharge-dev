@@ -21,7 +21,7 @@ export function setLogLevel(level: LogLevel) {
   LOGLEVEL = level;
 }
 
-export function log(level: LogLevel, data: any) {
+export function log(level: LogLevel, data: unknown) {
   if (level <= LOGLEVEL) {
     const s = logFormat(level, data);
     switch (level) {
@@ -39,20 +39,19 @@ export function log(level: LogLevel, data: any) {
     }
   }
 }
-export function logFormat(level: LogLevel, data: any): string {
+export function logFormat(level: LogLevel, data: unknown): string {
   return `${new Date().toISOString()} ${logSymbol[level]} ${
-    data instanceof Error
-      ? (data as Error).message
-      : typeof data === "object"
-      ? JSON.stringify(data)
-      : data
+    data instanceof Error ? (data as Error).message
+    : typeof data === "object" ? JSON.stringify(data)
+    : data
   }`;
 }
 
 export function arrayMean(list: number[]) {
-  return list.length > 0
+  return (list.length > 0
     ? list.reduce((prev, curr) => prev + curr) / list.length
-    : 0;
+    : 0
+  );
 }
 export function arrayPercentile(list: number[], percentile: number) {
   const sorted = list.sort();
@@ -76,12 +75,7 @@ export function arrayMedian(list: number[]) {
  *  δ = 2·atan2(√(a), √(1−a))
  * thanks to: Chris Veness for publishing www.movable-type.co.uk/scripts/latlong.html
  */
-export function geoDistance(
-  lat1: number,
-  lon1: number,
-  lat2: number,
-  lon2: number
-) {
+export function geoDistance(lat1: number, lon1: number, lat2: number, lon2: number) {
   const radius = 6371e3; // Earth radius 6371 km
   const φ1 = (lat1 * Math.PI) / 180; // latitude (in radians)
   const φ2 = (lat2 * Math.PI) / 180; // latitude (in radians)
@@ -97,11 +91,7 @@ export function geoDistance(
 
 export class MemCache {
   private mem: { [key: string]: { expiry: number; data: any } } = {};
-  public async get(
-    key: any,
-    expiry: number,
-    callback: () => Promise<any>
-  ): Promise<any> {
+  public async get(key: any, expiry: number, callback: () => Promise<any>): Promise<any> {
     const jkey = JSON.stringify(key);
     if (this.mem[jkey] === undefined || this.mem[jkey].expiry > Date.now()) {
       this.mem[jkey] = { expiry: Date.now() + expiry, data: await callback() };
@@ -152,11 +142,10 @@ export function mergeURL(
   base: string | undefined,
   url: string | undefined
 ): string {
-  return !url
-    ? base || ""
-    : !base || url.match(/^https?:\/\//)
-    ? url
-    : base.replace(/\/+$/, "") + "/" + url.replace(/^\/+/, "");
+  return (!url ? base || ""
+    : !base || url.match(/^https?:\/\//) ? url
+    : base.replace(/\/+$/, "") + "/" + url.replace(/^\/+/, "")
+  );
 }
 
 export function secondsToString(
@@ -203,16 +192,18 @@ export type OpenDate = Date | null | number | string | undefined;
 
 // Functions for comparing start and stop times that can be a Date or null
 export function numericStartTime(nstart: OpenDate): number {
-  return nstart instanceof Date ? nstart.getTime()
+  return (nstart instanceof Date ? nstart.getTime()
     : typeof nstart === "string" ? new Date(nstart).getTime()
     : typeof nstart === "number" ? nstart
-    : -Infinity;
+    : -Infinity
+  );
 }
 export function numericStopTime(nstop: OpenDate): number {
-  return nstop instanceof Date ? nstop.getTime()
+  return (nstop instanceof Date ? nstop.getTime()
     : typeof nstop === "string" ? new Date(nstop).getTime()
     : typeof nstop === "number" ? nstop
-    : Infinity;
+    : Infinity
+  );
 }
 export function compareStartTimes(a: OpenDate, b: OpenDate): number {
   return numericStartTime(a) - numericStartTime(b);
@@ -237,10 +228,7 @@ export function relativeTime(when: Date): { date: string; time: string } {
   const nowLocal = DateTime.local();
   const thenLocal = DateTime.fromJSDate(when).toLocal();
 
-  const dayDiff = thenLocal
-    .startOf("day")
-    .diff(nowLocal.startOf("day"))
-    .as("days");
+  const dayDiff = thenLocal.startOf("day").diff(nowLocal.startOf("day")).as("days");
 
   let datestr = "";
   if (dayDiff === -1) {
@@ -262,4 +250,25 @@ export function relativeTime(when: Date): { date: string; time: string } {
 export function capitalize(s: string): string {
   if (typeof s !== "string") return "";
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+
+/**
+ * Computes the differences between two objects and returns the properties
+ * in the first object (`a`) that differ from the second object (`b`).
+ *
+ * @template T - The type of the objects being compared.
+ * @param {T} a - The first object to compare (source of differences).
+ * @param {T} b - The second object to compare (reference object).
+ * @returns {Partial<T>} A partial object containing only the properties in `a` 
+ * that have different values compared to `b`.
+ */
+export function diffObjects<T extends object>(a: T, b: T): Partial<T> {
+  const result: Partial<T> = {};
+  for (const key of Object.keys(a) as (keyof T)[]) {
+    if (a[key] !== b[key]) {
+      result[key] = a[key];
+    }
+  }
+  return result;
 }

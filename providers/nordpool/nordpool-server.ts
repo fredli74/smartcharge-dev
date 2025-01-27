@@ -2,6 +2,7 @@ import provider from "./index.js";
 import type { IContext } from "@server/gql/api.js";
 import { IProviderServer } from "@providers/provider-server.js";
 import { DEFAULT_LOCATION_RADIUS } from "@shared/smartcharge-defines.js";
+import { GraphQLError } from "graphql";
 
 const server: IProviderServer = {
   ...provider,
@@ -18,6 +19,11 @@ const server: IProviderServer = {
     }
   },
   mutation: async (data: any, context: IContext) => {
+    if (!context.accountUUID || !context.account) {
+      throw new GraphQLError("Access denied, authentication required",
+        undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
+      );
+    }
     switch (data.mutation) {
       case "newLocation": {
         if (context.accountUUID === undefined) {

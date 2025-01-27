@@ -6,20 +6,7 @@
  */
 
 import "reflect-metadata";
-import {
-  Field,
-  ObjectType,
-  InputType,
-  Int,
-  ID,
-  registerEnumType,
-  Float,
-  Resolver,
-  FieldResolver,
-  Root,
-  Ctx,
-  GraphQLISODateTime,
-} from "type-graphql";
+import { Field, ObjectType, InputType, Int, ID, registerEnumType, Float, Resolver, FieldResolver, Root, Ctx, GraphQLISODateTime } from "type-graphql";
 import { GraphQLJSONObject } from "graphql-type-json";
 import { GeoLocation, Location } from "./location-type.js";
 import {
@@ -43,9 +30,7 @@ import { DBInterface } from "@server/db-interface.js";
 export class VehicleLocationSettings {
   @Field((_type) => ID, { description: `location id` })
   locationID!: string;
-  @Field((_type) => Int, {
-    description: `Minimum battery level to reach directly (%)`,
-  })
+  @Field((_type) => Int, { description: `Minimum battery level to reach directly (%)` })
   directLevel!: number;
   @Field((_type) => String)
   goal!: SmartChargeGoal | string;
@@ -67,16 +52,10 @@ export class ChargePlan {
   @Field((_type) => ChargeType)
   chargeType!: ChargeType;
   @Type(() => Date)
-  @Field((_type) => GraphQLISODateTime, {
-    nullable: true,
-    description: `time to start or null for now`,
-  })
+  @Field((_type) => GraphQLISODateTime, { nullable: true, description: `time to start or null for now` })
   chargeStart!: Date | null;
   @Type(() => Date)
-  @Field((_type) => GraphQLISODateTime, {
-    nullable: true,
-    description: `time to end or null for never`,
-  })
+  @Field((_type) => GraphQLISODateTime, { nullable: true, description: `time to end or null for never` })
   chargeStop!: Date | null;
   @Field((_type) => Int)
   level!: number;
@@ -142,9 +121,7 @@ export class VehicleTypeResolver {
   name(@Root() vehicle: Vehicle): string {
     return vehicle.name;
   }
-  @FieldResolver((_returns) => Int, {
-    description: `maximum level to charge to unless a trip is scheduled (%)`,
-  })
+  @FieldResolver((_returns) => Int, { description: `maximum level to charge to unless a trip is scheduled (%)` })
   maximumLevel(@Root() vehicle: Vehicle): number {
     return vehicle.maximum_charge;
   }
@@ -154,10 +131,7 @@ export class VehicleTypeResolver {
   }
   @FieldResolver((_returns) => GeoLocation, { nullable: true })
   geoLocation(@Root() vehicle: Vehicle): GeoLocation | null {
-    if (
-      vehicle.location_micro_latitude === null ||
-      vehicle.location_micro_longitude === null
-    ) {
+    if (vehicle.location_micro_latitude === null || vehicle.location_micro_longitude === null) {
       return null;
     }
     return {
@@ -165,17 +139,11 @@ export class VehicleTypeResolver {
       longitude: vehicle.location_micro_longitude / 1e6,
     };
   }
-  @FieldResolver((_returns) => ID, {
-    nullable: true,
-    description: `known location id`,
-  })
+  @FieldResolver((_returns) => ID, { nullable: true, description: `known location id` })
   locationID(@Root() vehicle: Vehicle): string | null {
     return vehicle.location_uuid;
   }
-  @FieldResolver((_returns) => Location, {
-    nullable: true,
-    description: `known location`,
-  })
+  @FieldResolver((_returns) => Location, { nullable: true, description: `known location` })
   async location(
     @Root() vehicle: Vehicle,
     @Ctx() context: IContext
@@ -195,9 +163,7 @@ export class VehicleTypeResolver {
       await context.db.getSchedule(vehicle.vehicle_uuid)
     );
   }
-  @FieldResolver((_returns) => [VehicleLocationSettings], {
-    description: `location settings`,
-  })
+  @FieldResolver((_returns) => [VehicleLocationSettings], { description: `location settings` })
   locationSettings(@Root() vehicle: Vehicle): VehicleLocationSettings[] {
     return plainToInstance(
       VehicleLocationSettings,
@@ -217,41 +183,27 @@ export class VehicleTypeResolver {
   odometer(@Root() vehicle: Vehicle): number {
     return vehicle.odometer;
   }
-  @FieldResolver((_returns) => Float, {
-    description: `outside temperature (celcius)`,
-  })
+  @FieldResolver((_returns) => Float, { description: `outside temperature (celcius)` })
   outsideTemperature(@Root() vehicle: Vehicle): number {
     return vehicle.outside_deci_temperature / 10;
   }
-  @FieldResolver((_returns) => Float, {
-    description: `inside temperature (celcius)`,
-  })
+  @FieldResolver((_returns) => Float, { description: `inside temperature (celcius)` })
   insideTemperature(@Root() vehicle: Vehicle): number {
     return vehicle.inside_deci_temperature / 10;
   }
-  @FieldResolver((_returns) => Boolean, {
-    description: `is climate control on`,
-  })
+  @FieldResolver((_returns) => Boolean, { description: `is climate control on` })
   climateControl(@Root() vehicle: Vehicle): boolean {
     return vehicle.climate_control;
   }
-  @FieldResolver((_returns) => Boolean, {
-    description: `is a charger connected`,
-  })
+  @FieldResolver((_returns) => Boolean, { description: `is a charger connected` })
   isConnected(@Root() vehicle: Vehicle): boolean {
     return vehicle.connected;
   }
-  @FieldResolver((_returns) => Int, {
-    nullable: true,
-    description: `charging to level (%)`,
-  })
+  @FieldResolver((_returns) => Int, { nullable: true, description: `charging to level (%)` })
   chargingTo(@Root() vehicle: Vehicle): number | null {
     return vehicle.charging_to;
   }
-  @FieldResolver((_returns) => Int, {
-    nullable: true,
-    description: `estimated time to complete charge (minutes)`,
-  })
+  @FieldResolver((_returns) => Int, { nullable: true, description: `estimated time to complete charge (minutes)` })
   estimatedTimeLeft(@Root() vehicle: Vehicle): number | null {
     return vehicle.estimate;
   }
@@ -267,10 +219,7 @@ export class VehicleTypeResolver {
   smartStatus(@Root() vehicle: Vehicle): string {
     return vehicle.smart_status;
   }
-  @FieldResolver((_returns) => [ChargePlan], {
-    nullable: true,
-    description: `charge plan`,
-  })
+  @FieldResolver((_returns) => [ChargePlan], { nullable: true, description: `charge plan` })
   chargePlan(@Root() vehicle: Vehicle): ChargePlan[] | null {
     if (vehicle.charge_plan === null) {
       return null;
@@ -278,6 +227,10 @@ export class VehicleTypeResolver {
     return (vehicle.charge_plan as ChargePlan[]).map((f) =>
       plainToInstance(ChargePlan, f)
     );
+  }
+  @FieldResolver((_returns) => ID, { nullable: true, description: `charge plan location id` })
+  chargePlanLocationID(@Root() vehicle: Vehicle): string | null {
+    return vehicle.charge_plan_location_uuid;
   }
   @FieldResolver((_returns) => GraphQLISODateTime)
   updated(@Root() vehicle: Vehicle): Date {
@@ -313,61 +266,30 @@ registerEnumType(ChargeConnection, { name: "ChargeConnection" });
 export abstract class UpdateVehicleDataInput {
   @Field((_type) => ID)
   id!: string;
-  @Field((_type) => GeoLocation)
-  geoLocation!: GeoLocation;
-  @Field((_type) => Int, { description: `battery level (%)` })
-  batteryLevel!: number;
-  @Field((_type) => Int, { description: `odometer (meters)` })
-  odometer!: number;
-  @Field((_type) => Float, {
-    nullable: true,
-    description: `outside temperature (celcius)`,
-  })
-  outsideTemperature!: number | null;
-  @Field((_type) => Float, {
-    nullable: true,
-    description: `inside temperature (celcius)`,
-  })
-  insideTemperature!: number | null;
-  @Field({ description: `is climate control on` })
-  climateControl!: boolean;
-  @Field((_type) => Boolean)
-  isDriving!: boolean;
-  @Field((_type) => ChargeConnection, {
-    nullable: true,
-    description: `charge connection`,
-  })
-  connectedCharger!: ChargeConnection | null;
-  @Field((_type) => Int, {
-    nullable: true,
-    description: `charging to level (%)`,
-  })
-  chargingTo!: number | null;
-  @Field((_type) => Int, {
-    nullable: true,
-    description: `estimated time to complete charge (minutes)`,
-  })
-  estimatedTimeLeft!: number | null;
-  @Field((_type) => Float, {
-    nullable: true,
-    description: `current power use (kW)`,
-  })
-  powerUse!: number | null;
-  @Field((_type) => Float, {
-    nullable: true,
-    description: `charge added (kWh)`,
-  })
-  energyAdded!: number | null;
-}
-
-@InputType()
-export abstract class VehicleDebugInput {
-  @Field((_type) => ID)
-  id!: string;
-  @Field((_type) => GraphQLISODateTime)
-  timestamp!: Date;
-  @Field((_type) => String)
-  category!: string;
-  @Field((_type) => GraphQLJSONObject)
-  data!: any;
+  @Field((_type) => GeoLocation, { nullable: true })
+  geoLocation?: GeoLocation;
+  @Field((_type) => Int, { nullable: true, description: `battery level (%)` })
+  batteryLevel?: number;
+  @Field((_type) => Int, { nullable: true, description: `odometer (meters)` })
+  odometer?: number;
+  @Field((_type) => Float, { nullable: true, description: `outside temperature (celcius)` })
+  outsideTemperature?: number;
+  @Field((_type) => Float, { nullable: true, description: `inside temperature (celcius)` })
+  insideTemperature?: number;
+  @Field((_type) => Boolean, { nullable: true, description: `is climate control on` })
+  climateControl?: boolean;
+  @Field((_type) => Boolean, { nullable: true, description: `is someone driving` })
+  isDriving?: boolean;
+  @Field((_type) => ChargeConnection, { nullable: true, description: `charge connection` })
+  connectedCharger?: ChargeConnection | null;
+  @Field((_type) => Int, { nullable: true, description: `charging to level (%)` })
+  chargingTo?: number | null;
+  @Field((_type) => Int, { nullable: true, description: `estimated time to complete charge (minutes)` })
+  estimatedTimeLeft?: number | null;
+  @Field((_type) => Float, { nullable: true, description: `current power use (kW)` })
+  powerUse?: number | null;
+  @Field((_type) => Float, { nullable: true, description: `charger energy used (kWh)` })
+  energyUsed?: number | null;
+  @Field((_type) => Float, { nullable: true, description: `charge added (kWh)` })
+  energyAdded?: number | null;
 }

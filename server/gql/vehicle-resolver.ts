@@ -41,13 +41,20 @@ interface VehicleSubscriptionPayload {
   vehicle_uuid: string;
 }
 
+async function refreshService(context: IContext, service_uuid: string | null | undefined) {
+  if (service_uuid) {
+    return context.db.pg.none(
+      `UPDATE service_provider SET service_data = jsonb_set(service_data, '{updated}', $2) WHERE service_uuid = $1;`,
+      [service_uuid, Date.now()]
+    );
+  }
+}
+
 @Resolver()
 export class VehicleResolver {
   @Query((_returns) => [Vehicle])
   async vehicles(@Ctx() context: IContext): Promise<Vehicle[]> {
-    const dblist = await context.db.getVehicles(
-      accountFilter(context.accountUUID)
-    );
+    const dblist = await context.db.getVehicles(accountFilter(context.accountUUID));
     return plainToInstance(Vehicle, dblist);
   }
   @Query((_returns) => Vehicle)
@@ -86,10 +93,7 @@ export class VehicleResolver {
   ): Promise<Vehicle> {
     if (payload) {
       assert(payload.vehicle_uuid === id);
-      assert(
-        context.accountUUID === INTERNAL_SERVICE_UUID ||
-          context.accountUUID === payload.account_uuid
-      );
+      assert(context.accountUUID === INTERNAL_SERVICE_UUID || context.accountUUID === payload.account_uuid);
       return plainToInstance(
         Vehicle,
         await context.db.getVehicle(
@@ -114,10 +118,7 @@ export class VehicleResolver {
   ): Promise<Boolean> {
     // verify vehicle ownage
     log(LogLevel.Debug, `removeVehicle: ${JSON.stringify(id)}`);
-    const vehicle = await context.db.getVehicle(
-      accountFilter(context.accountUUID),
-      id
-    );
+    const vehicle = await context.db.getVehicle(accountFilter(context.accountUUID), id);
 
     const publicID = makePublicID(vehicle.vehicle_uuid);
     if (confirm.toLowerCase() !== publicID) {
@@ -127,6 +128,7 @@ export class VehicleResolver {
     }
 
     await context.db.removeVehicle(id);
+    refreshService(context, vehicle.service_uuid);
     return true;
   }
 
@@ -162,11 +164,9 @@ export class VehicleResolver {
       service_uuid: input.serviceID,
       provider_data: input.providerData,
     });
+    refreshService(context, input.serviceID);
 
-    if (
-      input.maximumLevel !== undefined ||
-      input.locationSettings !== undefined
-    ) {
+    if (input.maximumLevel !== undefined || input.locationSettings !== undefined) {
       await context.logic.refreshChargePlan(input.id);
     }
     await pubSub.publish(SubscriptionTopic.VehicleUpdate, {
@@ -202,25 +202,19 @@ export class VehicleResolver {
   @Mutation((_returns) => [Schedule])
   async updateSchedule(
     @Arg("id", (_type) => Int, { nullable: true, defaultValue: undefined })
-    id: number | undefined,
+      id: number | undefined,
     @Arg("vehicleID", (_type) => ID) vehicleID: string,
     @Arg("type", (_type) => ScheduleType) type: ScheduleType,
     @Arg("level", (_type) => Int, { nullable: true })
-    level: number | null,
+      level: number | null,
     @Arg("time", (_type) => GraphQLISODateTime, { nullable: true })
-    time: Date | null,
+      time: Date | null,
     @Ctx() context: IContext,
     @PubSub() pubSub: PubSubEngine
   ): Promise<DBSchedule[]> {
     // verify vehicle ownage
-    log(
-      LogLevel.Debug,
-      `updateSchedule: ${JSON.stringify(id)} ${JSON.stringify(vehicleID)}`
-    );
-    const vehicle = await context.db.getVehicle(
-      accountFilter(context.accountUUID),
-      vehicleID
-    );
+    log(LogLevel.Debug, `updateSchedule: ${JSON.stringify(id)} ${JSON.stringify(vehicleID)}`);
+    const vehicle = await context.db.getVehicle(accountFilter(context.accountUUID), vehicleID);
 
     await context.db.updateSchedule(
       id,

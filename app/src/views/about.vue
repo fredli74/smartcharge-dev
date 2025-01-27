@@ -185,16 +185,6 @@ export default class About extends Vue {
           icon: "mdi-sleep",
           text: `See if your vehicle is sleeping as it should. Vampire drain causes lost range and unnecessary battery usage.`,
         },
-        {
-          title: "Reminds you to connect",
-          icon: "mdi-power-plug-outline",
-          text: `Automatically opens your charge port, if a charge is planned (optional feature).`,
-        },
-        {
-          title: "Climate on",
-          icon: "mdi-snowflake",
-          text: `Turn on your climate control with just a click, without having to wait for the car to wake up.`,
-        },
       ],
     };
   }

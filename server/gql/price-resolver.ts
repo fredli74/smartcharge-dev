@@ -40,7 +40,7 @@ export class PriceResolver {
       nullable: true,
       defaultValue: false,
     })
-    isPublic: boolean,
+      isPublic: boolean,
     @Arg("id", (_type) => ID, { nullable: true }) id: string,
     @Ctx() context: IContext
   ): Promise<PriceList> {

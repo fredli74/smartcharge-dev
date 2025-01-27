@@ -1,20 +1,15 @@
 <template>
   <v-flex xs12 class="vehicle autosize mt-sm-n6">
     <div v-if="loading">
-      <v-progress-linear indeterminate color="primary"></v-progress-linear>
+      <v-progress-linear indeterminate color="primary" />
     </div>
     <v-container v-if="vehicle !== undefined" grid-list-md text-center fluid>
       <v-layout row align-center>
         <v-flex sm6 xs12>
           <h2>{{ vehicle.name }}</h2>
           <h6>{{ prettyStatus }}</h6>
-          <RelativeTime
-            style="font-size: 0.7em; font-weight: light"
-            :hide-below="15"
-            :units="1"
-            :time="new Date(vehicle.updated)"
-            >Updated
-            <template #suffix> ago </template>
+          <RelativeTime style="font-size: 0.7em; font-weight: light" :hide-below="15" :units="1" :time="new Date(vehicle.updated)">
+            Updated<template #suffix> ago </template>
           </RelativeTime>
           <div
             v-if="Boolean(vehicle && vehicle.providerData.disabled)"
@@ -30,18 +25,9 @@
               <v-img id="vehicle-picture" :src="vehiclePicture" />
               <v-tooltip v-if="vehiclePictureUnknown" left>
                 <template #activator="{ on }">
-                  <v-btn
-                    class="mx-2"
-                    absolute
-                    right
-                    fab
-                    small
-                    color="warning"
-                    :href="vehiclePictureReportURL"
-                    target="_blank"
-                    v-on="on"
-                    ><v-icon>mdi-bug-outline</v-icon></v-btn
-                  >
+                  <v-btn class="mx-2" absolute right fab small color="warning" :href="vehiclePictureReportURL" target="_blank" v-on="on">
+                    <v-icon>mdi-bug-outline</v-icon>
+                  </v-btn>
                 </template>
                 <span>Report incorrect image</span>
               </v-tooltip>
@@ -49,49 +35,38 @@
             <v-flex sm12 grow class="" style="z-index: 2">
               <div v-if="freshInfo" id="temperatures" style="margin: 0 auto">
                 <div>
-                  <v-icon>mdi-weather-partly-cloudy</v-icon
-                  >{{ Number(vehicle.outsideTemperature).toFixed(1) }}&#176;
+                  <v-icon>mdi-weather-partly-cloudy</v-icon>{{ Number(vehicle.outsideTemperature).toFixed(1) }}&#176;
                 </div>
                 <div>
-                  <v-icon style="top: 1px">mdi-car</v-icon
-                  >{{ Number(vehicle.insideTemperature).toFixed(1) }}&#176;
+                  <v-icon style="top: 1px">mdi-car</v-icon>{{ Number(vehicle.insideTemperature).toFixed(1) }}&#176;
                 </div>
               </div>
             </v-flex>
           </v-layout>
         </v-flex>
         <v-flex v-if="vehicle !== undefined" sm6 xs12 class="mb-5">
-          <VehicleActions :vehicle="vehicle"></VehicleActions>
+          <VehicleActions :vehicle="vehicle" />
         </v-flex>
         <v-flex sm6 xs12 class="mb-5" style="z-index: 2">
           <div v-if="vehicle.chargingTo" class="mt-n5 caption">
             Charging to {{ vehicle.chargingTo }}%
-            <RelativeTime
-              until
-              :hide-below="120"
-              :units="2"
-              :time="
-                new Date(Date.now() + (vehicle.estimatedTimeLeft || 0) * 60e3)
-              "
-              >(est.<template #suffix>) </template>
+            <RelativeTime until :hide-below="120" :units="2" :time="new Date(Date.now() + (vehicle.estimatedTimeLeft || 0) * 60e3)">
+              (est.<template #suffix>) </template>
             </RelativeTime>
           </div>
           <div class="batteryLevel mr-2">
-            <div
-              v-if="vehicle.chargingTo"
-              class="chargezone"
-              :style="`border-color:${batteryColor}`"
-            ></div>
+            <div v-if="vehicle.chargingTo" class="chargezone" :style="`border-color:${batteryColor}`"></div>
             <div class="nochargezone" :style="nochargestyle"></div>
             <v-progress-linear
               :value="vehicle.batteryLevel"
               height="1.5em"
               :buffer-value="vehicle.chargingTo || vehicle.batteryLevel"
               :color="batteryColor"
-              ><div class="batteryText">
-                {{ vehicle.batteryLevel }}%
-              </div></v-progress-linear
             >
+              <div class="batteryText">
+                {{ vehicle.batteryLevel }}%
+              </div>
+            </v-progress-linear>
           </div>
         </v-flex>
       </v-layout>
@@ -123,10 +98,17 @@
         </v-col>
       </v-row>
       <v-row class="px-0 mt-4 mb-n8">
-        <v-col v-if="location" class="body-1"
-          >Price per kWh when charging at {{ location.name }}</v-col
-        >
-        <v-col v-else class="body-1">No price data</v-col>
+        <v-col v-if="location" class="body-1">
+          Price per kWh when charging at {{ location.name }}
+        </v-col>
+        <v-col v-else class="body-1">
+          No price data
+          <router-link v-if="vehicleAtUnknownLocation" :to="addLocationURL">
+            <v-card-actions class="justify-center">
+              <v-btn text x-small color="primary">add location</v-btn>
+            </v-card-actions>
+          </router-link>
+        </v-col>
       </v-row>
       <v-row class="pt-0">
         <v-col class="pl-0 pt-0">
@@ -135,14 +117,15 @@
             :key="'with-location'"
             :vehicle="vehicle"
             :location_id="location.id"
-          ></VehicleCharts>
+          />
           <VehicleCharts
             v-if="vehicle && location === undefined"
             :key="'without-location'"
             :vehicle="vehicle"
             :location_id="null"
-          ></VehicleCharts> </v-col
-      ></v-row>
+          />
+        </v-col>
+      </v-row>
     </v-container>
   </v-flex>
 </template>
@@ -239,8 +222,8 @@ export default class VehicleVue extends Vue {
 
   updateFreshness(vehicle: GQLVehicle | undefined) {
     this.freshInfo = Boolean(
-      vehicle && Date.now() - new Date(vehicle.updated).getTime() < 300e3
-    ); // five minutes
+      vehicle && Date.now() - new Date(vehicle.updated).getTime() < 600e3
+    ); // ten minutes
   }
 
   timer?: any;
@@ -288,13 +271,15 @@ export default class VehicleVue extends Vue {
     }
     return "";
   }
-  get vehicleConnectedAtUnknownLocation(): boolean {
-    return (
+  get vehicleAtUnknownLocation(): boolean {
+    return Boolean(
       this.vehicle !== undefined &&
-      this.vehicle.isConnected &&
-      this.vehicle.geoLocation !== null &&
-      this.vehicle.locationID === null
+        this.vehicle.geoLocation !== null &&
+        this.vehicle.locationID === null
     );
+  }
+  get vehicleConnectedAtUnknownLocation(): boolean {
+    return Boolean(this.vehicleAtUnknownLocation && this.vehicle!.isConnected);
   }
   get addLocationURL(): RawLocation {
     assert(this.vehicle !== undefined);
@@ -366,12 +351,9 @@ export default class VehicleVue extends Vue {
   get batteryColor() {
     assert(this.vehicle !== undefined);
     const settings = getVehicleLocationSettings(this.vehicle);
-    return this.vehicle.batteryLevel > this.vehicle.maximumLevel
-      ? "#9cef19"
-      : this.vehicle.batteryLevel > settings.directLevel
-      ? "#4cd853"
-      : this.vehicle.batteryLevel > 10
-      ? "orange"
+    return this.vehicle.batteryLevel > this.vehicle.maximumLevel ? "#9cef19" 
+      : this.vehicle.batteryLevel > settings.directLevel ? "#4cd853"
+      : this.vehicle.batteryLevel > 10 ? "orange"
       : "red";
   }
   get nochargestyle() {

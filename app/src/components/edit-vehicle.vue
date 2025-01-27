@@ -36,23 +36,12 @@
     <v-row align="center" justify-sm="space-around" class="mb-5">
       <v-col cols="12" sm="auto" align-self-sm="center">
         <v-switch
-          v-model="auto_port"
-          color="primary"
-          inset
-          label="Auto charge port"
-          persistent-hint
-          hint="Open after parking if charge is needed"
-          :loading="saving.auto_port"
-        />
-      </v-col>
-      <v-col cols="12" sm="auto" align-self-sm="center">
-        <v-switch
           v-model="auto_hvac"
           color="primary"
           inset
-          label="Trip Climate Control"
+          label="Trip Preconditioning"
           persistent-hint
-          hint="Turn on before scheduled trip"
+          hint="Schedule preconditioning for trips"
           :loading="saving.auto_hvac"
         />
       </v-col>
@@ -81,7 +70,12 @@
           label="Disable"
           :loading="saving.disabled"
         >
-          <template v-if="disabled" #label>
+          <template v-if="disabled && error" #label>
+            <div class="deep-orange--text text--accent-4">
+              Disabled due to "{{ error }}"
+            </div>
+          </template>
+          <template v-else-if="disabled" #label>
             <div class="deep-orange--text text--accent-4">
               Disabled information polling and charge control!
             </div>
@@ -209,8 +203,16 @@ export default class EditVehicle extends Vue {
     return this.vehicle.providerData && this.vehicle.providerData.disabled;
   }
   set disabled(value: boolean) {
-    this.vehicle.providerData.disabled = value;
+    if (value) {
+      this.vehicle.providerData.disabled = true;
+    } else {
+      this.vehicle.providerData.disabled = null;
+      this.vehicle.providerData.error = null;
+    }
     this.save("disabled");
+  }
+  get error(): string {
+    return this.vehicle.providerData && this.vehicle.providerData.error;
   }
 
   debounceTimer?: any;
@@ -244,6 +246,7 @@ export default class EditVehicle extends Vue {
         }
         if (this.saving["disabled"]) {
           update.providerData.disabled = this.vehicle.providerData.disabled;
+          update.providerData.error = this.vehicle.providerData.error;
         }
         if (equal(update.providerData, {})) {
           delete update.providerData;

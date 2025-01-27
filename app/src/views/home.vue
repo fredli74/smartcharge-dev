@@ -111,11 +111,17 @@ export default class Home extends Vue {
   }
 
   vehicleDisabled(vehicle: GQLVehicle): string | undefined {
+    if (vehicle.providerData.error) {
+      return "disabled due to error (re-enable in settings)";
+    }
     if (vehicle.providerData.invalid_token || !vehicle.serviceID) {
       return "invalid provider token, please add again";
     }
+    if (vehicle.providerData.disabled) {
+      return "disabled by user";
+    }
     if (vehicle.odometer === 0 || vehicle.status === "") {
-      return "not polled yet, make sure it is online";
+      return "not polled yet, this can take a few minutes";
     }
     return undefined;
   }

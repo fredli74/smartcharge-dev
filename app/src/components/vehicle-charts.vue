@@ -1,5 +1,8 @@
 <template>
-  <v-container class="pl-0" fluid>
+  <v-container id="chartContainer" class="pl-0" fluid>
+    <v-progress-circular v-if="showChartLoader" id="chartProgress" indeterminate :size="18" :width="2"
+      color="primary"
+    />
     <v-row justify="space-around">
       <v-col cols="12" class="pa-0 ma-0">
         <apex v-if="chartData" id="timechart" ref="timechart" class="chart pa-0 ma-0" height="400px"
@@ -12,15 +15,6 @@
         <apex v-if="chartData" id="eventchart" ref="eventchart" class="chart pa-0 ma-0" height="160px"
           :options="eventoptions" :series="eventseries"
         />
-      </v-col>
-    </v-row>
-    <v-row
-      v-if="$apollo.queries.chartData.loading"
-      class="pl-8"
-      justify="space-around"
-    >
-      <v-col cols="10">
-        <v-progress-linear indeterminate color="primary" />
       </v-col>
     </v-row>
   </v-container>
@@ -116,6 +110,7 @@ const Color = {
               level
               comment
             }
+            chargePlanLocationID
             stateMap {
               start
               period
@@ -153,6 +148,7 @@ const Color = {
         log(LogLevel.Debug, "new chartDataResult");
       },
       fetchPolicy: "network-only",
+      loadingKey: "showChartLoader"
     },
   },
 })
@@ -167,33 +163,40 @@ export default class eventchart extends Vue {
   maxLevel?: number | undefined;
   fullUpdate!: boolean;
 
+  private loaderTimeoutId?: number;
+  private loaderDelayedState: boolean = false;
+
+  get showChartLoader(): boolean {
+    // Map to Apollo loading state with a delay mechanism
+    const isLoading = this.$apollo.queries.chartData.loading || false;
+    if (isLoading) {
+      if (!this.loaderDelayedState) {
+        // Delay the loader display
+        this.loaderTimeoutId = setTimeout(() => {
+          this.loaderDelayedState = true;
+        }, 300) as any;
+      }
+    } else {
+      clearTimeout(this.loaderTimeoutId);
+      this.loaderDelayedState = false; // Hide the loader immediately
+    }
+
+    return this.loaderDelayedState;
+  }
+
   data() {
     return {
       chartData: undefined,
       fullUpdate: false,
     };
   }
-  mounted() {}
+  mounted() { }
 
   timer?: any;
   created() {
     this.timer = setInterval(() => {
       if (this.fullUpdate) {
         console.log("timerInterval, full update");
-        // TODO DO WE NEED IT?
-        /*{
-          const timechart = (this.$refs.timechart as any) as ApexCharts;
-          const s = this.timeseries;
-          //console.debug(s);
-          timechart && timechart.updateOptions(this.timeoptions);
-          timechart && timechart.updateSeries(s);
-        }
-        {
-          const eventchart = (this.$refs.eventchart as any) as ApexCharts;
-          const s = this.eventseries;
-          eventchart && eventchart.updateOptions(this.eventoptions);
-          eventchart && eventchart.updateSeries(s);
-        }*/
         const timechart = this.$refs.timechart as any as ApexCharts;
         timechart && timechart.updateOptions(this.timeoptions);
         const eventchart = this.$refs.eventchart as any as ApexCharts;
@@ -329,11 +332,9 @@ export default class eventchart extends Vue {
           x: from,
           x2: to,
           strokeDashArray: 0,
-          fillColor:
-            a.plan.chargeType === GQLChargeType.Fill ||
-            a.plan.chargeType === GQLChargeType.Prefered
-              ? Color.planPrefered
-              : Color.plan,
+          fillColor: a.plan.chargeType === GQLChargeType.Fill || a.plan.chargeType === GQLChargeType.Prefered
+            ? Color.planPrefered
+            : Color.plan,
           borderColor: "none",
           borderWidth: 0,
           opacity: 0.2,
@@ -592,16 +593,9 @@ export default class eventchart extends Vue {
             level,
             c.level
           );
-          const cs = Math.max(
-            now,
-            c.chargeStart ? new Date(c.chargeStart).getTime() : -Infinity
-          );
+          const cs = Math.max(now, c.chargeStart ? new Date(c.chargeStart).getTime() : -Infinity);
           let ce = cs + timeNeeded;
-          if (
-            c.chargeStop &&
-            ce - new Date(c.chargeStop).getTime() >
-              this.chartData.chargeCurve[c.level] * 1e3
-          ) {
+          if (c.chargeStop && ce - new Date(c.chargeStop).getTime() > this.chartData.chargeCurve[c.level] * 1e3) {
             ce = new Date(c.chargeStop).getTime();
           }
           if (ce < cs) continue;
@@ -849,7 +843,7 @@ export default class eventchart extends Vue {
                 const ticks = Math.round(
                   (this.chartStop - this.chartStart) / 3600e3
                 );
-                for (let space = w / ticks; space < 50; ) {
+                for (let space = w / ticks; space < 50;) {
                   skip++;
                   space = w / Math.floor(ticks / skip);
                 }
@@ -1116,14 +1110,10 @@ export default class eventchart extends Vue {
                   return duration;
                 case GQLEventType.Charge: {
                   const used = Math.round(e.data.energyUsed * 10) / 10;
-                  return `${duration} (${e.data.charger}${
-                    used ? " " + used + "kWh" : ""
-                  })`;
+                  return `${duration} (${e.data.charger}${used ? " " + used + "kWh" : ""})`;
                 }
                 case GQLEventType.Trip:
-                  return `${duration} (${
-                    Math.round(e.data.distance / 1e2) / 10
-                  }km)`;
+                  return `${duration} (${Math.round(e.data.distance / 1e2) / 10}km)`;
               }
             }
             return null;
@@ -1142,4 +1132,14 @@ export default class eventchart extends Vue {
 }
 </script>
 
-<style></style>
+<style>
+#chartContainer {
+  position: relative;
+}
+
+#chartProgress {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+}
+</style>

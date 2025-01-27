@@ -83,6 +83,7 @@ export interface GQLChartData {
   thresholdPrice: number | null;
   prices: Array<GQLPriceData> | null;
   chargePlan: Array<GQLChargePlan> | null;
+  chargePlanLocationID: string;
   stateMap: Array<GQLStateMap>;
   eventList: Array<GQLEventList>;
 }
@@ -238,6 +239,11 @@ export interface GQLVehicle {
    * charge plan
    */
   chargePlan: Array<GQLChargePlan> | null;
+  
+  /**
+   * charge plan location id
+   */
+  chargePlanLocationID: string | null;
   updated: GQLDateTime;
 }
 
@@ -285,7 +291,6 @@ export interface GQLMutation {
   providerMutate: GQLJSONObject;
   performAction: GQLJSONObject;
   _updateVehicleData: boolean;
-  _vehicleDebug: boolean;
   _chargeCalibration: number | null;
   _updatePrice: boolean;
   removeVehicle: boolean;
@@ -321,17 +326,17 @@ export interface GQLGeoLocationInput {
 
 export interface GQLUpdateVehicleDataInput {
   id: string;
-  geoLocation: GQLGeoLocationInput;
+  geoLocation: GQLGeoLocationInput | null;
   
   /**
    * battery level (%)
    */
-  batteryLevel: number;
+  batteryLevel: number | null;
   
   /**
    * odometer (meters)
    */
-  odometer: number;
+  odometer: number | null;
   
   /**
    * outside temperature (celcius)
@@ -346,8 +351,12 @@ export interface GQLUpdateVehicleDataInput {
   /**
    * is climate control on
    */
-  climateControl: boolean;
-  isDriving: boolean;
+  climateControl: boolean | null;
+  
+  /**
+   * is someone driving
+   */
+  isDriving: boolean | null;
   
   /**
    * charge connection
@@ -370,6 +379,11 @@ export interface GQLUpdateVehicleDataInput {
   powerUse: number | null;
   
   /**
+   * charger energy used (kWh)
+   */
+  energyUsed: number | null;
+  
+  /**
    * charge added (kWh)
    */
   energyAdded: number | null;
@@ -378,13 +392,6 @@ export interface GQLUpdateVehicleDataInput {
 export enum GQLChargeConnection {
   AC = 'AC',
   DC = 'DC'
-}
-
-export interface GQLVehicleDebugInput {
-  id: string;
-  timestamp: GQLDateTime;
-  category: string;
-  data: GQLJSONObject;
 }
 
 export interface GQLUpdatePriceInput {
@@ -695,6 +702,7 @@ export interface GQLChartDataTypeResolver<TParent = GQLChartData> {
   thresholdPrice?: ChartDataToThresholdPriceResolver<TParent>;
   prices?: ChartDataToPricesResolver<TParent>;
   chargePlan?: ChartDataToChargePlanResolver<TParent>;
+  chargePlanLocationID?: ChartDataToChargePlanLocationIDResolver<TParent>;
   stateMap?: ChartDataToStateMapResolver<TParent>;
   eventList?: ChartDataToEventListResolver<TParent>;
 }
@@ -732,6 +740,10 @@ export interface ChartDataToPricesResolver<TParent = GQLChartData, TResult = Arr
 }
 
 export interface ChartDataToChargePlanResolver<TParent = GQLChartData, TResult = Array<GQLChargePlan> | null> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface ChartDataToChargePlanLocationIDResolver<TParent = GQLChartData, TResult = string> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
@@ -884,6 +896,7 @@ export interface GQLVehicleTypeResolver<TParent = GQLVehicle> {
   status?: VehicleToStatusResolver<TParent>;
   smartStatus?: VehicleToSmartStatusResolver<TParent>;
   chargePlan?: VehicleToChargePlanResolver<TParent>;
+  chargePlanLocationID?: VehicleToChargePlanLocationIDResolver<TParent>;
   updated?: VehicleToUpdatedResolver<TParent>;
 }
 
@@ -979,6 +992,10 @@ export interface VehicleToChargePlanResolver<TParent = GQLVehicle, TResult = Arr
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
+export interface VehicleToChargePlanLocationIDResolver<TParent = GQLVehicle, TResult = string | null> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
 export interface VehicleToUpdatedResolver<TParent = GQLVehicle, TResult = GQLDateTime> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
@@ -1047,7 +1064,6 @@ export interface GQLMutationTypeResolver<TParent = undefined> {
   providerMutate?: MutationToProviderMutateResolver<TParent>;
   performAction?: MutationToPerformActionResolver<TParent>;
   _updateVehicleData?: MutationTo_updateVehicleDataResolver<TParent>;
-  _vehicleDebug?: MutationTo_vehicleDebugResolver<TParent>;
   _chargeCalibration?: MutationTo_chargeCalibrationResolver<TParent>;
   _updatePrice?: MutationTo_updatePriceResolver<TParent>;
   removeVehicle?: MutationToRemoveVehicleResolver<TParent>;
@@ -1124,13 +1140,6 @@ export interface MutationTo_updateVehicleDataArgs {
 }
 export interface MutationTo_updateVehicleDataResolver<TParent = undefined, TResult = boolean> {
   (parent: TParent, args: MutationTo_updateVehicleDataArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
-}
-
-export interface MutationTo_vehicleDebugArgs {
-  input: GQLVehicleDebugInput;
-}
-export interface MutationTo_vehicleDebugResolver<TParent = undefined, TResult = boolean> {
-  (parent: TParent, args: MutationTo_vehicleDebugArgs, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
 export interface MutationTo_chargeCalibrationArgs {

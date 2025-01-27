@@ -14,38 +14,6 @@
       </v-card>
     </v-dialog>
 
-    <v-tooltip v-if="!isSleeping" top :disabled="disableTooltips">
-      <template #activator="{ on }">
-        <v-btn depressed fab :small="smallButton" outlined color :loading="refreshLoading"
-          :disabled="!Boolean(vehicle.serviceID)" v-on="on" @click="refreshClick()"
-        >
-          <v-icon :large="!smallButton">mdi-refresh</v-icon>
-        </v-btn>
-      </template>
-      <span>Update</span>
-    </v-tooltip>
-    <v-tooltip v-else top :disabled="disableTooltips">
-      <template #activator="{ on }">
-        <v-btn depressed fab :small="smallButton" outlined color :loading="refreshLoading"
-          :disabled="!Boolean(vehicle.serviceID)" v-on="on" @click="refreshClick()"
-        >
-          <v-icon :large="!smallButton">mdi-sleep-off</v-icon>
-        </v-btn>
-      </template>
-      <span>Wake Up</span>
-    </v-tooltip>
-    <v-tooltip top :disabled="disableTooltips">
-      <template #activator="{ on }">
-        <v-btn depressed fab :small="smallButton" :outlined="!vehicle.climateControl"
-          :color="vehicle.climateControl ? 'success darken-1' : ''" :loading="hvacLoading"
-          :disabled="!Boolean(vehicle.serviceID)" v-on="on" @click="hvacClick()"
-        >
-          <v-icon :large="!smallButton">mdi-fan{{ vehicle.climateControl ? "" : "-off" }}</v-icon>
-        </v-btn>
-      </template>
-      <span>Climate Control</span>
-    </v-tooltip>
-
     <v-tooltip top :disabled="disableTooltips">
       <template #activator="{ on }">
         <div v-on="on">

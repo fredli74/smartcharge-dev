@@ -36,6 +36,16 @@ import { useServer } from 'graphql-ws/lib/use/ws';
 import { Context, SubscribeMessage } from "graphql-ws";
 import { WebSocketServer } from "ws";
 
+interface CustomContext extends Context {
+  extra: {
+    scContext?: IContext;
+    socket?: {
+      _socket?: {
+        remoteAddress?: string;
+      };
+    };
+  };
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -63,7 +73,7 @@ program
           if (cred) {
             return await db.lookupAccount(cred[1]);
           }
-        } catch (error) {
+        } catch {
           throw new GraphQLError("Authorization failed", undefined, undefined, undefined, undefined, undefined,
             { code: "UNAUTHORIZED" });
         }
@@ -85,6 +95,8 @@ program
         return {
           db,
           logic,
+          accountUUID: undefined,
+          account: undefined,
         };
       };
 
@@ -100,19 +112,20 @@ program
       const wsServer = new WebSocketServer({ server: httpServer, path: GQL_PATH });
       const serverCleanup = useServer({
         schema,
-        context: async (ctx: Context, msg: SubscribeMessage, args: any) => {
-          return (ctx.extra as any).scContext;
+        context: async (ctx: CustomContext, _msg: SubscribeMessage, _args: unknown) => {
+          return ctx.extra.scContext;
         },
-        onConnect: async (ctx: Context) => {
+        onConnect: async (ctx: CustomContext) => {
           const c = await contextFromAuthorization(ctx.connectionParams && ctx.connectionParams["Authorization"]);
-          (ctx.extra as any).scContext = c;
-          log(LogLevel.Trace, `WS ${(ctx.extra as any)?.socket?._socket?.remoteAddress} Connected - ${c.accountUUID ? `Authorized as ${c.account?.name} (${c.accountUUID})` : `Unauthorized`}`);
+          ctx.extra.scContext = c;
+          log(LogLevel.Trace, `WS ${ctx.extra.socket?._socket?.remoteAddress} Connected - ${c.accountUUID ? `Authorized as ${c.account?.name} (${c.accountUUID})` : `Unauthorized`}`);
         },
-        onDisconnect: async (ctx: Context) => {
-          const c = (ctx.extra as any).scContext;
-          log(LogLevel.Trace, `WS ${(ctx.extra as any)?.socket?._socket?.remoteAddress} Disconnected - ${c && c.accountUUID ? `Authorized as ${c.account?.name} (${c.accountUUID})` : `Unauthorized`}`);
+        onDisconnect: async (ctx: CustomContext) => {
+          const c = ctx.extra.scContext;
+          log(LogLevel.Trace, `WS ${ctx.extra.socket?._socket?.remoteAddress} Disconnected - ${c && c.accountUUID ? `Authorized as ${c.account?.name} (${c.accountUUID})` : `Unauthorized`}`);
         }
       }, wsServer);
+        
       const apolloServer = new ApolloServer<IContext>({
         introspection: true,
         schema: schema,
@@ -172,9 +185,13 @@ program
             if (res.locals.account) {
               log(LogLevel.Trace, `Authorized as ${res.locals.account.name} (${res.locals.account.account_uuid})`);
             }
-          } catch (err: any) {
-            assert(err.message !== undefined); // Only real errors expected
-            res.status(401).send({ success: false, error: err.message || err });
+          } catch (err: unknown) {
+            if (err instanceof Error) {
+              assert(err.message !== undefined); // Only real errors expected
+              res.status(401).send({ success: false, error: err.message || err });
+            } else {
+              res.status(401).send({ success: false, error: String(err) });
+            }
             return;
           }
           next();
@@ -208,8 +225,10 @@ program
         log(LogLevel.Info, `HTTP Server running on port ${PORT}`);
       });
       // const io = io.listen(httpServer);
-    } catch (err: any) {
-      log(LogLevel.Error, `Error: ${err.message}`);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        log(LogLevel.Error, `Error: ${err.message}`);
+      }
       log(LogLevel.Debug, err);
       log(LogLevel.Error, `Terminating server`);
       process.exit(-1);

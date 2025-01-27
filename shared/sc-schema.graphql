@@ -48,6 +48,7 @@ type ChartData {
   batteryLevel: Int!
   chargeCurve: JSONObject!
   chargePlan: [ChargePlan!]
+  chargePlanLocationID: ID!
   directLevel: Int!
   eventList: [EventList!]!
   locationID: ID
@@ -116,7 +117,6 @@ type Mutation {
   ): Int
   _updatePrice(input: UpdatePriceInput!): Boolean!
   _updateVehicleData(input: UpdateVehicleDataInput!): Boolean!
-  _vehicleDebug(input: VehicleDebugInput!): Boolean!
   loginWithIDToken(idToken: String!): Account!
   loginWithPassword(password: String!): Account!
   newPriceList(id: ID, isPublic: Boolean = false, name: String!): PriceList!
@@ -249,13 +249,13 @@ input UpdatePriceListInput {
 
 input UpdateVehicleDataInput {
   """battery level (%)"""
-  batteryLevel: Int!
+  batteryLevel: Int
 
   """charging to level (%)"""
   chargingTo: Int
 
   """is climate control on"""
-  climateControl: Boolean!
+  climateControl: Boolean
 
   """charge connection"""
   connectedCharger: ChargeConnection
@@ -263,17 +263,22 @@ input UpdateVehicleDataInput {
   """charge added (kWh)"""
   energyAdded: Float
 
+  """charger energy used (kWh)"""
+  energyUsed: Float
+
   """estimated time to complete charge (minutes)"""
   estimatedTimeLeft: Int
-  geoLocation: GeoLocationInput!
+  geoLocation: GeoLocationInput
   id: ID!
 
   """inside temperature (celcius)"""
   insideTemperature: Float
-  isDriving: Boolean!
+
+  """is someone driving"""
+  isDriving: Boolean
 
   """odometer (meters)"""
-  odometer: Int!
+  odometer: Int
 
   """outside temperature (celcius)"""
   outsideTemperature: Float
@@ -298,6 +303,9 @@ type Vehicle {
 
   """charge plan"""
   chargePlan: [ChargePlan!]
+
+  """charge plan location id"""
+  chargePlanLocationID: ID
 
   """charging to level (%)"""
   chargingTo: Int
@@ -344,13 +352,6 @@ type Vehicle {
   smartStatus: String!
   status: String!
   updated: DateTime!
-}
-
-input VehicleDebugInput {
-  category: String!
-  data: JSONObject!
-  id: ID!
-  timestamp: DateTime!
 }
 
 type VehicleLocationSetting {
