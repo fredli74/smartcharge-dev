@@ -549,8 +549,10 @@ export default class eventchart extends Vue {
             if (te < e.start_ts || ts > e.end_ts + margin) continue; // not even close to this event
             if (ts >= e.start_ts && te <= e.end_ts) {
               // Inside event
-              level = e.eventType === GQLEventType.Sleep ? null // no data during sleep
-                : e.eventType === GQLEventType.Charge ? p.minimumLevel // during charge, the start of the time block is where level is least
+              level = e.eventType === GQLEventType.Sleep
+                ? null // no data during sleep
+                : e.eventType === GQLEventType.Charge
+                  ? p.minimumLevel // during charge, the start of the time block is where level is least
                   : p.maximumLevel; // during trips, the start of the time block is where level is most
             } else {
               level = null;

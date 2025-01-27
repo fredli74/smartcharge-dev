@@ -2,12 +2,7 @@
   <v-container>
     <div style="min-height: 270px">
       <v-row justify="center" class="my-4">
-        <v-btn-toggle
-          v-model="chargeControl"
-          active-class="selected-charge"
-          color="primary"
-          label="charging"
-          mandatory
+        <v-btn-toggle v-model="chargeControl" active-class="selected-charge" color="primary" label="charging" mandatory
           @change="chargeControl_onChange"
         >
           <v-btn>Stop</v-btn>
@@ -18,22 +13,14 @@
       <template v-if="chargeControl == 0">
         <v-row class="">
           <v-col class="text-center">
-            <v-icon
-              style="margin-top: 54px; font-size: 60px"
-              color="red darken-3"
-              >mdi-flash-off</v-icon
-            >
+            <v-icon style="margin-top: 54px; font-size: 60px" color="red darken-3">mdi-flash-off</v-icon>
           </v-col>
         </v-row>
       </template>
       <template v-if="chargeControl == 1">
         <v-row class="my-8">
           <v-col class="text-center">
-            <img
-              width="130"
-              class="ml-2"
-              src="/img/icons/android-chrome-192x192.png"
-            />
+            <img width="130" class="ml-2" src="/img/icons/android-chrome-192x192.png">
           </v-col>
         </v-row>
       </template>
@@ -41,46 +28,25 @@
       <template v-if="chargeControl == 2">
         <v-row justify="space-around">
           <v-col cols="11" sm="10">
-            <v-slider
-              v-model="chargeLevel"
-              class="pt-8"
-              thumb-label="always"
-              :min="directLevel"
-              :max="100"
-              prepend-icon="mdi-battery-charging-30"
-              append-icon="mdi-battery-charging-100"
+            <v-slider v-model="chargeLevel" class="pt-8" thumb-label="always" :min="directLevel" :max="100"
+              prepend-icon="mdi-battery-charging-30" append-icon="mdi-battery-charging-100"
               :color="chargeLevel > vehicle.maximumLevel ? 'deep-orange' : ''"
-              :thumb-color="
-                chargeLevel > vehicle.maximumLevel ? 'deep-orange darken-2' : ''
-              "
-              @end="chargeLevel_onEnd"
-              @click="chargeLevel_onClick"
-            >
-            </v-slider> </v-col
-        ></v-row>
+              :thumb-color="chargeLevel > vehicle.maximumLevel ? 'deep-orange darken-2' : ''"
+              @end="chargeLevel_onEnd" @click="chargeLevel_onClick"
+            />
+          </v-col>
+        </v-row>
         <v-row class="mt-n3" align="center" justify="center">
           <v-col v-if="!showDate" cols="auto">
-            <v-menu
-              ref="scheduleMenu"
-              :close-on-content-click="false"
-              top
-              min-width="290px"
-            >
+            <v-menu ref="scheduleMenu" :close-on-content-click="false" top min-width="290px">
               <template #activator="{ on }">
                 <v-btn color="secondary" outlined v-on="on">
                   <v-icon left>mdi-calendar-plus</v-icon> Schedule
                 </v-btn>
               </template>
-              <datetime-popup
-                :key="refreshKey"
-                class="vdatetime-static"
-                type="datetime"
-                :datetime="pickerDateTime"
-                :minute-step="10"
-                :week-start="1"
-                :min-datetime="nowLocal.plus({ minutes: 1 })"
-                :max-datetime="nowLocal.plus({ months: 6 }).endOf(`month`)"
-                :auto="true"
+              <datetime-popup :key="refreshKey" class="vdatetime-static" type="datetime" :datetime="pickerDateTime"
+                :minute-step="10" :week-start="1" :min-datetime="nowLocal.plus({ minutes: 1 })"
+                :max-datetime="nowLocal.plus({ months: 6 }).endOf(`month`)" :auto="true"
                 :phrases="{ cancel: `CANCEL`, ok: `OK` }"
                 @confirm="
                   refreshKey++;
@@ -91,70 +57,44 @@
                   refreshKey++;
                   $refs.scheduleMenu.isActive = false;
                 "
-              >
-              </datetime-popup>
+              />
             </v-menu>
           </v-col>
           <template v-else>
             <v-col cols="auto">
-              <v-menu
-                ref="dateMenu"
-                :close-on-content-click="false"
-                top
-                min-width="290px"
-              >
+              <v-menu ref="dateMenu" :close-on-content-click="false" top min-width="290px">
                 <template #activator="{ on }">
-                  <v-btn depressed v-on="on"
-                    ><v-icon left>mdi-calendar</v-icon>{{ pickerDate }}
+                  <v-btn depressed v-on="on">
+                    <v-icon left>mdi-calendar</v-icon>{{ pickerDate }}
                   </v-btn>
                 </template>
-                <datetime-popup
-                  :key="refreshKey"
-                  class="vdatetime-static"
-                  type="date"
-                  :datetime="pickerDateTime"
-                  :week-start="1"
-                  :min-datetime="nowLocal.plus({ minutes: 1 })"
-                  :max-datetime="nowLocal.plus({ months: 6 }).endOf(`month`)"
-                  :auto="true"
-                  :phrases="{ cancel: `CANCEL`, ok: `SAVE` }"
+                <datetime-popup :key="refreshKey" class="vdatetime-static" type="date" :datetime="pickerDateTime"
+                  :week-start="1" :min-datetime="nowLocal.plus({ minutes: 1 })"
+                  :max-datetime="nowLocal.plus({ months: 6 }).endOf(`month`)" :auto="true"
+                  :phrases="{ cancel: `CANCEL`, ok: `SAVE` }" 
                   @confirm="
                     refreshKey++;
                     $refs.dateMenu.isActive = false;
                     confirmDateTime($event);
-                  "
+                  " 
                   @cancel="
                     refreshKey++;
                     $refs.dateMenu.isActive = false;
                   "
-                >
-                </datetime-popup>
+                />
               </v-menu>
             </v-col>
             <v-col cols="auto">
-              <v-menu
-                ref="timeMenu"
-                :close-on-content-click="false"
-                top
-                min-width="290px"
-              >
+              <v-menu ref="timeMenu" :close-on-content-click="false" top min-width="290px">
                 <template #activator="{ on }">
-                  <v-btn depressed @click="scrollFix" v-on="on"
-                    ><v-icon left class="mt-1">mdi-clock-end</v-icon
-                    >{{ pickerTime }}</v-btn
-                  >
+                  <v-btn depressed @click="scrollFix" v-on="on">
+                    <v-icon left class="mt-1">mdi-clock-end</v-icon>{{ pickerTime }}
+                  </v-btn>
                 </template>
-                <datetime-popup
-                  :key="refreshKey"
-                  ref="timePicker"
-                  type="time"
-                  class="vdatetime-static"
-                  :datetime="pickerDateTime"
-                  :minute-step="10"
-                  :min-datetime="nowLocal.plus({ minutes: 1 })"
-                  :max-datetime="nowLocal.plus({ months: 6 }).endOf(`month`)"
-                  :auto="true"
-                  :phrases="{ cancel: `CANCEL`, ok: `SAVE` }"
+                <datetime-popup :key="refreshKey" ref="timePicker" type="time" class="vdatetime-static"
+                  :datetime="pickerDateTime" :minute-step="10":min-datetime="nowLocal.plus({ minutes: 1 })"
+                  :max-datetime="nowLocal.plus({ months: 6 }).endOf(`month`)" :auto="true"
+                  :phrases="{ cancel: `CANCEL`, ok: `SAVE` }" 
                   @confirm="
                     refreshKey++;
                     $refs.timeMenu.isActive = false;
@@ -164,36 +104,23 @@
                     refreshKey++;
                     $refs.timeMenu.isActive = false;
                   "
-                >
-                </datetime-popup>
+                />
               </v-menu>
             </v-col>
 
             <v-col cols="auto">
               <v-hover v-slot="{ hover }">
-                <v-btn
-                  fab
-                  small
-                  depressed
-                  :color="hover ? `error` : ``"
-                  @click="removeSchedule"
-                  ><v-icon>mdi-calendar-remove-outline</v-icon></v-btn
-                ></v-hover
-              >
+                <v-btn fab small depressed :color="hover ? `error` : ``" @click="removeSchedule">
+                  <v-icon>mdi-calendar-remove-outline</v-icon>
+                </v-btn>
+              </v-hover>
             </v-col>
           </template>
         </v-row>
       </template>
     </div>
-    <div
-      style="min-height: 40px"
-      class="text-center title grey--text text--darken-2"
-    >
-      <v-progress-circular
-        v-if="saving"
-        indeterminate
-        color="grey darken-2"
-      ></v-progress-circular>
+    <div style="min-height: 40px" class="text-center title grey--text text--darken-2">
+      <v-progress-circular v-if="saving" indeterminate color="grey darken-2" />
       <span v-else>{{ smartText }}</span>
     </div>
   </v-container>

@@ -1,8 +1,8 @@
 <template>
   <span :style="{ visibility: relativeShow ? 'visible' : 'hidden' }">
-    <slot></slot>
+    <slot />
     {{ relativeTime }}
-    <slot name="suffix"></slot>
+    <slot name="suffix" />
   </span>
 </template>
 

@@ -5,10 +5,11 @@
         <v-list-item-title>{{ name }}</v-list-item-title>
         <v-list-item-subtitle
           class="font-light overline caption secondary--text text--lighten-2"
-          >({{ settings.locationID }})</v-list-item-subtitle
         >
+          ({{ settings.locationID }})
+        </v-list-item-subtitle>
       </v-col>
-      <v-spacer></v-spacer>
+      <v-spacer />
       <v-col cols="6" sm="3" md="3">
         <v-text-field
           v-model="directLevel"

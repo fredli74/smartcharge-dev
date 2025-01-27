@@ -8,10 +8,10 @@
           label="Location name"
           required
           :loading="saving.name"
-        ></v-text-field>
+        />
       </v-col>
-      <v-spacer></v-spacer>
-      <v-col cols="auto" align-self="center"></v-col>
+      <v-spacer />
+      <v-col cols="auto" align-self="center" />
     </v-row>
     <v-row>
       <v-col cols="12" md="9">
@@ -22,7 +22,7 @@
           cache-items
           label="Price list"
           placeholder="none"
-        ></v-autocomplete>
+        />
       </v-col>
     </v-row>
     <v-row justify="space-between">
@@ -35,13 +35,13 @@
       >
         <v-icon>mdi-map-marker</v-icon>
       </v-btn>
-      <v-spacer></v-spacer>
+      <v-spacer />
       <v-col cols="auto">
         <RemoveDialog
           :id="location.id"
           label="location"
           @action="doConfirm"
-        ></RemoveDialog>
+        />
       </v-col>
     </v-row>
   </v-form>
