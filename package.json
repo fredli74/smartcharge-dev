@@ -114,7 +114,6 @@
     "vue-visible": "~1.0.2",
     "vuetify": "~2.6.16",
     "vuetify-loader": "~1.9.2",
-    "webpack": "~4.44.2",
     "weekstart": "~2.0.0"
   },
   "engines": {
