@@ -120,7 +120,8 @@ export class SCClient extends ApolloClient<any> {
     subscription_url?: string,
     webSocketImpl?: any
   ) {
-    const errorLink = onError(({ graphQLErrors, networkError }) => {
+    let wsClient: Client | undefined = undefined;
+    const link = onError(({ graphQLErrors, networkError }) => {
       if (graphQLErrors) {
         graphQLErrors.map(({ message, locations, path }) => {
           console.log(
@@ -142,44 +143,33 @@ export class SCClient extends ApolloClient<any> {
         console.log(`[Network error]: ${networkError}`);
       }
     });
-    const authLink = setContext((_, { headers }) => {
-      return {
-        headers: this.token
-          ? { ...headers, authorization: `Bearer ${this.token}` }
-          : headers,
-      };
-    });
-    const wsClient = subscription_url ? createClient({
-      url: mergeURL(subscription_url, API_PATH),
-      lazyCloseTimeout: 10000,
-      lazy: true,
-      connectionAckWaitTimeout: 10000,
-      connectionParams: () => {
-        return this.token ? { Authorization: `Bearer ${this.token}` } : {};
-      },
-      shouldRetry: (err) => {
-        if (err) {
-          console.error('[WebSocket error]:', err);
-          return false; // Stop retrying for critical errors
-        }
-        return true; // Retry for transient errors
-      },
-      keepAlive: 10000,
-      webSocketImpl: webSocketImpl,
-      on: {
-        connected: () => console.log('WebSocket connected'),
-        closed: (event) => console.warn('WebSocket closed:', event),
-        error: (err) => console.error('WebSocket error:', err),
-      },
-    }) : undefined;
 
-    let link = errorLink.concat(wsClient
-      ? new GraphQLWsLink(wsClient)
-      : authLink.concat(new HttpLink({
+    if (subscription_url) {
+      wsClient = createClient({
+        url: mergeURL(subscription_url, API_PATH),
+        connectionParams: () => {
+          return this.token ? { Authorization: `Bearer ${this.token}` } : {};
+        },
+        shouldRetry: () => true,
+        on: { error: (err) => console.error("WebSocket error:", err) },
+        keepAlive: 10000,
+        webSocketImpl: webSocketImpl,
+      });
+      link.concat(new GraphQLWsLink(wsClient));
+    } else {
+      const httpLink = new HttpLink({
         uri: mergeURL(server_url, API_PATH),
         fetch: fetch,
-      }))
-    );
+      });
+      const authLink = setContext((_, { headers }) => {
+        return {
+          headers: this.token
+            ? { ...headers, authorization: `Bearer ${this.token}` }
+            : headers,
+        };
+      })
+      link.concat(authLink.concat(httpLink));
+    }
 
     super({
       // devtools: { enabled: true },
@@ -189,7 +179,7 @@ export class SCClient extends ApolloClient<any> {
         watchQuery: { fetchPolicy: "no-cache", errorPolicy: "none" },
         query: { fetchPolicy: "no-cache", errorPolicy: "none" },
         mutate: { fetchPolicy: "no-cache", errorPolicy: "none" },
-      }
+      },
     });
     this.wsClient = wsClient;
   }

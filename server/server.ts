@@ -91,7 +91,6 @@ program
       const app = express();
       app.set("trust proxy", ["loopback", "linklocal", "uniquelocal"]);
 
-
       /** Setup backend api server **/
       const GQL_PATH = "/api/gql";
       const httpServer = http.createServer(app);
