@@ -69,11 +69,69 @@ program
         }
       };
 
-      // Setup express server
+      const contextFromAuthorization = async (auth: string | unknown): Promise<IContext> => {
+        if (typeof auth === "string") {
+          const account = await authorize(auth);
+          if (account) {
+            log(LogLevel.Debug, `Bearer authorization successful for account_uuid: ${account.account_uuid}`);
+            return {
+              db,
+              logic,
+              accountUUID: account.account_uuid,
+              account: account,
+            };
+          }
+        }
+        return {
+          db,
+          logic,
+        };
+      };
+
       const app = express();
+      app.set("trust proxy", ["loopback", "linklocal", "uniquelocal"]);
+
+
+      /** Setup backend api server **/
+      const httpServer = http.createServer(app);
+
+      // GraphQL Socket and Http Server
+      const schema = await gqlSchema();
+      const wsServer = new WebSocketServer({ server: httpServer, path: "/api/gql" });
+      const serverCleanup = useServer({
+        schema,
+        context: async (ctx: Context, msg: SubscribeMessage, args: any) => {
+          return (ctx.extra as any).scContext;
+        },
+        onConnect: async (ctx: Context) => {
+          const c = await contextFromAuthorization(ctx.connectionParams && ctx.connectionParams["Authorization"]);
+          (ctx.extra as any).scContext = c;
+          log(LogLevel.Trace, `WS ${(ctx.extra as any)?.socket?._socket?.remoteAddress} Connected - ${c.accountUUID ? `Authorized as ${c.account?.name} (${c.accountUUID})` : `Unauthorized`}`);
+        },
+        onDisconnect: async (ctx: Context) => {
+          const c = (ctx.extra as any).scContext;
+          log(LogLevel.Trace, `WS ${(ctx.extra as any)?.socket?._socket?.remoteAddress} Disconnected - ${c && c.accountUUID ? `Authorized as ${c.account?.name} (${c.accountUUID})` : `Unauthorized`}`);
+        }
+      }, wsServer);
+      const apolloServer = new ApolloServer<IContext>({
+        introspection: true,
+        schema: schema,
+        plugins: [
+          ApolloServerPluginDrainHttpServer({ httpServer }),
+          {
+            async serverWillStart() {
+              return {
+                async drainServer() {
+                  await serverCleanup.dispose();
+                }
+              };
+            }
+          },
+        ],
+      });
+      await apolloServer.start();
 
       app
-        .set("trust proxy", ["loopback", "linklocal", "uniquelocal"])
         .use(cors())
         .use(rateLimit({
           windowMs: 15 * 60e3, // 15 min
@@ -117,68 +175,7 @@ program
             return;
           }
           next();
-        });
-
-      /** Setup backend api server **/
-
-      const contextFromAuthorization = async (auth: string | unknown): Promise<IContext> => {
-        if (typeof auth === "string") {
-          const account = await authorize(auth);
-          if (account) {
-            log(LogLevel.Debug, `Bearer authorization successful for account_uuid: ${account.account_uuid}`);
-            return {
-              db,
-              logic,
-              accountUUID: account.account_uuid,
-              account: account,
-            };
-          }
-        }
-        return {
-          db,
-          logic,
-        };
-      };
-
-      const httpServer = http.createServer(app);
-
-      // GraphQL Socket and Http Server
-      const schema = await gqlSchema();
-      const wsServer = new WebSocketServer({ server: httpServer, path: "/api/gql" });
-      const serverCleanup = useServer({
-        schema,
-        context: async (ctx: Context, msg: SubscribeMessage, args: any) => {
-          return (ctx.extra as any).scContext;
-        },
-        onConnect: async (ctx: Context) => {
-          const c = await contextFromAuthorization(ctx.connectionParams && ctx.connectionParams["Authorization"]);
-          (ctx.extra as any).scContext = c;
-          log(LogLevel.Trace, `WS ${(ctx.extra as any)?.socket?._socket?.remoteAddress} Connected - ${c.accountUUID ? `Authorized as ${c.account?.name} (${c.accountUUID})` : `Unauthorized`}`);
-        },
-        onDisconnect: async (ctx: Context) => {
-          const c = (ctx.extra as any).scContext;
-          log(LogLevel.Trace, `WS ${(ctx.extra as any)?.socket?._socket?.remoteAddress} Disconnected - ${c && c.accountUUID ? `Authorized as ${c.account?.name} (${c.accountUUID})` : `Unauthorized`}`);
-        }
-      }, wsServer);
-      const apolloServer = new ApolloServer<IContext>({
-        introspection: true,
-        schema: schema,
-        plugins: [
-          ApolloServerPluginDrainHttpServer({ httpServer }),
-          {
-            async serverWillStart() {
-              return {
-                async drainServer() {
-                  await serverCleanup.dispose();
-                }
-              };
-            }
-          },
-        ],
-      });
-      await apolloServer.start()
-
-      app
+        })
         .use(`/api/gql`,
           expressMiddleware(apolloServer, {
             context: async ({ req }): Promise<IContext> => {
