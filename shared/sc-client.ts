@@ -151,6 +151,9 @@ export class SCClient extends ApolloClient<any> {
     });
     const wsClient = subscription_url ? createClient({
       url: mergeURL(subscription_url, API_PATH),
+      lazyCloseTimeout: 10000,
+      lazy: true,
+      connectionAckWaitTimeout: 10000,
       connectionParams: () => {
         return this.token ? { Authorization: `Bearer ${this.token}` } : {};
       },
