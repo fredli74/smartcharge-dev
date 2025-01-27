@@ -142,34 +142,42 @@ export class SCClient extends ApolloClient<any> {
         console.log(`[Network error]: ${networkError}`);
       }
     });
+    const authLink = setContext((_, { headers }) => {
+      return {
+        headers: this.token
+          ? { ...headers, authorization: `Bearer ${this.token}` }
+          : headers,
+      };
+    });
+    const wsClient = subscription_url ? createClient({
+      url: mergeURL(subscription_url, API_PATH),
+      connectionParams: () => {
+        return this.token ? { Authorization: `Bearer ${this.token}` } : {};
+      },
+      shouldRetry: (err) => {
+        if (err) {
+          console.error('[WebSocket error]:', err);
+          return false; // Stop retrying for critical errors
+        }
+        return true; // Retry for transient errors
+      },
+      keepAlive: 10000,
+      webSocketImpl: webSocketImpl,
+      on: {
+        connected: () => console.log('WebSocket connected'),
+        closed: (event) => console.warn('WebSocket closed:', event),
+        error: (err) => console.error('WebSocket error:', err),
+      },
+    }) : undefined;
 
-    let wsClient;
-    let link;
-    if (subscription_url) {
-      wsClient = createClient({
-        url: mergeURL(subscription_url, API_PATH),
-        connectionParams: () => {
-          return this.token ? { Authorization: `Bearer ${this.token}` } : {};
-        },
-        shouldRetry: () => true,
-        keepAlive: 10000,
-        webSocketImpl: webSocketImpl,
-      });
-      link = errorLink.concat(new GraphQLWsLink(wsClient));
-    } else {
-      const httpLink = new HttpLink({
+    let link = errorLink.concat(wsClient
+      ? new GraphQLWsLink(wsClient)
+      : authLink.concat(new HttpLink({
         uri: mergeURL(server_url, API_PATH),
         fetch: fetch,
-      });
-      const authLink = setContext((_, { headers }) => {
-        return {
-          headers: this.token
-            ? { ...headers, authorization: `Bearer ${this.token}` }
-            : headers,
-        };
-      });
-      link = errorLink.concat(authLink.concat(httpLink));
-    }
+      }))
+    );
+
     super({
       // devtools: { enabled: true },
       link,
