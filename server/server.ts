@@ -71,6 +71,7 @@ program
 
       // Setup express server
       const app = express();
+      app.set("trust proxy", ["loopback", "linklocal", "uniquelocal"]);
 
       // Force https on official site
       if (config.SINGLE_USER === "false") {
@@ -203,6 +204,7 @@ program
           }
         })
       );
+      app.get("/ip", (req, res) => { res.send(req.ip); }); // ip echo endpoint
       app
         .use(express.static(path.resolve(__dirname, "../app")))
         .use(history({ index: "/index.html" }) as unknown as RequestHandler)
