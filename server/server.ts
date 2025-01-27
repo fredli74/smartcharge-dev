@@ -35,7 +35,7 @@ import { GraphQLError } from "graphql";
 import { fileURLToPath } from 'url';
 import { useServer } from 'graphql-ws/lib/use/ws';
 import { Context, SubscribeMessage } from "graphql-ws";
-import WebSocket, { WebSocketServer } from "ws";
+import { WebSocketServer } from "ws";
 
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -72,38 +72,18 @@ program
 
       // Setup express server
       const app = express();
-      app.set("trust proxy", ["loopback", "linklocal", "uniquelocal"]);
 
-      // Force https on official site
-      if (config.SINGLE_USER === "false") {
-        app.use((req, res, next) => {
-          if (
-            req.headers["x-forwarded-proto"] &&
-            req.headers["x-forwarded-proto"] !== "https"
-          ) {
-            return res.redirect(
-              ["https://", req.get("Host"), req.url].join("")
-            );
-          }
-          return next();
-        });
-      }
-
-      // TODO: add express-slow-down
-
-      // Setup middlewares
       app
+        .set("trust proxy", ["loopback", "linklocal", "uniquelocal"])
         .use(cors())
-        .use(
-          rateLimit({
-            windowMs: 15 * 60e3, // 15 min
-            max: 255,
-            skipSuccessfulRequests: true,
-          })
-        )
+        .use(rateLimit({
+          windowMs: 15 * 60e3, // 15 min
+          max: 255,
+          skipSuccessfulRequests: true,
+        }))
         .use(compression())
         .use((req, res, next) => {
-          // simple console logging
+          // Simple console trace logging
           const s = `${req.ip} ${req.method} ${req.originalUrl}`;
           let rawBody = "";
           req.on("data", (chunk) => (rawBody += chunk));
@@ -124,7 +104,7 @@ program
           );
           next();
         })
-        .use(express.json()) // for parsing application/json
+        .use(express.json()) // parsing application/json
         .use(async (req, res, next) => {
           // user authentication
           try {
@@ -139,6 +119,8 @@ program
           }
           next();
         });
+
+      /** Setup backend api server **/
 
       const contextFromAuthorization = async (auth: string | unknown): Promise<IContext> => {
         if (typeof auth === "string") {
@@ -163,7 +145,7 @@ program
 
       // GraphQL Socket and Http Server
       const schema = await gqlSchema();
-      const wsServer = new WebSocketServer({ server: httpServer, path: "/api/gql", WebSocket });
+      const wsServer = new WebSocketServer({ server: httpServer, path: "/api/gql" });
       const serverCleanup = useServer({
         schema,
         context: async (ctx: Context, msg: SubscribeMessage, args: any) => {
@@ -197,28 +179,28 @@ program
         ],
       });
       await apolloServer.start()
-      app.use(`/api/gql`,
-        expressMiddleware(apolloServer, {
-          context: async ({ req }): Promise<IContext> => {
-            const auth = req.headers.authorization;
-            return contextFromAuthorization(auth);
-          }
-        })
-      );
-      app.get("/ip", (req, res) => { res.send(req.ip); }); // ip echo endpoint
+
       app
+        .use(`/api/gql`,
+          expressMiddleware(apolloServer, {
+            context: async ({ req }): Promise<IContext> => {
+              const auth = req.headers.authorization;
+              return contextFromAuthorization(auth);
+            }
+          })
+        )
+        .get("/ip", (req, res) => { res.send(req.ip); }) // ip echo endpoint
         .use(express.static(path.resolve(__dirname, "../app")))
         .use(history({ index: "/index.html" }) as unknown as RequestHandler)
-        .use(express.static(path.resolve(__dirname, "../app")));
-
-      // Add 404 handling
-      app.use(function (req, res, _next) {
-        res
-          .status(404)
-          .send(
-            `<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'><title>Error 404</title></head><body><pre>You're lost.</pre></body></html>`
-          );
-      });
+        .use(express.static(path.resolve(__dirname, "../app")))
+        .use(function (req, res, _next) {
+          // Add 404 handling
+          res
+            .status(404)
+            .send(
+              `<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'><title>Error 404</title></head><body><pre>You're lost.</pre></body></html>`
+            );
+        });
 
       const PORT = Number(program.opts().port || config.SERVER_PORT);
       const IP = Number(program.opts().ip || config.SERVER_IP);
