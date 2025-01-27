@@ -196,7 +196,6 @@ program
       });
       await apolloServer.start()
       app.use(`/api/gql`,
-        cors<cors.CorsRequest>(),
         expressMiddleware(apolloServer, {
           context: async ({ req }): Promise<IContext> => {
             const auth = req.headers.authorization;
