@@ -133,13 +133,10 @@ program
       await apolloServer.start();
 
       app
-        .use((req, res, next) => {
-          if (req.path === GQL_PATH && req.headers.upgrade === 'websocket') {
-            console.log('Skipping CORS for WebSocket handshake');
-            return next();
-          }
-          cors<cors.CorsRequest>()(req, res, next);
-        })
+        .use(cors<cors.CorsRequest>({
+          credentials: true,
+          origin: true,
+        }))
         .use(rateLimit({
           windowMs: 15 * 60e3, // 15 min
           max: 255,
