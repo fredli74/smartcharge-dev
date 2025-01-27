@@ -29,6 +29,7 @@ import config from "@shared/smartcharge-config.js";
 import { ApolloServer } from "@apollo/server"
 import { expressMiddleware } from "@apollo/server/express4";
 import { ApolloServerPluginDrainHttpServer } from "@apollo/server/plugin/drainHttpServer";
+import { ApolloServerPluginLandingPageLocalDefault } from "@apollo/server/plugin/landingPage/default";
 import { DBAccount } from "./db-schema.js";
 import { GraphQLError } from "graphql";
 import { fileURLToPath } from 'url';
@@ -191,7 +192,8 @@ program
                 }
               };
             }
-          }
+          },
+          ApolloServerPluginLandingPageLocalDefault(),
         ],
       });
       await apolloServer.start()
