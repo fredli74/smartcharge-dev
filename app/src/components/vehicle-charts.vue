@@ -2,27 +2,15 @@
   <v-container class="pl-0" fluid>
     <v-row justify="space-around">
       <v-col cols="12" class="pa-0 ma-0">
-        <apex
-          v-if="chartData"
-          id="timechart"
-          ref="timechart"
-          class="chart pa-0 ma-0"
-          height="400px"
-          :options="timeoptions"
-          :series="timeseries"
+        <apex v-if="chartData" id="timechart" ref="timechart" class="chart pa-0 ma-0" height="400px"
+          :options="timeoptions" :series="timeseries"
         />
       </v-col>
     </v-row>
     <v-row>
       <v-col cols="12" class="pa-0 ma-0 mt-n9">
-        <apex
-          v-if="chartData"
-          id="eventchart"
-          ref="eventchart"
-          class="chart pa-0 ma-0"
-          height="160px"
-          :options="eventoptions"
-          :series="eventseries"
+        <apex v-if="chartData" id="eventchart" ref="eventchart" class="chart pa-0 ma-0" height="160px"
+          :options="eventoptions" :series="eventseries"
         />
       </v-col>
     </v-row>
@@ -560,12 +548,11 @@ export default class eventchart extends Vue {
             if (te < e.start_ts || ts > e.end_ts + margin) continue; // not even close to this event
             if (ts >= e.start_ts && te <= e.end_ts) {
               // Inside event
-              level =
-                e.eventType === GQLEventType.Sleep
-                  ? null // no data during sleep
-                  : e.eventType === GQLEventType.Charge
-                    ? p.minimumLevel // during charge, the start of the time block is where level is least
-                    : p.maximumLevel; // during trips, the start of the time block is where level is most
+              level = e.eventType === GQLEventType.Sleep
+                ? null // no data during sleep
+                : e.eventType === GQLEventType.Charge
+                  ? p.minimumLevel // during charge, the start of the time block is where level is least
+                  : p.maximumLevel; // during trips, the start of the time block is where level is most
             } else {
               level = null;
             }
