@@ -1,4 +1,15 @@
 #!/bin/bash
+set -x
+
+# Function to get the release date of a package version
+get_release_date() {
+  local package=$1
+  local version=$2
+  # Remove any ~ or ^ from the version string
+  version=${version//[^0-9.]/}
+  # Fetch the package's release dates
+  npm info "$package" time --json 2>/dev/null | grep "\"$version\"" | awk -F '"' '{print $4}'
+}
 
 # Function to update dependencies based on the target (patch, minor, latest)
 update_dependencies() {
@@ -14,6 +25,9 @@ update_dependencies() {
     return
   fi
 
+  # Temporary file to store updates with release dates
+  temp_file=$(mktemp)
+  
   # Extract the current and updated versions from the ncu output
   echo "$ncu_output" | grep -E "→" | while read -r line; do
       # Extract the package name and version details
@@ -23,32 +37,44 @@ update_dependencies() {
 
       # Check if the current version contains ~ or ^, meaning it's updatable
       if [[ "$current_version" =~ [~^] ]]; then
-        # Log the update with version numbers
-        echo "Updating $package from $current_version to $updated_version ($target)"
-        
-        # Update the specific package using ncu with --filter for that package
-        ncu -u --target "$target" --filter "$package"
+        release_date=$(get_release_date "$package" "$updated_version")
+        # If no release date is found, set to a very old date to prevent breaking
+        [[ -z "$release_date" ]] && release_date="1970-01-01T00:00:00.000Z"
 
-        # Install updated package
-        npm install
-
-        # Run npm audit fix to apply security patches
-        echo "Running npm audit fix for $package"
-        npm audit fix
-
-        # Check if there are any changes to commit
-        if [[ -n $(git diff --name-only) ]]; then
-          # Commit the changes with version numbers in the message
-          echo "Committing changes for $package $current_version → $updated_version"
-          git add package.json package-lock.json
-          git commit -m "$package $current_version → $updated_version"
-        else
-          echo "No changes detected for $package."
-        fi
+        # Write to the temp file: date|package|updated_version
+        echo "$release_date|$package|$current_version|$updated_version" >> "$temp_file"
       else
         echo "Skipping $package (fixed version: $current_version)"
       fi
   done
+
+  # Sort updates by release date and process them
+  sort "$temp_file" | while IFS='|' read -r release_date package current_version updated_version; do
+      echo "Updating $package from $current_version to $updated_version ($target)"
+      
+      # Update the specific package using ncu with --filter for that package
+      ncu -u --target "$target" --filter "$package"
+      
+      # Install updated package
+      npm install
+
+      # Run npm audit fix to apply security patches
+      echo "Running npm audit fix for $package"
+      npm audit fix
+    
+      # Check if there are any changes to commit
+      if [[ -n $(git diff --name-only) ]]; then
+        # Commit the changes with version numbers in the message
+        echo "Committing changes for $package $current_version → $updated_version"
+        git add package.json package-lock.json
+        git commit -m "$package $current_version → $updated_version"
+      else
+        echo "No changes detected for $package."
+      fi
+  done
+ 
+  # Clean up
+  rm -f "$temp_file" 
 }
 
 # Step 1: Silently create or overwrite the npm-update branch
