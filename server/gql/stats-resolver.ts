@@ -84,7 +84,7 @@ export class ChartData {
   prices!: PriceData[] | null;
   @Field((_type) => [ChargePlan], { nullable: true })
   chargePlan!: ChargePlan[] | null;
-  @Field((_type) => ID)
+  @Field((_type) => ID, { nullable: true })
   chargePlanLocationID!: string | null;
   @Field((_type) => [StateMap])
   stateMap!: StateMap[];
@@ -167,6 +167,7 @@ export class StatsResolver {
             plainToInstance(ChargePlan, f)
           )) ||
         null,
+      chargePlanLocationID: vehicle.charge_plan_location_uuid,
       directLevel: (
         location_uuid && vehicle.location_settings[location_uuid] ? vehicle.location_settings[location_uuid] as VehicleLocationSettings :
         DBInterface.DefaultVehicleLocationSettings()

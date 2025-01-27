@@ -198,9 +198,13 @@ export default class eventchart extends Vue {
       if (this.fullUpdate) {
         console.log("timerInterval, full update");
         const timechart = this.$refs.timechart as any as ApexCharts;
-        timechart && timechart.updateOptions(this.timeoptions);
+        if (timechart) {
+          timechart.updateOptions(this.timeoptions);
+        }
         const eventchart = this.$refs.eventchart as any as ApexCharts;
-        eventchart && eventchart.updateOptions(this.eventoptions);
+        if (eventchart) {
+          eventchart.updateOptions(this.eventoptions);
+        }
         this.fullUpdate = false;
       }
       this.annotate(); // Move the timeline
@@ -528,7 +532,7 @@ export default class eventchart extends Vue {
      *  Fill past battery level
      ***/
     let levelData: any = [];
-    let eventList = (this.chartData.eventList || []).map((e) => ({
+    const eventList = (this.chartData.eventList || []).map((e) => ({
       eventType: e.eventType,
       start_ts: numericStartTime(e.start),
       end_ts: numericStopTime(e.end),
@@ -664,7 +668,7 @@ export default class eventchart extends Vue {
       .sort((a, b) => a - b);
 
     const interpolate = (data: any[], i: number, ts: number): number | null => {
-      let v = i > 0 ? data[i - 1][1] : null;
+      const v = i > 0 ? data[i - 1][1] : null;
       if (v === null) return v;
       const w = (ts - data[i - 1][0]) / (data[i][0] - data[i - 1][0]);
       return v * (1 - w) + data[i][1] * w;
