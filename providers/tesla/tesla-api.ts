@@ -49,7 +49,6 @@ export interface TeslaChargeSchedule extends TeslaSchedule {
   start_time?: number;
   end_enabled: boolean;
   end_time?: number;
-  charge_limit?: number;
 }
 export interface TeslaPreconditionSchedule extends TeslaSchedule {
   precondition_time: number;
@@ -247,7 +246,6 @@ export class TeslaAPI {
     const s = Object.entries(schedule).reduce((acc, [k, v]) => {
       if (v === undefined) return acc;
       switch(k) {
-        case "charge_limit": break; 
         case "latitude": acc["lat"] = v; break;
         case "longitude": acc["lon"] = v; break;
         case "days_of_week": acc["days_of_week"] = DaysOfWeekToString(v); break;

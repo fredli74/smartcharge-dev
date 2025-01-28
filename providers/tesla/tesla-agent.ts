@@ -125,16 +125,8 @@ const telemetryFields: TelemetryFields = {
 interface NumericChargePlan {
   scheduleID?: number;
   chargeType?: GQLChargeType;
-  level?: number;
   chargeStart: number | null;
   chargeStop: number | null;
-}
-
-interface ChargePlanSchedule {
-  sourceHash: string;
-  expires: number;
-  chargeSchedule: { [id: number]: TeslaChargeSchedule & { charge_limit?: number } };
-  preconditionSchedule: { [id: number]: TeslaPreconditionSchedule };
 }
 
 interface VehicleEntry {
@@ -162,7 +154,6 @@ interface VehicleEntry {
 
   charge_schedules?: { [id: number]: TeslaChargeSchedule }; // Cached charge schedules
   precondition_schedules?: { [id: number]: TeslaPreconditionSchedule }; // Cached precondition schedules
-  chargePlan?: ChargePlanSchedule;
 }
 
 interface TeslaAgentState {
@@ -562,7 +553,6 @@ export class TeslaAgent extends AbstractAgent {
       scheduleID: schedule.id,
       chargeStart: start ? this.ConvertLocationTimeToUTC(location, start).getTime() : null,
       chargeStop: stop ? this.ConvertLocationTimeToUTC(location, stop).getTime() : null,
-      level: schedule.charge_limit
     };
   }
   public convertToTeslaSchedule(plan: NumericChargePlan, location: GQLLocationFragment): TeslaChargeSchedule {
@@ -580,7 +570,6 @@ export class TeslaAgent extends AbstractAgent {
       end_enabled: stop !== null,
       one_time: true,
       enabled: true,
-      charge_limit: plan.level,
       latitude: location.geoLocation.latitude,
       longitude: location.geoLocation.longitude
     };

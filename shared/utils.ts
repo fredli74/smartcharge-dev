@@ -205,9 +205,11 @@ export function numericStopTime(nstop: OpenDate): number {
     : Infinity
   );
 }
+// Returns negative if a starts before b, positive if a starts after b
 export function compareStartTimes(a: OpenDate, b: OpenDate): number {
   return numericStartTime(a) - numericStartTime(b);
 }
+// Returns negative if a stops after b, positive if a stops before b
 export function compareStopTimes(a: OpenDate, b: OpenDate): number {
   return numericStopTime(b) - numericStopTime(a);
 }
