@@ -17,6 +17,7 @@ import {
   compareStartStopTimes,
   compareStopTimes,
   geoDistance,
+  compareStartTimes,
 } from "@shared/utils.js";
 import { GQLLocationFragment, SCClient, UpdateVehicleParams } from "@shared/sc-client.js";
 import config from "./tesla-config.js";
@@ -177,8 +178,7 @@ function mapTelemetryNumber(v: telemetryData.Value["value"]): number {
 }
 
 const TeslaScheduleIDs = {
-  Block: 197400,
-  First: 197401,
+  First: 197400,
   Last: 197498,
   Precondition: 197499,
 };
@@ -432,40 +432,49 @@ export class TeslaAgent extends AbstractAgent {
 
       assert(vehicle !== undefined, "vehicle is undefined");
 
-      // Handle telemetry config
-      const telemetryConfig =
-        vehicle.telemetryConfig ? vehicle.telemetryConfig :
-        (await this.callTeslaAPI(job, teslaAPI.getFleetTelemetryConfig, vehicle.vin)).response;
-      const telemetryExpires = telemetryConfig.config && telemetryConfig.config.exp ? telemetryConfig.config.exp : 0;
-
       if (vehicle.dbData.providerData.disabled) {
-        if (telemetryConfig.config) {
+        if (vehicle.telemetryConfig && vehicle.telemetryConfig.config) {
           log(LogLevel.Info, `Vehicle ${vehicle.vin} is disabled, but has telemetry config, deleting`);
           clearTelemetryConfigFor.push(vehicle.vin);
           vehicle.telemetryConfig = null; // re-trigger a config read
           continue;
         }
-      } else if (!telemetryConfig.config) {
-        log(LogLevel.Info, `No telemetry config for ${vehicle.vin}, creating`);
-        setTelemetryConfigFor.push(vehicle.vin);
-        vehicle.telemetryConfig = null; // re-trigger a config read
-        continue;
-      } else if (telemetryExpires < Date.now() / 1e3) {
-        log(LogLevel.Info, `Telemetry config for ${vehicle.vin} expired, refreshing`);
-        setTelemetryConfigFor.push(vehicle.vin);
-        vehicle.telemetryConfig = null; // re-trigger a config read
-        continue;
       } else {
-        // From here we consider the telemetry config to be working so we can handle vehicle commands
-        if (telemetryExpires < Date.now() / 1e3 + 60 * 60 * 24) {
-          log(LogLevel.Info, `Telemetry config for ${vehicle.vin} expires soon, refreshing`);
-          setTelemetryConfigFor.push(vehicle.vin);
-          vehicle.telemetryConfig = null;
-        } else {
-          vehicle.telemetryConfig = telemetryConfig;
-        }
+        // Handle telemetry config
+        const telemetryConfig =
+          vehicle.telemetryConfig ? vehicle.telemetryConfig :
+          (await this.callTeslaAPI(job, teslaAPI.getFleetTelemetryConfig, vehicle.vin)).response;
+        const telemetryExpires = telemetryConfig.config && telemetryConfig.config.exp ? telemetryConfig.config.exp : 0;
 
-        waitFor.push(this.vehicleWork(job, vehicle));
+        if (vehicle.dbData.providerData.disabled) {
+          if (telemetryConfig.config) {
+            log(LogLevel.Info, `Vehicle ${vehicle.vin} is disabled, but has telemetry config, deleting`);
+            clearTelemetryConfigFor.push(vehicle.vin);
+            vehicle.telemetryConfig = null; // re-trigger a config read
+            continue;
+          }
+        } else if (!telemetryConfig.config) {
+          log(LogLevel.Info, `No telemetry config for ${vehicle.vin}, creating`);
+          setTelemetryConfigFor.push(vehicle.vin);
+          vehicle.telemetryConfig = null; // re-trigger a config read
+          continue;
+        } else if (telemetryExpires < Date.now() / 1e3) {
+          log(LogLevel.Info, `Telemetry config for ${vehicle.vin} expired, refreshing`);
+          setTelemetryConfigFor.push(vehicle.vin);
+          vehicle.telemetryConfig = null; // re-trigger a config read
+          continue;
+        } else {
+          // From here we consider the telemetry config to be working so we can handle vehicle commands
+          if (telemetryExpires < Date.now() / 1e3 + 60 * 60 * 24) {
+            log(LogLevel.Info, `Telemetry config for ${vehicle.vin} expires soon, refreshing`);
+            setTelemetryConfigFor.push(vehicle.vin);
+            vehicle.telemetryConfig = null;
+          } else {
+            vehicle.telemetryConfig = telemetryConfig;
+          }
+
+          waitFor.push(this.vehicleWork(job, vehicle));
+        }
       }
     }
 
@@ -582,288 +591,44 @@ export class TeslaAgent extends AbstractAgent {
       longitude: location.geoLocation.longitude
     };
   }
+  public quantizeTime(t: string | number | null, method: (n: number) => number): number | null {
+    const d = typeof t === "string" ? new Date(t).getTime() : typeof t === "number" ? t : null;
+    return d === null ? null : method(d / 15 / 60e3) * 15 * 60e3;
+  }
   public async vehicleWork(job: TeslaAgentJob, vehicle: VehicleEntry) {
     assert(vehicle.dbData !== null, "vehicle.dbData is null");
     try {
-      if (vehicle.isOnline) {
-        if (vehicle.tsUpdate < Date.now() - 24 * 60 * 1e3) {
-          log(LogLevel.Info, `Vehicle ${vehicle.vin} is offline (stale connection)`);
-          vehicle.network = {};
-          await this.updateOnlineStatus(vehicle);
-        } else if (vehicle.charge_schedules === undefined || vehicle.precondition_schedules === undefined) {
-          const schedules = (await this.callTeslaAPI(job, teslaAPI.getVehicleSchedules, vehicle.vin)).response;
-          // Map charge_schedule_data.charge_schedules to { [id: number]: TeslaChargeSchedule }
-          vehicle.charge_schedules = {};
-          for (const s of schedules.charge_schedule_data.charge_schedules) {
-            vehicle.charge_schedules[s.id] = s;
-          }
-          vehicle.precondition_schedules = {};
-          for (const s of schedules.preconditioning_schedule_data.precondition_schedules) {
-            vehicle.precondition_schedules[s.id] = s;
-          }
+      // 24 minutes without a single update, I consider the vehicle offline
+      if (vehicle.isOnline && vehicle.tsUpdate < Date.now() - 24 * 60e3) {
+        log(LogLevel.Info, `Vehicle ${vehicle.vin} is offline (stale connection)`);
+        vehicle.network = {};
+        await this.updateOnlineStatus(vehicle);
+      }
+
+      // If this worker never polled the schedules, we do it now
+      if (vehicle.isOnline && (vehicle.charge_schedules === undefined || vehicle.precondition_schedules === undefined)) {
+        const schedules = (await this.callTeslaAPI(job, teslaAPI.getVehicleSchedules, vehicle.vin)).response;
+        // Map charge_schedule_data.charge_schedules to { [id: number]: TeslaChargeSchedule }
+        vehicle.charge_schedules = {};
+        for (const s of schedules.charge_schedule_data.charge_schedules) {
+          vehicle.charge_schedules[s.id] = s;
+        }
+        vehicle.precondition_schedules = {};
+        for (const s of schedules.preconditioning_schedule_data.precondition_schedules) {
+          vehicle.precondition_schedules[s.id] = s;
         }
       }
 
-      if (vehicle.charge_schedules && vehicle.precondition_schedules) {
-        const scheduleUpdates: (TeslaChargeSchedule & { comment:string })[] = [];
-        const removeScheduleIDs: number[] = [];
-        let preconditionSchedule: TeslaPreconditionSchedule | undefined = undefined;
-        let wantedSoc: number | undefined = undefined;
-
-        if (vehicle.dbData.chargePlan && vehicle.dbData.chargePlanLocationID) {
-          const location = await this.getLocation(vehicle.dbData.chargePlanLocationID);
-          const chargePlan: NumericChargePlan[] = vehicle.dbData.chargePlan
-            .filter((p) => p.chargeType !== GQLChargeType.Disable && (p.chargeStart || p.chargeStop))
-            .sort((a, b) => compareStartStopTimes(a.chargeStart, a.chargeStop, b.chargeStart, b.chargeStop))
-            .reduce((acc, p) => {
-              assert(vehicle.dbData !== null, "vehicle.dbData is null");
-              if (wantedSoc === undefined && p.level) {
-                wantedSoc = p.level
-              }
-              if (p.chargeStop && numericStopTime(p.chargeStop) < Date.now()) {
-                return acc; // Skip plans that have already ended
-              }
-              if (acc.length > 0) {
-                const last = acc[acc.length - 1];
-                // If less than 5 minutes between plans, consolidate
-                if (numericStartTime(p.chargeStart) - numericStopTime(last.chargeStop) < 5 * 60e3) {
-                  last.chargeStop = p.chargeStop ? new Date(p.chargeStop).getTime() : null;
-                  return acc;
-                }
-              }
-              acc.push({
-                chargeType: p.chargeType,
-                chargeStart: p.chargeStart ? new Date(p.chargeStart).getTime() : null,
-                chargeStop: p.chargeStop ? new Date(p.chargeStop).getTime() : null,
-              });
-              return acc;
-            }, [] as NumericChargePlan[]);
-
-          // Convert all existing vehicle schedules to a format that makes sense
-          const vehicleSchedules: { [id: number]: (NumericChargePlan & { scheduleID: number }) } = {};
-          for (const s of Object.values(vehicle.charge_schedules)) {
-            assert(s.id !== undefined, "Invalid schedule ID");
-            // Filter out any schedule entry that is not ours
-            if (!s.one_time || (s.id < 197400 || s.id > 197498)) continue;
-            if (Math.abs(s.latitude - location.geoLocation.latitude) > 1e-4 // 11 meters
-              || Math.abs(s.longitude - location.geoLocation.longitude) > 1e-4) { // 11 meters
-              // Not our location
-              log(LogLevel.Debug, `${vehicle.vin} skipping schedule ${s.id} because of location mismatch`);
-              vehicleSchedules[s.id] = { chargeStart: null, chargeStop: null, scheduleID: s.id };
-            } else {
-              vehicleSchedules[s.id] = { ...this.convertFromTeslaSchedule(s, location), scheduleID: s.id };
-            }
-          }
-
-          log(LogLevel.Debug, `${vehicle.vin} existing schedules: ${JSON.stringify(vehicleSchedules)}`);
-          log(LogLevel.Debug, `${vehicle.vin} charge plan: ${JSON.stringify(chargePlan)}`);
-
-          const firstCharge = chargePlan.length > 0 ? chargePlan[0] : null;
-          const lastCharge = chargePlan.length > 0 ? chargePlan[chargePlan.length - 1] : null;
-
-          // Tesla vehicles will only care about schedules that are 18 hours in the future or 6 hours in the past
-          // It will default to charging, and we want it the other way around, so we use a charge blocker
-          let needBlocker = false;
-
-          // Always make the last charge open-ended if level is set ok
-          if (lastCharge && wantedSoc && wantedSoc >= parseInt(config.LOWEST_POSSIBLE_CHARGETO)) {
-            lastCharge.chargeStop = null;
-          }
-
-          // Are we inside the first charge?
-          const insideFirstCharge = firstCharge && Date.now() >= numericStartTime(firstCharge.chargeStart) && Date.now() < numericStopTime(firstCharge.chargeStop);
-          if (insideFirstCharge && vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateStopped) {
-            // We are inside the first charge, but it is not charging, so we back-date the start time by 15 minutes
-            firstCharge.chargeStart = Date.now() - 15 * 60e3;
-          } else if (firstCharge && Date.now() < numericStartTime(firstCharge.chargeStart) && vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateCharging) {
-            // We are before the first charge, but it is charging, so we need to add a charge blocker
-            needBlocker = true;
-          } else if (
-            vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateDisconnected
-            && (!firstCharge || numericStartTime(firstCharge.chargeStart) > Date.now() + 17 * 60 * 60e3)
-            && vehicle.telemetryData.Location
-            && geoDistance(
-              location.geoLocation.latitude, location.geoLocation.longitude,
-              vehicle.telemetryData.Location.latitude, vehicle.telemetryData.Location.longitude
-            ) < 10e3 // 5 km
-          ) {
-            // We are not connected, we're more than 17 hours in the future, and we are close to the location, so we need a charge blocker
-            needBlocker = true;
-          }
-          
-          if (firstCharge && firstCharge.chargeStart === null && firstCharge.chargeStop === null) {
-            // Open-ended first charge, do not set any schedules at all
-          } else {
-            const usedScheduleIDs = new Set<number>();
-            // Compare existing vehicle schedules with charge plan
-            for (const p of chargePlan) {
-              assert(p.chargeStart || p.chargeStop, "Invalid charge plan");
-              const wantedStart = p.chargeStart ? Math.floor(p.chargeStart / (15 * 60e3)) * 15 * 60e3 : null;
-              const wantedStop = p.chargeStop ? Math.ceil(p.chargeStop / (15 * 60e3)) * 15 * 60e3 : null;
-              for (const s of Object.values(vehicleSchedules).sort(
-                // Sort them in reverse order so we can update the firstCharge last
-                (a, b) => compareStartStopTimes(b.chargeStart, b.chargeStop, a.chargeStart, a.chargeStop)
-              )) {
-                if (s.chargeStart === null && s.chargeStop === null) {
-                  // This is a pointless schedule, we should skip it here so it gets removed later
-                  continue;
-                }
-                if (s.scheduleID === TeslaScheduleIDs.Block) {
-                  // This is a charge blocker, it should not be reused as a schedule because it could be overwritten
-                  continue;
-                }
-
-                // Are we inside this schedule?
-                if (Date.now() >= numericStartTime(s.chargeStart) && Date.now() < numericStopTime(s.chargeStop)) {
-                  // Adopt it
-                  p.scheduleID = s.scheduleID;
-                  let whatChanged: string | undefined = undefined;
-                  if (!insideFirstCharge && s.chargeStart !== wantedStart) {
-                    log(LogLevel.Info, `${vehicle.vin} updating schedule ${s.scheduleID} to start at ${wantedStart ? new Date(wantedStart).toISOString() : "now"} (was ${s.chargeStart ? new Date(s.chargeStart).toISOString() : "now"})`);
-                    s.chargeStart = wantedStart;
-                    whatChanged = "adjusted schedule start time"; 
-                  }
-                  if (s.chargeStop !== wantedStop) {
-                    log(LogLevel.Info, `${vehicle.vin} updating schedule ${s.scheduleID} to end at ${wantedStop ? new Date(wantedStop).toISOString() : "never"} (was ${s.chargeStop ? new Date(s.chargeStop).toISOString() : "never"})`);
-                    s.chargeStop = wantedStop;
-                    whatChanged = "adjusted schedule end time";
-                  }
-                  if (whatChanged) {
-                    scheduleUpdates.push({ ...this.convertToTeslaSchedule(s, location), comment: whatChanged });
-                  }
-                  usedScheduleIDs.add(s.scheduleID);
-                  delete vehicleSchedules[s.scheduleID]; // We adopted this schedule
-                  break;
-                } else if (s.chargeStart === wantedStart && s.chargeStop === wantedStop) {
-                  // We already have this schedule, just adopt it
-                  p.scheduleID = s.scheduleID;
-                  usedScheduleIDs.add(s.scheduleID);
-                  delete vehicleSchedules[s.scheduleID]; // We adopted this schedule
-                  break;
-                }
-              }
-              if (p.scheduleID === undefined) {
-                log(LogLevel.Info, `${vehicle.vin} creating new schedule to start at ${p.chargeStart ? new Date(p.chargeStart).toISOString() : "now"} and end at ${p.chargeStop ? new Date(p.chargeStop).toISOString() : "whenever"}`);
-                scheduleUpdates.push({
-                  ...this.convertToTeslaSchedule({ chargeStart: wantedStart, chargeStop: wantedStop }, location),
-                  comment: "new schedule"
-                });
-              }
-            }
-          
-            // Fill in missing schedule IDs
-            {
-              let findid = TeslaScheduleIDs.First;
-              const freeIDs = Object.keys(vehicleSchedules).map(id => parseInt(id)).filter(id => id !== TeslaScheduleIDs.Block);
-              for (const s of scheduleUpdates) {
-                if (s.days_of_week === 0) {
-                  // This is an invalid (open-ended schedule), it should not be set, just treated differently
-                } else if (s.id === undefined) {
-                  if (freeIDs.length > 0) {
-                    // hijack an existing schedule ID
-                    s.id = freeIDs.shift()!;
-                    usedScheduleIDs.add(s.id);
-                    delete vehicleSchedules[s.id];
-                  } else {
-                    for (; findid <= TeslaScheduleIDs.Last && usedScheduleIDs.has(findid); findid++);
-                    if (findid > TeslaScheduleIDs.Last) {
-                      throw new Error("Failed to find a schedule ID");
-                    }
-                    s.id = findid;
-                    usedScheduleIDs.add(findid);
-                  }
-                }
-              }
-            }
-          }
-
-          if (needBlocker) {
-            // Default to blocking 5 minutes in the past (rounded down to 15 minutes)
-            const wantedBlock = Math.floor((Date.now() - 5 * 60e3) / (15 * 60e3)) * 15 * 60e3;
-
-            // If we don't have a block or the old block is more than 6 hours old, we need a new one
-            if (vehicleSchedules[TeslaScheduleIDs.Block] === undefined
-              || (vehicleSchedules[TeslaScheduleIDs.Block].chargeStop || 0) < wantedBlock - 6 * 60 * 60e3) {
-              
-              scheduleUpdates.push({
-                ...this.convertToTeslaSchedule({ scheduleID: TeslaScheduleIDs.Block, chargeStart: null, chargeStop: wantedBlock }, location),
-                comment: "back-dated schedule to stop default charging"
-              });
-              delete vehicleSchedules[TeslaScheduleIDs.Block];
-            }
-          }
-
-          // Remove any remaining, unclaimed schedules
-          for (const s of Object.values(vehicleSchedules)) {
-            log(LogLevel.Debug, `${vehicle.vin} removing old schedule ${s.scheduleID}`);
-            removeScheduleIDs.push(s.scheduleID);
-          }
-
-          // Check smartcharge schedule if we need to setup a precondition
-          const scSchedule = vehicle.dbData.schedule
-            .filter((f) => f.type === GQLScheduleType.Trip && f.time && new Date(f.time).getTime() > Date.now())
-            .sort((a, b) => compareStopTimes(a.time, b.time));
-          if (scSchedule.length > 0) {
-            const departure = this.ConvertUTCtoLocationTime(location, new Date(scSchedule[0].time!));
-            preconditionSchedule = {
-              id: TeslaScheduleIDs.Precondition,
-              days_of_week: 1 << departure.getUTCDay(),
-              enabled: true,
-              latitude: location.geoLocation.latitude,
-              longitude: location.geoLocation.longitude,
-              precondition_time: (departure.getUTCHours() * 60 + departure.getUTCMinutes()),
-              one_time: true,
-            };
-          }
-        }
-
-        log(LogLevel.Debug, `${vehicle.vin} schedule updates: ${JSON.stringify(scheduleUpdates)}`);
-
-        if (vehicle.isOnline) {
-          // TODO: Add a check between vehicle.telemetryData.Scheduled* field and what we want
-          // then re-poll schedules with the data api if it doesn't match
-
-          // Apply schedule updates
-          const currentPrecon = vehicle.precondition_schedules[TeslaScheduleIDs.Precondition];
-          if (preconditionSchedule !== undefined) {
-            if (currentPrecon === undefined
-              || Math.abs(currentPrecon.latitude - preconditionSchedule.latitude) > 1e-4  // 11 meters
-              || Math.abs(currentPrecon.longitude - preconditionSchedule.longitude) > 1e-4  // 11 meters
-              || currentPrecon.precondition_time !== preconditionSchedule.precondition_time
-              || currentPrecon.days_of_week !== preconditionSchedule.days_of_week) {
-              log(LogLevel.Info, `${vehicle.vin} updating precondition schedule`);
-              await this.callTeslaAPI(job, teslaAPI.addPreconditionSchedule, vehicle.vin, preconditionSchedule);
-              vehicle.precondition_schedules[TeslaScheduleIDs.Precondition] = preconditionSchedule;
-            } else {
-              log(LogLevel.Debug, `${vehicle.vin} precondition schedule is correct`);
-            }
-          } else if (currentPrecon !== undefined) {
-            log(LogLevel.Info, `${vehicle.vin} removing precondition schedule`);
-            await this.callTeslaAPI(job, teslaAPI.removePreconditionSchedule, vehicle.vin, TeslaScheduleIDs.Precondition);
-            delete vehicle.precondition_schedules[TeslaScheduleIDs.Precondition];
-          }
-
-          for (const s of scheduleUpdates) {
-            assert(s.id !== undefined, "Invalid schedule ID");
-            log(LogLevel.Info, `${vehicle.vin} updating schedule ${s.id} to start at ${s.start_time} and end at ${s.end_time}`);
-            await this.callTeslaAPI(job, teslaAPI.addChargeSchedule, vehicle.vin, s);
-            // TODO: Add history logger using s.comment
-            vehicle.charge_schedules[s.id] = s;
-          }
-          for (const s of removeScheduleIDs) {
-            log(LogLevel.Info, `${vehicle.vin} removing schedule ${s}`);
-            await this.callTeslaAPI(job, teslaAPI.removeChargeSchedule, vehicle.vin, s);
-            delete vehicle.charge_schedules[s];
-          }
-
-          // Update vehicle max charge level (but only if we are connected)
-          if (this.isConnected(vehicle) && wantedSoc !== undefined) {
-            const limitedWantedSoc = Math.max(parseInt(config.LOWEST_POSSIBLE_CHARGETO), Math.min(wantedSoc, 100));
-            if (vehicle.telemetryData.ChargeLimitSoc !== limitedWantedSoc) {
-              log(LogLevel.Info, `${vehicle.vin} setting charge limit to ${limitedWantedSoc}%`);
-              await this.callTeslaAPI(job, teslaAPI.setChargeLimit, vehicle.vin, limitedWantedSoc);
-            }
-          }
+      const locationID = vehicle.dbData.chargePlanLocationID || vehicle.dbData.locationID;
+      if (locationID && vehicle.telemetryData.Location) {
+        const location = await this.getLocation(locationID);
+        const distance = geoDistance(
+          location.geoLocation.latitude, location.geoLocation.longitude,
+          vehicle.telemetryData.Location.latitude, vehicle.telemetryData.Location.longitude
+        );
+        // If 7km or closer, take schedules into account
+        if (distance < 7e3) {
+          await this.handleSchedules(job, vehicle, location);
         }
       }
     } catch (err) {
@@ -876,10 +641,272 @@ export class TeslaAgent extends AbstractAgent {
           return;
         }
       }
-      log(LogLevel.Error, `Failed to get charge schedules for ${vehicle.vin}: ${err}`);
     }
   }
+  public async handleSchedules(job: TeslaAgentJob, vehicle: VehicleEntry, location: GQLLocationFragment) {
+    assert(vehicle.dbData !== null, "vehicle.dbData is null");
+    const requestedSchedule: (NumericChargePlan & { comment?: string })[] = [];
+    let wantedSoc: number | undefined;
+      
+    // Handle charge plans
+    if (vehicle.dbData.chargePlan) {
+      const simplifiedChargePlan: NumericChargePlan[] = (
+        vehicle.dbData.chargePlan
+          // Filter out unwanted plans
+          .filter((p) => {
+            // Skip disabled plans
+            if (p.chargeType === GQLChargeType.Disable) return false;
+            // Skip plans that have already ended
+            if (p.chargeStop && numericStopTime(p.chargeStop) < Date.now()) return false;
+            // Ignore plans that are 30 hours in the future
+            if (p.chargeStart && numericStartTime(p.chargeStart) > Date.now() + 30 * 60 * 60e3) return false;
+            return true;
+          })
+          // Sort by start time
+          .sort((a, b) => compareStartStopTimes(a.chargeStart, a.chargeStop, b.chargeStart, b.chargeStop))
+          // Convert to numeric charge plans with start and stop times rounded to 15 minutes
+          .map((p): NumericChargePlan => {
+            if (wantedSoc === undefined && p.level) {
+              wantedSoc = p.level;
+            }
+            return {
+              chargeStart: this.quantizeTime(p.chargeStart, Math.floor),
+              chargeStop: this.quantizeTime(p.chargeStop, Math.ceil)
+            };
+          })
+          // Consolidate plans that are overlapping or edge-to-edge
+          .reduce((acc, p) => {
+            if (acc.length > 0) {
+              const last = acc[acc.length - 1];
+              if (compareStartTimes(p.chargeStart, last.chargeStop) <= 0) {
+                last.chargeStop = p.chargeStop;
+                return acc;
+              }
+            }
+            acc.push(p);
+            return acc;
+          }, [] as NumericChargePlan[])
+      );
 
+      const firstCharge = simplifiedChargePlan.length > 0 ? simplifiedChargePlan[0] : null;
+      const lastCharge = simplifiedChargePlan.length > 0 ? simplifiedChargePlan[simplifiedChargePlan.length - 1] : null;
+
+      // Adjust start and stop times of the schedules
+      {
+        // Always make the last charge open-ended if level is set ok
+        if (lastCharge && wantedSoc && wantedSoc >= parseInt(config.LOWEST_POSSIBLE_CHARGETO)) {
+          lastCharge.chargeStop = null;
+        }
+        // Are we inside the first charge?
+        const insideFirstCharge = firstCharge && Date.now() >= numericStartTime(firstCharge.chargeStart) && Date.now() <= numericStopTime(firstCharge.chargeStop);
+        if (insideFirstCharge && vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateStopped) {
+          // We are inside the first charge, but it is not charging, so we back-date the start time by at least 10 minutes
+          firstCharge.chargeStart = this.quantizeTime(Date.now() - 10 * 60e3, Math.floor);
+        }
+      }
+
+      requestedSchedule.push(...simplifiedChargePlan.filter((a) => a.chargeStart !== null || a.chargeStop !== null));
+      log(LogLevel.Debug, `${vehicle.vin} charge plan: ${JSON.stringify(requestedSchedule)}`);
+    }
+
+    // Tesla vehicles will only care about schedules that are 18 hours in the future or 6 hours in the past
+    // It will default to charging, and we want it the other way around, so we use a charge blocker
+    {
+      const firstChargeStart = requestedSchedule.length > 0 ? numericStartTime(requestedSchedule[0].chargeStart) : Infinity;
+      if (vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateCharging
+        && Date.now() < firstChargeStart) {
+        // We are before the first charge, but it is charging, so we need to add a charge blocker
+        requestedSchedule.push({
+          chargeStart: null, chargeStop: this.quantizeTime(Date.now() - 10 * 60e3, Math.floor),
+          comment: "completed schedule to stop ongoing charging"
+        });
+        log(LogLevel.Debug, `${vehicle.vin} added charge blocker to stop ongoing charging`);
+      } else if (vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateDisconnected
+        && firstChargeStart > Date.now() + 17 * 60 * 60e3) {
+        // We are not connected, we're more than 17 hours in the future, so we need a charge blocker
+        requestedSchedule.push({
+          chargeStart: null, chargeStop: this.quantizeTime(Date.now() - 10 * 60e3, Math.floor),
+          comment: "completed schedule to prevent charging when plugging in"
+        });
+        log(LogLevel.Debug, `${vehicle.vin} added charge blocker to prevent charging when plugging in`);
+      }
+    }
+        
+    // If we know the vehicle schedules, we can start working on figuring out schedule updates
+    if (vehicle.charge_schedules && vehicle.precondition_schedules) {
+      const freeScheduleIDs:number[] = [];
+      const usedScheduleIDs = new Set<number>();
+      const scheduleUpdates: (TeslaChargeSchedule & { comment: string })[] = [];
+
+      // Convert all existing vehicle schedules to a format that makes sense
+      const vehicleSchedules: { [ id: number ] : (NumericChargePlan & { scheduleID: number }) } = {};
+      for (const s of Object.values(vehicle.charge_schedules)) {
+        assert(s.id !== undefined, "Invalid schedule ID");
+        // Filter out any schedule entry that is not ours
+        if (!s.one_time || (s.id < TeslaScheduleIDs.First || s.id > TeslaScheduleIDs.Last)) continue;
+        if (geoDistance(s.latitude, s.longitude, location.geoLocation.latitude, location.geoLocation.longitude) > 10) {
+          // Not our location
+          log(LogLevel.Debug, `${vehicle.vin} skipping schedule ${s.id} because of location mismatch`);
+          freeScheduleIDs.push(s.id);
+        } else {
+          vehicleSchedules[s.id] = { ...this.convertFromTeslaSchedule(s, location), scheduleID: s.id };
+        }
+      }
+      log(LogLevel.Debug, `${vehicle.vin} requested schedules: ${JSON.stringify(requestedSchedule)}`);
+      log(LogLevel.Debug, `${vehicle.vin} existing schedules: ${JSON.stringify(vehicleSchedules)}`);
+
+      const reversedVehicleSchedules = Object.values(vehicleSchedules).sort(
+        (a, b) => compareStartStopTimes(b.chargeStart, b.chargeStop, a.chargeStart, a.chargeStop)
+      );
+
+      // Find out if we have a schedules that matches our request
+      for (const r of requestedSchedule.reverse()) {
+        for (const s of reversedVehicleSchedules) {
+          if (usedScheduleIDs.has(s.scheduleID)) continue;
+
+          if (s.chargeStart === r.chargeStart && s.chargeStop === r.chargeStop) {
+            // Found an exact match
+            r.scheduleID = s.scheduleID;
+            log(LogLevel.Debug, `${vehicle.vin} found exact match for schedule ${s.scheduleID}`);
+          } else if (
+            // Start time of r is between start and stop of s
+            (numericStartTime(r.chargeStart) >= numericStartTime(s.chargeStart) && numericStartTime(r.chargeStart) <= numericStopTime(s.chargeStop)) ||
+            // Stop time of r is between start and stop of s
+            (numericStopTime(r.chargeStop) >= numericStartTime(s.chargeStart) && numericStopTime(r.chargeStop) <= numericStopTime(s.chargeStop))
+          ) {
+            // We are inside this schedule, we should adopt it
+            r.scheduleID = s.scheduleID;
+            const whatChanged: string[] = [];
+            if (Date.now() < numericStartTime(s.chargeStart) && s.chargeStart !== r.chargeStart) {
+              // Start time is in the future, we should adjust it
+              s.chargeStart = r.chargeStart;
+              whatChanged.push("start time");
+            }
+            // Only move stop time if it's in the future, or the old stop time was at least 5 hours in the past
+            // This is because the vehicle will only look at schedules stops that are less than 6 hours ago
+            if (s.chargeStop !== r.chargeStop && (
+              Date.now() < numericStopTime(s.chargeStop)
+              || (Date.now() - numericStopTime(s.chargeStop)) > 5 * 60 * 60e3
+            )) {
+              // Stop time is different from what we want
+              s.chargeStop = r.chargeStop;
+              whatChanged.push("stop time");
+            }
+            if (whatChanged.length > 0) {
+              const comment = `adjusted schedule ${whatChanged.join(" and ")}`;
+              scheduleUpdates.push({ ...this.convertToTeslaSchedule(s, location), comment });
+              log(LogLevel.Debug, `${vehicle.vin} changed schedule ${s.scheduleID} because of ${comment}`);
+            }
+          } else {
+            continue;
+          }
+          usedScheduleIDs.add(r.scheduleID);
+          break;
+        }
+        if (r.scheduleID === undefined) {
+          // No matching schedule found, we need to create a new one
+          log(LogLevel.Debug, `${vehicle.vin} creating new schedule to start ${r.chargeStart ? `at ${new Date(r.chargeStart).toISOString()}` : "now"} and end ${r.chargeStop ? `at ${new Date(r.chargeStop).toISOString()}` : "whenever"}`);
+          scheduleUpdates.push({
+            ...this.convertToTeslaSchedule(r, location),
+            comment: "new schedule"
+          });
+        }
+      }
+
+      log(LogLevel.Debug, `${vehicle.vin} schedule updates: ${JSON.stringify(scheduleUpdates)}`);
+
+      if (vehicle.isOnline) {
+        // Handle preconditioning schedules
+        {
+          const scSchedule = vehicle.dbData.schedule
+            .filter((f) => f.type === GQLScheduleType.Trip && f.time && new Date(f.time).getTime() > Date.now())
+            .sort((a, b) => compareStopTimes(a.time, b.time));
+          let wantedPrecon: TeslaPreconditionSchedule | undefined;
+          if (scSchedule.length > 0) {
+            const departure = this.ConvertUTCtoLocationTime(location, new Date(scSchedule[0].time!));
+            wantedPrecon = {
+              id: TeslaScheduleIDs.Precondition,
+              days_of_week: 1 << departure.getUTCDay(),
+              enabled: true,
+              latitude: location.geoLocation.latitude,
+              longitude: location.geoLocation.longitude,
+              precondition_time: (departure.getUTCHours() * 60 + departure.getUTCMinutes()),
+              one_time: true,
+            };
+          }
+          const existingPrecon = vehicle.precondition_schedules[TeslaScheduleIDs.Precondition];
+          if (wantedPrecon) {
+            if (!existingPrecon || (wantedPrecon.precondition_time === existingPrecon.precondition_time
+              && wantedPrecon.days_of_week === existingPrecon.days_of_week
+              && geoDistance(wantedPrecon.latitude, wantedPrecon.longitude, existingPrecon.latitude, existingPrecon.longitude) < 10
+            )) {
+              // No change
+              log(LogLevel.Debug, `${vehicle.vin} preconditioning schedule is up to date`);
+            } else {
+              log(LogLevel.Debug, `${vehicle.vin} updating preconditioning schedule`);
+              await this.callTeslaAPI(job, teslaAPI.addPreconditionSchedule, vehicle.vin, wantedPrecon);
+              vehicle.precondition_schedules[TeslaScheduleIDs.Precondition] = wantedPrecon;
+            }
+          } else if (existingPrecon) {
+            log(LogLevel.Debug, `${vehicle.vin} deleting preconditioning schedule`);
+            await this.callTeslaAPI(job, teslaAPI.removePreconditionSchedule, vehicle.vin, TeslaScheduleIDs.Precondition);
+            delete vehicle.precondition_schedules[TeslaScheduleIDs.Precondition];
+          }
+        }
+
+        // Add or update schedules
+        {
+          let findid = TeslaScheduleIDs.First;
+          freeScheduleIDs.push(...Object.keys(vehicleSchedules).map((s) => parseInt(s)).filter((s) => !usedScheduleIDs.has(s)));
+          for (const s of scheduleUpdates) {
+            if (s.id === undefined) {
+              if (freeScheduleIDs.length > 0) {
+                s.id = freeScheduleIDs.shift();
+              } else {
+                for (; findid <= TeslaScheduleIDs.Last; findid++) {
+                  if (!usedScheduleIDs.has(findid)) {
+                    s.id = findid;
+                    break;
+                  }
+                }
+              }
+              if (s.id === undefined) {
+                log(LogLevel.Warning, `${vehicle.vin} ran out of schedule IDs`);
+                break;
+              }
+              log(LogLevel.Debug, `${vehicle.vin} adding schedule ${s.id}`);
+              usedScheduleIDs.add(s.id);
+            } else {
+              log(LogLevel.Debug, `${vehicle.vin} updating schedule ${s.id}`);
+            }
+            assert(usedScheduleIDs.has(s.id), "Invalid schedule ID");
+            await this.callTeslaAPI(job, teslaAPI.addChargeSchedule, vehicle.vin, s);
+            vehicle.charge_schedules[s.id] = s;
+          }
+        }
+
+        // Remove any schedules that are not in use
+        for (const s of Object.values(vehicleSchedules)) {
+          if (!usedScheduleIDs.has(s.scheduleID)) {
+            log(LogLevel.Debug, `${vehicle.vin} deleting schedule ${s.scheduleID}`);
+            // Log to database that we are deleting this schedule
+            await this.callTeslaAPI(job, teslaAPI.removeChargeSchedule, vehicle.vin, s.scheduleID);
+            delete vehicle.charge_schedules[s.scheduleID];
+          }
+        }
+
+        // Update SOC if needed
+        if (this.isConnected(vehicle) && wantedSoc) {
+          const limitedSoc = Math.max(parseInt(config.LOWEST_POSSIBLE_CHARGETO), Math.min(wantedSoc, 100));
+          if (vehicle.telemetryData.ChargeLimitSoc !== limitedSoc) {
+            log(LogLevel.Debug, `${vehicle.vin} setting charge limit to ${limitedSoc}%`);
+            await this.callTeslaAPI(job, teslaAPI.setChargeLimit, vehicle.vin, limitedSoc);
+          }
+        }
+      }
+    }
+  }
+  
   public isConnected(vehicle: VehicleEntry): boolean {
     return Boolean(vehicle.telemetryData
       && vehicle.telemetryData.DetailedChargeState
