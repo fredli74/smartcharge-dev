@@ -1105,7 +1105,6 @@ export class Logic {
               } else {
                 // Disable smart charging because without threshold and averages it can not make a good decision
                 log(LogLevel.Debug, `Missing stats for smart charging.`);
-                smartStatus = smartStatus || `Smart charging disabled (still learning)`;
                 ai.learning = true;
               }
             }
@@ -1120,7 +1119,16 @@ export class Logic {
         if (startLevel < vehicle.maximum_charge) {
           if (ai.charge) {
             if (ai.learning) {
-              GeneratePlan(ChargeType.Fill, `learning`, vehicle.maximum_charge);
+              // Learning charge
+              let start_ts = now;
+              if (vehicle.connected_id) {
+                const start = await this.db.pg.oneOrNone(`SELECT start_ts FROM connected WHERE connected_id = $1;`,[vehicle.connected_id]);
+                if (start && start.start_ts) {
+                  start_ts = start.start_ts.getTime();
+                }
+              }
+              smartStatus = smartStatus || `Smart charging disabled (learning)`;
+              GeneratePlan(ChargeType.Fill, `learning`, vehicle.maximum_charge, start_ts + 12 * 60 * 60e3);
               fillBefore = 0; // disable low-price filling
             } else {
               assert(ai.level);
