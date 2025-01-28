@@ -19,7 +19,7 @@ import {
 } from "@shared/utils.js";
 import { GQLLocationFragment, SCClient, UpdateVehicleParams } from "@shared/sc-client.js";
 import config from "./tesla-config.js";
-import teslaAPI, { TeslaAPI, TeslaChargeSchedule, TeslaPreconditionSchedule, TeslaScheduleTimeToDate } from "./tesla-api.js";
+import teslaAPI, { TeslaAPI, TeslaChargeSchedule, TeslaPreconditionSchedule, TeslaScheduleTimeToDate, TeslaTelemetryConfig } from "./tesla-api.js";
 import { AgentJob, AbstractAgent, IProviderAgent } from "@providers/provider-agent.js";
 import provider, { TeslaServiceData, TeslaProviderMutates, TeslaProviderQueries, TeslaToken } from "./index.js";
 import { GQLVehicle, GQLUpdateVehicleDataInput, GQLChargeConnection, GQLChargeType, GQLGeoLocation, GQLScheduleType } from "@shared/sc-schema.js";
@@ -40,7 +40,7 @@ interface TeslaTelemetryData {
   TimeToFullCharge: number;
 
   HvacPower: telemetryData.HvacPowerState;
-  Gear: string;
+  Gear: telemetryData.ShiftState;
   FastChargerPresent: boolean;
   FastChargerType: string;
   ChargeState: string;
@@ -51,13 +51,13 @@ interface TeslaTelemetryData {
   ChargeEnableRequest: boolean;
   ChargeLimitSoc: number;
   ChargerPhases: number;
-  //ChargerVoltage: number; // TODO: remove because of bug in Tesla API
+  ChargerVoltage: number;
   ACChargingEnergyIn: number;
   ACChargingPower: number;
   DCChargingEnergyIn: number;
   DCChargingPower: number;
-  ScheduledChargingMode: string;
-  ScheduledChargingStartTime: string;
+  ScheduledChargingMode: telemetryData.ScheduledChargingModeValue;
+  ScheduledChargingStartTime: number;
   ScheduledChargingPending: boolean;
   ScheduledDepartureTime: string;
 
@@ -67,20 +67,24 @@ interface TeslaTelemetryData {
   SentryMode: telemetryData.SentryModeState;
 
   VehicleName: string;
-  CarType: string;
+  CarType: telemetryData.CarTypeValue;
   Trim: string;
   ExteriorColor: string;
   RoofColor: string;
   WheelType: string;
 }
-type TelemetryFields = { [K in keyof TeslaTelemetryData]: { interval_seconds: number }; };
+type TelemetryFields = { [K in keyof TeslaTelemetryData]: {
+  interval_seconds: number,
+  minimum_delta?: number,
+  resend_interval_seconds? : number,
+}; };
 const telemetryFields: TelemetryFields = {
-  Location: { interval_seconds: 60 },
-  Soc: { interval_seconds: 60 },
-  Odometer: { interval_seconds: 15 },
-  OutsideTemp: { interval_seconds: 60 },
-  InsideTemp: { interval_seconds: 30 },
-  TimeToFullCharge: { interval_seconds: 10 },
+  Location: { interval_seconds: 60, minimum_delta: 0.00001 },
+  Soc: { interval_seconds: 60, minimum_delta: 0.01 },
+  Odometer: { interval_seconds: 15, minimum_delta: 0.01 },
+  OutsideTemp: { interval_seconds: 60, minimum_delta: 0.5 },
+  InsideTemp: { interval_seconds: 30, minimum_delta: 0.5 },
+  TimeToFullCharge: { interval_seconds: 10, minimum_delta: 0.01 },
 
   VehicleName: { interval_seconds: 60 },
 
@@ -90,17 +94,17 @@ const telemetryFields: TelemetryFields = {
   FastChargerType: { interval_seconds: 5 },
   ChargeState: { interval_seconds: 5 },
   DetailedChargeState: { interval_seconds: 5 },
-  ChargeAmps: { interval_seconds: 5 },
+  ChargeAmps: { interval_seconds: 5, minimum_delta: 0.1 },
   ChargeCurrentRequest: { interval_seconds: 5 },
   ChargeCurrentRequestMax: { interval_seconds: 5 },
   ChargeEnableRequest: { interval_seconds: 5 },
   ChargeLimitSoc: { interval_seconds: 5 },
   ChargerPhases: { interval_seconds: 5 },
-  //ChargerVoltage: { interval_seconds: 5 },
-  ACChargingEnergyIn: { interval_seconds: 10 },
-  ACChargingPower: { interval_seconds: 10 },
-  DCChargingEnergyIn: { interval_seconds: 10 },
-  DCChargingPower: { interval_seconds: 10 },
+  ChargerVoltage: { interval_seconds: 5, minimum_delta: 1.5 },
+  ACChargingEnergyIn: { interval_seconds: 10, minimum_delta: 0.001 },
+  ACChargingPower: { interval_seconds: 10, minimum_delta: 0.5 },
+  DCChargingEnergyIn: { interval_seconds: 10, minimum_delta: 0.001 },
+  DCChargingPower: { interval_seconds: 10, minimum_delta: 0.5 },
   ScheduledChargingMode: { interval_seconds: 60 },
   ScheduledChargingStartTime: { interval_seconds: 60 },
   ScheduledChargingPending: { interval_seconds: 60 },
@@ -479,9 +483,10 @@ export class TeslaAgent extends AbstractAgent {
           port: parseInt(config.TESLA_TELEMETRY_PORT),
           ca: config.TESLA_TELEMETRY_CA.replace(/\\n/g, "\n"),
           fields: telemetryFields,
+          prefer_typed: true,
           exp: Math.trunc(Date.now() / 1e3 + 60 * 60 * 24 * 7), // 7 days
         },
-      })).response;
+      } as TeslaTelemetryConfig)).response;
       log(LogLevel.Debug, `Telemetry successfully created for ${telemetry.updated_vehicles} vehicles`);
       if (telemetry.skipped_vehicles) {
         log(LogLevel.Debug, `Skipped vehicles: ${JSON.stringify(telemetry)}`);
@@ -907,30 +912,20 @@ export class TeslaAgent extends AbstractAgent {
         case telemetryData.Field.ClimateKeeperMode:
           vehicle.telemetryData.ClimateKeeperMode = telemetryData.ClimateKeeperModeState.ClimateKeeperModeStateUnknown;
           break;
-        //        case telemetryData.Field.SentryMode:
-        //          vehicle.telemetryData.SentryMode = telemetryData.SentryModeState.SentryModeStateUnknown;
-        //          break;
         case telemetryData.Field.Gear:
           vehicle.isSleepy = true;
           break;
       }
     } else {
       switch (key) {
-        case telemetryData.Field.Gear:
-          vehicle.isSleepy = false;
-        // Allow switch case fall through
         case telemetryData.Field.FastChargerType:
         case telemetryData.Field.ChargeState:
-        case telemetryData.Field.ScheduledChargingMode:
-        case telemetryData.Field.ScheduledChargingStartTime:
         case telemetryData.Field.ScheduledDepartureTime:
         case telemetryData.Field.VehicleName:
-        case telemetryData.Field.CarType:
         case telemetryData.Field.Trim:
         case telemetryData.Field.ExteriorColor:
         case telemetryData.Field.RoofColor:
         case telemetryData.Field.WheelType:
-        case telemetryData.Field.SentryMode:
           assert(value.case === "stringValue", `Invalid ${key} value type ${value.case}`);
           (vehicle.telemetryData as any)[telemetryData.Field[key]] = value.value;
           break;
@@ -939,7 +934,8 @@ export class TeslaAgent extends AbstractAgent {
         case telemetryData.Field.DriverSeatOccupied:
         case telemetryData.Field.ChargePortDoorOpen:
         case telemetryData.Field.ScheduledChargingPending:
-          (vehicle.telemetryData as any)[telemetryData.Field[key]] = value.value === "true";
+          assert(value.case === "booleanValue", `Invalid ${key} value type ${value.case}`);
+          (vehicle.telemetryData as any)[telemetryData.Field[key]] = value.value;
           break;
         case telemetryData.Field.Soc:
         case telemetryData.Field.Odometer:
@@ -956,6 +952,11 @@ export class TeslaAgent extends AbstractAgent {
         case telemetryData.Field.DCChargingEnergyIn:
         case telemetryData.Field.DCChargingPower:
           (vehicle.telemetryData as any)[telemetryData.Field[key]] = mapTelemetryNumber(value);
+          break;
+        case telemetryData.Field.ScheduledChargingStartTime:
+          assert(value.case === "longValue", `Invalid ScheduledChargingStartTime value type ${value.case}`);
+          // Tesla API returns the time in seconds since epoch and not milliseconds, bigint is not needed here
+          vehicle.telemetryData.ScheduledChargingStartTime = Number(value.value);
           break;
         case telemetryData.Field.Location:
           assert(value.case === "locationValue", `Invalid Location value type ${value.case}`);
@@ -976,6 +977,23 @@ export class TeslaAgent extends AbstractAgent {
         case telemetryData.Field.ClimateKeeperMode:
           assert(value.case === "climateKeeperModeValue", `Invalid ClimateKeeperMode value type ${value.case}`);
           vehicle.telemetryData.ClimateKeeperMode = value.value;
+          break;
+        case telemetryData.Field.SentryMode:
+          assert(value.case === "sentryModeStateValue", `Invalid SentryMode value type ${value.case}`);
+          vehicle.telemetryData.SentryMode = value.value;
+          break;
+        case telemetryData.Field.CarType:
+          assert(value.case === "carTypeValue", `Invalid CarType value type ${value.case}`);
+          vehicle.telemetryData.CarType = value.value;
+          break;
+        case telemetryData.Field.Gear:
+          vehicle.isSleepy = false;
+          assert(value.case === "shiftStateValue", `Invalid Gear value type ${value.case}`);
+          vehicle.telemetryData.Gear = value.value;
+          break;        
+        case telemetryData.Field.ScheduledChargingMode:
+          assert(value.case === "scheduledChargingModeValue", `Invalid ScheduledChargingMode value type ${value.case}`);
+          vehicle.telemetryData.ScheduledChargingMode = value.value;
           break;
         default:
         // TODO: Add this when we remove the top trace that logs all telemetry data
@@ -1041,7 +1059,10 @@ export class TeslaAgent extends AbstractAgent {
                 vehicle.vehicleDataInput.climateControl = (telemetryDataUpdate.HvacPower === telemetryData.HvacPowerState.HvacPowerStateOn);
               }
               if (telemetryDataUpdate.Gear !== undefined) {
-                vehicle.vehicleDataInput.isDriving = (telemetryDataUpdate.Gear === "D" || telemetryDataUpdate.Gear === "R" || telemetryDataUpdate.Gear === "N");
+                vehicle.vehicleDataInput.isDriving = (
+                  telemetryDataUpdate.Gear === telemetryData.ShiftState.ShiftStateD
+                  || telemetryDataUpdate.Gear === telemetryData.ShiftState.ShiftStateR
+                  || telemetryDataUpdate.Gear === telemetryData.ShiftState.ShiftStateN);
               }
               if (telemetryDataUpdate.ACChargingEnergyIn !== undefined) {
                 vehicle.vehicleDataInput.energyUsed = telemetryDataUpdate.ACChargingEnergyIn;

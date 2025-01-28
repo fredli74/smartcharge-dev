@@ -20,8 +20,13 @@ export interface TeslaTelemetryConfig {
     port: number;
     ca: string;
     fields: {
-      [key: string]: { interval_seconds: number };
+      [key: string]: {
+        interval_seconds: number
+        minimum_delta?: number
+        resend_interval_seconds?: number
+      };
     };
+    prefer_typed?: boolean;
     alert_types?: string[];
     exp?: number;
   };
