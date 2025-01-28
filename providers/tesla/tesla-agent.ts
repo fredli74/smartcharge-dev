@@ -81,13 +81,13 @@ type TelemetryFields = { [K in keyof TeslaTelemetryData]: {
 }; };
 const telemetryFields: TelemetryFields = {
   Location: { interval_seconds: 60, minimum_delta: 0.00001 },
-  Soc: { interval_seconds: 60, minimum_delta: 0.01 },
+  Soc: { interval_seconds: 60, minimum_delta: 0.01, resend_interval_seconds: 600 }, // Resend every 10 minutes as a heartbeat
   Odometer: { interval_seconds: 15, minimum_delta: 0.01 },
   OutsideTemp: { interval_seconds: 60, minimum_delta: 0.5 },
   InsideTemp: { interval_seconds: 30, minimum_delta: 0.5 },
   TimeToFullCharge: { interval_seconds: 10, minimum_delta: 0.01 },
 
-  VehicleName: { interval_seconds: 60 },
+  VehicleName: { interval_seconds: 5 },
 
   HvacPower: { interval_seconds: 5 },
   Gear: { interval_seconds: 15 },
@@ -101,7 +101,7 @@ const telemetryFields: TelemetryFields = {
   ChargeEnableRequest: { interval_seconds: 5 },
   ChargeLimitSoc: { interval_seconds: 5 },
   ChargerPhases: { interval_seconds: 5 },
-  ChargerVoltage: { interval_seconds: 5, minimum_delta: 1.5 },
+  ChargerVoltage: { interval_seconds: 5, minimum_delta: 5.0 },
   ACChargingEnergyIn: { interval_seconds: 10, minimum_delta: 0.001 },
   ACChargingPower: { interval_seconds: 10, minimum_delta: 0.5 },
   DCChargingEnergyIn: { interval_seconds: 10, minimum_delta: 0.001 },
@@ -975,88 +975,95 @@ export class TeslaAgent extends AbstractAgent {
           break;
       }
     } else {
-      switch (key) {
-        case telemetryData.Field.FastChargerType:
-        case telemetryData.Field.ChargeState:
-        case telemetryData.Field.ScheduledDepartureTime:
-        case telemetryData.Field.VehicleName:
-        case telemetryData.Field.Trim:
-        case telemetryData.Field.ExteriorColor:
-        case telemetryData.Field.RoofColor:
-        case telemetryData.Field.WheelType:
-          assert(value.case === "stringValue", `Invalid ${key} value type ${value.case}`);
-          (vehicle.telemetryData as any)[telemetryData.Field[key]] = value.value;
-          break;
-        case telemetryData.Field.FastChargerPresent:
-        case telemetryData.Field.ChargeEnableRequest:
-        case telemetryData.Field.DriverSeatOccupied:
-        case telemetryData.Field.ChargePortDoorOpen:
-        case telemetryData.Field.ScheduledChargingPending:
-          assert(value.case === "booleanValue", `Invalid ${key} value type ${value.case}`);
-          (vehicle.telemetryData as any)[telemetryData.Field[key]] = value.value;
-          break;
-        case telemetryData.Field.Soc:
-        case telemetryData.Field.Odometer:
-        case telemetryData.Field.OutsideTemp:
-        case telemetryData.Field.InsideTemp:
-        case telemetryData.Field.TimeToFullCharge:
-        case telemetryData.Field.ChargeAmps:
-        case telemetryData.Field.ChargeCurrentRequest:
-        case telemetryData.Field.ChargeCurrentRequestMax:
-        case telemetryData.Field.ChargeLimitSoc:
-        case telemetryData.Field.ChargerPhases:
-        case telemetryData.Field.ACChargingEnergyIn:
-        case telemetryData.Field.ACChargingPower:
-        case telemetryData.Field.DCChargingEnergyIn:
-        case telemetryData.Field.DCChargingPower:
-          (vehicle.telemetryData as any)[telemetryData.Field[key]] = mapTelemetryNumber(value);
-          break;
-        case telemetryData.Field.ScheduledChargingStartTime:
-          assert(value.case === "longValue", `Invalid ScheduledChargingStartTime value type ${value.case}`);
-          // Tesla API returns the time in seconds since epoch and not milliseconds, bigint is not needed here
-          vehicle.telemetryData.ScheduledChargingStartTime = Number(value.value);
-          break;
-        case telemetryData.Field.Location:
-          assert(value.case === "locationValue", `Invalid Location value type ${value.case}`);
-          vehicle.telemetryData.Location = { latitude: value.value.latitude, longitude: value.value.longitude };
-          break;
-        case telemetryData.Field.HvacPower:
-          assert(value.case === "hvacPowerValue", `Invalid HvacPower value type ${value.case}`);
-          vehicle.telemetryData.HvacPower = value.value;
-          break;
-        case telemetryData.Field.DetailedChargeState:
-          assert(value.case === "detailedChargeStateValue", `Invalid DetailedChargeState value type ${value.case}`);
-          vehicle.telemetryData.DetailedChargeState = value.value;
-          break;
-        case telemetryData.Field.HvacAutoMode:
-          assert(value.case === "hvacAutoModeValue", `Invalid HvacAutoMode value type ${value.case}`);
-          vehicle.telemetryData.HvacAutoMode = value.value;
-          break;
-        case telemetryData.Field.ClimateKeeperMode:
-          assert(value.case === "climateKeeperModeValue", `Invalid ClimateKeeperMode value type ${value.case}`);
-          vehicle.telemetryData.ClimateKeeperMode = value.value;
-          break;
-        case telemetryData.Field.SentryMode:
-          assert(value.case === "sentryModeStateValue", `Invalid SentryMode value type ${value.case}`);
-          vehicle.telemetryData.SentryMode = value.value;
-          break;
-        case telemetryData.Field.CarType:
-          assert(value.case === "carTypeValue", `Invalid CarType value type ${value.case}`);
-          vehicle.telemetryData.CarType = value.value;
-          break;
-        case telemetryData.Field.Gear:
-          vehicle.isSleepy = false;
-          assert(value.case === "shiftStateValue", `Invalid Gear value type ${value.case}`);
-          vehicle.telemetryData.Gear = value.value;
-          break;        
-        case telemetryData.Field.ScheduledChargingMode:
-          assert(value.case === "scheduledChargingModeValue", `Invalid ScheduledChargingMode value type ${value.case}`);
-          vehicle.telemetryData.ScheduledChargingMode = value.value;
-          break;
-        default:
-        // TODO: Add this when we remove the top trace that logs all telemetry data
-        //log(LogLevel.Trace, `Unhandled telemetry data for ${vin}: ${telemetryData.Field[key]} = ${value.value} (${value.case})`);
-        //break;
+      try {
+        switch (key) {
+          case telemetryData.Field.FastChargerType:
+          case telemetryData.Field.ChargeState:
+          case telemetryData.Field.ScheduledDepartureTime:
+          case telemetryData.Field.VehicleName:
+          case telemetryData.Field.Trim:
+          case telemetryData.Field.ExteriorColor:
+          case telemetryData.Field.RoofColor:
+          case telemetryData.Field.WheelType:
+            assert(value.case === "stringValue", `Invalid ${key} value type ${value.case}`);
+            (vehicle.telemetryData as any)[telemetryData.Field[key]] = value.value;
+            break;
+          case telemetryData.Field.FastChargerPresent:
+          case telemetryData.Field.ChargeEnableRequest:
+          case telemetryData.Field.DriverSeatOccupied:
+          case telemetryData.Field.ChargePortDoorOpen:
+          case telemetryData.Field.ScheduledChargingPending:
+            assert(value.case === "booleanValue", `Invalid ${key} value type ${value.case}`);
+            (vehicle.telemetryData as any)[telemetryData.Field[key]] = value.value;
+            break;
+          case telemetryData.Field.Soc:
+          case telemetryData.Field.Odometer:
+          case telemetryData.Field.OutsideTemp:
+          case telemetryData.Field.InsideTemp:
+          case telemetryData.Field.TimeToFullCharge:
+          case telemetryData.Field.ChargeAmps:
+          case telemetryData.Field.ChargeCurrentRequest:
+          case telemetryData.Field.ChargeCurrentRequestMax:
+          case telemetryData.Field.ChargeLimitSoc:
+          case telemetryData.Field.ChargerPhases:
+          case telemetryData.Field.ACChargingEnergyIn:
+          case telemetryData.Field.ACChargingPower:
+          case telemetryData.Field.DCChargingEnergyIn:
+          case telemetryData.Field.DCChargingPower:
+            (vehicle.telemetryData as any)[telemetryData.Field[key]] = mapTelemetryNumber(value);
+            break;
+          case telemetryData.Field.ScheduledChargingStartTime:
+            assert(value.case === "longValue", `Invalid ScheduledChargingStartTime value type ${value.case}`);
+            // Tesla API returns the time in seconds since epoch and not milliseconds, bigint is not needed here
+            vehicle.telemetryData.ScheduledChargingStartTime = Number(value.value);
+            break;
+          case telemetryData.Field.Location:
+            assert(value.case === "locationValue", `Invalid Location value type ${value.case}`);
+            vehicle.telemetryData.Location = { latitude: value.value.latitude, longitude: value.value.longitude };
+            break;
+          case telemetryData.Field.HvacPower:
+            assert(value.case === "hvacPowerValue", `Invalid HvacPower value type ${value.case}`);
+            vehicle.telemetryData.HvacPower = value.value;
+            break;
+          case telemetryData.Field.DetailedChargeState:
+            assert(value.case === "detailedChargeStateValue", `Invalid DetailedChargeState value type ${value.case}`);
+            vehicle.telemetryData.DetailedChargeState = value.value;
+            break;
+          case telemetryData.Field.HvacAutoMode:
+            assert(value.case === "hvacAutoModeValue", `Invalid HvacAutoMode value type ${value.case}`);
+            vehicle.telemetryData.HvacAutoMode = value.value;
+            break;
+          case telemetryData.Field.ClimateKeeperMode:
+            assert(value.case === "climateKeeperModeValue", `Invalid ClimateKeeperMode value type ${value.case}`);
+            vehicle.telemetryData.ClimateKeeperMode = value.value;
+            break;
+          case telemetryData.Field.SentryMode:
+            assert(value.case === "sentryModeStateValue", `Invalid SentryMode value type ${value.case}`);
+            vehicle.telemetryData.SentryMode = value.value;
+            break;
+          case telemetryData.Field.CarType:
+            assert(value.case === "carTypeValue", `Invalid CarType value type ${value.case}`);
+            vehicle.telemetryData.CarType = value.value;
+            break;
+          case telemetryData.Field.Gear:
+            vehicle.isSleepy = false;
+            assert(value.case === "shiftStateValue", `Invalid Gear value type ${value.case}`);
+            vehicle.telemetryData.Gear = value.value;
+            break;        
+          case telemetryData.Field.ScheduledChargingMode:
+            assert(value.case === "scheduledChargingModeValue", `Invalid ScheduledChargingMode value type ${value.case}`);
+            vehicle.telemetryData.ScheduledChargingMode = value.value;
+            break;
+          default:
+          // TODO: Add this when we remove the top trace that logs all telemetry data
+          //log(LogLevel.Trace, `Unhandled telemetry data for ${vin}: ${telemetryData.Field[key]} = ${value.value} (${value.case})`);
+          //break;
+        } 
+      } catch (err) {
+        // We catch this here so that it doesn't crash the entire worker, leaving Kafka in a sad state
+        log(LogLevel.Error, `Failed to handle telemetry data for ${vin}: ${telemetryData.Field[key]} = ${value.value} (${value.case})`);
+        log(LogLevel.Error, err);
+        return;
       }
       // charger_phases seems to be reported wrong, or I simply don't understand and someone could explain it?
       // Tesla Wall Connector in Sweden reports 2 phases, 16 amps, and 230 volt = 2*16*230 = 7kW,
