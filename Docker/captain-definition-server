@@ -1,0 +1,12 @@
+{
+    "schemaVersion": 2,
+    "dockerfileLines": [
+        "FROM node:18",
+        "WORKDIR /app",
+        "RUN apt-get update && apt-get install -y git",
+        "RUN git clone https://github.com/fredli74/smartcharge-dev.git .",
+        "RUN npm install",
+        "RUN npm run build",
+        "CMD node --max_old_space_size=384 --optimize_for_size dist/server/server.js --port=$SERVER_PORT"
+    ]
+}
