@@ -81,12 +81,12 @@ type TelemetryFields = { [K in keyof TeslaTelemetryData]: {
   resend_interval_seconds? : number,
 }; };
 const telemetryFields: TelemetryFields = {
-  Location: { interval_seconds: 60, minimum_delta: 0.00001 },
+  Location: { interval_seconds: 60, minimum_delta: 0.001 }, // 0.001 degrees = 100 meters
   Soc: { interval_seconds: 60, minimum_delta: 0.01, resend_interval_seconds: 600 }, // Resend every 10 minutes as a heartbeat
-  Odometer: { interval_seconds: 15, minimum_delta: 0.01 },
+  Odometer: { interval_seconds: 15, minimum_delta: 0.05 }, // 0.05 miles = 80 meters
   OutsideTemp: { interval_seconds: 60, minimum_delta: 0.5 },
   InsideTemp: { interval_seconds: 30, minimum_delta: 0.5 },
-  TimeToFullCharge: { interval_seconds: 10, minimum_delta: 0.01 },
+  TimeToFullCharge: { interval_seconds: 10, minimum_delta: 0.02 }, // 0.02 hours = 1.2 minutes
 
   VehicleName: { interval_seconds: 5 },
 
@@ -103,10 +103,10 @@ const telemetryFields: TelemetryFields = {
   ChargeLimitSoc: { interval_seconds: 5 },
   ChargerPhases: { interval_seconds: 5 },
   ChargerVoltage: { interval_seconds: 5, minimum_delta: 5.0 },
-  ACChargingEnergyIn: { interval_seconds: 10, minimum_delta: 0.001 },
-  ACChargingPower: { interval_seconds: 10, minimum_delta: 0.5 },
-  DCChargingEnergyIn: { interval_seconds: 10, minimum_delta: 0.001 },
-  DCChargingPower: { interval_seconds: 10, minimum_delta: 0.5 },
+  ACChargingEnergyIn: { interval_seconds: 10, minimum_delta: 0.03 }, // 0.03 kWh = 30 Wh
+  ACChargingPower: { interval_seconds: 10, minimum_delta: 0.1 }, // 0.1 kW = 100 W
+  DCChargingEnergyIn: { interval_seconds: 10, minimum_delta: 0.2 }, // 0.2 kWh = 200 Wh
+  DCChargingPower: { interval_seconds: 10, minimum_delta: 1.0 }, // 1.0 kW = 1000 W
   ScheduledChargingMode: { interval_seconds: 60 },
   ScheduledChargingStartTime: { interval_seconds: 60 },
   ScheduledChargingPending: { interval_seconds: 60 },
@@ -744,7 +744,7 @@ export class TeslaAgent extends AbstractAgent {
         assert(s.id !== undefined, "Invalid schedule ID");
         // Filter out any schedule entry that is not ours
         if (!s.one_time || (s.id < TeslaScheduleIDs.First || s.id > TeslaScheduleIDs.Last)) continue;
-        if (geoDistance(s.latitude, s.longitude, location.geoLocation.latitude, location.geoLocation.longitude) > 10) {
+        if (geoDistance(s.latitude, s.longitude, location.geoLocation.latitude, location.geoLocation.longitude) > 100) {
           // Not our location
           log(LogLevel.Debug, `${vehicle.vin} skipping schedule ${s.id} because of location mismatch`);
           freeScheduleIDs.push(s.id);
@@ -838,10 +838,10 @@ export class TeslaAgent extends AbstractAgent {
           if (wantedPrecon) {
             if (!existingPrecon || (wantedPrecon.precondition_time === existingPrecon.precondition_time
               && wantedPrecon.days_of_week === existingPrecon.days_of_week
-              && geoDistance(wantedPrecon.latitude, wantedPrecon.longitude, existingPrecon.latitude, existingPrecon.longitude) < 10
+              && geoDistance(wantedPrecon.latitude, wantedPrecon.longitude, existingPrecon.latitude, existingPrecon.longitude) < 100
             )) {
               // No change
-              log(LogLevel.Debug, `${vehicle.vin} preconditioning schedule is up to date`);
+              log(LogLevel.Trace, `${vehicle.vin} preconditioning schedule is up to date`);
             } else {
               log(LogLevel.Debug, `${vehicle.vin} updating preconditioning schedule`);
               await this.callTeslaAPI(job, teslaAPI.addPreconditionSchedule, vehicle.vin, wantedPrecon);
@@ -977,7 +977,7 @@ export class TeslaAgent extends AbstractAgent {
     const key = datum.key;
     const value = datum.value && datum.value.value;
 
-    log(LogLevel.Trace, `Telemetry data for ${vin}: ${telemetryData.Field[key]} = ${value.value} (${value.case})`);
+    log(LogLevel.Trace, `Telemetry data for ${vin}: ${telemetryData.Field[key]} = ${JSON.stringify(value.value)} (${value.case})`);
 
     const vehicle = this.vehicleEntry(vin);
     vehicle.tsUpdate = Date.now();
