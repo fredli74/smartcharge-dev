@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "dockerfilePath": "./Docker/Dockerfile",
+  "dockerfilePath": "./Dockerfile",
   "dockerBuildArgs": {
     "TARGET": "server"
   }
