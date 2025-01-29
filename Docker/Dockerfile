@@ -2,6 +2,9 @@
 FROM node:18-alpine AS builder
 WORKDIR /usr/src/app
 
+# Install Git (needed for Vite or other scripts)
+RUN apk add --no-cache git
+
 # Copy npm settings first
 COPY .npmrc ./
 
@@ -11,7 +14,8 @@ RUN npm install --omit=dev=false && npm cache clean --force
 
 # Copy the full repo and build **everything**
 COPY . .
-RUN npm run build  # This builds dist/server, dist/worker, dist/app, dist/shared, etc.
+# builds dist/server, dist/worker, dist/app, dist/shared, etc.
+RUN npm run build
 
 # Stage 2: Production (Base Runtime)
 FROM node:18-alpine AS runtime
