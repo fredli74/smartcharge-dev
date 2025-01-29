@@ -1,11 +1,7 @@
 {
   "schemaVersion": 2,
-  "dockerfileLines": [
-    "FROM node:18",
-    "WORKDIR /app",
-    "COPY . .",
-    "RUN npm install",
-    "RUN npm run build",
-    "CMD node --max_old_space_size=384 --optimize_for_size dist/server/agency.js -d \"$INTERNAL_SERVICE_TOKEN\" $SERVER_IP:$SERVER_PORT"
-  ]
+  "dockerfilePath": "./Docker/Dockerfile",
+  "dockerBuildArgs": {
+    "TARGET": "worker"
+  }
 }
