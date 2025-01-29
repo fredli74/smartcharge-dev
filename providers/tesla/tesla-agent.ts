@@ -183,6 +183,15 @@ const TeslaScheduleIDs = {
   Precondition: 197499,
 };
 
+function stringifyWithTimestamps(data: any): string {
+  return JSON.stringify(data, (key, value) => {
+    if (typeof value === "number" && value > 1e12 && value < 1e13) {
+      return new Date(value).toISOString();
+    }
+    return value;
+  });
+}
+
 export class TeslaAgent extends AbstractAgent {
   public name: string = provider.name;
   public kafkaClient: Kafka;
@@ -645,8 +654,10 @@ export class TeslaAgent extends AbstractAgent {
   }
   public async handleSchedules(job: TeslaAgentJob, vehicle: VehicleEntry, location: GQLLocationFragment) {
     assert(vehicle.dbData !== null, "vehicle.dbData is null");
+    assert(vehicle.telemetryData !== null, "vehicle.telemetryData is null");
     const requestedSchedule: (NumericChargePlan & { comment?: string })[] = [];
     let wantedSoc: number | undefined;
+    const now = Date.now();
       
     // Handle charge plans
     if (vehicle.dbData.chargePlan) {
@@ -657,9 +668,9 @@ export class TeslaAgent extends AbstractAgent {
             // Skip disabled plans
             if (p.chargeType === GQLChargeType.Disable) return false;
             // Skip plans that have already ended
-            if (p.chargeStop && numericStopTime(p.chargeStop) < Date.now()) return false;
+            if (p.chargeStop && numericStopTime(p.chargeStop) < now) return false;
             // Ignore plans that are 30 hours in the future
-            if (p.chargeStart && numericStartTime(p.chargeStart) > Date.now() + 30 * 60 * 60e3) return false;
+            if (p.chargeStart && numericStartTime(p.chargeStart) > now + 30 * 60 * 60e3) return false;
             return true;
           })
           // Sort by start time
@@ -698,15 +709,15 @@ export class TeslaAgent extends AbstractAgent {
           lastCharge.chargeStop = null;
         }
         // Are we inside the first charge?
-        const insideFirstCharge = firstCharge && Date.now() >= numericStartTime(firstCharge.chargeStart) && Date.now() <= numericStopTime(firstCharge.chargeStop);
+        const insideFirstCharge = firstCharge && now >= numericStartTime(firstCharge.chargeStart) && now <= numericStopTime(firstCharge.chargeStop);
         if (insideFirstCharge && vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateStopped) {
           // We are inside the first charge, but it is not charging, so we back-date the start time by at least 10 minutes
-          firstCharge.chargeStart = this.quantizeTime(Date.now() - 10 * 60e3, Math.floor);
+          firstCharge.chargeStart = this.quantizeTime(now - 10 * 60e3, Math.floor);
         }
       }
 
       requestedSchedule.push(...simplifiedChargePlan.filter((a) => a.chargeStart !== null || a.chargeStop !== null));
-      log(LogLevel.Debug, `${vehicle.vin} charge plan: ${JSON.stringify(requestedSchedule)}`);
+      log(LogLevel.Debug, `${vehicle.vin} charge plan: ${stringifyWithTimestamps(requestedSchedule)}`);
     }
 
     // Tesla vehicles will only care about schedules that are 18 hours in the future or 6 hours in the past
@@ -714,18 +725,25 @@ export class TeslaAgent extends AbstractAgent {
     {
       const firstChargeStart = requestedSchedule.length > 0 ? numericStartTime(requestedSchedule[0].chargeStart) : Infinity;
       if (vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateCharging
-        && Date.now() < firstChargeStart) {
+        && now < firstChargeStart) {
         // We are before the first charge, but it is charging, so we need to add a charge blocker
-        requestedSchedule.push({
-          chargeStart: null, chargeStop: this.quantizeTime(Date.now() - 10 * 60e3, Math.floor),
-          comment: "completed schedule to stop ongoing charging"
-        });
-        log(LogLevel.Debug, `${vehicle.vin} added charge blocker to stop ongoing charging`);
+        if (vehicle.telemetryData.Soc && vehicle.telemetryData.ChargeLimitSoc
+          && vehicle.telemetryData.Soc > vehicle.telemetryData.ChargeLimitSoc - 1.5) {
+          // SOC is above the limit, we need don't need to stop charging
+          log(LogLevel.Debug, `${vehicle.vin} skipping charge blocker because SOC is close to limit`);
+        } else {
+          // We are charging to the limit, we need to stop charging
+          requestedSchedule.push({
+            chargeStart: null, chargeStop: this.quantizeTime(now - 10 * 60e3, Math.floor),
+            comment: "completed schedule to stop ongoing charging"
+          });
+          log(LogLevel.Debug, `${vehicle.vin} added charge blocker to stop ongoing charging`);
+        }
       } else if (vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateDisconnected
-        && firstChargeStart > Date.now() + 17 * 60 * 60e3) {
+        && firstChargeStart > now + 17 * 60 * 60e3) {
         // We are not connected, we're more than 17 hours in the future, so we need a charge blocker
         requestedSchedule.push({
-          chargeStart: null, chargeStop: this.quantizeTime(Date.now() - 10 * 60e3, Math.floor),
+          chargeStart: null, chargeStop: this.quantizeTime(now - 10 * 60e3, Math.floor),
           comment: "completed schedule to prevent charging when plugging in"
         });
         log(LogLevel.Debug, `${vehicle.vin} added charge blocker to prevent charging when plugging in`);
@@ -752,74 +770,54 @@ export class TeslaAgent extends AbstractAgent {
           vehicleSchedules[s.id] = { ...this.convertFromTeslaSchedule(s, location), scheduleID: s.id };
         }
       }
-      log(LogLevel.Debug, `${vehicle.vin} requested schedules: ${JSON.stringify(requestedSchedule)}`);
-      log(LogLevel.Debug, `${vehicle.vin} existing schedules: ${JSON.stringify(vehicleSchedules)}`);
+      log(LogLevel.Debug, `${vehicle.vin} requested schedules: ${stringifyWithTimestamps(requestedSchedule)}`);
+      log(LogLevel.Debug, `${vehicle.vin} existing schedules: ${stringifyWithTimestamps(vehicleSchedules)}`);
 
       const reversedVehicleSchedules = Object.values(vehicleSchedules).sort(
         (a, b) => compareStartStopTimes(b.chargeStart, b.chargeStop, a.chargeStart, a.chargeStop)
       );
 
-      // Find out if we have a schedules that matches our request
+      // Find out if we have a schedules that matches our request that we can use without modification
+      // A modification is the same as creating a new schedule as we overwrite old IDs instead of deleting
+      // overwrite = delete + create in one API call
       for (const r of requestedSchedule.reverse()) {
+        const rStart = numericStartTime(r.chargeStart);
+        const rStop = numericStopTime(r.chargeStop);
         for (const s of reversedVehicleSchedules) {
           if (usedScheduleIDs.has(s.scheduleID)) continue;
 
-          if (s.chargeStart === r.chargeStart && s.chargeStop === r.chargeStop) {
-            // Found an exact match
-            r.scheduleID = s.scheduleID;
-            log(LogLevel.Debug, `${vehicle.vin} found exact match for schedule ${s.scheduleID}`);
-          } else if (
-            // Start time of r is between start and stop of s
-            (numericStartTime(r.chargeStart) >= numericStartTime(s.chargeStart) && numericStartTime(r.chargeStart) <= numericStopTime(s.chargeStop)) ||
-            // Stop time of r is between start and stop of s
-            (numericStopTime(r.chargeStop) >= numericStartTime(s.chargeStart) && numericStopTime(r.chargeStop) <= numericStopTime(s.chargeStop))
-          ) {
-            // We are inside this schedule, we should adopt it
-            r.scheduleID = s.scheduleID;
-            const whatChanged: string[] = [];
-            if (Date.now() < numericStartTime(s.chargeStart) && s.chargeStart !== r.chargeStart) {
-              // Start time is in the future, we should adjust it
-              s.chargeStart = r.chargeStart;
-              whatChanged.push("start time");
-            }
-            // Only move stop time if it's in the future, or the old stop time was at least 5 hours in the past
-            // This is because the vehicle will only look at schedules stops that are less than 6 hours ago
-            if (s.chargeStop !== r.chargeStop && (
-              Date.now() < numericStopTime(s.chargeStop)
-              || (Date.now() - numericStopTime(s.chargeStop)) > 5 * 60 * 60e3
-            )) {
-              // Stop time is different from what we want
-              s.chargeStop = r.chargeStop;
-              whatChanged.push("stop time");
-            }
-            if (whatChanged.length > 0) {
-              const comment = `adjusted schedule ${whatChanged.join(" and ")}`;
-              scheduleUpdates.push({ ...this.convertToTeslaSchedule(s, location), comment });
-              log(LogLevel.Debug, `${vehicle.vin} changed schedule ${s.scheduleID} because of ${comment}`);
-            }
+          const sStart = numericStartTime(s.chargeStart);
+          const sStop = numericStopTime(s.chargeStop);
+
+          if (sStart === rStart && sStop === rStop) {
+            log(LogLevel.Trace, `${vehicle.vin} found exact match for schedule ${s.scheduleID}`);
+          } else if (rStop < now && sStop < now && (now - sStop) < 5 * 60 * 60e3) {
+            log(LogLevel.Trace, `${vehicle.vin} found schedule ${s.scheduleID} in the past with stop time less than 5 hours ago (${new Date(sStop).toISOString()})`);
+          } else if (rStart < now && sStart < now && rStop === sStop) {
+            log(LogLevel.Trace, `${vehicle.vin} found active schedule ${s.scheduleID} with matching stop time (${new Date(sStop).toISOString()})`);
           } else {
             continue;
           }
-          usedScheduleIDs.add(r.scheduleID);
+          r.scheduleID = s.scheduleID;
+          usedScheduleIDs.add(s.scheduleID);
           break;
         }
         if (r.scheduleID === undefined) {
           // No matching schedule found, we need to create a new one
-          log(LogLevel.Debug, `${vehicle.vin} creating new schedule to start ${r.chargeStart ? `at ${new Date(r.chargeStart).toISOString()}` : "now"} and end ${r.chargeStop ? `at ${new Date(r.chargeStop).toISOString()}` : "whenever"}`);
+          log(LogLevel.Debug, `${vehicle.vin} requires a new schedule that starts ${r.chargeStart ? `at ${new Date(r.chargeStart).toISOString()}` : "now"} and ends ${r.chargeStop ? `at ${new Date(r.chargeStop).toISOString()}` : "whenever"}`);
           scheduleUpdates.push({
             ...this.convertToTeslaSchedule(r, location),
             comment: "new schedule"
           });
         }
       }
-
-      log(LogLevel.Debug, `${vehicle.vin} schedule updates: ${JSON.stringify(scheduleUpdates)}`);
+      log(LogLevel.Debug, `${vehicle.vin} schedule updates: ${stringifyWithTimestamps(scheduleUpdates)}`);
 
       if (vehicle.isOnline) {
         // Handle preconditioning schedules
         {
           const scSchedule = vehicle.dbData.schedule
-            .filter((f) => f.type === GQLScheduleType.Trip && f.time && new Date(f.time).getTime() > Date.now())
+            .filter((f) => f.type === GQLScheduleType.Trip && f.time && new Date(f.time).getTime() > now)
             .sort((a, b) => compareStopTimes(a.time, b.time));
           let wantedPrecon: TeslaPreconditionSchedule | undefined;
           if (scSchedule.length > 0) {
