@@ -4,6 +4,9 @@ WORKDIR /usr/src/app
 
 # Install Git (needed for Vite or other scripts)
 RUN apk add --no-cache git
+RUN git rev-parse HEAD > ./git-hash.txt
+RUN echo $(cat ./git-hash.txt)
+RUN echo "VITE_GIT_HASH=$(cat ./git-hash.txt)" > .env
 
 # Copy npm settings first
 COPY .npmrc ./
