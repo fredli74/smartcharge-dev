@@ -1,6 +1,7 @@
 {
   "schemaVersion": 2,
-  "dockerfilePath": "./Dockerfile",
+  "dockerfilePath": "Docker/Dockerfile",
+  "buildContext": ".",
   "dockerBuildArgs": {
     "TARGET": "worker"
   }
