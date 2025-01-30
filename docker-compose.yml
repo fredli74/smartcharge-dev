@@ -1,0 +1,65 @@
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    healthcheck:
+      test: [ "CMD", "nc", "-z", "localhost", "2181" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_BROKER_ID: 1
+    depends_on:
+      - zookeeper
+    healthcheck:
+      test: [ "CMD", "nc", "-z", "localhost", "9092" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  fleet-telemetry:
+    image: tesla/fleet-telemetry:latest
+    container_name: fleet-telemetry
+    ports:
+      - "20880:20880"
+    volumes:
+      - ./certs/archive/smartcharge.dev/fullchain1.pem:/etc/fleet-telemetry/cert.pem:ro
+      - ./certs/archive/smartcharge.dev/privkey1.pem:/etc/fleet-telemetry/key.pem:ro
+      - ./fleet-telemetry-config.json:/etc/fleet-telemetry/config.json
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
+
+  certbot:
+    build:
+      context: ./certbot
+    container_name: certbot
+    volumes:
+      - ./certs:/etc/letsencrypt
+      - ./certbot/cloudns.ini:/etc/letsencrypt/cloudns.ini:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - CERTBOT_EMAIL=fredli74@gmail.com
+    depends_on:
+      - fleet-telemetry
+    restart: unless-stopped
