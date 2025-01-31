@@ -35,6 +35,7 @@ import { fileURLToPath } from 'url';
 import { useServer } from 'graphql-ws/lib/use/ws';
 import { Context, SubscribeMessage } from "graphql-ws";
 import { WebSocketServer } from "ws";
+import { API_PATH } from "@shared/smartcharge-defines.js";
 
 interface CustomContext extends Context {
   extra: {
@@ -104,12 +105,11 @@ program
       app.set("trust proxy", ["loopback", "linklocal", "uniquelocal"]);
 
       /** Setup backend api server **/
-      const GQL_PATH = "/api/gql";
       const httpServer = http.createServer(app);
 
       // GraphQL Socket and Http Server
       const schema = await gqlSchema();
-      const wsServer = new WebSocketServer({ server: httpServer, path: GQL_PATH });
+      const wsServer = new WebSocketServer({ server: httpServer, path: API_PATH });
       const serverCleanup = useServer({
         schema,
         context: async (ctx: CustomContext, _msg: SubscribeMessage, _args: unknown) => {
@@ -196,7 +196,7 @@ program
           }
           next();
         })
-        .use(GQL_PATH,
+        .use(API_PATH,
           expressMiddleware(apolloServer, {
             context: async ({ req }): Promise<IContext> => {
               const auth = req.headers.authorization;
