@@ -50,7 +50,6 @@ import gql from "graphql-tag";
 import EditVehicleLocationSettings from "@app/components/edit-vehicle-location-settings.vue";
 import RemoveDialog from "@app/components/remove-dialog.vue";
 import deepmerge from "deepmerge";
-import apollo from "@app/plugins/apollo.js";
 import equal from "fast-deep-equal";
 import { GQLLocation, GQLPriceList } from "@shared/sc-schema.js";
 import { UpdateLocationParams } from "@shared/sc-client.js";
@@ -95,7 +94,7 @@ export default class EditLocation extends Vue {
   async created() {}
 
   async removeLocation(code: string) {
-    await apollo.removeLocation(this.location.id, code);
+    await this.$scClient.removeLocation(this.location.id, code);
     this.$emit("refresh");
   }
 
@@ -156,7 +155,7 @@ export default class EditLocation extends Vue {
 
         this.clearSaving = deepmerge(this.clearSaving, this.saving);
 
-        await apollo.updateLocation(update);
+        await this.$scClient.updateLocation(update);
 
         for (const [key, value] of Object.entries(this.clearSaving)) {
           if (value) {

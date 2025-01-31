@@ -134,7 +134,6 @@
 <script lang="ts">
 import { Component, Vue, Prop, Watch } from "vue-property-decorator";
 import { GQLVehicle, GQLScheduleType, GQLSchedule } from "@shared/sc-schema.js";
-import apollo from "@app/plugins/apollo.js";
 
 import { DateTime } from "luxon";
 import { relativeTime } from "@shared/utils.js";
@@ -342,7 +341,7 @@ export default class VehicleCharge extends Vue {
           if (scheduleID === undefined) {
             scheduleID = s.id;
           } else {
-            remove.push(apollo.removeSchedule(s.id, this.vehicle.id));
+            remove.push(this.$scClient.removeSchedule(s.id, this.vehicle.id));
           }
         }
       }
@@ -351,7 +350,7 @@ export default class VehicleCharge extends Vue {
       switch (this.chargeControl) {
         case 0: // STOP
           this.saving = true;
-          await apollo.updateSchedule(
+          await this.$scClient.updateSchedule(
             scheduleID,
             this.vehicle.id,
             GQLScheduleType.Manual,
@@ -363,13 +362,13 @@ export default class VehicleCharge extends Vue {
         case 1: // SMART
           this.saving = true;
           if (scheduleID) {
-            await apollo.removeSchedule(scheduleID, this.vehicle.id);
+            await this.$scClient.removeSchedule(scheduleID, this.vehicle.id);
           }
           this.saving = false;
           break;
         case 2: // START
           this.saving = true;
-          await apollo.updateSchedule(
+          await this.$scClient.updateSchedule(
             scheduleID,
             this.vehicle.id,
             GQLScheduleType.Manual,

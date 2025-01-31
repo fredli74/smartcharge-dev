@@ -102,7 +102,19 @@ program
       };
 
       const app = express();
-      app.set("trust proxy", ["loopback", "linklocal", "uniquelocal"]);
+      app.set("trust proxy", ["loopback", "linklocal", "uniquelocal"])
+      app.get("/api/config", (req, res) => {
+        res.json({
+          PUBLIC_URL: config.PUBLIC_URL,
+          HELP_URL: config.HELP_URL,
+          SINGLE_USER: config.SINGLE_USER,
+          GLOBAL_INFO_MESSAGE: config.GLOBAL_INFO_MESSAGE,
+          GLOBAL_WARNING_MESSAGE: config.GLOBAL_WARNING_MESSAGE,
+          GLOBAL_ERROR_MESSAGE: config.GLOBAL_ERROR_MESSAGE,
+          AUTH0_DOMAIN: config.AUTH0_DOMAIN,
+          AUTH0_CLIENT_ID: config.AUTH0_CLIENT_ID,
+        });
+      })
 
       /** Setup backend api server **/
       const httpServer = http.createServer(app);
@@ -217,12 +229,12 @@ program
             );
         });
 
-      const PORT = Number(program.opts().port || config.SERVER_PORT);
-      const IP = Number(program.opts().ip || config.SERVER_IP);
-
+      const PORT = parseInt(program.opts().port || config.SERVER_PORT);
+      const IP = program.opts().ip || config.SERVER_IP;
+      
       // Start server
       httpServer.listen(PORT, IP, () => {
-        log(LogLevel.Info, `HTTP Server running on port ${PORT}`);
+        log(LogLevel.Info, `HTTP Server running on [${IP}]:${PORT}`);
       });
       // const io = io.listen(httpServer);
     } catch (err: unknown) {

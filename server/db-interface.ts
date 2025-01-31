@@ -69,12 +69,11 @@ export interface ChargeCurve {
 export class DBInterface {
   public pg: pgp.IDatabase<unknown>;
   constructor() {
-    const connectionString = `postgres://${config.POSTGRES_USER}:${config.POSTGRES_PASSWORD}@${config.POSTGRES_HOST}:${config.POSTGRES_PORT}/${config.POSTGRES_DB}`;
     const pg = pgp(DB_OPTIONS);
     this.pg = pg({
-      connectionString: connectionString,
-      max: parseInt(config.POSTGRES_CONNECTIONS) || 10,
-      ssl: config.POSTGRES_SSL === "true" ? { rejectUnauthorized: false } : false
+      connectionString: config.POSTGRES_URL,
+      max: config.POSTGRES_CONNECTIONS,
+      ssl: config.POSTGRES_SSL ? { rejectUnauthorized: false } : false
     });
   }
   public async init(): Promise<void> {

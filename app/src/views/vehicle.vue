@@ -140,11 +140,9 @@ import RelativeTime from "@app/components/relative-time.vue";
 import VehicleCharts from "@app/components/vehicle-charts.vue";
 import VehicleActions from "@app/components/vehicle-actions.vue";
 import { geoDistance } from "@shared/utils.js";
-import apollo from "@app/plugins/apollo.js";
 import { VueApolloComponentOptions } from "vue-apollo/types/options";
 import { RawLocation } from "vue-router";
 import moment from "moment";
-import config from "@shared/smartcharge-config.js";
 import { makePublicID } from "@shared/utils.js";
 import { GQLVehicle } from "@shared/sc-schema.js";
 import { getVehicleLocationSettings } from "@shared/sc-utils.js";
@@ -228,7 +226,7 @@ export default class VehicleVue extends Vue {
 
   timer?: any;
   async created() {
-    this.locations = await apollo.getLocations();
+    this.locations = await this.$scClient.getLocations();
     this.$apollo.queries.vehicle.skip = false;
 
     this.timer = setInterval(() => {
@@ -245,7 +243,7 @@ export default class VehicleVue extends Vue {
 
   get vehiclePictureUnknown() {
     return (
-      config.SINGLE_USER === "false" &&
+      !this.$scConfig.SINGLE_USER &&
       this.vehicle &&
       this.vehicle.providerData &&
       this.vehicle.providerData.unknown_image

@@ -2,14 +2,12 @@ import Vue from "vue";
 import Router from "vue-router";
 import Home from "./views/home.vue";
 import About from "./views/about.vue";
-import apollo from "./plugins/apollo.js";
 import eventBus, { BusEvent } from "./plugins/event-bus.js";
 
 Vue.use(Router);
 
 const router = new Router({
   mode: "history",
-  base: import.meta.env.BASE_URL,
   routes: [
     {
       path: "/index.html",
@@ -82,7 +80,7 @@ const router = new Router({
   ],
 });
 router.beforeEach((to, _from, next) => {
-  if (!apollo.authorized && to.meta && to.meta.login) {
+  if (!Vue.prototype.$scClient.authorized && to.meta && to.meta.login) {
     next({ name: "about" });
   } else {
     next();

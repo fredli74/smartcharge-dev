@@ -49,7 +49,6 @@
 
 <script lang="ts">
 import { Component, Vue, Prop } from "vue-property-decorator";
-import apollo from "@app/plugins/apollo.js";
 import { ProviderVuePage } from "@providers/provider-app.js";
 import { NordpoolProviderData } from "..";
 import { GQLLocationFragment } from "@shared/sc-client.js";
@@ -110,7 +109,7 @@ export default class NordpoolVue extends Vue {
   }
   async loadNames() {
     this.name.loading = true;
-    this.knownLocations = await apollo.getLocations();
+    this.knownLocations = await this.$scClient.getLocations();
     // Default names
     if (
       this.knownLocations.findIndex(
@@ -157,7 +156,7 @@ export default class NordpoolVue extends Vue {
       return false;
     } else {
       this.button.loading = true;
-      await apollo.providerMutate("nordpool", {
+      await this.$scClient.providerMutate("nordpool", {
         mutation: "newLocation",
         name: this.name.value,
         latitude: Number(this.$route.query.lat),

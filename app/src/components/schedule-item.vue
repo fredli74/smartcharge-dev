@@ -136,7 +136,6 @@ import { DateTime } from "luxon";
 import { DatetimePopup } from "vue-datetime";
 import { relativeTime } from "@shared/utils.js";
 import { getVehicleLocationSettings } from "@shared/sc-utils.js";
-import apollo from "@app/plugins/apollo.js";
 
 @Component({ components: { DatetimePopup } })
 export default class ScheduleItem extends Vue {
@@ -223,7 +222,7 @@ export default class ScheduleItem extends Vue {
       clearTimeout(this.debounceTimer);
     }
     this.debounceTimer = setTimeout(async () => {
-      await apollo.updateSchedule(
+      await this.$scClient.updateSchedule(
         this.schedule.id,
         this.schedule.vehicleID,
         this.schedule.type,
@@ -236,7 +235,7 @@ export default class ScheduleItem extends Vue {
 
   async removeSchedule() {
     this.isRemoving = true;
-    await apollo.removeSchedule(this.schedule.id, this.schedule.vehicleID);
+    await this.$scClient.removeSchedule(this.schedule.id, this.schedule.vehicleID);
     this.isRemoving = false;
   }
 

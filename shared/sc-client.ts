@@ -133,7 +133,7 @@ export class SCClient extends ApolloClient<any> {
         });
       }
       if (networkError) {
-        if (this.token && (networkError.message === "Authorization failed" || networkError.statusCode === 401)) {
+        if (this.token && networkError.message.includes("Authorization failed")) {
           this.logout();
         }
         console.log(`[Network error]: ${networkError}`);

@@ -45,7 +45,6 @@
 import { strict as assert } from "assert";
 
 import { Component, Vue, Prop } from "vue-property-decorator";
-import apollo from "@app/plugins/apollo.js";
 import eventBus, { BusEvent } from "@app/plugins/event-bus.js";
 import { hashID } from "@shared/utils.js";
 import { TeslaNewListEntry } from "./tesla-helper.js";
@@ -112,7 +111,7 @@ export default class TeslaVue extends Vue {
       }
 
       try {
-        const token = await apollo.providerMutate(provider.name, {
+        const token = await this.$scClient.providerMutate(provider.name, {
           mutation: TeslaProviderMutates.Authorize,
           code,
           callbackURI: REDIRECT_URL,
@@ -144,7 +143,7 @@ export default class TeslaVue extends Vue {
     this.allProviderVehicles = [];
     // TODO: break this out into a helper function ?
     try {
-      for (const v of await apollo.providerQuery(provider.name, {
+      for (const v of await this.$scClient.providerQuery(provider.name, {
         query: TeslaProviderQueries.Vehicles,
         token: newProvider,
       })) {
@@ -172,7 +171,7 @@ export default class TeslaVue extends Vue {
 
   async selectVehicle(vehicle: TeslaNewListEntry) {
     this.loading = true;
-    await apollo.providerMutate(provider.name, {
+    await this.$scClient.providerMutate(provider.name, {
       mutation: TeslaProviderMutates.NewVehicle,
       input: vehicle,
     });
@@ -181,8 +180,8 @@ export default class TeslaVue extends Vue {
   }
 
   get authorizeState() {
-    assert(apollo.account, "No user ID found");
-    return hashID(apollo.account.id, `teslaAuthState`);
+    assert(this.$scClient.account, "No user ID found");
+    return hashID(this.$scClient.account.id, `teslaAuthState`);
   }
   async authorize() {
     this.loading = true;

@@ -95,7 +95,6 @@ import { Component, Vue, Prop } from "vue-property-decorator";
 import EditVehicleLocationSettings from "@app/components/edit-vehicle-location-settings.vue";
 import RemoveDialog from "@app/components/remove-dialog.vue";
 import deepmerge from "deepmerge";
-import apollo from "@app/plugins/apollo.js";
 import equal from "fast-deep-equal";
 import {
   GQLVehicle,
@@ -164,7 +163,7 @@ export default class EditVehicle extends Vue {
   }
 
   async doConfirm(code: string) {
-    await apollo.removeVehicle(this.vehicle.id, code);
+    await this.$scClient.removeVehicle(this.vehicle.id, code);
     this.$emit("refresh");
   }
 
@@ -254,7 +253,7 @@ export default class EditVehicle extends Vue {
 
         this.clearSaving = deepmerge(this.clearSaving, this.saving);
 
-        await apollo.updateVehicle(update);
+        await this.$scClient.updateVehicle(update);
 
         for (const [key, value] of Object.entries(this.clearSaving)) {
           if (value) {

@@ -149,14 +149,13 @@
 
 <script lang="ts">
 import { Component, Vue } from "vue-property-decorator";
-import apollo from "@app/plugins/apollo.js";
 
 @Component({ components: {} })
 export default class About extends Vue {
   limit!: number;
   features!: { title: string; icon: string; text: string }[];
   async mounted() {
-    const limit = await apollo.getVehicleLimit();
+    const limit = await this.$scClient.getVehicleLimit();
     this.limit = limit === null ? 0 : limit || -1;
   }
   data() {

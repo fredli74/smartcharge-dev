@@ -497,7 +497,7 @@ export class TeslaAgent extends AbstractAgent {
         vins: setTelemetryConfigFor,
         config: {
           hostname: config.TESLA_TELEMETRY_HOST,
-          port: parseInt(config.TESLA_TELEMETRY_PORT),
+          port: config.TESLA_TELEMETRY_PORT,
           ca: config.TESLA_TELEMETRY_CA.replace(/\\n/g, "\n"),
           fields: telemetryFields,
           prefer_typed: true,
@@ -705,7 +705,7 @@ export class TeslaAgent extends AbstractAgent {
       // Adjust start and stop times of the schedules
       {
         // Always make the last charge open-ended if level is set ok
-        if (lastCharge && wantedSoc && wantedSoc >= parseInt(config.LOWEST_POSSIBLE_CHARGETO)) {
+        if (lastCharge && wantedSoc && wantedSoc >= config.LOWEST_POSSIBLE_CHARGETO) {
           lastCharge.chargeStop = null;
         }
         // Are we inside the first charge?
@@ -895,7 +895,7 @@ export class TeslaAgent extends AbstractAgent {
 
         // Update SOC if needed
         if (this.isConnected(vehicle) && wantedSoc) {
-          const limitedSoc = Math.max(parseInt(config.LOWEST_POSSIBLE_CHARGETO), Math.min(wantedSoc, 100));
+          const limitedSoc = Math.max(config.LOWEST_POSSIBLE_CHARGETO, Math.min(wantedSoc, 100));
           if (vehicle.telemetryData.ChargeLimitSoc !== limitedSoc) {
             log(LogLevel.Debug, `${vehicle.vin} setting charge limit to ${limitedSoc}%`);
             await this.callTeslaAPI(job, teslaAPI.setChargeLimit, vehicle.vin, limitedSoc);

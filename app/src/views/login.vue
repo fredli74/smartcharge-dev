@@ -30,10 +30,8 @@
 
 <script lang="ts">
 import { Component, Vue } from "vue-property-decorator";
-import apollo from "@app/plugins/apollo.js";
 import eventBus, { BusEvent } from "@app/plugins/event-bus.js";
 import { strict as assert } from "assert";
-import config from "@shared/smartcharge-config.js";
 import auth from "../plugins/auth0";
 
 @Component({
@@ -47,17 +45,17 @@ export default class Login extends Vue {
 
   password: string = "";
   get singleUserMode() {
-    return config.SINGLE_USER !== "false";
+    return this.$scConfig.SINGLE_USER;
   }
 
   async login() {
     eventBus.$emit(BusEvent.AlertClear);
     this.loading = true;
     try {
-      await apollo.loginWithPassword(this.password);
+      await this.$scClient.loginWithPassword(this.password);
       eventBus.$emit(BusEvent.AuthenticationChange);
-      assert(apollo.account);
-      this.$router.push("/");
+      assert(this.$scClient.account);
+      window.location.href = "/";
     } catch (err: any) {
       if (err.graphQLErrors) {
         for (const e of err.graphQLErrors) {
@@ -81,9 +79,9 @@ export default class Login extends Vue {
       try {
         const id = await auth.handleAuthentication();
         if (id) {
-          await apollo.loginWithIDToken(id);
+          await this.$scClient.loginWithIDToken(id);
           eventBus.$emit(BusEvent.AuthenticationChange);
-          assert(apollo.account);
+          assert(this.$scClient.account);
           this.$router.push("/");
         }
       } catch (err: any) {

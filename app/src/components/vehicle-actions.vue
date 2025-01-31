@@ -48,7 +48,6 @@
 import { Component, Vue, Prop } from "vue-property-decorator";
 import gql from "graphql-tag";
 import { AgentAction } from "@providers/provider-agent.js";
-import apollo from "@app/plugins/apollo.js";
 import { delay } from "@shared/utils.js";
 import { VueConstructor } from "vue";
 import eventBus, { BusEvent } from "@app/plugins/event-bus.js";
@@ -191,7 +190,7 @@ export default class VehicleActions extends Vue {
   async refreshClick() {
     if (this.vehicle && this.vehicle.serviceID) {
       this.refreshLoading = true;
-      apollo.action(this.vehicle.serviceID, AgentAction.Refresh, {
+      this.$scClient.action(this.vehicle.serviceID, AgentAction.Refresh, {
         id: this.vehicle.id,
       });
       const was = this.vehicle.updated;
@@ -210,7 +209,7 @@ export default class VehicleActions extends Vue {
       this.hvacLoading = true;
       if (this.isSleeping) this.refreshLoading = true;
       const want = !this.vehicle.climateControl;
-      apollo.action(this.vehicle.serviceID, AgentAction.ClimateControl, {
+      this.$scClient.action(this.vehicle.serviceID, AgentAction.ClimateControl, {
         id: this.vehicle.id,
         enable: want,
       });
@@ -263,7 +262,7 @@ export default class VehicleActions extends Vue {
     console.debug("Save:", this.unsavedData);
     this.saving = true;
     this.changed = false;
-    await apollo.updateVehicle({
+    await this.$scClient.updateVehicle({
       id: this.vehicle.id,
       ...this.unsavedData,
     });

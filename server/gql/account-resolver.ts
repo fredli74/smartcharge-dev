@@ -65,7 +65,7 @@ export class AccountResolver {
     @Arg("password") password: string,
     @Ctx() context: IContext
   ): Promise<Account> {
-    if (config.SINGLE_USER !== "true") {
+    if (!config.SINGLE_USER) {
       throw new GraphQLError(
         "loginWithPassword only allowed in SINGLE_USER mode",
         undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
@@ -85,7 +85,7 @@ export class AccountResolver {
     @Arg("idToken") idToken: string,
     @Ctx() context: IContext
   ): Promise<Account> {
-    if (config.SINGLE_USER === "true") {
+    if (config.SINGLE_USER) {
       throw new GraphQLError(
         `loginWithIDToken not allowed in SINGLE_USER mode`,
         undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }

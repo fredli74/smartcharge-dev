@@ -227,7 +227,7 @@ const server: IProviderServer = {
         const vehicle = await context.db.newVehicle(
           context.accountUUID,
           input.name,
-          parseInt(config.DEFAULT_MAXIMUM_LEVEL),
+          config.DEFAULT_MAXIMUM_LEVEL,
           input.service_uuid,
           { provider: "tesla", vin: input.vin } as TeslaProviderData
         );

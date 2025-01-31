@@ -62,3 +62,20 @@ export enum ScheduleType {
    */
   Trip = "trip",
 }
+
+export interface ConfigType {
+  POSTGRES_URL: string;
+  POSTGRES_SSL: boolean;
+  POSTGRES_CONNECTIONS: number;
+  PUBLIC_URL: string;
+  HELP_URL: string;
+  SERVER_IP: string;
+  SERVER_PORT: number;
+  SINGLE_USER: boolean;
+  SINGLE_USER_PASSWORD: string;
+  AUTH0_DOMAIN: string;
+  AUTH0_CLIENT_ID: string;
+  GLOBAL_INFO_MESSAGE: string;
+  GLOBAL_WARNING_MESSAGE: string;
+  GLOBAL_ERROR_MESSAGE: string;
+}

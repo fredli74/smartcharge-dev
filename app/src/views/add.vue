@@ -24,7 +24,6 @@
 <script lang="ts">
 import { Component, Vue } from "vue-property-decorator";
 import providers from "@providers/provider-apps.js";
-import apollo from "@app/plugins/apollo.js";
 
 @Component({
   components: {},
@@ -32,7 +31,7 @@ import apollo from "@app/plugins/apollo.js";
 export default class Add extends Vue {
   limited!: boolean;
   async mounted() {
-    const limit = await apollo.getVehicleLimit();
+    const limit = await this.$scClient.getVehicleLimit();
     this.limited =
       this.$route.params.type === "vehicle" && limit !== null && limit <= 0;
   }

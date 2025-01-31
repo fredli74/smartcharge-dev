@@ -5,23 +5,8 @@
  * @license MIT (MIT)
  */
 
+import { ConfigType } from "./sc-types.js";
 import { DEFAULT_PORT } from "./smartcharge-defines.js";
-
-// Utility to get environment variables from Vite or Node.js
-function getEnvVar(key: string, defaultValue: string) {
-  const viteKey = `VITE_${key}`;
-  if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env[viteKey] !== undefined) {
-    return import.meta.env[viteKey];
-  }
-  if (typeof process !== 'undefined' && process.env && process.env[viteKey] !== undefined) {
-    return process.env[viteKey];
-  }
-  if (typeof process !== 'undefined' && process.env && process.env[key] !== undefined) {
-    return process.env[key];
-  }
-  return defaultValue;
-}
-
 
 // Config object
 const config: ConfigType = {

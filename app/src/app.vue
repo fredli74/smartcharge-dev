@@ -101,12 +101,11 @@
 import { strict as assert } from "assert";
 
 import { Component, Vue } from "vue-property-decorator";
-import apollo from "./plugins/apollo.js";
 import eventBus, { BusEvent } from "./plugins/event-bus.js";
-import config from "@shared/smartcharge-config.js";
 import auth from "./plugins/auth0.js";
 
 import "vue-datetime/dist/vue-datetime.css";
+import { ConfigType } from "@shared/sc-types.js";
 
 declare let COMMIT_HASH: string;
 
@@ -116,6 +115,7 @@ interface AlertMessage {
 }
 @Component({})
 export default class App extends Vue {
+  public scConfig!: Partial<ConfigType>;
   authorized!: boolean;
   help_url!: string;
   info!: AlertMessage;
@@ -123,19 +123,19 @@ export default class App extends Vue {
   error!: AlertMessage;
   data() {
     const data = {
-      authorized: apollo.authorized,
-      help_url: config.HELP_URL,
+      authorized: this.$scClient.authorized,
+      help_url: this.$scConfig.HELP_URL,
       info: {
-        show: Boolean(config.GLOBAL_INFO_MESSAGE),
-        message: config.GLOBAL_INFO_MESSAGE,
+        show: Boolean(this.$scConfig.GLOBAL_INFO_MESSAGE),
+        message: this.$scConfig.GLOBAL_INFO_MESSAGE,
       },
       warning: {
-        show: Boolean(config.GLOBAL_WARNING_MESSAGE),
-        message: config.GLOBAL_WARNING_MESSAGE,
+        show: Boolean(this.$scConfig.GLOBAL_WARNING_MESSAGE),
+        message: this.$scConfig.GLOBAL_WARNING_MESSAGE,
       },
       error: {
-        show: Boolean(config.GLOBAL_ERROR_MESSAGE),
-        message: config.GLOBAL_ERROR_MESSAGE,
+        show: Boolean(this.$scConfig.GLOBAL_ERROR_MESSAGE),
+        message: this.$scConfig.GLOBAL_ERROR_MESSAGE,
       },
     };
 
@@ -169,7 +169,7 @@ export default class App extends Vue {
       this.error.show = false;
     });
     eventBus.$on(BusEvent.AuthenticationChange, () => {
-      this.authorized = apollo.authorized;
+      this.authorized = this.$scClient.authorized;
     });
   }
   errorCaptured(err: Error, _vm: Vue, _info: string) {
@@ -193,7 +193,7 @@ export default class App extends Vue {
   }
 
   get singleUserMode() {
-    return config.SINGLE_USER !== "false";
+    return this.$scConfig.SINGLE_USER;
   }
 
   async login() {
@@ -204,10 +204,10 @@ export default class App extends Vue {
     }
   }
   async logout() {
-    await apollo.logout();
+    await this.$scClient.logout();
     eventBus.$emit(BusEvent.AuthenticationChange);
     if (this.singleUserMode) {
-      this.$router.push("/about");
+      window.location.href = "/about";
     } else {
       auth.logout();
     }

@@ -78,7 +78,6 @@
 <script lang="ts">
 import { Component, Vue, Prop } from "vue-property-decorator";
 import deepmerge from "deepmerge";
-import apollo from "@app/plugins/apollo.js";
 import { GQLVehicle, GQLVehicleLocationSetting } from "@shared/sc-schema.js";
 import { SmartChargeGoal } from "@shared/sc-types.js";
 import { UpdateVehicleParams } from "@shared/sc-client.js";
@@ -181,7 +180,7 @@ export default class EditVehicle extends Vue {
 
         this.clearSaving = deepmerge(this.clearSaving, this.saving);
 
-        await apollo.updateVehicle(update);
+        await this.$scClient.updateVehicle(update);
 
         for (const [key, value] of Object.entries(this.clearSaving)) {
           if (value) {
