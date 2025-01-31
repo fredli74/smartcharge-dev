@@ -1,4 +1,4 @@
 {
   "API_PATH": "/api/gql",
-  "DEFAULT_PORT": 3000
+  "DEFAULT_PORT": 3030
 }
