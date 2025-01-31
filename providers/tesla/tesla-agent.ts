@@ -938,13 +938,14 @@ export class TeslaAgent extends AbstractAgent {
       delete update.providerData;
     }
 
-    const isOnline = Object.keys(vehicle.network).length > 0;
-    if (vehicle.isOnline !== isOnline) {
-      vehicle.isOnline = isOnline;
-      if (isOnline) {
-        update.status = `Online (${Object.values(vehicle.network).join(", ")})`;
-      } else {
-        update.status = vehicle.isSleepy ? "Sleeping" : "Offline";
+    vehicle.isOnline = Object.keys(vehicle.network).length > 0;
+    {
+      const status = vehicle.isOnline
+        ? `Online (${Object.values(vehicle.network).join(", ")})`
+        : vehicle.isSleepy ? "Sleeping" : "Offline";
+    
+      if (vehicle.dbData && vehicle.dbData.status !== status) {
+        update.status = status;
       }
     }
     if (Object.keys(update).length > 1) {
@@ -975,7 +976,7 @@ export class TeslaAgent extends AbstractAgent {
     const key = datum.key;
     const value = datum.value && datum.value.value;
 
-    log(LogLevel.Trace, `Telemetry data for ${vin}: ${telemetryData.Field[key]} = ${JSON.stringify(value.value)} (${value.case})`);
+    log(LogLevel.Trace, `Telemetry data for ${vin}: ${telemetryData.Field[key]} = ${value.value} (${value.case})`);
 
     const vehicle = this.vehicleEntry(vin);
     vehicle.tsUpdate = Date.now();
