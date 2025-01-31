@@ -794,6 +794,11 @@ export class TeslaAgent extends AbstractAgent {
           } else if (rStop < now && sStop < now && (now - sStop) < 5 * 60 * 60e3) {
             log(LogLevel.Trace, `${vehicle.vin} found schedule ${s.scheduleID} in the past with stop time less than 5 hours ago (${new Date(sStop).toISOString()})`);
           } else if (rStart < now && sStart < now && rStop === sStop) {
+            if (vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateStopped
+              && (now - sStart) > 5 * 60 * 60e3) {
+              log(LogLevel.Trace, `${vehicle.vin} found schedule ${s.scheduleID} in the past, but vehicle is not charging (${new Date(sStart).toISOString()})`);
+              continue;
+            }
             log(LogLevel.Trace, `${vehicle.vin} found active schedule ${s.scheduleID} with matching stop time (${new Date(sStop).toISOString()})`);
           } else {
             continue;
