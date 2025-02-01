@@ -113,6 +113,7 @@ program
           GLOBAL_ERROR_MESSAGE: config.GLOBAL_ERROR_MESSAGE,
           AUTH0_DOMAIN: config.AUTH0_DOMAIN,
           AUTH0_CLIENT_ID: config.AUTH0_CLIENT_ID,
+          TESLA_VIRTUAL_KEY_URL: config.TESLA_VIRTUAL_KEY_URL,
         });
       })
 

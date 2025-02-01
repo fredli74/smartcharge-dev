@@ -78,4 +78,5 @@ export interface ConfigType {
   GLOBAL_INFO_MESSAGE: string;
   GLOBAL_WARNING_MESSAGE: string;
   GLOBAL_ERROR_MESSAGE: string;
+  TESLA_VIRTUAL_KEY_URL: string;
 }

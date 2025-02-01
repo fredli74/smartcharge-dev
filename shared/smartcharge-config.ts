@@ -24,6 +24,7 @@ const config: ConfigType = {
   GLOBAL_INFO_MESSAGE: process.env.GLOBAL_INFO_MESSAGE || ``,
   GLOBAL_WARNING_MESSAGE: process.env.GLOBAL_WARNING_MESSAGE || ``,
   GLOBAL_ERROR_MESSAGE: process.env.GLOBAL_ERROR_MESSAGE || ``,
+  TESLA_VIRTUAL_KEY_URL: process.env.TESLA_VIRTUAL_KEY_URL || ``,
 };
 
 export default config;

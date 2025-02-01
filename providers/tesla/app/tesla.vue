@@ -55,8 +55,7 @@ import provider, { TeslaProviderQueries, TeslaProviderMutates, TeslaToken } from
 const AUTHORIZE_URL = "https://auth.tesla.com/oauth2/v3/authorize";
 const CLIENT_ID = "45618b860d7c-4186-89f4-2374bc1b1b83";
 const REDIRECT_URL = `${window.location.origin}/provider/tesla/auth`;
-const TESLA_VIRTUAL_KEY_URL = `https://tesla.com/_ak/${window.location.hostname}`;
-const SCOPE = "openid offline_access vehicle_device_data vehicle_cmds vehicle_charging_cmds";
+const SCOPE = "openid offline_access vehicle_device_data vehicle_charging_cmds";
 
 @Component({
   components: {
@@ -79,7 +78,11 @@ export default class TeslaVue extends Vue {
     return this.allProviderVehicles.filter((f) => f.vehicle_uuid !== undefined);
   }
   get teslaVirtualKeyUrl() {
-    return TESLA_VIRTUAL_KEY_URL;
+    if (this.$scConfig.TESLA_VIRTUAL_KEY_URL) {
+      return this.$scConfig.TESLA_VIRTUAL_KEY_URL;
+    } else {
+      return `https://tesla.com/_ak/${window.location.hostname}`;
+    }
   }
 
   // HOOKS
