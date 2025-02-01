@@ -5,6 +5,7 @@ COPY .npmrc ./
 COPY package.json package-lock.json ./ 
 RUN npm install && npm cache clean --force
 COPY . .
+RUN env
 RUN npm run build
 
 
