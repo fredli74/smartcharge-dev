@@ -21,7 +21,7 @@ ENV SERVER_PORT=${SERVER_PORT}
 
 FROM runtime AS server
 EXPOSE ${SERVER_PORT}
-CMD node dist/server/server.js --port=${SERVER_PORT}
+CMD ["sh", "-c", "node dist/server/server.js --port=${SERVER_PORT}"]
 
 
 FROM runtime AS worker
