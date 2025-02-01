@@ -705,7 +705,7 @@ export class TeslaAgent extends AbstractAgent {
       // Adjust start and stop times of the schedules
       {
         // Always make the last charge open-ended if level is set ok
-        if (lastCharge && wantedSoc && wantedSoc >= config.LOWEST_POSSIBLE_CHARGETO) {
+        if (lastCharge && wantedSoc && wantedSoc >= config.TESLA_LOWEST_POSSIBLE_CHARGETO) {
           lastCharge.chargeStop = null;
         }
         // Are we inside the first charge?
@@ -900,7 +900,7 @@ export class TeslaAgent extends AbstractAgent {
 
         // Update SOC if needed
         if (this.isConnected(vehicle) && wantedSoc) {
-          const limitedSoc = Math.max(config.LOWEST_POSSIBLE_CHARGETO, Math.min(wantedSoc, 100));
+          const limitedSoc = Math.max(config.TESLA_LOWEST_POSSIBLE_CHARGETO, Math.min(wantedSoc, 100));
           if (vehicle.telemetryData.ChargeLimitSoc !== limitedSoc) {
             log(LogLevel.Debug, `${vehicle.vin} setting charge limit to ${limitedSoc}%`);
             await this.callTeslaAPI(job, teslaAPI.setChargeLimit, vehicle.vin, limitedSoc);

@@ -2,6 +2,26 @@ volumes:
   postgres_data:
     driver: local
 
+x-common-environment: &common-environment
+  POSTGRES_URL: ${POSTGRES_URL:-}
+  POSTGRES_SSL: ${POSTGRES_SSL:-}
+  POSTGRES_CONNECTIONS: ${POSTGRES_CONNECTIONS:-}
+  PUBLIC_URL: ${PUBLIC_URL:-}
+  SERVER_IP: ${SERVER_IP:-}
+  SERVER_PORT: ${SERVER_PORT:-}
+  AUTH0_DOMAIN: ${AUTH0_DOMAIN:-}
+  AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID:-}
+  TESLA_COMMAND_PROXY: ${TESLA_COMMAND_PROXY:-}
+  TESLA_API_BASE_URL: ${TESLA_API_BASE_URL:-}
+  TESLA_API_PROXY: ${TESLA_API_PROXY:-}
+  TESLA_AUTH_BASE_URL: ${TESLA_AUTH_BASE_URL:-}
+  TESLA_AUTH_PROXY: ${TESLA_AUTH_PROXY:-}
+  TESLA_CLIENT_ID: ${TESLA_CLIENT_ID:-}
+  TESLA_CLIENT_SECRET: ${TESLA_CLIENT_SECRET:-}
+  TESLA_TOKEN_EXPIRATION_WINDOW: ${TESLA_TOKEN_EXPIRATION_WINDOW:-}
+  TESLA_DEFAULT_MAX_LEVEL: ${TESLA_DEFAULT_MAX_LEVEL:-}
+  TESLA_LOWEST_POSSIBLE_CHARGETO: ${TESLA_LOWEST_POSSIBLE_CHARGETO:-}
+
 services:
   postgres:
     image: postgres:15
@@ -20,9 +40,19 @@ services:
       context: .
       dockerfile: Dockerfile
       target: server
-    env_file:
-      - .env
-      - .env.template
+    environment:
+      <<: *common-environment
+      SINGLE_USER: ${SINGLE_USER:-}
+      SINGLE_USER_PASSWORD: ${SINGLE_USER_PASSWORD:-}
+      HELP_URL: ${HELP_URL:-}
+      GLOBAL_INFO_MESSAGE: ${GLOBAL_INFO_MESSAGE:-}
+      GLOBAL_WARNING_MESSAGE: ${GLOBAL_WARNING_MESSAGE:-}
+      GLOBAL_ERROR_MESSAGE: ${GLOBAL_ERROR_MESSAGE:-}
+      TESLA_TELEMETRY_HOST: ${TESLA_TELEMETRY_HOST:-}
+      TESLA_TELEMETRY_PORT: ${TESLA_TELEMETRY_PORT:-}
+      TESLA_TELEMETRY_CA: ${TESLA_TELEMETRY_CA:-}
+      TESLA_TELEMETRY_KAFKA_BROKER: ${TESLA_TELEMETRY_KAFKA_BROKER:-}
+
     depends_on:
       - postgres
     ports:
@@ -34,11 +64,8 @@ services:
       context: .
       dockerfile: Dockerfile
       target: worker
-    env_file:
-      - .env
-      - .env.template
     environment:
-      - SERVER_URL=${PUBLIC_URL:-http://server:3030}
+      <<: *common-environment
     depends_on:
       - postgres
       - server

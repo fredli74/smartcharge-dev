@@ -101,7 +101,7 @@ export class TeslaAPI {
 
     return {
       access_token: response.access_token,
-      expires_at: time() + expires - config.TOKEN_EXPIRATION_WINDOW,
+      expires_at: time() + expires - config.TESLA_TOKEN_EXPIRATION_WINDOW,
       refresh_token: response.refresh_token,
     };
   }
