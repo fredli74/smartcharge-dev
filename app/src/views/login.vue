@@ -82,7 +82,7 @@ export default class Login extends Vue {
           await this.$scClient.loginWithIDToken(id);
           eventBus.$emit(BusEvent.AuthenticationChange);
           assert(this.$scClient.account);
-          this.$router.push("/");
+          window.location.href = "/";
         }
       } catch (err: any) {
         if (err && err.graphQLErrors) {
