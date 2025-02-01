@@ -1,0 +1,42 @@
+volumes:
+  postgres_data:
+    driver: local
+
+services:
+  postgres:
+    image: postgres:15
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql
+      - ./deploy/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./deploy/postgres-entrypoint.sh:/usr/local/bin/custom-entrypoint.sh:ro
+    ports:
+      - "${POSTGRES_EXT_PORT:-}:5432"
+    entrypoint: [ "/bin/sh", "-c", "/usr/local/bin/custom-entrypoint.sh" ]
+
+  server:
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: server
+    env_file:
+      - .env
+    depends_on:
+      - postgres
+    ports:
+      - "${PORT:-3030}:${SERVER_PORT:-3030}"
+
+  worker:
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: worker
+    env_file:
+      - .env
+    environment:
+      - SERVER_URL=${PUBLIC_URL:-http://server:3030}
+    depends_on:
+      - postgres
+      - server
