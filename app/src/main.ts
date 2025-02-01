@@ -13,16 +13,30 @@ Vue.config.devtools = true;
 Vue.prototype.$scConfig = {};
 Vue.prototype.$scClient = undefined;
 
+function preLaunchError(message: string) {
+  const el = document.createElement("div");
+  el.innerHTML = `<div style="text-align:center; position: fixed; top: 0; left: 0; right: 0; z-index: 1000; background-color: red; color: white; padding: 1em;">${message}</div>`;
+  document.body.appendChild(el);
+  console.error(message);
+}
+
 (async () => {
   try {
     const response = await fetch("/api/config");
     Vue.prototype.$scConfig = await response.json();
   } catch (err) {
-    console.error("Failed to fetch config:", err);
+    preLaunchError(`Failed to fetch config, check server setup: ${err}`);
+  }
+
+  if (Vue.prototype.$scConfig.SINGLE_USER === undefined) {
+    preLaunchError("Config missing SINGLE_USER setting, check server setup");
   }
 
   Vue.prototype.$scClient = newSCClient();
   const apolloProvider = newApolloProvider(Vue.prototype.$scClient);
+  if (Vue.prototype.$scClient === undefined || apolloProvider === undefined) {
+    preLaunchError("Failed to create Apollo client, check server setup");
+  }
   
   try {
     const token = localStorage.getItem("token");
@@ -34,7 +48,7 @@ Vue.prototype.$scClient = undefined;
       localStorage.removeItem("token");
       console.log("Invalid access token, new login required");
     } else {
-      console.error(err.message || err);
+      preLaunchError(`Failed to login with token: ${err.message || err}`);
     }
   }
 
