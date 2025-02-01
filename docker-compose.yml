@@ -42,6 +42,7 @@ services:
       target: server
     environment:
       <<: *common-environment
+      SERVER_URL: ${PUBLIC_URL:-http://server:3030}
       SINGLE_USER: ${SINGLE_USER:-}
       SINGLE_USER_PASSWORD: ${SINGLE_USER_PASSWORD:-}
       HELP_URL: ${HELP_URL:-}
