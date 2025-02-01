@@ -1,1 +1,4 @@
 $Format:%h$
+commit: $Format:%H$
+date: $Format:%cI$
+refs: $Format:%d$

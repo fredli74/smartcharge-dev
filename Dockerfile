@@ -5,7 +5,10 @@ COPY .npmrc ./
 COPY package.json package-lock.json ./ 
 RUN npm install && npm cache clean --force
 COPY . .
-RUN env
+RUN if [ -d .git ]; \
+	then export SOURCE_VERSION=$(git rev-parse --short HEAD); \
+	else export SOURCE_VERSION=$(head -n 1 VERSION); fi
+ENV SOURCE_VERSION=$SOURCE_VERSION
 RUN npm run build
 
 
