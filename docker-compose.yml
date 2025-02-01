@@ -22,6 +22,7 @@ services:
       target: server
     env_file:
       - .env
+      - /dev/null
     depends_on:
       - postgres
     ports:
@@ -35,6 +36,7 @@ services:
       target: worker
     env_file:
       - .env
+      - /dev/null
     environment:
       - SERVER_URL=${PUBLIC_URL:-http://server:3030}
     depends_on:
