@@ -5,7 +5,14 @@ COPY .npmrc ./
 COPY package.json package-lock.json ./ 
 RUN npm install && npm cache clean --force
 COPY . .
-RUN npm run build
+RUN \
+  if [ -d .git ]; then \
+    export SOURCE_VERSION=$(git rev-parse --short HEAD); \
+  else \
+    export SOURCE_VERSION=$(head -n 1 VERSION); \
+  fi && \
+  echo "SOURCE_VERSION: $SOURCE_VERSION" && \
+  npm run build
 
 
 FROM node:18-alpine AS runtime
