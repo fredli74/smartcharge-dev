@@ -25,15 +25,14 @@ x-common-environment: &common-environment
 
 services:
   postgres:
-    image: postgres:15
+    build:
+      context: .
+      dockerfile: deploy/postgres.Dockerfile
     restart: unless-stopped
     volumes:
       - postgres_data:/var/lib/postgresql
-      - ./deploy/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql:ro
-      - ./deploy/postgres-entrypoint.sh:/usr/local/bin/custom-entrypoint.sh:ro
     ports:
       - "${POSTGRES_EXT_PORT:-}:5432"
-    entrypoint: [ "/bin/sh", "-c", "/usr/local/bin/custom-entrypoint.sh" ]
 
   server:
     restart: unless-stopped
