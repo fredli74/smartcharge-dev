@@ -33,7 +33,7 @@ services:
       - ./deploy/postgres-entrypoint.sh:/usr/local/bin/custom-entrypoint.sh:ro
     ports:
       - "${POSTGRES_EXT_PORT:-}:5432"
-    entrypoint: [ "/bin/sh", "-c", "/usr/local/bin/custom-entrypoint.sh" ]
+    entrypoint: ["/bin/sh", "/usr/local/bin/custom-entrypoint.sh"]
 
   server:
     restart: unless-stopped
@@ -50,7 +50,6 @@ services:
       GLOBAL_INFO_MESSAGE: ${GLOBAL_INFO_MESSAGE:-}
       GLOBAL_WARNING_MESSAGE: ${GLOBAL_WARNING_MESSAGE:-}
       GLOBAL_ERROR_MESSAGE: ${GLOBAL_ERROR_MESSAGE:-}
-
     depends_on:
       - postgres
     ports:
