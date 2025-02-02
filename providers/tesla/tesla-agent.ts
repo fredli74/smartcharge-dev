@@ -44,7 +44,7 @@ interface TeslaTelemetryData {
   HvacPower: telemetryData.HvacPowerState;
   Gear: telemetryData.ShiftState;
   FastChargerPresent: boolean;
-  FastChargerType: string;
+  FastChargerType: telemetryData.FastCharger;
   ChargeState: string;
   DetailedChargeState: telemetryData.DetailedChargeStateValue;
   ChargeAmps: number;
@@ -1008,7 +1008,6 @@ export class TeslaAgent extends AbstractAgent {
     } else {
       try {
         switch (key) {
-          case telemetryData.Field.FastChargerType:
           case telemetryData.Field.ChargeState:
           case telemetryData.Field.ScheduledDepartureTime:
           case telemetryData.Field.VehicleName:
@@ -1085,6 +1084,10 @@ export class TeslaAgent extends AbstractAgent {
             assert(value.case === "scheduledChargingModeValue", `Invalid ScheduledChargingMode value type ${value.case}`);
             vehicle.telemetryData.ScheduledChargingMode = value.value;
             break;
+          case telemetryData.Field.FastChargerType:
+            assert(value.case === "fastChargerValue", `Invalid FastChargerType value type ${value.case}`);
+            vehicle.telemetryData.FastChargerType = value.value;
+            break;          
           default:
           // TODO: Add this when we remove the top trace that logs all telemetry data
           //log(LogLevel.Trace, `Unhandled telemetry data for ${vin}: ${telemetryData.Field[key]} = ${value.value} (${value.case})`);
