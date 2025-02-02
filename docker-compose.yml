@@ -53,7 +53,7 @@ services:
     depends_on:
       - postgres
     ports:
-      - "${PORT:-3030}:${SERVER_PORT:-3030}"
+      - "${PORT:-}:${SERVER_PORT:-3030}"
 
   worker:
     restart: unless-stopped

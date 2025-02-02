@@ -160,10 +160,7 @@ export class Logic {
       }
       if (connection) {
         if (vehicle.charge_id !== null) {
-          charge = await this.db.pg.one(
-            `SELECT * FROM charge WHERE charge_id = $1`,
-            [vehicle.charge_id]
-          );
+          charge = await this.db.pg.one(`SELECT * FROM charge WHERE charge_id = $1`, [vehicle.charge_id]);
         }
         if (charge) {
           // TODO: Why didn't we just use charge.end_added - charge.start_added?
@@ -226,17 +223,17 @@ export class Logic {
                 log(LogLevel.Debug, `Calculated charge curve between ${chargeCurrent.start_level}% and ${vehicle.level}% is ${(used / 60.0).toFixed(2)}kWh in ${(duration / 60.0).toFixed(2)}m`);
                 await this.db.setChargeCurve(
                   vehicle.vehicle_uuid, charge.charge_id, chargeCurrent.start_level, duration, avgTemp, used, added);
-                await this.db.pg.none(
-                  `INSERT INTO charge_current(charge_id) SELECT $[charge_id] WHERE NOT EXISTS (SELECT charge_id FROM charge_current WHERE charge_id = $[charge_id]);` +
-                  `UPDATE charge_current SET start_ts=$[start_ts], start_level=$[start_level], start_added=$[start_added], powers='{}', outside_deci_temperatures='{}' WHERE charge_id = $[charge_id];`,
-                  {
-                    charge_id: charge.charge_id,
-                    start_ts: now,
-                    start_level: vehicle.level,
-                    start_added: energyAdded,
-                  }
-                );
               }
+              await this.db.pg.none(
+                `INSERT INTO charge_current(charge_id) SELECT $[charge_id] WHERE NOT EXISTS (SELECT charge_id FROM charge_current WHERE charge_id = $[charge_id]);` +
+                `UPDATE charge_current SET start_ts=$[start_ts], start_level=$[start_level], start_added=$[start_added], powers='{}', outside_deci_temperatures='{}' WHERE charge_id = $[charge_id];`,
+                {
+                  charge_id: charge.charge_id,
+                  start_ts: now,
+                  start_level: vehicle.level,
+                  start_added: energyAdded,
+                }
+              );
             }
           }
           const chargeUpdate: Partial<DBCharge> = {
