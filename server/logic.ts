@@ -774,7 +774,9 @@ export class Logic {
       `WITH connections AS (
         -- all connections for specific vehicle_uuid and location_uuid
         SELECT connected_id, start_ts, end_ts, connected, LEAST((end_ts-start_ts)/2, interval '8 hours') as duration_limit, end_level-start_level as charged,
-          end_level-(SELECT start_level FROM connected B WHERE B.vehicle_uuid = A.vehicle_uuid AND B.connected_id > A.connected_id ORDER BY connected_id LIMIT 1) as used
+          end_level-COALESCE(
+            (SELECT start_level FROM connected B WHERE B.vehicle_uuid = A.vehicle_uuid AND B.connected_id > A.connected_id ORDER BY connected_id LIMIT 1),
+            (SELECT level FROM vehicle WHERE vehicle.vehicle_uuid = A.vehicle_uuid)) AS used
         FROM connected A WHERE vehicle_uuid = $1 AND location_uuid = $2
       ), ref_time AS (
         -- latest connection time as base reference, or current time if not connected or 24h have passed
