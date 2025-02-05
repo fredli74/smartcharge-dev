@@ -1091,11 +1091,10 @@ export class Logic {
           if (startLevel < vehicle.maximum_charge) {
             // Generate an AI schedule
             const schedule = stats && (await this.generateAIschedule(vehicle));
-
-            // If we have a trip and ai.ts and schedule.ts is more than 10 hours apart, we should still AI charge
-            if (!trip || !trip.schedule_ts || (
-              schedule && Math.abs(trip.schedule_ts.getTime() - schedule.ts) > 10 * 60 * 60e3
-            )) {
+            // If we have a trip and ai.ts and schedule.ts is more than 12 hours apart, we should still AI charge
+            if (!trip || !trip.schedule_ts || trip.schedule_ts.getTime() > priceAvailable
+              || (schedule && Math.abs(trip.schedule_ts.getTime() - schedule.ts) > 12 * 60 * 60e3)
+            ) {
               ai.charge = true;
 
               if (schedule) {
