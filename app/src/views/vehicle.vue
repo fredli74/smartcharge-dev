@@ -92,12 +92,12 @@
           </p>
           <v-card-actions class="justify-center">
             <router-link :to="addLocationURL">
-              <v-btn text small color="primary">add location</v-btn>
+              <v-btn text small color="primary">add current location</v-btn>
             </router-link>
           </v-card-actions>
         </v-col>
       </v-row>
-      <v-row class="px-0 mt-4 mb-n8">
+      <v-row v-else class="px-0 mt-4 mb-n8">
         <v-col v-if="location" class="body-1">
           Price per kWh when charging at {{ location.name }}
         </v-col>
@@ -105,7 +105,7 @@
           No price data
           <router-link v-if="vehicleAtUnknownLocation" :to="addLocationURL">
             <v-card-actions class="justify-center">
-              <v-btn text x-small color="primary">add location</v-btn>
+              <v-btn text x-small color="primary">add current location</v-btn>
             </v-card-actions>
           </router-link>
         </v-col>

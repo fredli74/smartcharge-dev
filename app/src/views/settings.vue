@@ -92,7 +92,7 @@
           color="primary"
           to="/add/location"
         >
-          <v-icon left>mdi-plus</v-icon>add location
+          <v-icon left>mdi-plus</v-icon>add current location
         </v-btn>
       </v-card-actions>
       <v-spacer />
