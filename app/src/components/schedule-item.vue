@@ -154,6 +154,7 @@ export default class ScheduleItem extends Vue {
 
   data() {
     return {
+      localSchedule: { ...this.schedule },
       refreshKey: 0,
       timeMenu: false,
       levelMenu: false,
@@ -170,7 +171,7 @@ export default class ScheduleItem extends Vue {
   }
   get scheduleDateTime(): DateTime {
     const dt =
-      this.schedule.time ||
+      this.localSchedule.time ||
       new Date(
         Math.ceil(Date.now() / 60e4) * 60e4 + 12 * 60 * 60e3
       ).toISOString();
@@ -180,11 +181,11 @@ export default class ScheduleItem extends Vue {
     setTimeout(() => (this.capturing = false), 150);
   }
   cancelLevel() {
-    this.levelSlider = this.schedule.level || this.vehicle.maximumLevel;
+    this.levelSlider = this.localSchedule.level || this.vehicle.maximumLevel;
     this.levelMenu = false;
   }
   async setLevel() {
-    this.schedule.level = this.levelSlider;
+    this.localSchedule.level = this.levelSlider;
     this.levelMenu = false;
     await this.save();
   }
@@ -193,15 +194,15 @@ export default class ScheduleItem extends Vue {
     return settings.directLevel;
   }
   async setDateTime(datetime: DateTime) {
-    const was = this.schedule.time;
+    const was = this.localSchedule.time;
     if (datetime < DateTime.utc()) {
-      this.schedule.time = new Date(
+      this.localSchedule.time = new Date(
         Math.ceil((Date.now() + 5 * 60e3) / 60e4) * 60e4
       ).toISOString();
     } else {
-      this.schedule.time = datetime.toJSDate().toISOString();
+      this.localSchedule.time = datetime.toJSDate().toISOString();
     }
-    if (this.schedule.time !== was) {
+    if (this.localSchedule.time !== was) {
       await this.save();
     }
   }
@@ -215,7 +216,7 @@ export default class ScheduleItem extends Vue {
 
   debounceTimer?: any;
   async save() {
-    if (!this.schedule.id) return; // assert!?
+    if (!this.localSchedule.id) return; // assert!?
 
     this.isSaving = true;
     if (this.debounceTimer) {
@@ -223,11 +224,11 @@ export default class ScheduleItem extends Vue {
     }
     this.debounceTimer = setTimeout(async () => {
       await this.$scClient.updateSchedule(
-        this.schedule.id,
-        this.schedule.vehicleID,
-        this.schedule.type,
-        this.schedule.level,
-        (this.schedule.time && new Date(this.schedule.time)) || null
+        this.localSchedule.id,
+        this.localSchedule.vehicleID,
+        this.localSchedule.type,
+        this.localSchedule.level,
+        (this.localSchedule.time && new Date(this.localSchedule.time)) || null
       );
       this.isSaving = false;
     });
@@ -235,12 +236,12 @@ export default class ScheduleItem extends Vue {
 
   async removeSchedule() {
     this.isRemoving = true;
-    await this.$scClient.removeSchedule(this.schedule.id, this.schedule.vehicleID);
+    await this.$scClient.removeSchedule(this.localSchedule.id, this.localSchedule.vehicleID);
     this.isRemoving = false;
   }
 
   get scheduleIcon(): string {
-    switch (this.schedule.type) {
+    switch (this.localSchedule.type) {
       case GQLScheduleType.Trip:
         return "mdi-road-variant";
       case GQLScheduleType.Manual:
@@ -250,7 +251,7 @@ export default class ScheduleItem extends Vue {
     }
   }
   get timeIcon(): string {
-    switch (this.schedule.type) {
+    switch (this.localSchedule.type) {
       case GQLScheduleType.Trip:
         return "mdi-clock-start";
       default:
@@ -258,10 +259,10 @@ export default class ScheduleItem extends Vue {
     }
   }
   get schedulePrettyDate(): string {
-    if (this.schedule.time) {
-      const rt = relativeTime(new Date(this.schedule.time));
+    if (this.localSchedule.time) {
+      const rt = relativeTime(new Date(this.localSchedule.time));
       return rt.date + " - " + rt.time;
-      // return DateTime.fromISO(this.schedule.time).toFormat("yyyy-MM-dd HH:mm");
+      // return DateTime.fromISO(this.localSchedule.time).toFormat("yyyy-MM-dd HH:mm");
     } else {
       return "N/A";
     }
