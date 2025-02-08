@@ -143,6 +143,7 @@ export default class ScheduleItem extends Vue {
   @Prop({ type: Object, required: true }) declare readonly vehicle: GQLVehicle;
   @Prop({ type: Boolean, default: false }) declare readonly newSchedule: boolean;
 
+  localSchedule!: GQLSchedule;
   refreshKey!: number; // workaround to reset date picker step
   timeMenu!: boolean;
   levelMenu!: boolean;

@@ -546,6 +546,19 @@ export class TeslaAgent extends AbstractAgent {
             }
           }
         }
+        if (telemetry.skipped_vehicles.max_configs) {
+          for (const vin of telemetry.skipped_vehicles.max_configs) {
+            const v = this.vehicles[vin];
+            if (v.vehicleUUID) {
+              log(LogLevel.Warning, `Max configs for ${vin} (${v.vehicleUUID})`);
+              v.dbData = await this.scClient.updateVehicle({
+                id: v.vehicleUUID,
+                status: "No more telemetry configs allowed",
+                providerData: { error: "Max configs", disabled: true },
+              });
+            }
+          }
+        }
       }
     } else {
       job.interval = 5 * 60; // Poll every 5 minutes
