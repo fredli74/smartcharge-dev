@@ -79,12 +79,6 @@ export class Logic {
           [was.vehicle_uuid, vehicle.location_uuid, vehicle.odometer]
         );
         if (!connection) {
-          // Remove manual charge entries if we have any
-          await this.db.pg.none(
-            `DELETE FROM schedule WHERE vehicle_uuid = $1 AND schedule_type = $2;`,
-            [was.vehicle_uuid, ScheduleType.Manual]
-          );
-
           connection = (await this.db.pg.one(
             `INSERT INTO connected($[this:name]) VALUES($[this:csv]) RETURNING *;`,
             {
@@ -295,6 +289,17 @@ export class Logic {
       );
       if (new_current) {
         log(LogLevel.Trace, `charge_current: ${JSON.stringify(new_current)}`);
+      }
+    }
+
+    if (vehicle.location_uuid && vehicle.location_uuid !== was.location_uuid) {
+      // Remove all manual charge schedules if we move from a known location to anything else
+      const removed = await this.db.pg.oneOrNone(
+        `DELETE FROM schedule WHERE vehicle_uuid = $1 AND schedule_type = $2 RETURNING *;`,
+        [vehicle.vehicle_uuid, ScheduleType.Manual]
+      );
+      if (removed) {
+        log(LogLevel.Trace, `Removed manual schedules for vehicle ${vehicle.vehicle_uuid}, because it moved from ${was.location_uuid} to ${vehicle.location_uuid}`);
       }
     }
 
@@ -874,9 +879,9 @@ export class Logic {
 
     // Cleanup schedule remove all entries 1 hour after the end time
     const schedule: DBSchedule[] = await this.db.pg.manyOrNone(
-      `DELETE FROM schedule WHERE vehicle_uuid = $1 AND schedule_ts + interval '1 hour' < NOW();
+      `DELETE FROM schedule WHERE vehicle_uuid = $1 AND schedule_type <> $2 AND schedule_ts + interval '1 hour' < NOW();
       SELECT * FROM schedule WHERE vehicle_uuid = $1;`,
-      [vehicle.vehicle_uuid]
+      [vehicle.vehicle_uuid, ScheduleType.Manual]
     );
 
     // Reduce the array to a map with only the first upcoming event of each type
