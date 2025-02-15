@@ -294,6 +294,8 @@ export class Logic {
 
     if (vehicle.location_uuid && vehicle.location_uuid !== was.location_uuid) {
       // Remove all manual charge schedules if we move from a known location to anything else
+      // TODO: This is not optimal as the user might have set a scheduled manual charge at an known location
+      // and if we're unlucky, the vehicle may move in and out of a location while towards it, because of the geo-fence just being a radius
       const removed = await this.db.pg.oneOrNone(
         `DELETE FROM schedule WHERE vehicle_uuid = $1 AND schedule_type = $2 RETURNING *;`,
         [vehicle.vehicle_uuid, ScheduleType.Manual]
