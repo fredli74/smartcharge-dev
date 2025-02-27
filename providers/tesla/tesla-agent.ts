@@ -78,7 +78,7 @@ interface TeslaTelemetryData {
 type TelemetryFields = { [K in keyof TeslaTelemetryData]: {
   interval_seconds: number,
   minimum_delta?: number,
-  resend_interval_seconds? : number,
+  resend_interval_seconds?: number,
 }; };
 const telemetryFields: TelemetryFields = {
   Location: { interval_seconds: 60, minimum_delta: 0.001 }, // 0.001 degrees = 100 meters
@@ -411,7 +411,7 @@ export class TeslaAgent extends AbstractAgent {
         vehicle.job = job;
         vehicle.dbData = data;
 
-        const t = data.providerData.telemetryData;
+        const t: TeslaTelemetryData | undefined = data.providerData.telemetryData;
         const d = {
           id: uuid,
           geoLocation: data.geoLocation,
@@ -421,12 +421,12 @@ export class TeslaAgent extends AbstractAgent {
           insideTemperature: data.insideTemperature,
           climateControl: data.climateControl,
           isDriving: data.isDriving,
-          connectedCharger: (data.isConnected ? t.FastChargerPresent ? GQLChargeConnection.DC : GQLChargeConnection.AC : null),
+          connectedCharger: (data.isConnected ? t?.FastChargerPresent ? GQLChargeConnection.DC : GQLChargeConnection.AC : null),
           chargingTo: data.chargingTo,
           estimatedTimeLeft: data.estimatedTimeLeft,
-          powerUse: t.ACChargingPower || null,
-          energyUsed: t.ACChargingEnergyIn || null,
-          energyAdded: t.DCChargingEnergyIn || null,
+          powerUse: t?.ACChargingPower || null,
+          energyUsed: t?.ACChargingEnergyIn || null,
+          energyAdded: t?.DCChargingEnergyIn || null,
         };
         vehicle.telemetryData = { ...t, ...vehicle.telemetryData };
         vehicle.lastTelemetryData = { ...t };
@@ -440,50 +440,41 @@ export class TeslaAgent extends AbstractAgent {
       }
 
       assert(vehicle !== undefined, "vehicle is undefined");
+      
+      // Handle telemetry config
+      const telemetryConfig =
+        vehicle.telemetryConfig ? vehicle.telemetryConfig :
+        (await this.callTeslaAPI(job, teslaAPI.getFleetTelemetryConfig, vehicle.vin)).response;
+      const telemetryExpires = telemetryConfig.config && telemetryConfig.config.exp ? telemetryConfig.config.exp : 0;
 
       if (vehicle.dbData.providerData.disabled) {
-        if (vehicle.telemetryConfig && vehicle.telemetryConfig.config) {
+        if (telemetryConfig.config) {
           log(LogLevel.Info, `Vehicle ${vehicle.vin} is disabled, but has telemetry config, deleting`);
           clearTelemetryConfigFor.push(vehicle.vin);
           vehicle.telemetryConfig = null; // re-trigger a config read
           continue;
         }
+      } else if (!telemetryConfig.config) {
+        log(LogLevel.Info, `No telemetry config for ${vehicle.vin}, creating`);
+        setTelemetryConfigFor.push(vehicle.vin);
+        vehicle.telemetryConfig = null; // re-trigger a config read
+        continue;
+      } else if (telemetryExpires < Date.now() / 1e3) {
+        log(LogLevel.Info, `Telemetry config for ${vehicle.vin} expired, refreshing`);
+        setTelemetryConfigFor.push(vehicle.vin);
+        vehicle.telemetryConfig = null; // re-trigger a config read
+        continue;
       } else {
-        // Handle telemetry config
-        const telemetryConfig =
-          vehicle.telemetryConfig ? vehicle.telemetryConfig :
-          (await this.callTeslaAPI(job, teslaAPI.getFleetTelemetryConfig, vehicle.vin)).response;
-        const telemetryExpires = telemetryConfig.config && telemetryConfig.config.exp ? telemetryConfig.config.exp : 0;
-
-        if (vehicle.dbData.providerData.disabled) {
-          if (telemetryConfig.config) {
-            log(LogLevel.Info, `Vehicle ${vehicle.vin} is disabled, but has telemetry config, deleting`);
-            clearTelemetryConfigFor.push(vehicle.vin);
-            vehicle.telemetryConfig = null; // re-trigger a config read
-            continue;
-          }
-        } else if (!telemetryConfig.config) {
-          log(LogLevel.Info, `No telemetry config for ${vehicle.vin}, creating`);
+        // From here we consider the telemetry config to be working so we can handle vehicle commands
+        if (telemetryExpires < Date.now() / 1e3 + 60 * 60 * 24) {
+          log(LogLevel.Info, `Telemetry config for ${vehicle.vin} expires soon, refreshing`);
           setTelemetryConfigFor.push(vehicle.vin);
-          vehicle.telemetryConfig = null; // re-trigger a config read
-          continue;
-        } else if (telemetryExpires < Date.now() / 1e3) {
-          log(LogLevel.Info, `Telemetry config for ${vehicle.vin} expired, refreshing`);
-          setTelemetryConfigFor.push(vehicle.vin);
-          vehicle.telemetryConfig = null; // re-trigger a config read
-          continue;
+          vehicle.telemetryConfig = null;
         } else {
-          // From here we consider the telemetry config to be working so we can handle vehicle commands
-          if (telemetryExpires < Date.now() / 1e3 + 60 * 60 * 24) {
-            log(LogLevel.Info, `Telemetry config for ${vehicle.vin} expires soon, refreshing`);
-            setTelemetryConfigFor.push(vehicle.vin);
-            vehicle.telemetryConfig = null;
-          } else {
-            vehicle.telemetryConfig = telemetryConfig;
-          }
-
-          waitFor.push(this.vehicleWork(job, vehicle));
+          vehicle.telemetryConfig = telemetryConfig;
         }
+
+        waitFor.push(this.vehicleWork(job, vehicle));
       }
     }
 
@@ -671,7 +662,7 @@ export class TeslaAgent extends AbstractAgent {
     const requestedSchedule: (NumericChargePlan & { comment?: string })[] = [];
     let wantedSoc: number | undefined;
     const now = Date.now();
-      
+
     // Handle charge plans
     if (vehicle.dbData.chargePlan) {
       const simplifiedChargePlan: NumericChargePlan[] = (
@@ -762,15 +753,15 @@ export class TeslaAgent extends AbstractAgent {
         log(LogLevel.Debug, `${vehicle.vin} added charge blocker to prevent charging when plugging in`);
       }
     }
-        
+
     // If we know the vehicle schedules, we can start working on figuring out schedule updates
     if (vehicle.charge_schedules && vehicle.precondition_schedules) {
-      const freeScheduleIDs:number[] = [];
+      const freeScheduleIDs: number[] = [];
       const usedScheduleIDs = new Set<number>();
       const scheduleUpdates: (TeslaChargeSchedule & { comment: string })[] = [];
 
       // Convert all existing vehicle schedules to a format that makes sense
-      const vehicleSchedules: { [ id: number ] : (NumericChargePlan & { scheduleID: number }) } = {};
+      const vehicleSchedules: { [id: number]: (NumericChargePlan & { scheduleID: number }) } = {};
       for (const s of Object.values(vehicle.charge_schedules)) {
         assert(s.id !== undefined, "Invalid schedule ID");
         // Filter out any schedule entry that is not ours
@@ -922,7 +913,7 @@ export class TeslaAgent extends AbstractAgent {
       }
     }
   }
-  
+
   public isConnected(vehicle: VehicleEntry): boolean {
     return Boolean(vehicle.telemetryData
       && vehicle.telemetryData.DetailedChargeState
@@ -961,7 +952,7 @@ export class TeslaAgent extends AbstractAgent {
       const status = vehicle.isOnline
         ? `Online (${Object.values(vehicle.network).join(", ")})`
         : vehicle.isSleepy ? "Sleeping" : "Offline";
-    
+
       if (vehicle.dbData && vehicle.dbData.status !== status) {
         update.status = status;
       }
@@ -1092,7 +1083,7 @@ export class TeslaAgent extends AbstractAgent {
             vehicle.isSleepy = false;
             assert(value.case === "shiftStateValue", `Invalid Gear value type ${value.case}`);
             vehicle.telemetryData.Gear = value.value;
-            break;        
+            break;
           case telemetryData.Field.ScheduledChargingMode:
             assert(value.case === "scheduledChargingModeValue", `Invalid ScheduledChargingMode value type ${value.case}`);
             vehicle.telemetryData.ScheduledChargingMode = value.value;
@@ -1100,12 +1091,12 @@ export class TeslaAgent extends AbstractAgent {
           case telemetryData.Field.FastChargerType:
             assert(value.case === "fastChargerValue", `Invalid FastChargerType value type ${value.case}`);
             vehicle.telemetryData.FastChargerType = value.value;
-            break;          
+            break;
           default:
           // TODO: Add this when we remove the top trace that logs all telemetry data
           //log(LogLevel.Trace, `Unhandled telemetry data for ${vin}: ${telemetryData.Field[key]} = ${value.value} (${value.case})`);
           //break;
-        } 
+        }
       } catch (err) {
         // We catch this here so that it doesn't crash the entire worker, leaving Kafka in a sad state
         log(LogLevel.Error, `Failed to handle telemetry data for ${vin}: ${telemetryData.Field[key]} = ${value.value} (${value.case})`);
