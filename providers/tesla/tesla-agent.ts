@@ -442,19 +442,19 @@ export class TeslaAgent extends AbstractAgent {
       assert(vehicle !== undefined, "vehicle is undefined");
       
       // Handle telemetry config
-      const telemetryConfig =
-        vehicle.telemetryConfig ? vehicle.telemetryConfig :
-        (await this.callTeslaAPI(job, teslaAPI.getFleetTelemetryConfig, vehicle.vin)).response;
-      const telemetryExpires = telemetryConfig.config && telemetryConfig.config.exp ? telemetryConfig.config.exp : 0;
+      if (!vehicle.telemetryConfig) {
+        vehicle.telemetryConfig = (await this.callTeslaAPI(job, teslaAPI.getFleetTelemetryConfig, vehicle.vin)).response;
+      }
+      const telemetryExpires = vehicle.telemetryConfig?.config.exp ? vehicle.telemetryConfig.config.exp : 0;
 
       if (vehicle.dbData.providerData.disabled) {
-        if (telemetryConfig.config) {
+        if (vehicle.telemetryConfig?.config) {
           log(LogLevel.Info, `Vehicle ${vehicle.vin} is disabled, but has telemetry config, deleting`);
           clearTelemetryConfigFor.push(vehicle.vin);
           vehicle.telemetryConfig = null; // re-trigger a config read
           continue;
         }
-      } else if (!telemetryConfig.config) {
+      } else if (!vehicle.telemetryConfig?.config) {
         log(LogLevel.Info, `No telemetry config for ${vehicle.vin}, creating`);
         setTelemetryConfigFor.push(vehicle.vin);
         vehicle.telemetryConfig = null; // re-trigger a config read
@@ -470,8 +470,6 @@ export class TeslaAgent extends AbstractAgent {
           log(LogLevel.Info, `Telemetry config for ${vehicle.vin} expires soon, refreshing`);
           setTelemetryConfigFor.push(vehicle.vin);
           vehicle.telemetryConfig = null;
-        } else {
-          vehicle.telemetryConfig = telemetryConfig;
         }
 
         waitFor.push(this.vehicleWork(job, vehicle));
