@@ -769,12 +769,12 @@ export class Logic {
     }
   }
 
-  private async generateAIschedule(vehicle: DBVehicle): Promise<{ ts: number; level: number } | null> {
+  private async generateAIschedule(vehicle: DBVehicle, location_uuid: string | null): Promise<{ ts: number; level: number } | null> {
     /*
      ****** ANALYSE AND THINK ABOUT IT!  ******
      */
 
-    const locationSettings = this.getVehicleLocationSettings(vehicle, vehicle.location_uuid);
+    const locationSettings = this.getVehicleLocationSettings(vehicle, location_uuid);
     const minimum_charge = locationSettings.directLevel;
 
     const guess: { charge: number; before: number; } | null = await this.db.pg.oneOrNone(
@@ -835,7 +835,7 @@ export class Logic {
       `,
       [
         vehicle.vehicle_uuid,
-        vehicle.location_uuid,
+        location_uuid,
         null /*scheduleMap[ScheduleType.Guide] &&
                   scheduleMap[ScheduleType.Guide].time*/,
       ]
@@ -1097,7 +1097,7 @@ export class Logic {
         if (location_uuid) {
           if (startLevel < vehicle.maximum_charge) {
             // Generate an AI schedule
-            const schedule = stats && (await this.generateAIschedule(vehicle));
+            const schedule = stats && (await this.generateAIschedule(vehicle, location_uuid));
             // If we have a trip and ai.ts and schedule.ts is more than 12 hours apart, we should still AI charge
             if (!trip || !trip.schedule_ts || trip.schedule_ts.getTime() > priceAvailable
               || (schedule && Math.abs(trip.schedule_ts.getTime() - schedule.ts) > 12 * 60 * 60e3)
