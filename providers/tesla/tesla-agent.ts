@@ -445,7 +445,7 @@ export class TeslaAgent extends AbstractAgent {
       if (!vehicle.telemetryConfig) {
         vehicle.telemetryConfig = (await this.callTeslaAPI(job, teslaAPI.getFleetTelemetryConfig, vehicle.vin)).response;
       }
-      const telemetryExpires = vehicle.telemetryConfig?.config.exp ? vehicle.telemetryConfig.config.exp : 0;
+      const telemetryExpires = vehicle.telemetryConfig?.config && vehicle.telemetryConfig?.config.exp ? vehicle.telemetryConfig.config.exp : 0;
 
       if (vehicle.dbData.providerData.disabled) {
         if (vehicle.telemetryConfig?.config) {
