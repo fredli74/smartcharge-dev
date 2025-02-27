@@ -10,6 +10,7 @@ import { execSync } from 'child_process';
 import { fileURLToPath, URL } from 'node:url';
 import path from 'path';
 import globals from './shared/smartcharge-globals.json'; // Adjusted to resolve from `shared`
+import { VitePWA } from 'vite-plugin-pwa'
 
 const commitHash = process.env.SOURCE_VERSION || execSync('git rev-parse --short HEAD').toString().trim();
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -48,6 +49,34 @@ export default defineConfig({
     vue2(), // Vue 2 plugins
     Components({ resolvers: [VuetifyResolver()] }),
     nodePolyfills(),
+    VitePWA({
+      workbox: false,
+      manifest: {
+        name: 'SmartCharge',
+        short_name: 'SmartCharge',
+        start_url: '/',
+        display: 'standalone',
+        background_color: '#000000',
+        theme_color: '#4DBA87',
+        icons: [
+          {
+            src: 'img/Icons/android-chrome-192x192.png',
+            sizes: '192x192',
+            type: 'image/png'
+          },
+          {
+            src: 'img/Icons/android-chrome-512x512.png',
+            sizes: '512x512',
+            type: 'image/png'
+          },
+          {
+            src: 'img/Icons/apple-touch-icon-180x180.png',
+            sizes: '180x180',
+            type: 'image/png'
+          }
+        ]
+      }
+    }),
     viteStaticCopy({ targets: [{ src: 'public/*', dest: '.' }] }),
   ],
 });

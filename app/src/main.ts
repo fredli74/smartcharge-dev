@@ -2,7 +2,6 @@ import "./plugins/hooks";
 import Vue from "vue";
 import vuetify from "./plugins/vuetify.js";
 import router from "./router.js";
-import "./register-service-worker";
 import "./plugins/visible";
 import App from "./app.vue";
 import { newApolloProvider, newSCClient } from "./plugins/apollo";
