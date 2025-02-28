@@ -60,17 +60,17 @@ export default defineConfig({
         theme_color: '#4DBA87',
         icons: [
           {
-            src: 'img/Icons/android-chrome-192x192.png',
+            src: 'img/icons/android-chrome-192x192.png',
             sizes: '192x192',
             type: 'image/png'
           },
           {
-            src: 'img/Icons/android-chrome-512x512.png',
+            src: 'img/icons/android-chrome-512x512.png',
             sizes: '512x512',
             type: 'image/png'
           },
           {
-            src: 'img/Icons/apple-touch-icon-180x180.png',
+            src: 'img/icons/apple-touch-icon-180x180.png',
             sizes: '180x180',
             type: 'image/png'
           }
