@@ -457,6 +457,13 @@ export class TeslaAgent extends AbstractAgent {
         setTelemetryConfigFor.push(vehicle.vin);
         vehicle.telemetryConfig = null; // re-trigger a config read
         continue;
+      } else if (vehicle.telemetryConfig.config.hostname !== config.TESLA_TELEMETRY_HOST
+        || vehicle.telemetryConfig.config.port !== config.TESLA_TELEMETRY_PORT
+        || vehicle.telemetryConfig.config.ca !== config.TESLA_TELEMETRY_CA.replace(/\\n/g, "\n")) {
+        log(LogLevel.Info, `Telemetry config for ${vehicle.vin} has changed, refreshing`);
+        setTelemetryConfigFor.push(vehicle.vin);
+        vehicle.telemetryConfig = null; // re-trigger a config read
+        continue;
       } else if (telemetryExpires < Date.now() / 1e3) {
         log(LogLevel.Info, `Telemetry config for ${vehicle.vin} expired, refreshing`);
         setTelemetryConfigFor.push(vehicle.vin);
