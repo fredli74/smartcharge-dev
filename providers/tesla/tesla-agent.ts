@@ -61,7 +61,6 @@ interface TeslaTelemetryData {
   ScheduledChargingMode: telemetryData.ScheduledChargingModeValue;
   ScheduledChargingStartTime: number;
   ScheduledChargingPending: boolean;
-  ScheduledDepartureTime: string;
 
   DriverSeatOccupied: boolean;
   HvacAutoMode: telemetryData.HvacAutoModeState;
@@ -110,7 +109,6 @@ const telemetryFields: TelemetryFields = {
   ScheduledChargingMode: { interval_seconds: 60 },
   ScheduledChargingStartTime: { interval_seconds: 60 },
   ScheduledChargingPending: { interval_seconds: 60 },
-  ScheduledDepartureTime: { interval_seconds: 60 },
 
   DriverSeatOccupied: { interval_seconds: 5 },
   HvacAutoMode: { interval_seconds: 10 },
@@ -1011,7 +1009,6 @@ export class TeslaAgent extends AbstractAgent {
       try {
         switch (key) {
           case telemetryData.Field.ChargeState:
-          case telemetryData.Field.ScheduledDepartureTime:
           case telemetryData.Field.VehicleName:
           case telemetryData.Field.Trim:
           case telemetryData.Field.ExteriorColor:

@@ -24,7 +24,7 @@ import os from "os";
     }
     
     execSync(
-      `npx protoc -I=${PROTO_DIR} --es_out=../telemetry-protos --es_opt=target=ts ${path.join(
+      `npx @douglasgomes98/protoc -I=${PROTO_DIR} --es_out=../telemetry-protos --es_opt=target=ts ${path.join(
         PROTO_DIR,
         "*.proto"
       )}`,
