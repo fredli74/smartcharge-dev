@@ -150,11 +150,11 @@ export class Logic {
     if (input.energyAdded) {
       const energyAdded = Math.round(input.energyAdded * 60e3); // kWh to Wm
       if (!connection && vehicle.connected_id !== null) {
-        connection = await this.db.pg.one(`SELECT * FROM connected WHERE connected_id = $1`, [vehicle.connected_id]);
+        connection = await this.db.pg.oneOrNone(`SELECT * FROM connected WHERE connected_id = $1`, [vehicle.connected_id]);
       }
       if (connection) {
         if (vehicle.charge_id !== null) {
-          charge = await this.db.pg.one(`SELECT * FROM charge WHERE charge_id = $1`, [vehicle.charge_id]);
+          charge = await this.db.pg.oneOrNone(`SELECT * FROM charge WHERE charge_id = $1`, [vehicle.charge_id]);
         }
         if (charge) {
           // TODO: Why didn't we just use charge.end_added - charge.start_added?
@@ -315,7 +315,7 @@ export class Logic {
       vehicle.location_uuid !== was.location_uuid || vehicle.driving !== was.driving ||
       vehicle.odometer !== was.odometer || vehicle.level !== was.level
     ) {
-      let trip: DBTrip | null = (vehicle.trip_id !== null) ? await this.db.pg.one(
+      let trip: DBTrip | null = (vehicle.trip_id !== null) ? await this.db.pg.oneOrNone(
         `SELECT * FROM trip WHERE trip_id = $1`,
         [vehicle.trip_id]
       ) : null;
