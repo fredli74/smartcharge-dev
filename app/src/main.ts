@@ -13,30 +13,44 @@ Vue.prototype.$scConfig = {};
 Vue.prototype.$scClient = undefined;
 
 function preLaunchError(message: string) {
-  const el = document.createElement("div");
-  el.innerHTML = `<div style="text-align:center; position: fixed; top: 0; left: 0; right: 0; z-index: 1000; background-color: red; color: white; padding: 1em;">${message}</div>`;
-  document.body.appendChild(el);
+  let errContainer = document.querySelector("#pre-launch-error") as HTMLDivElement | null;
+  if (!errContainer) {
+    errContainer = document.createElement("div");
+    errContainer.id = "pre-launch-error";
+    errContainer.style.cssText = "position: fixed; top: 0; left: 0; right: 0; z-index: 1000; background-color: red; color: white; padding: 1em; text-align: center; font-size: 16px;";
+    document.body.appendChild(errContainer);
+  }
+
+  const el = document.createElement("p");
+  el.textContent = message;
+  errContainer.appendChild(el);
   console.error(message);
 }
 
-(async () => {
+(async function initApp() {
   try {
     const response = await fetch("/api/config");
+    if (!response.ok) {
+      preLaunchError("Server is down or not reachable, try again later, or report the issue");
+      return;
+    }
     Vue.prototype.$scConfig = await response.json();
   } catch (err) {
     preLaunchError(`Failed to fetch config, check server setup: ${err}`);
+    return;
   }
-
   if (Vue.prototype.$scConfig.SINGLE_USER === undefined) {
     preLaunchError("Config missing SINGLE_USER setting, check server setup");
+    return;
   }
-
+  
   Vue.prototype.$scClient = newSCClient();
   const apolloProvider = newApolloProvider(Vue.prototype.$scClient);
   if (Vue.prototype.$scClient === undefined || apolloProvider === undefined) {
     preLaunchError("Failed to create Apollo client, check server setup");
+    return;
   }
-  
+
   try {
     const token = localStorage.getItem("token");
     if (token !== null) {
@@ -48,6 +62,7 @@ function preLaunchError(message: string) {
       console.log("Invalid access token, new login required");
     } else {
       preLaunchError(`Failed to login with token: ${err.message || err}`);
+      return;
     }
   }
 
