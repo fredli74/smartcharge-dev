@@ -1,5 +1,5 @@
 /**
- * @file GraphQL API Location resolver for smartcharge.dev project
+ * @file GraphQL API Price resolver for smartcharge.dev project
  * @author Fredrik Lidström
  * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
