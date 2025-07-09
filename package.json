@@ -7,7 +7,7 @@
     "dev": "vite",
     "serve": "vite preview",
     "build": "npm run build:server && npm run build:app",
-    "lint": "eslint --ext .js,.vue --ignore-path .gitignore --fix src",
+    "lint": "eslint --ext .js,.ts,.vue --ignore-path .gitignore --fix app/src providers server shared",
     "_babel": "npx babel --extensions \".ts\" --copy-files --verbose --ignore **/node_modules --config-file=./babel.server.config.js",
     "_babel:providers": "npm run _babel -- providers --out-dir dist/providers",
     "_babel:server": "npm run _babel -- server --out-dir dist/server",
