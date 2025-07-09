@@ -662,100 +662,80 @@ export class TeslaAgent extends AbstractAgent {
   public async handleSchedules(job: TeslaAgentJob, vehicle: VehicleEntry, location: GQLLocationFragment) {
     assert(vehicle.dbData !== null, "vehicle.dbData is null");
     assert(vehicle.telemetryData !== null, "vehicle.telemetryData is null");
-    const requestedSchedule: (NumericChargePlan & { comment?: string })[] = [];
     let wantedSoc: number | undefined;
     const now = Date.now();
 
     // Handle charge plans
-    if (vehicle.dbData.chargePlan) {
-      const simplifiedChargePlan: NumericChargePlan[] = (
-        vehicle.dbData.chargePlan
-          // Filter out unwanted plans
-          .filter((p) => {
-            // Skip disabled plans
-            if (p.chargeType === GQLChargeType.Disable) return false;
-            // Skip plans that have already ended
-            if (p.chargeStop && numericStopTime(p.chargeStop) < now) return false;
-            // Ignore plans that are 30 hours in the future
-            if (p.chargeStart && numericStartTime(p.chargeStart) > now + 30 * 60 * 60e3) return false;
-            return true;
-          })
-          // Sort by start time
-          .sort((a, b) => compareStartStopTimes(a.chargeStart, a.chargeStop, b.chargeStart, b.chargeStop))
-          // Convert to numeric charge plans with start and stop times rounded to 15 minutes
-          .map((p): NumericChargePlan => {
-            if (wantedSoc === undefined && p.level) {
-              wantedSoc = p.level;
-            }
-            return {
-              chargeStart: this.quantizeTime(p.chargeStart, Math.floor),
-              chargeStop: this.quantizeTime(p.chargeStop, Math.ceil)
-            };
-          })
-          // Consolidate plans that are overlapping or edge-to-edge
-          .reduce((acc, p) => {
-            if (acc.length > 0) {
-              const last = acc[acc.length - 1];
-              if (compareStartTimes(p.chargeStart, last.chargeStop) <= 0) {
-                last.chargeStop = p.chargeStop;
-                return acc;
-              }
-            }
-            acc.push(p);
+    const chargePlan: (NumericChargePlan & { comment?: string })[] = (vehicle.dbData.chargePlan || [])
+      .filter((p) => {
+        // Skip disabled plans
+        if (p.chargeType === GQLChargeType.Disable) return false;
+        // Skip plans that have already ended
+        if (p.chargeStop && numericStopTime(p.chargeStop) < now) return false;
+        // Ignore plans that are 30 hours in the future
+        if (p.chargeStart && numericStartTime(p.chargeStart) > now + 30 * 60 * 60e3) return false;
+        return true;
+      })
+      // Convert to numeric charge plans with start and stop times rounded to 15 minutes
+      .map((p): NumericChargePlan => {
+        if (wantedSoc === undefined && p.level) {
+          wantedSoc = p.level;
+        }
+        return {
+          chargeStart: this.quantizeTime(p.chargeStart, Math.floor),
+          chargeStop: this.quantizeTime(p.chargeStop, Math.ceil)
+        };
+      }
+      // Sort by start time
+      ).sort((a, b) => compareStartStopTimes(a.chargeStart, a.chargeStop, b.chargeStart, b.chargeStop));
+
+    // Check if we are inside the first charge plan
+    const insideFirstCharge = chargePlan.length > 0 && now >= numericStartTime(chargePlan[0].chargeStart);
+    const firstChargeStart = chargePlan.length > 0 ? numericStartTime(chargePlan[0].chargeStart) : Infinity;
+
+    if (vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateStopped && insideFirstCharge) {
+      // We are inside the first charge, but it is not charging, so we back-date the start time by at least 10 minutes
+      chargePlan[0].chargeStart = this.quantizeTime(now - 10 * 60e3, Math.floor);
+
+    } else if (vehicle.telemetryData.Soc && vehicle.telemetryData.ChargeLimitSoc && vehicle.telemetryData.Soc > vehicle.telemetryData.ChargeLimitSoc - 1.5) {
+      // SOC is above or close to the limit, so we don't need schedule logic
+      log(LogLevel.Debug, `${vehicle.vin} skipping charge blocker logic because SOC is above or close to the limit`);
+
+    } else if (vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateCharging && !insideFirstCharge) {
+      // We are charging to the limit, we need to stop charging
+      chargePlan.unshift({
+        chargeStart: null, chargeStop: this.quantizeTime(now - 10 * 60e3, Math.floor),
+        comment: "completed schedule to stop ongoing charging"
+      });
+      log(LogLevel.Debug, `${vehicle.vin} added charge blocker to stop ongoing charging`);
+    } else if (vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateDisconnected && firstChargeStart > now + 17 * 60 * 60e3) {
+      // We are disconnected, and the first charge is more than 17 hours in the future, so we need a charge blocker
+      chargePlan.unshift({
+        chargeStart: null, chargeStop: this.quantizeTime(now - 10 * 60e3, Math.floor),
+        comment: "completed schedule to prevent charging when plugging in"
+      });
+      log(LogLevel.Debug, `${vehicle.vin} added charge blocker to prevent charging when plugging in`);
+    }
+
+    // Build requested schedule
+    const requestedSchedule = chargePlan
+      // Remove open ended plans, cause Tesla does not support them
+      .filter((p) => p.chargeStart !== null || p.chargeStop !== null)
+      // Consolidate plans that are overlapping or edge-to-edge
+      .reduce((acc, p) => {
+        if (acc.length > 0) {
+          const last = acc[acc.length - 1];
+          if (compareStartTimes(p.chargeStart, last.chargeStop) <= 0) {
+            // Overlapping or edge-to-edge, merge them
+            last.chargeStop = p.chargeStop;
             return acc;
-          }, [] as NumericChargePlan[])
-      );
-
-      const firstCharge = simplifiedChargePlan.length > 0 ? simplifiedChargePlan[0] : null;
-      const lastCharge = simplifiedChargePlan.length > 0 ? simplifiedChargePlan[simplifiedChargePlan.length - 1] : null;
-
-      // Adjust start and stop times of the schedules
-      {
-        // Always make the last charge open-ended if level is set ok
-        if (lastCharge && wantedSoc && wantedSoc >= config.TESLA_LOWEST_POSSIBLE_CHARGETO) {
-          lastCharge.chargeStop = null;
+          }
         }
-        // Are we inside the first charge?
-        const insideFirstCharge = firstCharge && now >= numericStartTime(firstCharge.chargeStart) && now <= numericStopTime(firstCharge.chargeStop);
-        if (insideFirstCharge && vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateStopped) {
-          // We are inside the first charge, but it is not charging, so we back-date the start time by at least 10 minutes
-          firstCharge.chargeStart = this.quantizeTime(now - 10 * 60e3, Math.floor);
-        }
-      }
+        acc.push(p);
+        return acc;
+      }, [] as (NumericChargePlan & { comment?: string })[]);
+    log(LogLevel.Debug, `${vehicle.vin} requested schedule: ${stringifyWithTimestamps(requestedSchedule)}`);
 
-      requestedSchedule.push(...simplifiedChargePlan.filter((a) => a.chargeStart !== null || a.chargeStop !== null));
-      log(LogLevel.Debug, `${vehicle.vin} charge plan: ${stringifyWithTimestamps(requestedSchedule)}`);
-    }
-
-    // Tesla vehicles will only care about schedules that are 18 hours in the future or 6 hours in the past
-    // It will default to charging, and we want it the other way around, so we use a charge blocker
-    {
-      const firstChargeStart = requestedSchedule.length > 0 ? numericStartTime(requestedSchedule[0].chargeStart) : Infinity;
-      if (vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateCharging
-        && now < firstChargeStart) {
-        // We are before the first charge, but it is charging, so we need to add a charge blocker
-        if (vehicle.telemetryData.Soc && vehicle.telemetryData.ChargeLimitSoc
-          && vehicle.telemetryData.Soc > vehicle.telemetryData.ChargeLimitSoc - 1.5) {
-          // SOC is above the limit, we need don't need to stop charging
-          log(LogLevel.Debug, `${vehicle.vin} skipping charge blocker because SOC is close to limit`);
-        } else {
-          // We are charging to the limit, we need to stop charging
-          requestedSchedule.push({
-            chargeStart: null, chargeStop: this.quantizeTime(now - 10 * 60e3, Math.floor),
-            comment: "completed schedule to stop ongoing charging"
-          });
-          log(LogLevel.Debug, `${vehicle.vin} added charge blocker to stop ongoing charging`);
-        }
-      } else if (vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateDisconnected
-        && firstChargeStart > now + 17 * 60 * 60e3) {
-        // We are not connected, we're more than 17 hours in the future, so we need a charge blocker
-        requestedSchedule.push({
-          chargeStart: null, chargeStop: this.quantizeTime(now - 10 * 60e3, Math.floor),
-          comment: "completed schedule to prevent charging when plugging in"
-        });
-        log(LogLevel.Debug, `${vehicle.vin} added charge blocker to prevent charging when plugging in`);
-      }
-    }
 
     // If we know the vehicle schedules, we can start working on figuring out schedule updates
     if (vehicle.charge_schedules && vehicle.precondition_schedules) {
