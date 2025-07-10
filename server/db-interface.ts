@@ -566,7 +566,6 @@ export class DBInterface {
       DELETE FROM trip WHERE vehicle_uuid = $1;
       DELETE FROM sleep WHERE vehicle_uuid = $1;
       DELETE FROM schedule WHERE vehicle_uuid = $1;
-      DELETE FROM vehicle_debug WHERE vehicle_uuid = $1;
       DELETE FROM vehicle WHERE vehicle_uuid = $1;`,
       [vehicle_uuid]
     );
