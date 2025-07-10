@@ -1,5 +1,5 @@
 /**
- * @file GraphQL API Location types for smartcharge.dev project
+ * @file GraphQL API Price types for smartcharge.dev project
  * @author Fredrik Lidström
  * @copyright 2025 Fredrik Lidström
  * @license MIT (MIT)
