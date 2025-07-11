@@ -89,27 +89,6 @@ export function geoDistance(lat1: number, lon1: number, lat2: number, lon2: numb
   return radius * δ;
 }
 
-export class MemCache {
-  private mem: { [key: string]: { expiry: number; data: any } } = {};
-  public async get(key: any, expiry: number, callback: () => Promise<any>): Promise<any> {
-    const jkey = JSON.stringify(key);
-    if (this.mem[jkey] === undefined || this.mem[jkey].expiry > Date.now()) {
-      this.mem[jkey] = { expiry: Date.now() + expiry, data: await callback() };
-    }
-    return this.mem[jkey];
-  }
-  public clear() {
-    this.mem = {};
-  }
-  public gc() {
-    for (const a in this.mem) {
-      if (this.mem[a].expiry > Date.now()) {
-        delete this.mem[a];
-      }
-    }
-  }
-}
-
 export function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
