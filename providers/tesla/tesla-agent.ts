@@ -751,8 +751,11 @@ export class TeslaAgent extends AbstractAgent {
         if (!s.one_time || (s.id < TeslaScheduleIDs.First || s.id > TeslaScheduleIDs.Last)) continue;
         if (geoDistance(s.latitude, s.longitude, location.geoLocation.latitude, location.geoLocation.longitude) > 100) {
           // Not our location
-          log(LogLevel.Debug, `${vehicle.vin} skipping schedule ${s.id} because of location mismatch`);
-          freeScheduleIDs.push(s.id);
+          // Due to a bug in Tesla API, when we overwrite a schedule, it does not update the location,
+          // so we need to delete it if the location does not match
+          log(LogLevel.Debug, `${vehicle.vin} deleting schedule ${s.id} because it does not match location`);
+          await this.callTeslaAPI(job, teslaAPI.removeChargeSchedule, vehicle.vin, s.id);
+          delete vehicle.charge_schedules[s.id];
         } else {
           vehicleSchedules[s.id] = { ...this.convertFromTeslaSchedule(s, location), scheduleID: s.id };
         }
@@ -871,7 +874,9 @@ export class TeslaAgent extends AbstractAgent {
             }
             assert(usedScheduleIDs.has(s.id), "Invalid schedule ID");
             await this.callTeslaAPI(job, teslaAPI.addChargeSchedule, vehicle.vin, s);
+            // Cache the newly set schedule with correct lat/long (only after successful API call)
             vehicle.charge_schedules[s.id] = s;
+            log(LogLevel.Debug, `${vehicle.vin} cached schedule ${s.id} @ [${s.latitude},${s.longitude}]`);
           }
         }
 
