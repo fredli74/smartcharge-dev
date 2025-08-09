@@ -126,7 +126,7 @@ export class SCClient extends ApolloClient<any> {
     let link = onError(({ graphQLErrors, networkError }) => {
       if (graphQLErrors) {
         graphQLErrors.map(({ message, locations, path }) => {
-          console.log(`[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`);
+          log(LogLevel.Error, `[GraphQL error]: Message: ${message}, Location: ${locations}, Path: ${path}`);
           if (message === "Unauthorized") {
             this.logout();
           }
@@ -136,7 +136,7 @@ export class SCClient extends ApolloClient<any> {
         if (this.token && networkError.message.includes("Authorization failed")) {
           this.logout();
         }
-        console.log(`[Network error]: ${networkError}`);
+        log(LogLevel.Error, `[Network error]: ${networkError}`);
       }
     });
 
@@ -147,7 +147,7 @@ export class SCClient extends ApolloClient<any> {
           return this.token ? { Authorization: `Bearer ${this.token}` } : {};
         },
         shouldRetry: () => true,
-        on: { error: (err) => console.error("WebSocket error:", err) },
+        on: { error: (err) => log(LogLevel.Error, err) },
         keepAlive: 10000,
         webSocketImpl,
       });

@@ -10,7 +10,7 @@ import * as http from "http";
 import * as https_proxy_agent from "https-proxy-agent";
 import * as zlib from "zlib";
 
-import { mergeURL } from "./utils.js";
+import { mergeURL, log, LogLevel } from "./utils.js";
 
 const DEFAULT_AGENT = `RestClient/1.0 (Node.js)`;
 
@@ -122,7 +122,7 @@ export class RestClient {
         let body = "";
         stream.setEncoding("utf8");
         stream.on("error", (e) => {
-          console.log(`RestClientError: Response error: ${e}`);
+          log(LogLevel.Error, `RestClientError: Response error: ${e}`);
           dispatchError(e);
         });
         stream.on("data", (chunk) => (body += chunk));
@@ -136,17 +136,17 @@ export class RestClient {
                 data: data,
               });
             } catch (e: any) {
-              console.log(`RestClientError: Unable to parse JSON`);
-              console.log(`RestClientError: ${body}`);
+              log(LogLevel.Error, `RestClientError: Unable to parse JSON`);
+              log(LogLevel.Error, `RestClientError: ${body}`);
               dispatchError(e.message, res.statusCode);
             }
           } else {
-            console.log(`RestClientError: Non-2xx status: ${res.statusCode}`);
-            console.log(`RestClientError: ${body}`);
+            log(LogLevel.Error, `RestClientError: Non-2xx status: ${res.statusCode}`);
+            log(LogLevel.Error, `RestClientError: ${body}`);
             try {
               const data = JSON.parse(body);
               const message = data.message || data.error || JSON.stringify(data);
-              console.log(`RestClientError: ${message}`);
+              log(LogLevel.Error, `RestClientError: ${message}`);
               dispatchError(message, res.statusCode);
             } catch {
               dispatchError(res.statusMessage, res.statusCode);
@@ -155,7 +155,7 @@ export class RestClient {
         });
       });
       req.on("error", (e) => {
-        console.log(`RestClientError: Request error: ${e}`);
+        log(LogLevel.Error, `RestClientError: Request error: ${e}`);
         dispatchError(e);
       });
       if (postData) {
