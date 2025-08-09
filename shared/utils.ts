@@ -54,7 +54,8 @@ export function arrayMean(list: number[]) {
   );
 }
 export function arrayPercentile(list: number[], percentile: number) {
-  const sorted = list.sort();
+  // Sort numerically without mutating the original array
+  const sorted = list.slice().sort((a, b) => a - b);
   const pos = (sorted.length - 1) * percentile;
   const base = Math.floor(pos);
   const rest = pos - base;
