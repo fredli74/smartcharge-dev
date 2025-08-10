@@ -11,7 +11,9 @@ const config = {
 
   TESLA_API_BASE_URL: process.env.TESLA_API_BASE_URL || "https://fleet-api.prd.eu.vn.cloud.tesla.com",
   TESLA_API_PROXY: process.env.TESLA_API_PROXY || "",
-  TESLA_AUTH_BASE_URL: process.env.TESLA_AUTH_BASE_URL || "https://auth.tesla.com/",
+  // Use fleet-auth for token exchange (/oauth2/v3/token) for higher rate limits.
+  // The authorize redirect stays on auth.tesla.com (see providers/tesla/app/tesla.vue).
+  TESLA_AUTH_BASE_URL: process.env.TESLA_AUTH_BASE_URL || "https://fleet-auth.prd.vn.cloud.tesla.com/",
   TESLA_AUTH_PROXY: process.env.TESLA_AUTH_PROXY || "",
 
   TESLA_CLIENT_ID: process.env.TESLA_CLIENT_ID || "*** REQUIRED IN .env ***", // Tesla Developer App credentials
