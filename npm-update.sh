@@ -1,4 +1,7 @@
 #!/bin/bash
+# Purpose: Controlled dependency updater that takes a target bump (patch/minor/major) and test command, orders updates
+# by release date, installs exact versions with npm install, runs the provided tests per package, and commits only passing updates.
+# Differs from ncu-update.sh, which auto-runs patch/minor/latest via npm-check-updates and npm audit fix without executing tests.
 set -x -e -o pipefail
 
 # Check script arguments

@@ -1,4 +1,8 @@
 #!/bin/bash
+# Purpose: Quick dependency sweep using npm-check-updates; runs patch, minor, then latest upgrades automatically,
+# sorting each package by release date, installing, running npm audit fix, and committing per package without test runs.
+# Differs from npm-update.sh, which requires an explicit target and test command, installs exact versions via npm,
+# and blocks upgrades that fail tests.
 set -x
 
 # Function to get the release date of a package version
