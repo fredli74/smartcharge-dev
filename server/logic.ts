@@ -292,19 +292,6 @@ export class Logic {
       }
     }
 
-    if (vehicle.location_uuid && vehicle.location_uuid !== was.location_uuid) {
-      // Remove all manual charge schedules if we move from a known location to anything else
-      // TODO: This is not optimal as the user might have set a scheduled manual charge at an known location
-      // and if we're unlucky, the vehicle may move in and out of a location while towards it, because of the geo-fence just being a radius
-      const removed = await this.db.pg.oneOrNone(
-        `DELETE FROM schedule WHERE vehicle_uuid = $1 AND schedule_type = $2 RETURNING *;`,
-        [vehicle.vehicle_uuid, ScheduleType.Manual]
-      );
-      if (removed) {
-        log(LogLevel.Trace, `Removed manual schedules for vehicle ${vehicle.vehicle_uuid}, because it moved from ${was.location_uuid} to ${vehicle.location_uuid}`);
-      }
-    }
-
     if (was.charge_id !== null && vehicle.charge_id === null) {
       // We stopped charging
       log(LogLevel.Debug, `Ending charge ${was.charge_id}`);
@@ -345,6 +332,19 @@ export class Logic {
         const distance = vehicle.odometer - trip.start_odometer;
         const traveled = Math.round(distance - trip.distance);
         if (traveled > 0) {
+          if (trip.start_location_uuid !== null && trip.distance < 7e3 && distance >= 7e3) {
+            // We have left the starting known location on a real trip (crossing the 7 km threshold), clear any manual schedule
+            const removed = await this.db.pg.oneOrNone(
+              `DELETE FROM schedule WHERE vehicle_uuid = $1 AND schedule_type = $2 RETURNING *;`,
+              [vehicle.vehicle_uuid, ScheduleType.Manual]
+            );
+            if (removed) {
+              log(
+                LogLevel.Trace,
+                `Removed manual schedule for vehicle ${vehicle.vehicle_uuid} after leaving location ${trip.start_location_uuid} on trip ${trip.trip_id} (${distance}m)`
+              );
+            }
+          }
           log(LogLevel.Debug, `Updating trip ${vehicle.trip_id} with ${traveled}m driven`);
           trip = (await this.db.pg.one(
             `UPDATE trip SET ($1:name) = ($1:csv) WHERE trip_id=$2 RETURNING *;`,
