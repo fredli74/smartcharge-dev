@@ -5,12 +5,21 @@ import router from "./router.js";
 import "./plugins/visible";
 import App from "./app.vue";
 import { newApolloProvider, newSCClient } from "./plugins/apollo";
+import { registerSW } from "virtual:pwa-register";
 
 Vue.config.productionTip = false;
 Vue.config.devtools = true;
 
 Vue.prototype.$scConfig = {};
 Vue.prototype.$scClient = undefined;
+
+// Register the PWA service worker and force-reload when a new version is ready.
+const updateSW = registerSW({
+  immediate: true,
+  onNeedRefresh() {
+    updateSW(true);
+  },
+});
 
 function preLaunchError(message: string) {
   let errContainer = document.querySelector("#pre-launch-error") as HTMLDivElement | null;

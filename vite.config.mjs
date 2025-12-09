@@ -50,7 +50,29 @@ export default defineConfig({
     Components({ resolvers: [VuetifyResolver()] }),
     nodePolyfills(),
     VitePWA({
-      workbox: false,
+      registerType: 'autoUpdate',
+      workbox: {
+        cleanupOutdatedCaches: true,
+        skipWaiting: true,
+        clientsClaim: true,
+        navigateFallback: '/index.html',
+        runtimeCaching: [
+          {
+            // Never cache API/GraphQL calls
+            urlPattern: ({ url }) => url.pathname.startsWith('/api'),
+            handler: 'NetworkOnly',
+          },
+          {
+            // Prefer network for the app shell so updates land quickly
+            urlPattern: ({ request }) => request.destination === 'document',
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'html-cache',
+              networkTimeoutSeconds: 10,
+            },
+          },
+        ],
+      },
       manifest: {
         name: 'SmartCharge',
         short_name: 'SmartCharge',
