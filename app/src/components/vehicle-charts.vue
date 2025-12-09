@@ -523,12 +523,15 @@ export default class eventchart extends Vue {
         const price = scalePrice(p.price);
         return [new Date(p.startAt).getTime(), price];
       });
-      // extend 1 hour to get a step line in the end
-      const last = this.chartData.prices![this.chartData.prices.length - 1];
-      priceData.push([
-        new Date(last.startAt).getTime() + 60 * 60e3,
-        scalePrice(last.price),
-      ]);
+      // Extend last price point to show the full price period
+      if (priceData.length > 1) {
+        const last = this.chartData.prices![this.chartData.prices.length - 1];
+        const lastStart = new Date(last.startAt).getTime();
+        const duration = lastStart - new Date(this.chartData.prices![this.chartData.prices.length - 2].startAt).getTime();
+        if (duration > 0) {
+          priceData.push([ lastStart + duration, scalePrice(last.price) ]);
+        }
+      }
     }
 
     /***
