@@ -912,14 +912,24 @@ export class Logic {
       });
       smartStatus = `Charging disabled until next plug in`;
     } else {
-      const priceMap: { ts: Date; price: number }[] = (location_uuid && (await this.db.pg.manyOrNone(
-        `SELECT ts, price FROM price_data p JOIN location l ON (l.price_list_uuid = p.price_list_uuid) WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' ORDER BY price, ts`,
+      const price_data: { ts: Date; price: number }[] = (location_uuid && (await this.db.pg.manyOrNone(
+        `SELECT ts, price FROM price_data p JOIN location l ON (l.price_list_uuid = p.price_list_uuid) WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' ORDER BY ts`,
         [location_uuid]
       ))) || [];
-      const priceAvailable: number = priceMap.reduce((prev: number, current) => {
-        const d = current.ts.getTime();
-        return !prev || d > prev ? d : prev;
-      }, 0) + 60 * 60e3; // Assume the price is fixed for an hour
+      let duration = 60 * 60e3; // default 1 hour
+      let priceAvailable = 0;
+      const priceMap: { ts: number; duration: number; price: number }[] = price_data.map((e, i) => {
+        const start = e.ts.getTime();
+        if (i < price_data.length - 1) {
+          duration = price_data[i + 1].ts.getTime() - e.ts.getTime();
+        }
+        const end = start + duration;
+        if (end > priceAvailable) {
+          priceAvailable = end;
+        }
+        return { ts: start, duration: duration, price: e.price };
+      }).sort((a, b) => a.price - b.price);
+      // @codex: is this sorted correctly by cheapest price first?
 
       const chargeCurve = await this.db.getChargeCurve(vehicle.vehicle_uuid, location_uuid);
       const ChargeDuration = (from: number, to: number): number => {
@@ -995,18 +1005,14 @@ export class Logic {
               if (timeLeft < 1) break; // Done
               if (maxPrice && price.price > maxPrice) break; // Prices too high
 
-              const ts = price.ts.getTime();
-              if (ts > before_ts) continue; // price beyond our target time
+              if (price.ts > before_ts) continue; // price beyond our target time
 
-              // start cannot be earlier than now
-              const start = ts < now ? now : ts;
-              // end is timeLeft or a full hour
-              const end = Math.min(start + timeLeft, ts + 60 * 60e3);
-              // duration takes before_ts into account
-              const duration = Math.min(end, before_ts) - start;
+              // Duration takes timeLeft, "now" and "before_ts" into account to be accurate
+              const duration = Math.min(Math.min(price.ts + price.duration, before_ts) - Math.max(price.ts, now), timeLeft);
+              if (duration < 1) continue; // no time here
               chargePlan.push({
-                chargeStart: new Date(ts),
-                chargeStop: new Date(end),
+                chargeStart: new Date(price.ts),
+                chargeStop: new Date(price.ts + price.duration),
                 level,
                 chargeType,
                 comment,
