@@ -528,14 +528,40 @@ export class Logic {
         (SELECT AVG(price::float) FROM my_price_data WHERE ts >= day - interval '21 days' AND ts < day) as avg21 FROM
         (SELECT date_trunc('day', hour) as day FROM period GROUP BY 1) as a
       ), connection_map AS (
-        SELECT connected_id,location_uuid,start_level,end_level,needed,hour,LEAST(1.0,
-          EXTRACT(epoch FROM hour+interval '1 hour'-start_ts)/3600,
-          EXTRACT(epoch FROM end_ts-hour)/3600
-        ) as fraction, price,price/(avg7+(avg7-avg21)/2) as threshold
+        SELECT
+          connections.connected_id,
+          connections.location_uuid,
+          connections.start_level,
+          connections.end_level,
+          connections.needed,
+          period.hour,
+          LEAST(
+            1.0,
+            EXTRACT(
+              epoch FROM LEAST(period.hour + interval '1 hour', connections.end_ts) -
+              GREATEST(period.hour, connections.start_ts)
+            ) / 3600
+          ) as fraction,
+          AVG(my_price_data.price) as price,
+          AVG(my_price_data.price) / (week_avg.avg7 + (week_avg.avg7 - week_avg.avg21) / 2) as threshold
         FROM period
-        JOIN connections ON (hour >= date_trunc('hour',start_ts) AND hour <= date_trunc('hour',end_ts))
-        JOIN my_price_data ON (ts = hour)
-        JOIN week_avg ON (day = date_trunc('day', hour))
+        JOIN connections
+          ON (period.hour < connections.end_ts AND period.hour + interval '1 hour' > connections.start_ts)
+        JOIN my_price_data
+          ON (my_price_data.ts >= period.hour AND my_price_data.ts < period.hour + interval '1 hour')
+        JOIN week_avg
+          ON (week_avg.day = date_trunc('day', period.hour))
+        GROUP BY
+          connections.connected_id,
+          connections.location_uuid,
+          connections.start_level,
+          connections.end_level,
+          connections.needed,
+          period.hour,
+          connections.start_ts,
+          connections.end_ts,
+          week_avg.avg7,
+          week_avg.avg21
       )
       SELECT * FROM connection_map ORDER BY connected_id,hour;`,
         [vehicle.vehicle_uuid, location_uuid]
