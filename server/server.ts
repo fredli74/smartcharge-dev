@@ -102,6 +102,13 @@ program
       };
 
       const app = express();
+      const staticApp = express.static(path.resolve(__dirname, "../app"), {
+        setHeaders(res, filePath) {
+          if (filePath.endsWith("index.html")) {
+            res.setHeader("Cache-Control", "no-cache, must-revalidate");
+          }
+        },
+      });
       app.set("trust proxy", ["loopback", "linklocal", "uniquelocal"])
       app.get("/api/config", (req, res) => {
         res.json({
@@ -218,9 +225,9 @@ program
           })
         )
         .get("/ip", (req, res) => { res.send(req.ip); }) // ip echo endpoint
-        .use(express.static(path.resolve(__dirname, "../app")))
+        .use(staticApp)
         .use(history({ index: "/index.html" }) as unknown as RequestHandler)
-        .use(express.static(path.resolve(__dirname, "../app")))
+        .use(staticApp)
         .use(function (req, res, _next) {
           // Add 404 handling
           res
