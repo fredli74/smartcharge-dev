@@ -735,35 +735,6 @@ export class Logic {
 
     // First pass to remove any overlaps
     consolidate();
-
-    // Second pass to shift start times for continous charging
-    {
-      let shifted = false;
-      for (let i = 0; i < plan.length - 1; ++i) {
-        const a = plan[i];
-        const b = plan[i + 1];
-        const shift = Math.min(
-          // max shift between this segment end and next segment start
-          // nextStart - thisStop
-          numericStartTime(b.chargeStart) - numericStopTime(a.chargeStop),
-          // or maximum shift possible within the current hour
-          // hour - (stop - start) => start - stop + hour
-          numericStartTime(a.chargeStart) -
-          numericStopTime(a.chargeStop) +
-          3600e3
-        );
-
-        if (shift > 0 && numericStopTime(a.chargeStop) + shift >= numericStartTime(b.chargeStart)) {
-          a.chargeStop = b.chargeStart;
-          a.chargeStart = new Date(numericStartTime(a.chargeStart) + shift);
-          shifted = true;
-        }
-      }
-
-      if (shifted) {
-        consolidate();
-      }
-    }
     return plan;
   }
 
