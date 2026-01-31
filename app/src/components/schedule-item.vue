@@ -40,7 +40,7 @@
         </v-col>
         <v-col cols="6" :sm="newSchedule ? '4' : '3'" class="text-right text-sm-left" order="3">
           <v-menu
-            v-if="localSchedule.level !== null"
+            v-if="localSchedule.level != null"
             ref="levelMenu"
             v-model="levelMenu"
             :close-on-content-click="false"
