@@ -50,7 +50,7 @@
             <template #activator="{ on }">
               <v-btn depressed class="px-2" v-on="on">
                 <v-icon left>mdi-lightning-bolt</v-icon>
-                {{ schedule.level }}%
+                {{ scheduleLevel }}%
               </v-btn>
             </template>
             <v-card>
@@ -269,6 +269,10 @@ export default class ScheduleItem extends Vue {
     } else {
       return "N/A";
     }
+  }
+
+  get scheduleLevel(): number {
+    return this.localSchedule.level || this.vehicle.maximumLevel;
   }
 }
 </script>
