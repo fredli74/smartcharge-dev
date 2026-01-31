@@ -34,6 +34,7 @@
 import { Component, Vue, Prop, Watch } from "vue-property-decorator";
 import { DateTime } from "luxon";
 import { GQLVehicle, GQLSchedule, GQLScheduleType } from "@shared/sc-schema.js";
+import { getDefaultScheduleTime } from "@shared/utils.js";
 import ScheduleItem from "./schedule-item.vue";
 
 @Component({ components: { ScheduleItem } })
@@ -53,11 +54,9 @@ export default class VehicleSchedule extends Vue {
   mounted() {}
 
   data() {
-    // Default to 1 hour in the future, rounded to nearest 10 minutes
-    const defaultTime = Math.ceil((Date.now() + 60 * 60e3) / (10 * 60e3)) * (10 * 60e3);
     return {
       schedule: undefined,
-      guideDateTime: DateTime.fromMillis(defaultTime),
+      guideDateTime: DateTime.fromMillis(getDefaultScheduleTime()),
       newSchedule: undefined,
     };
   }

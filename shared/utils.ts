@@ -234,6 +234,17 @@ export function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+/**
+ * Gets the default schedule time for a new schedule.
+ * Returns current time + 1 hour, rounded to the nearest 10 minutes.
+ * @returns Time in milliseconds since epoch
+ */
+export function getDefaultScheduleTime(): number {
+  const TEN_MINUTES_IN_MS = 10 * 60 * 1000;
+  const ONE_HOUR_IN_MS = 60 * 60 * 1000;
+  return Math.ceil((Date.now() + ONE_HOUR_IN_MS) / TEN_MINUTES_IN_MS) * TEN_MINUTES_IN_MS;
+}
+
 
 /**
  * Computes the differences between two objects and returns the properties

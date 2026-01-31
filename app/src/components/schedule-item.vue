@@ -134,7 +134,7 @@ import { Component, Vue, Prop } from "vue-property-decorator";
 import { GQLSchedule, GQLScheduleType, GQLVehicle } from "@shared/sc-schema.js";
 import { DateTime } from "luxon";
 import { DatetimePopup } from "vue-datetime";
-import { relativeTime } from "@shared/utils.js";
+import { relativeTime, getDefaultScheduleTime } from "@shared/utils.js";
 import { getVehicleLocationSettings } from "@shared/sc-utils.js";
 
 @Component({ components: { DatetimePopup } })
@@ -173,9 +173,7 @@ export default class ScheduleItem extends Vue {
   get scheduleDateTime(): DateTime {
     const dt =
       this.localSchedule.time ||
-      new Date(
-        Math.ceil((Date.now() + 60 * 60e3) / (10 * 60e3)) * (10 * 60e3)
-      ).toISOString();
+      new Date(getDefaultScheduleTime()).toISOString();
     return DateTime.fromISO(dt).toLocal();
   }
   stopCapture() {
