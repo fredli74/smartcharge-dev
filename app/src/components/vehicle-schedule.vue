@@ -70,9 +70,11 @@ export default class VehicleSchedule extends Vue {
       if (f.type === GQLScheduleType.Trip) return true;
       if (f.type === GQLScheduleType.Manual) return true;
       if (f.type === GQLScheduleType.AI) {
-        this.guideDateTime = DateTime.fromMillis(
-          Math.ceil(new Date(f.time).getTime() / 60e4) * 60e4
-        );
+        const aiTime = Math.ceil(new Date(f.time).getTime() / 60e4) * 60e4;
+        // Only use AI schedule time if it's in the future
+        if (aiTime > Date.now()) {
+          this.guideDateTime = DateTime.fromMillis(aiTime);
+        }
       }
       return false;
     });
@@ -87,16 +89,16 @@ export default class VehicleSchedule extends Vue {
     };
   }
 
-  async addSchedule(callback: any) {
-    if (this.newSchedule && this.newSchedule.type) {
-      const lvl = this.newSchedule.level || null;
+  async addSchedule(localSchedule: Partial<GQLSchedule>, callback: any) {
+    if (localSchedule && localSchedule.type) {
+      const lvl = localSchedule.level || null;
       const time =
-        (this.newSchedule.time && new Date(this.newSchedule.time)) || null;
+        (localSchedule.time && new Date(localSchedule.time)) || null;
 
       await this.$scClient.updateSchedule(
         undefined,
         this.vehicle.id,
-        this.newSchedule.type,
+        localSchedule.type,
         lvl,
         time
       );
