@@ -34,7 +34,6 @@
 import { Component, Vue, Prop, Watch } from "vue-property-decorator";
 import { DateTime } from "luxon";
 import { GQLVehicle, GQLSchedule, GQLScheduleType } from "@shared/sc-schema.js";
-import { getDefaultScheduleTime } from "@shared/utils.js";
 import ScheduleItem from "./schedule-item.vue";
 
 @Component({ components: { ScheduleItem } })
@@ -56,7 +55,9 @@ export default class VehicleSchedule extends Vue {
   data() {
     return {
       schedule: undefined,
-      guideDateTime: DateTime.fromMillis(getDefaultScheduleTime()),
+      guideDateTime: DateTime.fromMillis(
+        Math.ceil(Date.now() / 60e4) * 60e4 + 12 * 60 * 60e3
+      ),
       newSchedule: undefined,
     };
   }
@@ -69,9 +70,11 @@ export default class VehicleSchedule extends Vue {
       if (f.type === GQLScheduleType.Trip) return true;
       if (f.type === GQLScheduleType.Manual) return true;
       if (f.type === GQLScheduleType.AI) {
-        this.guideDateTime = DateTime.fromMillis(
-          Math.ceil(new Date(f.time).getTime() / 60e4) * 60e4
-        );
+        const aiTime = Math.ceil(new Date(f.time).getTime() / 60e4) * 60e4;
+        // Only use AI schedule time if it's in the future
+        if (aiTime > Date.now()) {
+          this.guideDateTime = DateTime.fromMillis(aiTime);
+        }
       }
       return false;
     });
