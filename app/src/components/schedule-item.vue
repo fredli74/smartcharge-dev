@@ -40,6 +40,7 @@
         </v-col>
         <v-col cols="6" :sm="newSchedule ? '4' : '3'" class="text-right text-sm-left" order="3">
           <v-menu
+            v-if="localSchedule.level !== null"
             ref="levelMenu"
             v-model="levelMenu"
             :close-on-content-click="false"
@@ -50,7 +51,7 @@
             <template #activator="{ on }">
               <v-btn depressed class="px-2" v-on="on">
                 <v-icon left>mdi-lightning-bolt</v-icon>
-                {{ scheduleLevel }}%
+                {{ localSchedule.level }}%
               </v-btn>
             </template>
             <v-card>
@@ -160,7 +161,7 @@ export default class ScheduleItem extends Vue {
       timeMenu: false,
       levelMenu: false,
       capturing: false,
-      levelSlider: this.schedule.level,
+      levelSlider: this.schedule.level || 0,
 
       isSaving: false,
       isRemoving: false,
@@ -182,10 +183,12 @@ export default class ScheduleItem extends Vue {
     setTimeout(() => (this.capturing = false), 150);
   }
   cancelLevel() {
+    if (this.localSchedule.level == null) return;
     this.levelSlider = this.localSchedule.level;
     this.levelMenu = false;
   }
   async setLevel() {
+    if (this.localSchedule.level == null) return;
     this.localSchedule.level = this.levelSlider;
     this.levelMenu = false;
     if (!this.newSchedule) {
@@ -271,9 +274,6 @@ export default class ScheduleItem extends Vue {
     }
   }
 
-  get scheduleLevel(): number {
-    return this.localSchedule.level;
-  }
 }
 </script>
 <style>
