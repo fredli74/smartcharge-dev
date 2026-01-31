@@ -160,7 +160,7 @@ export default class ScheduleItem extends Vue {
       timeMenu: false,
       levelMenu: false,
       capturing: false,
-      levelSlider: this.schedule.level || this.vehicle.maximumLevel,
+      levelSlider: this.schedule.level,
 
       isSaving: false,
       isRemoving: false,
@@ -182,7 +182,7 @@ export default class ScheduleItem extends Vue {
     setTimeout(() => (this.capturing = false), 150);
   }
   cancelLevel() {
-    this.levelSlider = this.localSchedule.level || this.vehicle.maximumLevel;
+    this.levelSlider = this.localSchedule.level;
     this.levelMenu = false;
   }
   async setLevel() {
@@ -272,7 +272,7 @@ export default class ScheduleItem extends Vue {
   }
 
   get scheduleLevel(): number {
-    return this.localSchedule.level || this.vehicle.maximumLevel;
+    return this.localSchedule.level;
   }
 }
 </script>
