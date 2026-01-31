@@ -174,7 +174,7 @@ export default class ScheduleItem extends Vue {
     const dt =
       this.localSchedule.time ||
       new Date(
-        Math.ceil(Date.now() / 60e4) * 60e4 + 12 * 60 * 60e3
+        Math.ceil((Date.now() + 60 * 60e3) / (10 * 60e3)) * (10 * 60e3)
       ).toISOString();
     return DateTime.fromISO(dt).toLocal();
   }
@@ -210,7 +210,7 @@ export default class ScheduleItem extends Vue {
 
   async addSchedule() {
     this.isSaving = true;
-    this.$emit(`add`, () => {
+    this.$emit(`add`, this.localSchedule, () => {
       this.isSaving = false;
     });
   }

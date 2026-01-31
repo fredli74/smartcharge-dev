@@ -53,11 +53,11 @@ export default class VehicleSchedule extends Vue {
   mounted() {}
 
   data() {
+    // Default to 1 hour in the future, rounded to nearest 10 minutes
+    const defaultTime = Math.ceil((Date.now() + 60 * 60e3) / (10 * 60e3)) * (10 * 60e3);
     return {
       schedule: undefined,
-      guideDateTime: DateTime.fromMillis(
-        Math.ceil(Date.now() / 60e4) * 60e4 + 12 * 60 * 60e3
-      ),
+      guideDateTime: DateTime.fromMillis(defaultTime),
       newSchedule: undefined,
     };
   }
@@ -87,16 +87,16 @@ export default class VehicleSchedule extends Vue {
     };
   }
 
-  async addSchedule(callback: any) {
-    if (this.newSchedule && this.newSchedule.type) {
-      const lvl = this.newSchedule.level || null;
+  async addSchedule(localSchedule: Partial<GQLSchedule>, callback: any) {
+    if (localSchedule && localSchedule.type) {
+      const lvl = localSchedule.level || null;
       const time =
-        (this.newSchedule.time && new Date(this.newSchedule.time)) || null;
+        (localSchedule.time && new Date(localSchedule.time)) || null;
 
       await this.$scClient.updateSchedule(
         undefined,
         this.vehicle.id,
-        this.newSchedule.type,
+        localSchedule.type,
         lvl,
         time
       );
