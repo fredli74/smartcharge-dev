@@ -188,7 +188,9 @@ export default class ScheduleItem extends Vue {
   async setLevel() {
     this.localSchedule.level = this.levelSlider;
     this.levelMenu = false;
-    await this.save();
+    if (!this.newSchedule) {
+      await this.save();
+    }
   }
   get directLevel(): number {
     const settings = getVehicleLocationSettings(this.vehicle);
@@ -203,7 +205,7 @@ export default class ScheduleItem extends Vue {
     } else {
       this.localSchedule.time = datetime.toJSDate().toISOString();
     }
-    if (this.localSchedule.time !== was) {
+    if (this.localSchedule.time !== was && !this.newSchedule) {
       await this.save();
     }
   }
