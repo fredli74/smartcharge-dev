@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@apollo/client": "~3.12.7",
-    "@apollo/server": "~4.11.3",
+    "@apollo/server": "~5.4.0",
     "@babel/runtime": "~7.16.7",
     "@vue/apollo-composable": "~4.2.1",
     "@vue/apollo-option": "~4.2.0",
