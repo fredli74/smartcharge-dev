@@ -931,7 +931,7 @@ export class Logic {
         return (maxPrice !== undefined && price > maxPrice) ? price * OVERPRICE_PENALTY_FACTOR : price;
       };
       const price_data: { ts: Date; price: number }[] = ( location_uuid && (await this.db.pg.manyOrNone(
-        `SELECT ts, price FROM price_data p JOIN location l ON (l.price_list_uuid = p.price_list_uuid) WHERE location_uuid = $1 AND ts >= NOW() ORDER BY ts`,
+        `SELECT ts, price FROM price_data p JOIN location l ON (l.price_list_uuid = p.price_list_uuid) WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' ORDER BY ts`,
         [location_uuid]
       ))) || [];
       let duration = 60 * 60e3; // default 1 hour
