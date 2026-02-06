@@ -1441,7 +1441,6 @@ export class Logic {
             }
           }
         }
-        
       }
 
       if (!manual || manual.schedule_ts) {
