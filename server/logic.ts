@@ -1233,8 +1233,7 @@ export class Logic {
                   const to = Math.min(s.to, w.start);
                   if (to > s.from) {
                     const duration = to - s.from;
-                    const score = priceToScorePerMs(s.price, maxPrice) * duration;
-                    remainders.push({ from: s.from, to, duration, price: s.price, score });
+                    remainders.push({ from: s.from, to, duration, price: s.price, score: priceToScorePerMs(s.price, maxPrice) * duration });
                   }
                 }
 
@@ -1242,8 +1241,7 @@ export class Logic {
                   const from = Math.max(s.from, w.stop);
                   if (s.to > from) {
                     const duration = s.to - from;
-                    const score = priceToScorePerMs(s.price, maxPrice) * duration;
-                    remainders.push({ from, to: s.to, duration, price: s.price, score });
+                    remainders.push({ from, to: s.to, duration, price: s.price, score: priceToScorePerMs(s.price, maxPrice) * duration });
                   }
                 }
 
