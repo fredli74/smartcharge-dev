@@ -17,12 +17,23 @@ import {
   numericStartTime,
   numericStopTime,
   compareStartTimes,
-  capitalize,
-  diffObjects
+  diffObjects,
+  capitalize
 } from "@shared/utils.js";
 import { UpdateVehicleDataInput, ChargePlan, Schedule, VehicleLocationSettings } from "./gql/vehicle-type.js";
 import { SmartChargeGoal, ChargeType, ScheduleType } from "@shared/sc-types.js";
 import { MIN_STATS_PERIOD, SCHEDULE_TOPUP_MARGIN } from "@shared/smartcharge-defines.js";
+
+const CHARGE_PRIO: Record<ChargeType, number> = {
+  [ChargeType.Disable]: 0,
+  [ChargeType.Calibrate]: 1,
+  [ChargeType.Minimum]: 2,
+  [ChargeType.Manual]: 3,
+  [ChargeType.Trip]: 4,
+  [ChargeType.Routine]: 5,
+  [ChargeType.Prefered]: 6,
+  [ChargeType.Fill]: 7,
+};
 
 export class Logic {
   constructor(private db: DBInterface) { }
@@ -680,23 +691,13 @@ export class Logic {
   }
 
   private static cleanupPlan(plan: ChargePlan[]): ChargePlan[] {
-    const chargePrio = {
-      [ChargeType.Disable]: 0,
-      [ChargeType.Calibrate]: 1,
-      [ChargeType.Minimum]: 2,
-      [ChargeType.Manual]: 3,
-      [ChargeType.Trip]: 4,
-      [ChargeType.Routine]: 5,
-      [ChargeType.Prefered]: 6,
-      [ChargeType.Fill]: 7,
-    };
     plan.sort((a, b) =>
       compareStartStopTimes(
         a.chargeStart,
         a.chargeStop,
         b.chargeStart,
         b.chargeStop
-      ) || chargePrio[a.chargeType] - chargePrio[b.chargeType]
+      ) || CHARGE_PRIO[a.chargeType] - CHARGE_PRIO[b.chargeType]
     );
 
     function consolidate() {
@@ -893,7 +894,7 @@ export class Logic {
     const manual = scheduleMap[ScheduleType.Manual];
     const trip = scheduleMap[ScheduleType.Trip];
 
-    const startLevel = vehicle.level - 1;
+    let startLevel = vehicle.level - 1;
 
     let chargePlan: ChargePlan[] = [];
     let smartStatus = "";
@@ -909,24 +910,44 @@ export class Logic {
       });
       smartStatus = `Charging disabled until next plug in`;
     } else {
-      const price_data: { ts: Date; price: number }[] = (location_uuid && (await this.db.pg.manyOrNone(
-        `SELECT ts, price FROM price_data p JOIN location l ON (l.price_list_uuid = p.price_list_uuid) WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' ORDER BY ts`,
+      type PriceSlot = Readonly<{ from: number; to: number; price: number }>;
+      type ChargeWindow = { start: number; stop: number; score: number };
+
+      // Avoid fragmenting charging in cold weather: only split if each segment is >= 60 minutes.
+      const MIN_CHARGE_WINDOW_MS = 60 * 60e3;
+      // TODO: user configurable per site or vehicle? Schedule splitting: "none/min/max"
+      // none = hard cap maxSegments to 1, min = only split if it saves cost (SPLIT_SAVE_FRACTION), max = always split up to maxSegments
+      // Require >=10% savings for each additional segment, otherwise stop splitting.
+      const SPLIT_SAVE_FRACTION = 0.10;
+      // Soft maxPrice behavior:
+      // - Penalize slots above maxPrice in the score/average.
+      const OVERPRICE_PENALTY_FACTOR = 1.5;
+      // - Hard cap: drop any slot above (maxPrice * SOFT_MAXPRICE_CAP_FACTOR).
+      const SOFT_MAXPRICE_CAP_FACTOR = 1.5;
+      // Price values in DB are stored as integer(price * 1e5) to keep precision.
+      const DB_PRICE_SCALE = 1e5;
+      const fmtDbPrice = (p: number): string => (p / DB_PRICE_SCALE).toFixed(5);
+      const priceToScorePerMs = (price: number, maxPrice?: number): number => {
+        return (maxPrice !== undefined && price > maxPrice) ? price * OVERPRICE_PENALTY_FACTOR : price;
+      };
+          
+      const price_data: { ts: Date; price: number }[] = ( location_uuid && (await this.db.pg.manyOrNone(
+        `SELECT ts, price FROM price_data p JOIN location l ON (l.price_list_uuid = p.price_list_uuid) WHERE location_uuid = $1 AND ts >= NOW() ORDER BY ts`,
         [location_uuid]
       ))) || [];
       let duration = 60 * 60e3; // default 1 hour
       let priceAvailable = 0;
-      const priceMap: { ts: number; duration: number; price: number }[] = price_data.map((e, i) => {
-        const start = e.ts.getTime();
+      const priceSlots: ReadonlyArray<PriceSlot> = price_data.map((e, i): PriceSlot => {
+        const from = e.ts.getTime();
         if (i < price_data.length - 1) {
           duration = price_data[i + 1].ts.getTime() - e.ts.getTime();
         }
-        const end = start + duration;
-        if (end > priceAvailable) {
-          priceAvailable = end;
+        const to = from + duration;
+        if (to > priceAvailable) {
+          priceAvailable = to;
         }
-        return { ts: start, duration: duration, price: e.price };
-      }).sort((a, b) => a.price - b.price);
-      // @codex: is this sorted correctly by cheapest price first?
+        return { from, to, price: e.price };
+      });
 
       const chargeCurve = await this.db.getChargeCurve(vehicle.vehicle_uuid, location_uuid);
       const ChargeDuration = (from: number, to: number): number => {
@@ -936,45 +957,20 @@ export class Logic {
         }
         return sum * 1e3;
       };
-      let fillBefore: number = priceAvailable;
-
-      const GeneratePlan = (chargeType: ChargeType, comment: string, level: number, before_ts?: number, maxPrice?: number): boolean => {
-        // Adjust before_ts if it's passed already
-        before_ts = (before_ts || 0) <= now ? undefined : before_ts;
-
-        // Only adjust if it's earlier than 6h before the one we alread had in mind
-        if (before_ts && before_ts < priceAvailable && (fillBefore === priceAvailable || before_ts + 360 * 60e3 < fillBefore)) {
-          fillBefore = before_ts;
-        }
-
-        // Do charge goal adjustments
-        if (level > startLevel && before_ts !== undefined) {
-          // Do we need to split and do a partial charge for future target
-          if (priceAvailable && before_ts > priceAvailable) {
-            const timeNeeded = ChargeDuration(startLevel, level);
-            const startDeadline = before_ts - timeNeeded * 1.5;
-            log(LogLevel.Trace, `${capitalize(chargeType)} charge time ${Math.round(timeNeeded / 60e3)} min, deadline ${new Date(startDeadline).toISOString()}`);
-            if (startDeadline > priceAvailable) {
-              log(LogLevel.Trace, `deadline beyond price data, ignore charge`);
-              return false;
-            } else {
-              before_ts = priceAvailable;
-              level = Math.floor(
-                startLevel +
-                ((level - startLevel) * (priceAvailable - startDeadline)) /
-                (timeNeeded * 1.5)
-              );
-              log(LogLevel.Debug, `${capitalize(chargeType)} partial charge to ${level}% before ${new Date(before_ts).toISOString()}`);
-            }
-          }
-
-          // Do we need to topup charge above maximum
-          if (level > vehicle.maximum_charge) {
-            const topupTime = ChargeDuration(Math.max(startLevel, vehicle.maximum_charge), level);
-            const topupStart = before_ts - SCHEDULE_TOPUP_MARGIN - topupTime;
-            log(LogLevel.Debug,
-              `${capitalize(chargeType)} topup charge from ${vehicle.maximum_charge}% to ${level}% start at ${new Date(topupStart).toISOString()}`
-            );
+      let hardStart = now;
+      let hardEnd = Number.POSITIVE_INFINITY;
+      const softIntents: Array<{
+        chargeType: ChargeType;
+        comment: string;
+        level: number;
+        beforeTs?: number;
+      }> = [];
+      let fillMaxPrice: number | null = null;
+      const addSoftIntent = (chargeType: ChargeType, comment: string, level: number, beforeTs?: number) => {
+        if (level > vehicle.maximum_charge) {
+          if (beforeTs !== undefined) {
+            const topupTime = ChargeDuration(vehicle.maximum_charge, level);
+            const topupStart = beforeTs - SCHEDULE_TOPUP_MARGIN - topupTime;
             chargePlan.push({
               chargeStart: new Date(topupStart),
               chargeStop: null,
@@ -982,77 +978,357 @@ export class Logic {
               chargeType,
               comment: `topping up`,
             });
-
-            // Adjust charge target to exclude topup range
-            before_ts = topupStart;
-            level = vehicle.maximum_charge;
+            hardEnd = Math.min(hardEnd, topupStart);
+          }
+          level = vehicle.maximum_charge;
+        }
+        softIntents.push({ chargeType, comment, level, beforeTs });
+      };
+      const sortSoftIntents = (intents: typeof softIntents): typeof softIntents => {
+        return intents.slice().sort((a, b) => CHARGE_PRIO[a.chargeType] - CHARGE_PRIO[b.chargeType]);
+      };
+      const buildAllocations = (intents: typeof softIntents) => {
+        const ordered = sortSoftIntents(intents);
+        let prevNeeded = 0;
+        const out: Array<{ durationMs: number; chargeType: ChargeType; comment: string; level: number }> = [];
+        for (const intent of ordered) {
+          const needed = ChargeDuration(startLevel, intent.level);
+          const durationMs = Math.max(0, needed - prevNeeded);
+          if (durationMs > 0) {
+            out.push({ durationMs, chargeType: intent.chargeType, comment: intent.comment, level: intent.level });
+            prevNeeded = needed;
           }
         }
+        return out;
+      };
+      const applyWindows = (
+        windows: Array<{ start: number; stop: number }>,
+        allocations: Array<{ durationMs: number; chargeType: ChargeType; comment: string; level: number }>
+      ) => {
+        if (!smartStatus && allocations.length > 0) {
+          const top = allocations[0];
+          smartStatus = `${capitalize(top.chargeType)} charge to ${top.level}% scheduled`;
+        }
+        const sorted = windows.slice().sort((a, b) => a.start - b.start);
+        let i = 0;
+        let remaining = allocations.length > 0 ? allocations[0].durationMs : 0;
+        for (const w of sorted) {
+          let cursor = w.start;
+          let windowLeft = w.stop - w.start;
+          while (windowLeft > 0 && i < allocations.length) {
+            const a = allocations[i];
+            const take = Math.min(windowLeft, remaining);
+            chargePlan.push({
+              chargeStart: new Date(cursor),
+              chargeStop: new Date(cursor + take),
+              level: a.level,
+              chargeType: a.chargeType,
+              comment: a.comment,
+            });
+            cursor += take;
+            windowLeft -= take;
+            remaining -= take;
+            if (remaining <= 0) {
+              i++;
+              remaining = i < allocations.length ? allocations[i].durationMs : 0;
+            }
+          }
+        }
+      };
+      const scheduleSoftIntents = () => {
+        if (softIntents.length === 0 && fillMaxPrice === null) return;
 
-        if (level > startLevel) {
-          const timeNeeded = ChargeDuration(startLevel, level);
-          assert(timeNeeded > 0);
+        let intentDeadline = priceAvailable;
+        let intentMaxLevel = startLevel;
+        for (const i of softIntents) {
+          if (i.beforeTs !== undefined) intentDeadline = Math.min(intentDeadline, i.beforeTs);
+          if (i.level > intentMaxLevel) intentMaxLevel = i.level;
+        }
+        if (intentDeadline >= hardStart) {
+          const max = vehicle.maximum_charge;
+          const fillWindows = (
+            fillMaxPrice === null ? { windows: [], scheduledMs: 0 } :
+            planWindows(ChargeDuration(startLevel, max), intentDeadline, fillMaxPrice, `fill:${max}`)
+          );
+          if (fillWindows.scheduledMs >= ChargeDuration(startLevel, intentMaxLevel)) {
+            // We can fill the entire intent with cheap energy
+            applyWindows(fillWindows.windows, buildAllocations([ ...softIntents, { chargeType: ChargeType.Fill, comment: `low price`, level: max } ]));
+            smartStatus = smartStatus || `Intent charge to ${intentMaxLevel}% scheduled`;
+          } else if (intentMaxLevel > startLevel) {
+            // We can not fill the entire intent with cheap energy, so we generate a new plan without maxPrice constraint
+            const plan = planWindows(ChargeDuration(startLevel, intentMaxLevel), intentDeadline, undefined, `intent:${intentMaxLevel}`);
+            applyWindows(plan.windows, buildAllocations(softIntents));
+          }
+        } else if (intentMaxLevel > startLevel) {
+          // No price data or deadline: charge directly to the max soft intent level.
+          const timeNeeded = ChargeDuration(startLevel, intentMaxLevel);
+          chargePlan.push({
+            chargeStart: null,
+            chargeStop: new Date(Date.now() + timeNeeded),
+            chargeType: softIntents[0]?.chargeType || ChargeType.Fill,
+            level: intentMaxLevel,
+            comment: softIntents[0]?.comment || `low price`,
+          });
+        }
+      };
 
-          if (priceAvailable && before_ts !== undefined) {
-            log(LogLevel.Trace, `${capitalize(chargeType)} charge to ${level}% before ${new Date(before_ts).toISOString()}`);
+      const planWindows = (
+        timeNeeded: number,
+        before_ts: number,
+        maxPrice: number | undefined,
+        scheduleTag: string
+      ): { windows: { start: number; stop: number }[]; scheduledMs: number } => {
+        const scheduled = { windows: [] as { start: number; stop: number }[], scheduledMs: 0 };
+        const cap = maxPrice === undefined ? undefined : maxPrice * SOFT_MAXPRICE_CAP_FACTOR;
+        const candidates = priceSlots.flatMap((s: PriceSlot): (PriceSlot & { duration: number; score: number })[] => {
+          const from = Math.max(s.from, hardStart);
+          const to = Math.min(s.to, before_ts, hardEnd);
+          if (to <= from) return [];
+          // remove segments over hard-cap
+          if (cap !== undefined && s.price > cap) return [];
+          const duration = to - from;
+          const score = priceToScorePerMs(s.price, maxPrice) * duration;
+          return [{ from, to, duration, price: s.price, score }];
+        });
 
-            // Map priceMap prices to a list of hours to charge
-            let timeLeft = timeNeeded;
-            for (const price of priceMap) {
-              if (timeLeft < 1) break; // Done
-              if (maxPrice && price.price > maxPrice) break; // Prices too high
+        if (candidates.length === 0) {
+          log(LogLevel.Trace, `scheduleWindows(${scheduleTag}): no segments (no price data?)`);
+          return scheduled;
+        }
 
-              if (price.ts > before_ts) continue; // price beyond our target time
+        let available = 0;
+        let quantumMs = Infinity;
+        for (const s of candidates) {
+          available += s.duration;
+          if (s.duration < quantumMs) quantumMs = s.duration;
+        }
+        // Fallback quantum (should never happen unless price data is malformed).
+        quantumMs = isFinite(quantumMs) ? quantumMs : 15 * 60e3;
+        assert(quantumMs > 0);
 
-              // Duration takes timeLeft, "now" and "before_ts" into account to be accurate
-              const duration = Math.min(Math.min(price.ts + price.duration, before_ts) - Math.max(price.ts, now), timeLeft);
-              if (duration < 1) continue; // no time here
-              chargePlan.push({
-                chargeStart: new Date(price.ts),
-                chargeStop: new Date(price.ts + price.duration),
-                level,
-                chargeType,
-                comment,
+        // Try to schedule as much as possible (up to timeNeeded). If constraints prevent it (e.g. missing price
+        // data creates gaps, or maxPrice is too strict), back off in "slot" increments until feasible.
+        const targetMaxMs = Math.max(0, Math.min(timeNeeded, available));
+        if (targetMaxMs < 1) {
+          log(LogLevel.Trace, `scheduleWindows(${scheduleTag}): nothing to schedule (need=${Math.round(timeNeeded / 60e3)}min avail=${Math.round(available / 60e3)}min)`);
+          return scheduled;
+        }
+
+        log(
+          LogLevel.Trace,
+          `scheduleWindows(${scheduleTag}): need=${Math.round(timeNeeded / 60e3)}min targetMax=${Math.round(targetMaxMs / 60e3)}min before=${new Date(before_ts).toISOString()} ` +
+          `candidates=${candidates.length} avail=${Math.round(available / 60e3)}min quantum=${Math.round(quantumMs / 60e3)}min ` +
+          `maxPrice=${maxPrice === undefined ? "none" : fmtDbPrice(maxPrice)} capFactor=${SOFT_MAXPRICE_CAP_FACTOR} overPenalty=${OVERPRICE_PENALTY_FACTOR}`
+        );
+
+        let backoffSteps = 0;
+        for (let targetMs = targetMaxMs; targetMs >= quantumMs; targetMs -= quantumMs) {
+          const maxWindows = Math.max(1, Math.floor(targetMs / MIN_CHARGE_WINDOW_MS));
+
+          let bestScore = Infinity;
+          let bestWindows: { start: number; stop: number }[] = [];
+
+          // Try 1 segment, then 2, then 3... Stop when adding another segment doesn't improve enough.
+          for (let k = 1; k <= maxWindows; k++) {
+            const long = targetMs - (k - 1) * MIN_CHARGE_WINDOW_MS;
+            assert(long > 0);
+            let remaining = candidates.slice();
+            const windows: ChargeWindow[] = [];
+            let score = 0;
+            let ok = true;
+
+            // Greedy placement: schedule the (possibly longer) remainder segment first, then the 60min chunks.
+            // When k>1, long is guaranteed >= MIN_CHARGE_WINDOW_MS by construction of maxWindows.
+            for (let i = 0; i < k; i++) {
+              const d = i === 0 ? long : MIN_CHARGE_WINDOW_MS;
+              if (k > 1) assert(d >= MIN_CHARGE_WINDOW_MS);
+
+              let w: ChargeWindow | null = null;
+              if (d > 0) {
+                let total = 0;
+                for (const s of remaining) total += s.duration;
+                if (total + 1 >= d) {
+                  // Sliding window over segment boundaries. Window always starts on a segment boundary.
+                  let best: ChargeWindow | null = null;
+                  let bestWindowScore = Infinity;
+                  let left = 0;
+                  let right = 0;
+                  let curDur = 0;
+                  let curScore = 0; // penalized "price*ms" proxy cost
+
+                  while (left < remaining.length) {
+                    while (right < remaining.length && curDur < d) {
+                      // Don't allow a "window" to jump over gaps created by maxPrice filtering or missing data.
+                      if (right > left && remaining[right].from !== remaining[right - 1].to) {
+                        left = right;
+                        curDur = 0;
+                        curScore = 0;
+                        continue;
+                      }
+                      const seg = remaining[right];
+                      curDur += seg.duration;
+                      curScore += seg.score;
+                      right++;
+                    }
+
+                    if (curDur >= d) {
+                      const first = remaining[left];
+                      const last = remaining[right - 1];
+                      const overhang = curDur - d;
+                      // If the last slot is cheaper than the first, shift the window forward by the full overhang
+                      // to replace expensive minutes at the start with cheaper minutes at the end.
+                      const windowScore =
+                        curScore -
+                        overhang * (first.price > last.price ? priceToScorePerMs(first.price, maxPrice) : priceToScorePerMs(last.price, maxPrice));
+                      const start = first.from + (first.price > last.price ? overhang : 0);
+                      const stop = start + d;
+
+                      if (maxPrice !== undefined) {
+                        // avg is in "penalized price per ms" units; compare directly to raw maxPrice.
+                        const avg = windowScore / d;
+                        if (avg <= maxPrice && windowScore < bestWindowScore) {
+                          bestWindowScore = windowScore;
+                          best = { start, stop, score: windowScore };
+                        }
+                      } else if (windowScore < bestWindowScore) {
+                        bestWindowScore = windowScore;
+                        best = { start, stop, score: windowScore };
+                      }
+                    } else {
+                      break;
+                    }
+
+                    const segL = remaining[left];
+                    curDur -= segL.duration;
+                    curScore -= segL.score;
+                    left++;
+                    if (right < left) {
+                      right = left;
+                      curDur = 0;
+                      curScore = 0;
+                    }
+                  }
+
+                  w = best;
+                }
+              }
+
+              if (!w) {
+                log(
+                  LogLevel.Trace,
+                  `scheduleWindows(${scheduleTag}): target=${Math.round(targetMs / 60e3)}min k=${k} failed at part=${i + 1}/${k} dur=${Math.round(d / 60e3)}min (no continuous window)`
+                );
+                ok = false;
+                break;
+              }
+
+              windows.push(w);
+              score += w.score;
+              // Remove the chosen window from remaining candidates so future windows can't reuse the same time
+              remaining = remaining.flatMap((s) => {
+                // Outside the chosen window, keep as is.
+                if (s.to <= w.start || s.from >= w.stop) return [s];
+                // Keep the non-overlapping remainder of this segment.
+                const remainders: Array<{ from: number; to: number; duration: number; price: number; score: number }> = [];
+                if (s.from < w.start) {
+                  const to = Math.min(s.to, w.start);
+                  if (to > s.from) {
+                    const duration = to - s.from;
+                    const score = priceToScorePerMs(s.price, maxPrice) * duration;
+                    remainders.push({ from: s.from, to, duration, price: s.price, score });
+                  }
+                }
+
+                if (s.to > w.stop) {
+                  const from = Math.max(s.from, w.stop);
+                  if (s.to > from) {
+                    const duration = s.to - from;
+                    const score = priceToScorePerMs(s.price, maxPrice) * duration;
+                    remainders.push({ from, to: s.to, duration, price: s.price, score });
+                  }
+                }
+
+                return remainders;
               });
-              timeLeft -= duration;
-              log(LogLevel.Trace, `charge ${duration / 1e3}s ${JSON.stringify(price)} => ${timeLeft / 1e3}s left`);
             }
 
-            smartStatus = smartStatus || `${capitalize(chargeType)} charge to ${level}% scheduled`;
-          } else {
-            log(LogLevel.Debug, `${capitalize(chargeType)} charge directly to ${level}%`);
-            chargePlan.push({
-              chargeStart: null,
-              chargeStop: new Date(Date.now() + timeNeeded),
-              chargeType,
-              level,
-              comment,
-            });
-            smartStatus = smartStatus || `${capitalize(chargeType)} charge directly to ${level}%`;
+            if (!ok) break;
+
+            // First feasible solution is the baseline. Only accept a higher split-count if it's "10% cheaper per added segment".
+            if (bestWindows.length === 0) {
+              bestScore = score;
+              bestWindows = windows.map((w) => ({ start: w.start, stop: w.stop }));
+              log(LogLevel.Trace,
+                `scheduleWindows(${scheduleTag}): target=${Math.round(targetMs / 60e3)}min k=${k} baseline avgPrice=${fmtDbPrice(bestScore / targetMs)} ` +
+                `windows=${bestWindows.map((w) => `${new Date(w.start).toISOString()}..${new Date(w.stop).toISOString()}`).join(", ")}`
+              );
+              continue;
+            }
+
+            if (score <= bestScore * (1 - SPLIT_SAVE_FRACTION)) {
+              bestScore = score;
+              bestWindows = windows.map((w) => ({ start: w.start, stop: w.stop }));
+              log(LogLevel.Trace,
+                `scheduleWindows(${scheduleTag}): target=${Math.round(targetMs / 60e3)}min k=${k} accepted avgPrice=${fmtDbPrice(bestScore / targetMs)} ` +
+                `windows=${bestWindows.map((w) => `${new Date(w.start).toISOString()}..${new Date(w.stop).toISOString()}`).join(", ")}`
+              );
+              continue;
+            }
+
+            // Not cheap enough to justify another split.
+            log(LogLevel.Trace,
+              `scheduleWindows(${scheduleTag}): target=${Math.round(targetMs / 60e3)}min k=${k} rejected avgPrice=${fmtDbPrice(score / targetMs)} >= ${fmtDbPrice((bestScore * (1 - SPLIT_SAVE_FRACTION)) / targetMs)} ` +
+              `(need ${(SPLIT_SAVE_FRACTION * 100).toFixed(0)}% improvement)`
+            );
+            break;
           }
 
-          return true;
-        } else {
-          log(LogLevel.Debug, `${level} <= ${startLevel}, no ${chargeType} charge plan added for ${comment}`);
-          return false;
+          if (bestWindows.length > 0) {
+            bestWindows.sort((a, b) => a.start - b.start);
+            if (backoffSteps > 0) {
+              log(
+                LogLevel.Trace,
+                `scheduleWindows(${scheduleTag}): backed off ${backoffSteps} steps => scheduled=${Math.round(targetMs / 60e3)}min (from ${Math.round(targetMaxMs / 60e3)}min)`
+              );
+            }
+            scheduled.windows = bestWindows;
+            scheduled.scheduledMs = targetMs;
+            return scheduled;
+          }
+
+          backoffSteps++;
         }
+
+        log(LogLevel.Trace, `scheduleWindows(${scheduleTag}): no feasible schedule found (maxPrice gaps too large?)`);
+        return scheduled;
       };
 
       const HandleTripCharge = () => {
         if (trip) {
           assert(trip.level);
           assert(trip.schedule_ts);
-          GeneratePlan(ChargeType.Trip, `upcoming trip`, trip.level, trip.schedule_ts.getTime());
+          addSoftIntent(ChargeType.Trip, `upcoming trip`, trip.level, trip.schedule_ts.getTime());
         }
       };
 
       if (startLevel < minimum_charge) {
         // Emergency charge up to minimum level
-        GeneratePlan(ChargeType.Minimum, `emergency charge`, minimum_charge);
+        const timeNeeded = ChargeDuration(startLevel, minimum_charge);
+        assert(timeNeeded > 0);
+        const stop = hardStart + timeNeeded;
+        chargePlan.push({
+          chargeStart: new Date(hardStart),
+          chargeStop: new Date(stop),
+          chargeType: ChargeType.Minimum,
+          level: minimum_charge,
+          comment: `emergency charge`,
+        });
+        hardStart = stop;
+        startLevel = minimum_charge;
         smartStatus = (vehicle.connected ? `Direct charging to ` : `Connect charger to charge to `) + `${minimum_charge}%`;
       }
 
-      // Manual schedule blocks everything
+      // Manual schedule overrides auto choices
       if (manual) {
         if (!manual.schedule_ts) {
           assert(manual.level);
@@ -1068,12 +1344,7 @@ export class Logic {
         } else {
           assert(manual.level);
           assert(manual.schedule_ts);
-          GeneratePlan(
-            ChargeType.Manual,
-            `manual charge`,
-            manual.level,
-            manual.schedule_ts.getTime()
-          );
+          addSoftIntent(ChargeType.Manual, `manual charge`, manual.level, manual.schedule_ts.getTime());
         }
 
         // Still do trip charging!
@@ -1083,6 +1354,11 @@ export class Logic {
         if (location_uuid) {
           stats = await this.currentStats(vehicle, location_uuid);
           log(LogLevel.Trace, `stats: ${JSON.stringify(stats)}`);
+        }
+
+        if (stats && stats.weekly_avg7_price && stats.weekly_avg21_price && stats.threshold) {
+          const averagePrice = stats.weekly_avg7_price + (stats.weekly_avg7_price - stats.weekly_avg21_price) / 2;
+          fillMaxPrice = (averagePrice * stats.threshold) / 100;
         }
 
         const ai = {
@@ -1136,8 +1412,8 @@ export class Logic {
                 }
               }
               smartStatus = smartStatus || `Smart charging disabled (learning)`;
-              GeneratePlan(ChargeType.Fill, `learning`, vehicle.maximum_charge, start_ts + 12 * 60 * 60e3);
-              fillBefore = 0; // disable low-price filling
+              addSoftIntent(ChargeType.Fill, `learning`, vehicle.maximum_charge, start_ts + 12 * 60 * 60e3);
+              fillMaxPrice = null; // disable low-price filling
             } else {
               assert(ai.level);
               assert(ai.ts);
@@ -1146,7 +1422,7 @@ export class Logic {
               smartStatus = smartStatus
                 || `Predicting battery level ${ai.level}% (${neededCharge > 0 ? Math.round(neededCharge) + "%" : "no"} charge) is needed before ${before.toISOString()}`;
               log(LogLevel.Debug, `Current level: ${vehicle.level}, predicting ${ai.level}% (${minimum_charge}+${neededCharge - minimum_charge}) is needed before ${before.toISOString()}`);
-              GeneratePlan(ChargeType.Routine, `routine charge`, ai.level, ai.ts);
+              addSoftIntent(ChargeType.Routine, `routine charge`, ai.level, ai.ts);
 
               // locations settings charging
               {
@@ -1160,20 +1436,17 @@ export class Logic {
                   );
 
                 if (goalLevel > ai.level) {
-                  GeneratePlan(ChargeType.Prefered, `charge setting`, goalLevel, ai.ts);
+                  addSoftIntent(ChargeType.Prefered, `charge setting`, goalLevel, ai.ts);
                 }
               }
             }
           }
-
-          // Low price fill charging
-          if (fillBefore && stats && stats.weekly_avg7_price && stats.weekly_avg21_price && stats.threshold) {
-            const averagePrice = stats.weekly_avg7_price + (stats.weekly_avg7_price - stats.weekly_avg21_price) / 2;
-            const thresholdPrice = (averagePrice * stats.threshold) / 100;
-
-            GeneratePlan(ChargeType.Fill, `low price`, vehicle.maximum_charge, fillBefore, thresholdPrice);
-          }
         }
+        
+      }
+
+      if (!manual || manual.schedule_ts) {
+        scheduleSoftIntents();
       }
     }
 
