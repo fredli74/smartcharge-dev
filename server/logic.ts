@@ -1063,7 +1063,7 @@ export class Logic {
           const timeNeeded = ChargeDuration(startLevel, intentMaxLevel);
           chargePlan.push({
             chargeStart: null,
-            chargeStop: new Date(Date.now() + timeNeeded),
+            chargeStop: new Date(now + timeNeeded),
             chargeType: softIntents[0]?.chargeType || ChargeType.Fill,
             level: intentMaxLevel,
             comment: softIntents[0]?.comment || `low price`,
