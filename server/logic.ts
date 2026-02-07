@@ -1073,7 +1073,7 @@ export class Logic {
             planWindows(ChargeDuration(startLevel, max), intentDeadline, fillMaxPrice, `fill:${max}`)
           );
           // If we found more charge time than we need to reach the intent max level, we don't need another plan
-          if (fillWindows.scheduledMs >= timeNeeded) {
+          if (fillWindows.windows.length > 0 && fillWindows.scheduledMs >= timeNeeded) {
             // apply the fill plan, use the intent charge types and comments for each section
             applyWindows(fillWindows.windows, buildAllocations([ ...softIntents, { chargeType: ChargeType.Fill, comment: `low price`, level: max, requestedLevel: max } ]));
           } else if (intentMaxLevel > startLevel) {
