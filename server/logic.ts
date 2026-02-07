@@ -1472,9 +1472,7 @@ export class Logic {
         }
       }
 
-      if (!manual || manual.schedule_ts) {
-        scheduleSoftIntents();
-      }
+      scheduleSoftIntents();
     }
 
     if (smartStatus) {
