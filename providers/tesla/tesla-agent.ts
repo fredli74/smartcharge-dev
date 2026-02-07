@@ -678,7 +678,7 @@ export class TeslaAgent extends AbstractAgent {
       })
       // Convert to numeric charge plans with start and stop times rounded to 15 minutes
       .map((p): NumericChargePlan => {
-        if (wantedSoc === undefined && p.level) {
+        if (p.level !== undefined && (wantedSoc === undefined || wantedSoc < p.level)) {
           wantedSoc = p.level;
         }
         return {
