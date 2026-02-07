@@ -1146,7 +1146,7 @@ export class Logic {
         );
 
         let backoffSteps = 0;
-        for (let targetMs = targetMaxMs; targetMs >= quantumMs; targetMs -= quantumMs) {
+        for (let targetMs = targetMaxMs; targetMs > 0; ) {
           const maxWindows = Math.max(1, Math.floor(targetMs / MIN_CHARGE_WINDOW_MS));
 
           let bestScore = Infinity;
@@ -1318,6 +1318,8 @@ export class Logic {
             return scheduled;
           }
 
+          if (targetMs <= quantumMs) break;
+          targetMs -= quantumMs;
           backoffSteps++;
         }
 
