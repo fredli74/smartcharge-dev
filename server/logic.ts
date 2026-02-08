@@ -11,7 +11,7 @@ import { DBInterface } from "./db-interface.js";
 import { DBVehicle, DBCharge, DBChargeCurrent, DBTrip, DBConnected, DBLocationStats, DBStatsMap, DBSchedule, } from "./db-schema.js";
 import {
   LogLevel,
-  log,
+  vehicleLog,
   arrayMean,
   compareStartStopTimes,
   numericStartTime,
@@ -45,8 +45,8 @@ export class Logic {
   ) {
     // Lookup old record
     const was: DBVehicle = await this.db.getVehicle(undefined, input.id);
-    log(LogLevel.Trace, `input: ${JSON.stringify(input)}`);
-    log(LogLevel.Trace, `vehicle: ${JSON.stringify(was)}`);
+    vehicleLog(LogLevel.Trace, was.vehicle_uuid, `input: ${JSON.stringify(input)}`);
+    vehicleLog(LogLevel.Trace, was.vehicle_uuid, `vehicle: ${JSON.stringify(was)}`);
 
     const vehicle = { ...was };
     let connection: DBConnected | null = null;
@@ -107,7 +107,7 @@ export class Logic {
               connected: true,
             }
           )) as DBConnected;
-          log(LogLevel.Debug, `Started connection ${connection.connected_id}`);
+          vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Started connection ${connection.connected_id}`);
           vehicle.connected_id = connection.connected_id;
           if (connection.location_uuid !== null) {
             await this.createNewStats(vehicle, connection.location_uuid);
@@ -118,20 +118,20 @@ export class Logic {
             `UPDATE connected SET type = $1, location_uuid = $2 WHERE connected_id = $3 RETURNING *;`,
             [input.connectedCharger, vehicle.location_uuid, connection.connected_id]
           )) as DBConnected;
-          log(LogLevel.Debug, `Reconnected to connection ${connection.connected_id}`);
+          vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Reconnected to connection ${connection.connected_id}`);
         }
         doPricePlan = true;
         vehicle.connected_id = connection.connected_id;
-        log(LogLevel.Debug, `Vehicle connected (connected_id=${connection.connected_id})`);
+        vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Vehicle connected (connected_id=${connection.connected_id})`);
       } else {
         // We disconnected
         if (was.connected_id !== null) {
-          log(LogLevel.Debug, `Ending connection ${was.connected_id}`);
+          vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Ending connection ${was.connected_id}`);
           await this.db.pg.none(
             `UPDATE connected SET end_ts = $1, end_level = $2, connected = false WHERE connected_id = $3;`,
             [now, vehicle.level, was.connected_id]
           );
-          log(LogLevel.Debug, `Vehicle no longer connected (connected_id=${was.connected_id})`);
+          vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Vehicle no longer connected (connected_id=${was.connected_id})`);
           vehicle.connected_id = null;
           vehicle.charge_id = null;
         }
@@ -193,7 +193,7 @@ export class Logic {
             }
           }
 
-          log(LogLevel.Debug, `Updating charge ${charge.charge_id} with ${deltaAdded} Wm added`);
+          vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Updating charge ${charge.charge_id} with ${deltaAdded} Wm added`);
           await this.db.pg.none(
             `UPDATE connected SET ($1:name) = ($1:csv) WHERE connected_id=$2;`,
             [{
@@ -225,7 +225,7 @@ export class Logic {
                 const used = (avgPower * duration) / 60; // power (W) * time (s) = Ws / 60 = Wm
                 const added = energyAdded - chargeCurrent.start_added; // Wm
                 const avgTemp = arrayMean(chargeCurrent.outside_deci_temperatures); // deci-celsius
-                log(LogLevel.Debug, `Calculated charge curve between ${chargeCurrent.start_level}% and ${vehicle.level}% is ${(used / 60.0).toFixed(2)}kWh in ${(duration / 60.0).toFixed(2)}m`);
+                vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Calculated charge curve between ${chargeCurrent.start_level}% and ${vehicle.level}% is ${(used / 60.0).toFixed(2)}kWh in ${(duration / 60.0).toFixed(2)}m`);
                 await this.db.setChargeCurve(
                   vehicle.vehicle_uuid, charge.charge_id, chargeCurrent.start_level, duration, avgTemp, used, added);
               }
@@ -274,7 +274,7 @@ export class Logic {
             }
           )) as DBCharge;
           vehicle.charge_id = charge.charge_id;
-          log(LogLevel.Debug, `Started charge ${charge.charge_id}`);
+          vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Started charge ${charge.charge_id}`);
         }
       }
     }
@@ -286,7 +286,7 @@ export class Logic {
         `UPDATE charge SET start_used = COALESCE(start_used, $1), end_used = $1 WHERE charge_id=$2 RETURNING *;`,
         [energyUsed, vehicle.charge_id]
       );
-      log(LogLevel.Trace, `charge: ${JSON.stringify(new_charge)}`);
+      vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `charge: ${JSON.stringify(new_charge)}`);
     }
 
     if (input.powerUse && vehicle.charge_id !== null) {
@@ -299,13 +299,13 @@ export class Logic {
         }
       );
       if (new_current) {
-        log(LogLevel.Trace, `charge_current: ${JSON.stringify(new_current)}`);
+        vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `charge_current: ${JSON.stringify(new_current)}`);
       }
     }
 
     if (was.charge_id !== null && vehicle.charge_id === null) {
       // We stopped charging
-      log(LogLevel.Debug, `Ending charge ${was.charge_id}`);
+      vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Ending charge ${was.charge_id}`);
       await this.db.pg.none(`DELETE FROM charge_current WHERE charge_id=$1;`, [was.charge_id]);
     }
 
@@ -337,7 +337,7 @@ export class Logic {
             }
           )) as DBTrip;
           vehicle.trip_id = trip.trip_id;
-          log(LogLevel.Debug, `Started trip ${trip.trip_id}`);
+          vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Started trip ${trip.trip_id}`);
         }
       } else {
         const distance = vehicle.odometer - trip.start_odometer;
@@ -350,13 +350,14 @@ export class Logic {
               [vehicle.vehicle_uuid, ScheduleType.Manual]
             );
             if (removed) {
-              log(
+              vehicleLog(
                 LogLevel.Trace,
-                `Removed manual schedule for vehicle ${vehicle.vehicle_uuid} after leaving location ${trip.start_location_uuid} on trip ${trip.trip_id} (${distance}m)`
+                vehicle.vehicle_uuid,
+                `Removed manual schedule after leaving location ${trip.start_location_uuid} on trip ${trip.trip_id} (${distance}m)`
               );
             }
           }
-          log(LogLevel.Debug, `Updating trip ${vehicle.trip_id} with ${traveled}m driven`);
+          vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Updating trip ${vehicle.trip_id} with ${traveled}m driven`);
           trip = (await this.db.pg.one(
             `UPDATE trip SET ($1:name) = ($1:csv) WHERE trip_id=$2 RETURNING *;`,
             [{
@@ -371,19 +372,18 @@ export class Logic {
           let stopTrip = false;
           if (vehicle.location_uuid !== null) {
             // We stopped driving at a location we know
-            log(LogLevel.Debug,
-              `Vehicle at location ${vehicle.location_uuid} after driving ${trip.distance / 1e3} km, ending trip ${trip.trip_id}`
+            vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Vehicle at location ${vehicle.location_uuid} after driving ${trip.distance / 1e3} km, ending trip ${trip.trip_id}`
             );
             stopTrip = true;
             if (trip.distance < 1e3) {
               // totally ignore trips less than 1 km
-              log(LogLevel.Debug, `Removing trip ${trip.trip_id}, because it only recorded ${trip.distance} meters`);
+              vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Removing trip ${trip.trip_id}, because it only recorded ${trip.distance} meters`);
               await this.db.pg.none(`DELETE FROM trip WHERE trip_id=$1;`, [
                 vehicle.trip_id,
               ]);
             }
           } else if (vehicle.connected) {
-            log(LogLevel.Debug, `Vehicle connected after driving ${trip.distance / 1e3} km, ending trip ${trip.trip_id}`);
+            vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Vehicle connected after driving ${trip.distance / 1e3} km, ending trip ${trip.trip_id}`);
             stopTrip = true;
           }
           if (stopTrip) {
@@ -391,7 +391,7 @@ export class Logic {
             doPricePlan = true;
           }
         }
-        log(LogLevel.Trace, `trip: ${JSON.stringify(trip)}`);
+        vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `trip: ${JSON.stringify(trip)}`);
       }
     }
 
@@ -658,7 +658,7 @@ export class Logic {
         if (lvl > minimum_charge + needavg && f < bestCost * 0.95) {
           bestCost = f;
           threshold = t;
-          log(LogLevel.Debug, `Cost simulation ${vehicle.vehicle_uuid} t=${t} => ${f}`);
+          vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Cost simulation ${vehicle.vehicle_uuid} t=${t} => ${f}`);
         }
       }
     }
@@ -841,7 +841,7 @@ export class Logic {
 
     if (!guess || !guess.before || !guess.charge) {
       // missing data to guess
-      log(LogLevel.Debug, `Missing data for smart charging.`);
+      vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Missing data for smart charging.`);
       return null;
     } else {
       const minimumLevel = Math.min(
@@ -854,18 +854,18 @@ export class Logic {
   }
 
   private async refreshVehicleChargePlan(vehicle: DBVehicle) {
-    log(LogLevel.Trace, `vehicle: ${JSON.stringify(vehicle)}`);
+    vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `vehicle: ${JSON.stringify(vehicle)}`);
 
     let location_uuid = vehicle.location_uuid;
     if (location_uuid === null) {
       if (vehicle.connected) {
         // We are connected, but not at a known location
-        log(LogLevel.Debug, `Vehicle connected at unknown location`);
+        vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Vehicle connected at unknown location`);
       } else if (vehicle.location_micro_latitude && vehicle.location_micro_longitude) {
         const closest = await this.db.lookupClosestLocation(vehicle.account_uuid, vehicle.location_micro_latitude, vehicle.location_micro_longitude);
         if (closest) {
           location_uuid = closest.location.location_uuid;
-          log(LogLevel.Debug, `Vehicle at unknown location, closest known location is ${location_uuid} (${closest.distance}m)`);
+          vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Vehicle at unknown location, closest known location is ${location_uuid} (${closest.distance}m)`);
         }
       }
     }
@@ -900,7 +900,7 @@ export class Logic {
     let smartStatus = "";
 
     if (manual && !manual.level) {
-      log(LogLevel.Debug, `Charging disabled until next connection`);
+      vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Charging disabled until next connection`);
       chargePlan.push({
         chargeStart: null,
         chargeStop: null,
@@ -1116,7 +1116,7 @@ export class Logic {
         });
 
         if (candidates.length === 0) {
-          log(LogLevel.Trace, `scheduleWindows(${scheduleTag}): no segments (no price data?)`);
+          vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `scheduleWindows(${scheduleTag}): no segments (no price data?)`);
           return scheduled;
         }
 
@@ -1134,12 +1134,13 @@ export class Logic {
         // data creates gaps, or maxPrice is too strict), back off in "slot" increments until feasible.
         const targetMaxMs = Math.max(0, Math.min(timeNeeded, available));
         if (targetMaxMs < 1) {
-          log(LogLevel.Trace, `scheduleWindows(${scheduleTag}): nothing to schedule (need=${Math.round(timeNeeded / 60e3)}min avail=${Math.round(available / 60e3)}min)`);
+          vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `scheduleWindows(${scheduleTag}): nothing to schedule (need=${Math.round(timeNeeded / 60e3)}min avail=${Math.round(available / 60e3)}min)`);
           return scheduled;
         }
 
-        log(
+        vehicleLog(
           LogLevel.Trace,
+          vehicle.vehicle_uuid,
           `scheduleWindows(${scheduleTag}): need=${Math.round(timeNeeded / 60e3)}min targetMax=${Math.round(targetMaxMs / 60e3)}min before=${new Date(before_ts).toISOString()} ` +
           `candidates=${candidates.length} avail=${Math.round(available / 60e3)}min quantum=${Math.round(quantumMs / 60e3)}min ` +
           `maxPrice=${maxPrice === undefined ? "none" : fmtDbPrice(maxPrice)} capFactor=${SOFT_MAXPRICE_CAP_FACTOR} overPenalty=${OVERPRICE_PENALTY_FACTOR}`
@@ -1238,8 +1239,9 @@ export class Logic {
               }
 
               if (!w) {
-                log(
+                vehicleLog(
                   LogLevel.Trace,
+                  vehicle.vehicle_uuid,
                   `scheduleWindows(${scheduleTag}): target=${Math.round(targetMs / 60e3)}min k=${k} failed at part=${i + 1}/${k} dur=${Math.round(d / 60e3)}min (no continuous window)`
                 );
                 ok = false;
@@ -1280,8 +1282,7 @@ export class Logic {
             if (bestWindows.length === 0) {
               bestScore = score;
               bestWindows = windows.map((w) => ({ start: w.start, stop: w.stop }));
-              log(LogLevel.Trace,
-                `scheduleWindows(${scheduleTag}): target=${Math.round(targetMs / 60e3)}min k=${k} baseline avgPrice=${fmtDbPrice(bestScore / targetMs)} ` +
+              vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `scheduleWindows(${scheduleTag}): target=${Math.round(targetMs / 60e3)}min k=${k} baseline avgPrice=${fmtDbPrice(bestScore / targetMs)} ` +
                 `windows=${bestWindows.map((w) => `${new Date(w.start).toISOString()}..${new Date(w.stop).toISOString()}`).join(", ")}`
               );
               continue;
@@ -1290,16 +1291,14 @@ export class Logic {
             if (score <= bestScore * (1 - SPLIT_SAVE_FRACTION)) {
               bestScore = score;
               bestWindows = windows.map((w) => ({ start: w.start, stop: w.stop }));
-              log(LogLevel.Trace,
-                `scheduleWindows(${scheduleTag}): target=${Math.round(targetMs / 60e3)}min k=${k} accepted avgPrice=${fmtDbPrice(bestScore / targetMs)} ` +
+              vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `scheduleWindows(${scheduleTag}): target=${Math.round(targetMs / 60e3)}min k=${k} accepted avgPrice=${fmtDbPrice(bestScore / targetMs)} ` +
                 `windows=${bestWindows.map((w) => `${new Date(w.start).toISOString()}..${new Date(w.stop).toISOString()}`).join(", ")}`
               );
               continue;
             }
 
             // Not cheap enough to justify another split.
-            log(LogLevel.Trace,
-              `scheduleWindows(${scheduleTag}): target=${Math.round(targetMs / 60e3)}min k=${k} rejected avgPrice=${fmtDbPrice(score / targetMs)} >= ${fmtDbPrice((bestScore * (1 - SPLIT_SAVE_FRACTION)) / targetMs)} ` +
+            vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `scheduleWindows(${scheduleTag}): target=${Math.round(targetMs / 60e3)}min k=${k} rejected avgPrice=${fmtDbPrice(score / targetMs)} >= ${fmtDbPrice((bestScore * (1 - SPLIT_SAVE_FRACTION)) / targetMs)} ` +
               `(need ${(SPLIT_SAVE_FRACTION * 100).toFixed(0)}% improvement)`
             );
             break;
@@ -1308,8 +1307,9 @@ export class Logic {
           if (bestWindows.length > 0) {
             bestWindows.sort((a, b) => a.start - b.start);
             if (backoffSteps > 0) {
-              log(
+              vehicleLog(
                 LogLevel.Trace,
+                vehicle.vehicle_uuid,
                 `scheduleWindows(${scheduleTag}): backed off ${backoffSteps} steps => scheduled=${Math.round(targetMs / 60e3)}min (from ${Math.round(targetMaxMs / 60e3)}min)`
               );
             }
@@ -1323,7 +1323,7 @@ export class Logic {
           backoffSteps++;
         }
 
-        log(LogLevel.Trace, `scheduleWindows(${scheduleTag}): no feasible schedule found (maxPrice gaps too large?)`);
+        vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `scheduleWindows(${scheduleTag}): no feasible schedule found (maxPrice gaps too large?)`);
         return scheduled;
       };
 
@@ -1356,7 +1356,7 @@ export class Logic {
       if (manual) {
         if (!manual.schedule_ts) {
           assert(manual.level);
-          log(LogLevel.Debug, `Manual charging directly to ${manual.level}%`);
+          vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Manual charging directly to ${manual.level}%`);
           const manualIntent: SoftIntent = {
             chargeType: ChargeType.Manual,
             comment: `manual charge`,
@@ -1383,7 +1383,7 @@ export class Logic {
         let stats: DBLocationStats | null = null;
         if (location_uuid) {
           stats = await this.currentStats(vehicle, location_uuid);
-          log(LogLevel.Trace, `stats: ${JSON.stringify(stats)}`);
+          vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `stats: ${JSON.stringify(stats)}`);
         }
 
         if (stats && stats.weekly_avg7_price && stats.weekly_avg21_price && stats.threshold) {
@@ -1418,7 +1418,7 @@ export class Logic {
                 ai.ts = schedule.ts;
               } else {
                 // Disable smart charging because without threshold and averages it can not make a good decision
-                log(LogLevel.Debug, `Missing stats for smart charging.`);
+                vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Missing stats for smart charging.`);
                 ai.learning = true;
               }
             }
@@ -1451,7 +1451,7 @@ export class Logic {
               const before = new Date(ai.ts);
               smartStatus = smartStatus
                 || `Predicting battery level ${ai.level}% (${neededCharge > 0 ? Math.round(neededCharge) + "%" : "no"} charge) is needed before ${before.toISOString()}`;
-              log(LogLevel.Debug, `Current level: ${vehicle.level}, predicting ${ai.level}% (${minimum_charge}+${neededCharge - minimum_charge}) is needed before ${before.toISOString()}`);
+              vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Current level: ${vehicle.level}, predicting ${ai.level}% (${minimum_charge}+${neededCharge - minimum_charge}) is needed before ${before.toISOString()}`);
               addSoftIntent(ChargeType.Routine, `routine charge`, ai.level, ai.ts);
 
               // locations settings charging
@@ -1483,7 +1483,7 @@ export class Logic {
 
     if (chargePlan.length) {
       chargePlan = Logic.cleanupPlan(chargePlan);
-      log(LogLevel.Trace, chargePlan);
+      vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, chargePlan);
     }
     await this.db.pg.one(
       `UPDATE vehicle SET charge_plan = $1:json, charge_plan_location_uuid = $2 WHERE vehicle_uuid = $3 RETURNING *;`,

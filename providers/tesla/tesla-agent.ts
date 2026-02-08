@@ -10,6 +10,7 @@ import { strict as assert } from "assert";
 import {
   log,
   LogLevel,
+  vehicleLog,
   numericStopTime,
   numericStartTime,
   diffObjects,
@@ -155,6 +156,14 @@ interface VehicleEntry {
   charge_schedules?: { [id: number]: TeslaChargeSchedule }; // Cached charge schedules
   precondition_schedules?: { [id: number]: TeslaPreconditionSchedule }; // Cached precondition schedules
 }
+
+const logVehicle = (level: LogLevel, vehicle: VehicleEntry, data: unknown) => {
+  if (vehicle.vehicleUUID) {
+    vehicleLog(level, vehicle.vehicleUUID, data);
+  } else {
+    log(level, data);
+  }
+};
 
 interface TeslaAgentState {
   [vehicleUUID: string]: string;  // vehicleUUID -> vin
@@ -377,7 +386,7 @@ export class TeslaAgent extends AbstractAgent {
       for (const v of list) {
         if (v.vehicle_uuid) {
           job.state[v.vehicle_uuid] = v.vin;
-          log(LogLevel.Debug, `Service ${job.serviceID} found vehicle ${v.vin} (${v.vehicle_uuid})`);
+          vehicleLog(LogLevel.Debug, v.vehicle_uuid, `Service ${job.serviceID} found vehicle ${v.vin}`);
         } else {
           log(LogLevel.Debug, `Service ${job.serviceID} ignoring vehicle ${v.vin} (no vehicle_uuid)`);
           // Just always trigger a telemetry config clear for uncontolled vehicles
@@ -388,7 +397,7 @@ export class TeslaAgent extends AbstractAgent {
       job.mapped = Date.now();
       for (const uuid of Object.keys(unmapped)) {
         const vin = job.state[uuid];
-        log(LogLevel.Debug, `Service ${job.serviceID} unmapping vehicle ${vin} (no longer found)`);
+        vehicleLog(LogLevel.Debug, uuid, `Service ${job.serviceID} unmapping vehicle ${vin} (no longer found)`);
         delete job.state[uuid];
         delete this.vehicles[vin];
         // Just always trigger a telemetry config clear for unmapped vehicles
@@ -441,38 +450,39 @@ export class TeslaAgent extends AbstractAgent {
       
       // Handle telemetry config
       if (!vehicle.telemetryConfig) {
+        logVehicle(LogLevel.Trace, vehicle, `Calling TeslaAPI.getFleetTelemetryConfig`);
         vehicle.telemetryConfig = (await this.callTeslaAPI(job, teslaAPI.getFleetTelemetryConfig, vehicle.vin)).response;
       }
       const telemetryExpires = vehicle.telemetryConfig?.config && vehicle.telemetryConfig?.config.exp ? vehicle.telemetryConfig.config.exp : 0;
 
       if (vehicle.dbData.providerData.disabled) {
         if (vehicle.telemetryConfig?.config) {
-          log(LogLevel.Info, `Vehicle ${vehicle.vin} is disabled, but has telemetry config, deleting`);
+          logVehicle(LogLevel.Info, vehicle, `Vehicle ${vehicle.vin} is disabled, but has telemetry config, deleting`);
           clearTelemetryConfigFor.push(vehicle.vin);
           vehicle.telemetryConfig = null; // re-trigger a config read
           continue;
         }
       } else if (!vehicle.telemetryConfig?.config) {
-        log(LogLevel.Info, `No telemetry config for ${vehicle.vin}, creating`);
+        logVehicle(LogLevel.Info, vehicle, `No telemetry config for ${vehicle.vin}, creating`);
         setTelemetryConfigFor.push(vehicle.vin);
         vehicle.telemetryConfig = null; // re-trigger a config read
         continue;
       } else if (vehicle.telemetryConfig.config.hostname !== config.TESLA_TELEMETRY_HOST
         || vehicle.telemetryConfig.config.port !== config.TESLA_TELEMETRY_PORT
         || vehicle.telemetryConfig.config.ca !== config.TESLA_TELEMETRY_CA.replace(/\\n/g, "\n")) {
-        log(LogLevel.Info, `Telemetry config for ${vehicle.vin} has changed, refreshing`);
+        logVehicle(LogLevel.Info, vehicle, `Telemetry config for ${vehicle.vin} has changed, refreshing`);
         setTelemetryConfigFor.push(vehicle.vin);
         vehicle.telemetryConfig = null; // re-trigger a config read
         continue;
       } else if (telemetryExpires < Date.now() / 1e3) {
-        log(LogLevel.Info, `Telemetry config for ${vehicle.vin} expired, refreshing`);
+        logVehicle(LogLevel.Info, vehicle, `Telemetry config for ${vehicle.vin} expired, refreshing`);
         setTelemetryConfigFor.push(vehicle.vin);
         vehicle.telemetryConfig = null; // re-trigger a config read
         continue;
       } else {
         // From here we consider the telemetry config to be working so we can handle vehicle commands
         if (telemetryExpires < Date.now() / 1e3 + 60 * 60 * 24) {
-          log(LogLevel.Info, `Telemetry config for ${vehicle.vin} expires soon, refreshing`);
+          logVehicle(LogLevel.Info, vehicle, `Telemetry config for ${vehicle.vin} expires soon, refreshing`);
           setTelemetryConfigFor.push(vehicle.vin);
           vehicle.telemetryConfig = null;
         }
@@ -482,11 +492,21 @@ export class TeslaAgent extends AbstractAgent {
     }
 
     for (const vin of clearTelemetryConfigFor) {
+      const v = this.vehicles[vin];
+      if (v) {
+        logVehicle(LogLevel.Trace, v, `Calling TeslaAPI.deleteFleetTelemetryConfig`);
+      }
       log(LogLevel.Info, `Deleting telemetry config for ${vin}`);
       waitFor.push(this.callTeslaAPI(job, teslaAPI.deleteFleetTelemetryConfig, vin));
     }
     if (setTelemetryConfigFor.length > 0) {
       log(LogLevel.Info, `Creating telemetry config for ${setTelemetryConfigFor.join(", ")}`);
+      for (const vin of setTelemetryConfigFor) {
+        const v = this.vehicles[vin];
+        if (v) {
+          logVehicle(LogLevel.Trace, v, `Calling TeslaAPI.createFleetTelemetryConfig (batch)`);
+        }
+      }
       const telemetry = (await this.callTeslaAPI(job, teslaAPI.createFleetTelemetryConfig, {
         vins: setTelemetryConfigFor,
         config: {
@@ -505,7 +525,7 @@ export class TeslaAgent extends AbstractAgent {
           for (const vin of telemetry.skipped_vehicles.missing_key) {
             const v = this.vehicles[vin];
             if (v.vehicleUUID) {
-              log(LogLevel.Warning, `Missing key for ${vin} (${v.vehicleUUID})`);
+              logVehicle(LogLevel.Warning, v, `Missing key for ${vin}`);
               v.dbData = await this.scClient.updateVehicle({
                 id: v.vehicleUUID,
                 status: "Missing virual key",
@@ -518,7 +538,7 @@ export class TeslaAgent extends AbstractAgent {
           for (const vin of telemetry.skipped_vehicles.unsupported_hardware) {
             const v = this.vehicles[vin];
             if (v.vehicleUUID) {
-              log(LogLevel.Warning, `Unsupported hardware for ${vin} (${v.vehicleUUID})`);
+              logVehicle(LogLevel.Warning, v, `Unsupported hardware for ${vin}`);
               v.dbData = await this.scClient.updateVehicle({
                 id: v.vehicleUUID,
                 status: "Unsupported hardware",
@@ -531,7 +551,7 @@ export class TeslaAgent extends AbstractAgent {
           for (const vin of telemetry.skipped_vehicles.unsupported_firmware) {
             const v = this.vehicles[vin];
             if (v.vehicleUUID) {
-              log(LogLevel.Warning, `Unsupported firmware for ${vin} (${v.vehicleUUID})`);
+              logVehicle(LogLevel.Warning, v, `Unsupported firmware for ${vin}`);
               v.dbData = await this.scClient.updateVehicle({
                 id: v.vehicleUUID,
                 status: "Unsupported firmware",
@@ -544,7 +564,7 @@ export class TeslaAgent extends AbstractAgent {
           for (const vin of telemetry.skipped_vehicles.max_configs) {
             const v = this.vehicles[vin];
             if (v.vehicleUUID) {
-              log(LogLevel.Warning, `Max configs for ${vin} (${v.vehicleUUID})`);
+              logVehicle(LogLevel.Warning, v, `Max configs for ${vin}`);
               v.dbData = await this.scClient.updateVehicle({
                 id: v.vehicleUUID,
                 status: "No more telemetry configs allowed",
@@ -616,13 +636,14 @@ export class TeslaAgent extends AbstractAgent {
     try {
       // 24 minutes without a single update, I consider the vehicle offline
       if (vehicle.isOnline && vehicle.tsUpdate < Date.now() - 24 * 60e3) {
-        log(LogLevel.Info, `Vehicle ${vehicle.vin} is offline (stale connection)`);
+        logVehicle(LogLevel.Info, vehicle, `Vehicle ${vehicle.vin} is offline (stale connection)`);
         vehicle.network = {};
         await this.updateOnlineStatus(vehicle);
       }
 
       // If this worker never polled the schedules, we do it now
       if (vehicle.isOnline && (vehicle.charge_schedules === undefined || vehicle.precondition_schedules === undefined)) {
+        logVehicle(LogLevel.Trace, vehicle, `Calling TeslaAPI.getVehicleSchedules`);
         const schedules = (await this.callTeslaAPI(job, teslaAPI.getVehicleSchedules, vehicle.vin)).response;
         // Map charge_schedule_data.charge_schedules to { [id: number]: TeslaChargeSchedule }
         vehicle.charge_schedules = {};
@@ -651,7 +672,7 @@ export class TeslaAgent extends AbstractAgent {
       // Check if err is RestClientError
       if (err instanceof RestClientError) {
         if (err.code === 408) { // Request timeout
-          log(LogLevel.Warning, `Request timeout for ${vehicle.vin} (${err.message})`);
+          logVehicle(LogLevel.Warning, vehicle, `Request timeout for ${vehicle.vin} (${err.message})`);
           vehicle.network = {};
           await this.updateOnlineStatus(vehicle);
           return;
@@ -699,7 +720,7 @@ export class TeslaAgent extends AbstractAgent {
 
     } else if (vehicle.telemetryData.Soc && vehicle.telemetryData.ChargeLimitSoc && vehicle.telemetryData.Soc > vehicle.telemetryData.ChargeLimitSoc - 1.5) {
       // SOC is above or close to the limit, so we don't need schedule logic
-      log(LogLevel.Debug, `${vehicle.vin} skipping charge blocker logic because SOC is above or close to the limit`);
+      logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} skipping charge blocker logic because SOC is above or close to the limit`);
 
     } else if (vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateCharging && !insideFirstCharge) {
       // We are charging to the limit, we need to stop charging
@@ -707,14 +728,14 @@ export class TeslaAgent extends AbstractAgent {
         chargeStart: null, chargeStop: this.quantizeTime(now - 10 * 60e3, Math.floor),
         comment: "completed schedule to stop ongoing charging"
       });
-      log(LogLevel.Debug, `${vehicle.vin} added charge blocker to stop ongoing charging`);
+      logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} added charge blocker to stop ongoing charging`);
     } else if (vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateDisconnected && firstChargeStart > now + 17 * 60 * 60e3) {
       // We are disconnected, and the first charge is more than 17 hours in the future, so we need a charge blocker
       chargePlan.unshift({
         chargeStart: null, chargeStop: this.quantizeTime(now - 10 * 60e3, Math.floor),
         comment: "completed schedule to prevent charging when plugging in"
       });
-      log(LogLevel.Debug, `${vehicle.vin} added charge blocker to prevent charging when plugging in`);
+      logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} added charge blocker to prevent charging when plugging in`);
     }
 
     // Build requested schedule
@@ -734,7 +755,7 @@ export class TeslaAgent extends AbstractAgent {
         acc.push(p);
         return acc;
       }, [] as (NumericChargePlan & { comment?: string })[]);
-    log(LogLevel.Debug, `${vehicle.vin} requested schedule: ${stringifyWithTimestamps(requestedSchedule)}`);
+    logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} requested schedule: ${stringifyWithTimestamps(requestedSchedule)}`);
 
 
     // If we know the vehicle schedules, we can start working on figuring out schedule updates
@@ -753,15 +774,16 @@ export class TeslaAgent extends AbstractAgent {
           // Not our location
           // Due to a bug in Tesla API, when we overwrite a schedule, it does not update the location,
           // so we need to delete it if the location does not match
-          log(LogLevel.Debug, `${vehicle.vin} deleting schedule ${s.id} because it does not match location`);
+          logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} deleting schedule ${s.id} because it does not match location`);
+          logVehicle(LogLevel.Trace, vehicle, `Calling TeslaAPI.removeChargeSchedule(${s.id})`);
           await this.callTeslaAPI(job, teslaAPI.removeChargeSchedule, vehicle.vin, s.id);
           delete vehicle.charge_schedules[s.id];
         } else {
           vehicleSchedules[s.id] = { ...this.convertFromTeslaSchedule(s, location), scheduleID: s.id };
         }
       }
-      log(LogLevel.Debug, `${vehicle.vin} requested schedules: ${stringifyWithTimestamps(requestedSchedule)}`);
-      log(LogLevel.Debug, `${vehicle.vin} existing schedules: ${stringifyWithTimestamps(vehicleSchedules)}`);
+      logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} requested schedules: ${stringifyWithTimestamps(requestedSchedule)}`);
+      logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} existing schedules: ${stringifyWithTimestamps(vehicleSchedules)}`);
 
       const reversedVehicleSchedules = Object.values(vehicleSchedules).sort(
         (a, b) => compareStartStopTimes(b.chargeStart, b.chargeStop, a.chargeStart, a.chargeStop)
@@ -780,16 +802,16 @@ export class TeslaAgent extends AbstractAgent {
           const sStop = numericStopTime(s.chargeStop);
 
           if (sStart === rStart && sStop === rStop) {
-            log(LogLevel.Trace, `${vehicle.vin} found exact match for schedule ${s.scheduleID}`);
+            logVehicle(LogLevel.Trace, vehicle, `${vehicle.vin} found exact match for schedule ${s.scheduleID}`);
           } else if (rStop < now && sStop < now && (now - sStop) < 5 * 60 * 60e3) {
-            log(LogLevel.Trace, `${vehicle.vin} found schedule ${s.scheduleID} in the past with stop time less than 5 hours ago (${new Date(sStop).toISOString()})`);
+            logVehicle(LogLevel.Trace, vehicle, `${vehicle.vin} found schedule ${s.scheduleID} in the past with stop time less than 5 hours ago (${new Date(sStop).toISOString()})`);
           } else if (rStart < now && sStart < now && rStop === sStop) {
             if (vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateStopped
               && (now - sStart) > 5 * 60 * 60e3) {
-              log(LogLevel.Trace, `${vehicle.vin} found schedule ${s.scheduleID} in the past, but vehicle is not charging (${new Date(sStart).toISOString()})`);
+              logVehicle(LogLevel.Trace, vehicle, `${vehicle.vin} found schedule ${s.scheduleID} in the past, but vehicle is not charging (${new Date(sStart).toISOString()})`);
               continue;
             }
-            log(LogLevel.Trace, `${vehicle.vin} found active schedule ${s.scheduleID} with matching stop time (${new Date(sStop).toISOString()})`);
+            logVehicle(LogLevel.Trace, vehicle, `${vehicle.vin} found active schedule ${s.scheduleID} with matching stop time (${new Date(sStop).toISOString()})`);
           } else {
             continue;
           }
@@ -799,14 +821,14 @@ export class TeslaAgent extends AbstractAgent {
         }
         if (r.scheduleID === undefined) {
           // No matching schedule found, we need to create a new one
-          log(LogLevel.Debug, `${vehicle.vin} requires a new schedule that starts ${r.chargeStart ? `at ${new Date(r.chargeStart).toISOString()}` : "now"} and ends ${r.chargeStop ? `at ${new Date(r.chargeStop).toISOString()}` : "whenever"}`);
+          logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} requires a new schedule that starts ${r.chargeStart ? `at ${new Date(r.chargeStart).toISOString()}` : "now"} and ends ${r.chargeStop ? `at ${new Date(r.chargeStop).toISOString()}` : "whenever"}`);
           scheduleUpdates.push({
             ...this.convertToTeslaSchedule(r, location),
             comment: "new schedule"
           });
         }
       }
-      log(LogLevel.Debug, `${vehicle.vin} schedule updates: ${stringifyWithTimestamps(scheduleUpdates)}`);
+      logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} schedule updates: ${stringifyWithTimestamps(scheduleUpdates)}`);
 
       if (vehicle.isOnline) {
         // Handle preconditioning schedules
@@ -834,14 +856,16 @@ export class TeslaAgent extends AbstractAgent {
               && geoDistance(wantedPrecon.latitude, wantedPrecon.longitude, existingPrecon.latitude, existingPrecon.longitude) < 100
             )) {
               // No change
-              log(LogLevel.Trace, `${vehicle.vin} preconditioning schedule is up to date`);
+              logVehicle(LogLevel.Trace, vehicle, `${vehicle.vin} preconditioning schedule is up to date`);
             } else {
-              log(LogLevel.Debug, `${vehicle.vin} updating preconditioning schedule`);
+              logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} updating preconditioning schedule`);
+              logVehicle(LogLevel.Trace, vehicle, `Calling TeslaAPI.addPreconditionSchedule`);
               await this.callTeslaAPI(job, teslaAPI.addPreconditionSchedule, vehicle.vin, wantedPrecon);
               vehicle.precondition_schedules[TeslaScheduleIDs.Precondition] = wantedPrecon;
             }
           } else if (existingPrecon) {
-            log(LogLevel.Debug, `${vehicle.vin} deleting preconditioning schedule`);
+            logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} deleting preconditioning schedule`);
+            logVehicle(LogLevel.Trace, vehicle, `Calling TeslaAPI.removePreconditionSchedule`);
             await this.callTeslaAPI(job, teslaAPI.removePreconditionSchedule, vehicle.vin, TeslaScheduleIDs.Precondition);
             delete vehicle.precondition_schedules[TeslaScheduleIDs.Precondition];
           }
@@ -852,39 +876,37 @@ export class TeslaAgent extends AbstractAgent {
           let findid = TeslaScheduleIDs.First;
           freeScheduleIDs.push(...Object.keys(vehicleSchedules).map((s) => parseInt(s)).filter((s) => !usedScheduleIDs.has(s)));
           for (const s of scheduleUpdates) {
-            if (s.id === undefined) {
-              if (freeScheduleIDs.length > 0) {
-                s.id = freeScheduleIDs.shift();
-              } else {
-                for (; findid <= TeslaScheduleIDs.Last; findid++) {
-                  if (!usedScheduleIDs.has(findid)) {
-                    s.id = findid;
-                    break;
-                  }
+            if (freeScheduleIDs.length > 0) {
+              s.id = freeScheduleIDs.shift();
+            } else {
+              for (; findid <= TeslaScheduleIDs.Last; findid++) {
+                if (!usedScheduleIDs.has(findid)) {
+                  s.id = findid;
+                  break;
                 }
               }
-              if (s.id === undefined) {
-                log(LogLevel.Warning, `${vehicle.vin} ran out of schedule IDs`);
-                break;
-              }
-              log(LogLevel.Debug, `${vehicle.vin} adding schedule ${s.id}`);
-              usedScheduleIDs.add(s.id);
-            } else {
-              log(LogLevel.Debug, `${vehicle.vin} updating schedule ${s.id}`);
             }
+            if (s.id === undefined) {
+              logVehicle(LogLevel.Warning, vehicle, `${vehicle.vin} ran out of schedule IDs`);
+              break;
+            }
+            usedScheduleIDs.add(s.id);
+            logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} setting schedule ${s.id}`);
             assert(usedScheduleIDs.has(s.id), "Invalid schedule ID");
+            logVehicle(LogLevel.Trace, vehicle, `Calling TeslaAPI.addChargeSchedule(${s.id})`);
             await this.callTeslaAPI(job, teslaAPI.addChargeSchedule, vehicle.vin, s);
             // Cache the newly set schedule with correct lat/long (only after successful API call)
             vehicle.charge_schedules[s.id] = s;
-            log(LogLevel.Debug, `${vehicle.vin} cached schedule ${s.id} @ [${s.latitude},${s.longitude}]`);
+            logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} cached schedule ${s.id} @ [${s.latitude},${s.longitude}]`);
           }
         }
 
         // Remove any schedules that are not in use
         for (const s of Object.values(vehicleSchedules)) {
           if (!usedScheduleIDs.has(s.scheduleID)) {
-            log(LogLevel.Debug, `${vehicle.vin} deleting schedule ${s.scheduleID}`);
+            logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} deleting schedule ${s.scheduleID}`);
             // Log to database that we are deleting this schedule
+            logVehicle(LogLevel.Trace, vehicle, `Calling TeslaAPI.removeChargeSchedule(${s.scheduleID})`);
             await this.callTeslaAPI(job, teslaAPI.removeChargeSchedule, vehicle.vin, s.scheduleID);
             delete vehicle.charge_schedules[s.scheduleID];
           }
@@ -894,7 +916,8 @@ export class TeslaAgent extends AbstractAgent {
         if (this.isConnected(vehicle) && wantedSoc) {
           const limitedSoc = Math.max(config.TESLA_LOWEST_POSSIBLE_CHARGETO, Math.min(wantedSoc, 100));
           if (vehicle.telemetryData.ChargeLimitSoc !== limitedSoc) {
-            log(LogLevel.Debug, `${vehicle.vin} setting charge limit to ${limitedSoc}%`);
+            logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} setting charge limit to ${limitedSoc}%`);
+            logVehicle(LogLevel.Trace, vehicle, `Calling TeslaAPI.setChargeLimit(${limitedSoc}%)`);
             await this.callTeslaAPI(job, teslaAPI.setChargeLimit, vehicle.vin, limitedSoc);
           }
         }
@@ -946,7 +969,7 @@ export class TeslaAgent extends AbstractAgent {
       }
     }
     if (Object.keys(update).length > 1) {
-      log(LogLevel.Debug, `Updating vehicle ${vehicle.vin}: ${JSON.stringify(update)}`);
+      logVehicle(LogLevel.Debug, vehicle, `Updating vehicle ${vehicle.vin}: ${JSON.stringify(update)}`);
       vehicle.dbData = await this.scClient.updateVehicle(update);
     }
   }
@@ -954,8 +977,12 @@ export class TeslaAgent extends AbstractAgent {
   public async telemetryConnectivityMessage(
     data: telemetryConnectivity.VehicleConnectivity
   ) {
-    log(LogLevel.Info, `Tesla Telmetry connectivity ${data.vin} ${data.connectionId} ${data.networkInterface} ${telemetryConnectivity.ConnectivityEvent[data.status]}`);
     const vehicle = this.vehicleEntry(data.vin);
+    logVehicle(
+      LogLevel.Info,
+      vehicle,
+      `Tesla Telmetry connectivity ${data.vin} ${data.connectionId} ${data.networkInterface} ${telemetryConnectivity.ConnectivityEvent[data.status]}`
+    );
     vehicle.tsUpdate = Date.now();
 
     if (data.status === telemetryConnectivity.ConnectivityEvent.DISCONNECTED) {
@@ -972,10 +999,12 @@ export class TeslaAgent extends AbstractAgent {
     if (!datum.value) return;
     const key = datum.key;
     const value = datum.value && datum.value.value;
-
-    log(LogLevel.Trace, `Telemetry data for ${vin}: ${telemetryData.Field[key]} = ${value.value} (${value.case})`);
-
     const vehicle = this.vehicleEntry(vin);
+    logVehicle(
+      LogLevel.Trace,
+      vehicle,
+      `Telemetry data for ${vin}: ${telemetryData.Field[key]} = ${value.value} (${value.case})`
+    );
     vehicle.tsUpdate = Date.now();
 
     if (value.case === "invalid") {
@@ -1086,8 +1115,12 @@ export class TeslaAgent extends AbstractAgent {
         }
       } catch (err) {
         // We catch this here so that it doesn't crash the entire worker, leaving Kafka in a sad state
-        log(LogLevel.Error, `Failed to handle telemetry data for ${vin}: ${telemetryData.Field[key]} = ${value.value} (${value.case})`);
-        log(LogLevel.Error, err);
+        logVehicle(
+          LogLevel.Error,
+          vehicle,
+          `Failed to handle telemetry data for ${vin}: ${telemetryData.Field[key]} = ${value.value} (${value.case})`
+        );
+        logVehicle(LogLevel.Error, vehicle, err);
         return;
       }
       // charger_phases seems to be reported wrong, or I simply don't understand and someone could explain it?
@@ -1099,7 +1132,7 @@ export class TeslaAgent extends AbstractAgent {
 
     if (vehicle.vehicleUUID) {
       if (vehicle.isUpdating) {
-        log(LogLevel.Info, `Vehicle ${vin} is already updating, waiting for it to finish`);
+        logVehicle(LogLevel.Info, vehicle, `Vehicle ${vin} is already updating, waiting for it to finish`);
         assert(vehicle.updatePromise !== null, "updatePromise is null");
         await vehicle.updatePromise;
       }
@@ -1189,7 +1222,7 @@ export class TeslaAgent extends AbstractAgent {
               } else {
                 vehicle.vehicleDataInput.chargingTo = null;
               }
-              log(LogLevel.Debug, `Updating vehicle ${vehicle.vin} with ${JSON.stringify(vehicleUpdate)}`);
+              logVehicle(LogLevel.Debug, vehicle, `Updating vehicle ${vehicle.vin} with ${JSON.stringify(vehicleUpdate)}`);
               innerPromises.push((async () => {
                 vehicle.dbData = await this.scClient.updateVehicle(vehicleUpdate);
               })());
@@ -1201,7 +1234,7 @@ export class TeslaAgent extends AbstractAgent {
             if (Object.keys(vehicleDataUpdate).length > 0) {
               assert(vehicle.vehicleUUID !== null, "vehicleUUID is null");
 
-              log(LogLevel.Debug, `Updating vehicle data ${vehicle.vin} with ${JSON.stringify(vehicleDataUpdate)}`);
+              logVehicle(LogLevel.Debug, vehicle, `Updating vehicle data ${vehicle.vin} with ${JSON.stringify(vehicleDataUpdate)}`);
               innerPromises.push(this.scClient.updateVehicleData({
                 id: vehicle.vehicleUUID,
                 ...vehicleDataUpdate,
@@ -1210,7 +1243,7 @@ export class TeslaAgent extends AbstractAgent {
 
             await Promise.all(innerPromises);
           } catch (err) {
-            log(LogLevel.Error, `Error in updatePromise: ${err}`);
+            logVehicle(LogLevel.Error, vehicle, `Error in updatePromise: ${err}`);
           } finally {
             vehicle.isUpdating = false;
             vehicle.updatePromise = null;
