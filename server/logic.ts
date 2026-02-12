@@ -911,14 +911,11 @@ export class Logic {
       smartStatus = `Charging disabled until next plug in`;
     } else {
       type PriceSlot = Readonly<{ from: number; to: number; price: number }>;
-      type ChargeWindow = { start: number; stop: number; score: number };
+      type CandidateSlot = Readonly<{ from: number; to: number; duration: number; price: number; score: number }>;
 
-      // Avoid fragmenting charging in cold weather: only split if each segment is >= 60 minutes.
-      const MIN_CHARGE_WINDOW_MS = 60 * 60e3;
       // TODO: user configurable per site or vehicle? Schedule splitting: "none/min/max"
-      // none = hard cap maxSegments to 1, min = only split if it saves cost (SPLIT_SAVE_FRACTION), max = always split up to maxSegments
-      // Require >=10% savings for each additional segment, otherwise stop splitting.
-      const SPLIT_SAVE_FRACTION = 0.10;
+      // none = hard cap maxSegments to 1, min = only split if it saves cost, max = always split up to maxSegments
+      // Legacy split threshold (no longer used in DP-based scheduler, kept for reference).
       // Soft maxPrice behavior:
       // - Penalize slots above maxPrice in the score/average.
       const OVERPRICE_PENALTY_FACTOR = 1.5;
@@ -1070,7 +1067,7 @@ export class Logic {
           const max = vehicle.maximum_charge;
           const fillWindows = (
             fillMaxPrice === null ? { windows: [], scheduledMs: 0 } :
-            planWindows(ChargeDuration(startLevel, max), intentDeadline, fillMaxPrice, `fill:${max}`)
+            planWindows(ChargeDuration(startLevel, max), intentDeadline, fillMaxPrice, `fill:${max}`, vehicle.connected && Boolean(vehicle.charging_to))
           );
           // If we found more charge time than we need to reach the intent max level, we don't need another plan
           if (fillWindows.windows.length > 0 && fillWindows.scheduledMs >= timeNeeded) {
@@ -1078,7 +1075,7 @@ export class Logic {
             applyWindows(fillWindows.windows, buildAllocations([ ...softIntents, { chargeType: ChargeType.Fill, comment: `low price`, level: max, requestedLevel: max } ]));
           } else if (intentMaxLevel > startLevel) {
             // We cannot fill the entire intent with cheap energy, so we generate a new plan without the maxPrice constraint
-            const plan = planWindows(timeNeeded, intentDeadline, undefined, `intent:${intentMaxLevel}`);
+            const plan = planWindows(timeNeeded, intentDeadline, undefined, `intent:${intentMaxLevel}`, vehicle.connected && Boolean(vehicle.charging_to));
             applyWindows(plan.windows, buildAllocations(softIntents));
           }
         } else if (intentMaxLevel > startLevel) {
@@ -1096,234 +1093,191 @@ export class Logic {
         }
       };
 
+      // Warmup penalty: extra time-equivalent cost when we interrupt an ongoing charge.
+      const WARMUP_MS = 5 * 60 * 1000;
+      // Minimum discretization step to avoid overly fine granularity in the DP.
+      const MIN_STEP_MS = 5 * 60 * 1000;
+
       const planWindows = (
-        timeNeeded: number,
-        before_ts: number,
+        timeNeededMs: number,
+        beforeTimestampMs: number,
         maxPrice: number | undefined,
-        scheduleTag: string
+        scheduleTag: string,
+        isCharging: boolean
       ): { windows: { start: number; stop: number }[]; scheduledMs: number } => {
         const scheduled = { windows: [] as { start: number; stop: number }[], scheduledMs: 0 };
-        const cap = maxPrice === undefined ? undefined : maxPrice * SOFT_MAXPRICE_CAP_FACTOR;
-        const candidates = priceSlots.flatMap((s: PriceSlot): (PriceSlot & { duration: number; score: number })[] => {
-          const from = Math.max(s.from, hardStart);
-          const to = Math.min(s.to, before_ts, hardEnd);
-          if (to <= from) return [];
-          // remove segments over hard-cap
-          if (cap !== undefined && s.price > cap) return [];
-          const duration = to - from;
-          const score = priceToScorePerMs(s.price, maxPrice) * duration;
-          return [{ from, to, duration, price: s.price, score }];
+        const hardCapPrice = maxPrice === undefined ? undefined : maxPrice * SOFT_MAXPRICE_CAP_FACTOR;
+        const candidateSlots: ReadonlyArray<CandidateSlot> = priceSlots.flatMap((slot: PriceSlot): CandidateSlot[] => {
+          const fromTimeMs = Math.max(slot.from, hardStart);
+          const toTimeMs = Math.min(slot.to, beforeTimestampMs, hardEnd);
+          if (toTimeMs <= fromTimeMs) return [];
+          if (hardCapPrice !== undefined && slot.price > hardCapPrice) return [];
+          const durationMs = toTimeMs - fromTimeMs;
+          const slotScore = priceToScorePerMs(slot.price, maxPrice) * durationMs;
+          return [{ from: fromTimeMs, to: toTimeMs, duration: durationMs, price: slot.price, score: slotScore }];
         });
 
-        if (candidates.length === 0) {
+        if (candidateSlots.length === 0) {
           vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `scheduleWindows(${scheduleTag}): no segments (no price data?)`);
           return scheduled;
         }
 
-        let available = 0;
-        let quantumMs = Infinity;
-        for (const s of candidates) {
-          available += s.duration;
-          if (s.duration < quantumMs) quantumMs = s.duration;
+        // Sort by time to allow gap checks and stable DP traversal.
+        const sortedCandidates = candidateSlots.slice().sort((a, b) => a.from - b.from);
+        let totalAvailableMs = 0;
+        for (const slot of sortedCandidates) {
+          totalAvailableMs += slot.duration;
         }
-        // Fallback quantum (should never happen unless price data is malformed).
-        quantumMs = isFinite(quantumMs) ? quantumMs : 15 * 60e3;
-        assert(quantumMs > 0);
+        // Use unclipped slot durations to avoid the first (clipped) slot shrinking the step size.
+        let quantumMs = Infinity;
+        for (const slot of priceSlots) {
+          const duration = slot.to - slot.from;
+          if (duration > 0 && duration < quantumMs) quantumMs = duration;
+        }
+        quantumMs = isFinite(quantumMs) ? quantumMs : 15 * 60 * 1000;
+        // Discretization step: never coarser than slot size, never finer than MIN_STEP_MS when warmup is enabled.
+        const stepMs = WARMUP_MS > 0 ? Math.min(quantumMs, Math.max(WARMUP_MS, MIN_STEP_MS)) : quantumMs;
 
-        // Try to schedule as much as possible (up to timeNeeded). If constraints prevent it (e.g. missing price
-        // data creates gaps, or maxPrice is too strict), back off in "slot" increments until feasible.
-        const targetMaxMs = Math.max(0, Math.min(timeNeeded, available));
+        const targetMaxMs = Math.max(0, Math.min(timeNeededMs, totalAvailableMs));
         if (targetMaxMs < 1) {
-          vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `scheduleWindows(${scheduleTag}): nothing to schedule (need=${Math.round(timeNeeded / 60e3)}min avail=${Math.round(available / 60e3)}min)`);
+          vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `scheduleWindows(${scheduleTag}): nothing to schedule (need=${Math.round(timeNeededMs / 60e3)}min avail=${Math.round(totalAvailableMs / 60e3)}min)`);
           return scheduled;
         }
-
         vehicleLog(
           LogLevel.Trace,
           vehicle.vehicle_uuid,
-          `scheduleWindows(${scheduleTag}): need=${Math.round(timeNeeded / 60e3)}min targetMax=${Math.round(targetMaxMs / 60e3)}min before=${new Date(before_ts).toISOString()} ` +
-          `candidates=${candidates.length} avail=${Math.round(available / 60e3)}min quantum=${Math.round(quantumMs / 60e3)}min ` +
+          `scheduleWindows(${scheduleTag}): need=${Math.round(timeNeededMs / 60e3)}min targetMax=${Math.round(targetMaxMs / 60e3)}min before=${new Date(beforeTimestampMs).toISOString()} ` +
+          `candidates=${candidateSlots.length} avail=${Math.round(totalAvailableMs / 60e3)}min quantum=${Math.round(quantumMs / 60e3)}min ` +
           `maxPrice=${maxPrice === undefined ? "none" : fmtDbPrice(maxPrice)} capFactor=${SOFT_MAXPRICE_CAP_FACTOR} overPenalty=${OVERPRICE_PENALTY_FACTOR}`
         );
 
-        let backoffSteps = 0;
-        for (let targetMs = targetMaxMs; targetMs > 0; ) {
-          const maxWindows = Math.max(1, Math.floor(targetMs / MIN_CHARGE_WINDOW_MS));
+        const timeNeededSteps = Math.ceil(targetMaxMs / stepMs);
+        const numSlots = sortedCandidates.length;
 
-          let bestScore = Infinity;
-          let bestWindows: { start: number; stop: number }[] = [];
-
-          // Try 1 segment, then 2, then 3... Stop when adding another segment doesn't improve enough.
-          for (let k = 1; k <= maxWindows; k++) {
-            const long = targetMs - (k - 1) * MIN_CHARGE_WINDOW_MS;
-            assert(long > 0);
-            let remaining = candidates.slice();
-            const windows: ChargeWindow[] = [];
-            let score = 0;
-            let ok = true;
-
-            // Greedy placement: schedule the (possibly longer) remainder segment first, then the 60min chunks.
-            // When k>1, long is guaranteed >= MIN_CHARGE_WINDOW_MS by construction of maxWindows.
-            for (let i = 0; i < k; i++) {
-              const d = i === 0 ? long : MIN_CHARGE_WINDOW_MS;
-              if (k > 1) assert(d >= MIN_CHARGE_WINDOW_MS);
-
-              let w: ChargeWindow | null = null;
-              if (d > 0) {
-                let total = 0;
-                for (const s of remaining) total += s.duration;
-                if (total + 1 >= d) {
-                  // Sliding window over segment boundaries. Window always starts on a segment boundary.
-                  let best: ChargeWindow | null = null;
-                  let bestWindowScore = Infinity;
-                  let left = 0;
-                  let right = 0;
-                  let curDur = 0;
-                  let curScore = 0; // penalized "price*ms" proxy cost
-
-                  while (left < remaining.length) {
-                    while (right < remaining.length && curDur < d) {
-                      // Don't allow a "window" to jump over gaps created by maxPrice filtering or missing data.
-                      if (right > left && remaining[right].from !== remaining[right - 1].to) {
-                        left = right;
-                        curDur = 0;
-                        curScore = 0;
-                        continue;
-                      }
-                      const seg = remaining[right];
-                      curDur += seg.duration;
-                      curScore += seg.score;
-                      right++;
-                    }
-
-                    if (curDur >= d) {
-                      const first = remaining[left];
-                      const last = remaining[right - 1];
-                      const overhang = curDur - d;
-                      // If the last slot is cheaper than the first, shift the window forward by the full overhang
-                      // to replace expensive minutes at the start with cheaper minutes at the end.
-                      const windowScore =
-                        curScore -
-                        overhang * (first.price > last.price ? priceToScorePerMs(first.price, maxPrice) : priceToScorePerMs(last.price, maxPrice));
-                      const start = first.from + (first.price > last.price ? overhang : 0);
-                      const stop = start + d;
-
-                      if (maxPrice !== undefined) {
-                        // avg is in "penalized price per ms" units; compare directly to raw maxPrice.
-                        const avg = windowScore / d;
-                        if (avg <= maxPrice && windowScore < bestWindowScore) {
-                          bestWindowScore = windowScore;
-                          best = { start, stop, score: windowScore };
-                        }
-                      } else if (windowScore < bestWindowScore) {
-                        bestWindowScore = windowScore;
-                        best = { start, stop, score: windowScore };
-                      }
-                    } else {
-                      break;
-                    }
-
-                    const segL = remaining[left];
-                    curDur -= segL.duration;
-                    curScore -= segL.score;
-                    left++;
-                    if (right < left) {
-                      right = left;
-                      curDur = 0;
-                      curScore = 0;
-                    }
-                  }
-
-                  w = best;
-                }
-              }
-
-              if (!w) {
-                vehicleLog(
-                  LogLevel.Trace,
-                  vehicle.vehicle_uuid,
-                  `scheduleWindows(${scheduleTag}): target=${Math.round(targetMs / 60e3)}min k=${k} failed at part=${i + 1}/${k} dur=${Math.round(d / 60e3)}min (no continuous window)`
-                );
-                ok = false;
-                break;
-              }
-
-              windows.push(w);
-              score += w.score;
-              // Remove the chosen window from remaining candidates so future windows can't reuse the same time
-              remaining = remaining.flatMap((s) => {
-                // Outside the chosen window, keep as is.
-                if (s.to <= w.start || s.from >= w.stop) return [s];
-                // Keep the non-overlapping remainder of this segment.
-                const remainders: Array<{ from: number; to: number; duration: number; price: number; score: number }> = [];
-                if (s.from < w.start) {
-                  const to = Math.min(s.to, w.start);
-                  if (to > s.from) {
-                    const duration = to - s.from;
-                    remainders.push({ from: s.from, to, duration, price: s.price, score: priceToScorePerMs(s.price, maxPrice) * duration });
-                  }
-                }
-
-                if (s.to > w.stop) {
-                  const from = Math.max(s.from, w.stop);
-                  if (s.to > from) {
-                    const duration = s.to - from;
-                    remainders.push({ from, to: s.to, duration, price: s.price, score: priceToScorePerMs(s.price, maxPrice) * duration });
-                  }
-                }
-
-                return remainders;
-              });
-            }
-
-            if (!ok) break;
-
-            // First feasible solution is the baseline. Only accept a higher split-count if it's "10% cheaper per added segment".
-            if (bestWindows.length === 0) {
-              bestScore = score;
-              bestWindows = windows.map((w) => ({ start: w.start, stop: w.stop }));
-              vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `scheduleWindows(${scheduleTag}): target=${Math.round(targetMs / 60e3)}min k=${k} baseline avgPrice=${fmtDbPrice(bestScore / targetMs)} ` +
-                `windows=${bestWindows.map((w) => `${new Date(w.start).toISOString()}..${new Date(w.stop).toISOString()}`).join(", ")}`
-              );
-              continue;
-            }
-
-            if (score <= bestScore * (1 - SPLIT_SAVE_FRACTION)) {
-              bestScore = score;
-              bestWindows = windows.map((w) => ({ start: w.start, stop: w.stop }));
-              vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `scheduleWindows(${scheduleTag}): target=${Math.round(targetMs / 60e3)}min k=${k} accepted avgPrice=${fmtDbPrice(bestScore / targetMs)} ` +
-                `windows=${bestWindows.map((w) => `${new Date(w.start).toISOString()}..${new Date(w.stop).toISOString()}`).join(", ")}`
-              );
-              continue;
-            }
-
-            // Not cheap enough to justify another split.
-            vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `scheduleWindows(${scheduleTag}): target=${Math.round(targetMs / 60e3)}min k=${k} rejected avgPrice=${fmtDbPrice(score / targetMs)} >= ${fmtDbPrice((bestScore * (1 - SPLIT_SAVE_FRACTION)) / targetMs)} ` +
-              `(need ${(SPLIT_SAVE_FRACTION * 100).toFixed(0)}% improvement)`
-            );
-            break;
-          }
-
-          if (bestWindows.length > 0) {
-            bestWindows.sort((a, b) => a.start - b.start);
-            if (backoffSteps > 0) {
-              vehicleLog(
-                LogLevel.Trace,
-                vehicle.vehicle_uuid,
-                `scheduleWindows(${scheduleTag}): backed off ${backoffSteps} steps => scheduled=${Math.round(targetMs / 60e3)}min (from ${Math.round(targetMaxMs / 60e3)}min)`
-              );
-            }
-            scheduled.windows = bestWindows;
-            scheduled.scheduledMs = targetMs;
-            return scheduled;
-          }
-
-          if (targetMs <= quantumMs) break;
-          targetMs -= quantumMs;
-          backoffSteps++;
+        const cumDurationMs = new Array(numSlots + 1).fill(0);
+        const perMsScores = new Array(numSlots);
+        for (let i = 1; i <= numSlots; i++) {
+          const slot = sortedCandidates[i - 1];
+          cumDurationMs[i] = cumDurationMs[i - 1] + slot.duration;
+          perMsScores[i - 1] = priceToScorePerMs(slot.price, maxPrice);
         }
 
-        vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `scheduleWindows(${scheduleTag}): no feasible schedule found (maxPrice gaps too large?)`);
+        // DP over (startSlot, neededSteps). Gap penalty is modeled as extra score cost, not extra time.
+        const dpTable = Array.from({ length: numSlots + 1 }, () => new Array(timeNeededSteps + 1).fill(Infinity));
+        const dpWindows = Array.from({ length: numSlots + 1 }, () => new Array(timeNeededSteps + 1).fill(Infinity));
+        const choiceTable = Array.from({ length: numSlots + 1 }, () => new Array(timeNeededSteps + 1).fill(null));
+        for (let startSlot = numSlots; startSlot >= 0; startSlot--) {
+          dpTable[startSlot][0] = 0;
+          dpWindows[startSlot][0] = 0;
+          for (let neededSteps = 1; neededSteps < dpTable[0].length; neededSteps++) {
+            let currentDurationMs = 0;
+            let currentScoreMs = 0;
+            for (let endSlot = startSlot; endSlot < numSlots; endSlot++) {
+              // Only consider contiguous windows; gaps break continuity.
+              if (endSlot > startSlot && sortedCandidates[endSlot].from !== sortedCandidates[endSlot - 1].to) break;
+              currentDurationMs += sortedCandidates[endSlot].duration;
+              currentScoreMs += sortedCandidates[endSlot].score;
+              const firstPerMs = perMsScores[startSlot];
+              const lastPerMs = perMsScores[endSlot];
+              const maxWinSteps = Math.min(neededSteps, Math.floor(currentDurationMs / stepMs));
+              for (let winSteps = 1; winSteps <= maxWinSteps; winSteps++) {
+                const winDurationMs = winSteps * stepMs;
+                const overhangMs = currentDurationMs - winDurationMs;
+                // We only allow trimming within the boundary slot (no dropping whole slots).
+                const trimFromStart = firstPerMs > lastPerMs;
+                const trimLimitMs = trimFromStart
+                  ? sortedCandidates[startSlot].duration
+                  : sortedCandidates[endSlot].duration;
+                if (overhangMs > trimLimitMs) continue;
+                const windowCost = currentScoreMs - overhangMs * (trimFromStart ? firstPerMs : lastPerMs);
+                if (maxPrice !== undefined && windowCost / winDurationMs > maxPrice) continue;
+                const remainingSteps = neededSteps - winSteps;
+                if (remainingSteps < 0) continue;
+                // Warmup penalty applies for any charging interruption (idle gap), not just data gaps.
+                const hasDataGap = endSlot + 1 < numSlots
+                  && sortedCandidates[endSlot + 1].from !== sortedCandidates[endSlot].to;
+                const hasGap =
+                  (trimFromStart && (startSlot > 0 || isCharging)) ||
+                  (!trimFromStart && remainingSteps > 0) ||
+                  (remainingSteps > 0 && hasDataGap);
+                const prevCost = dpTable[endSlot + 1][remainingSteps];
+                const prevWindows = dpWindows[endSlot + 1][remainingSteps];
+                if (prevCost !== Infinity) {
+                  // Warmup is a penalty, never a reward. Clamp negative prices to 0 here.
+                  const gapRate = trimFromStart ? firstPerMs : lastPerMs;
+                  const gapCost = hasGap ? Math.max(0, gapRate) * WARMUP_MS : 0;
+                  const newCost = windowCost + prevCost + gapCost;
+                  const newWindows = prevWindows + 1;
+                  const existingCost = dpTable[startSlot][neededSteps];
+                  const existingWindows = dpWindows[startSlot][neededSteps];
+                  const existingChoice = choiceTable[startSlot][neededSteps];
+                  if (
+                    newCost < existingCost ||
+                    (newCost === existingCost && (
+                      newWindows < existingWindows ||
+                      (newWindows === existingWindows && (!existingChoice || endSlot < existingChoice.endSlot))
+                    ))
+                  ) {
+                    dpTable[startSlot][neededSteps] = newCost;
+                    dpWindows[startSlot][neededSteps] = newWindows;
+                    choiceTable[startSlot][neededSteps] = { endSlot, winSteps };
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        let bestCost = Infinity;
+        let bestFirstStartSlot = 0;
+        let bestEffectiveSteps = timeNeededSteps;
+        let bestWindowCount = Infinity;
+        // Pick the best start slot. If we are already charging, any start after the first slot
+        // is treated as an interruption and pays the warmup penalty.
+        for (let firstStartSlot = 0; firstStartSlot < numSlots; firstStartSlot++) {
+          const initialGapCost = (isCharging && firstStartSlot > 0)
+            ? Math.max(0, perMsScores[firstStartSlot]) * WARMUP_MS
+            : 0;
+          const baseCost = dpTable[firstStartSlot][timeNeededSteps];
+          if (baseCost === Infinity) continue;
+          const cost = baseCost + initialGapCost;
+          const windowCount = dpWindows[firstStartSlot][timeNeededSteps];
+          if (cost < bestCost || (cost === bestCost && windowCount < bestWindowCount)) {
+            bestCost = cost;
+            bestFirstStartSlot = firstStartSlot;
+            bestEffectiveSteps = timeNeededSteps;
+            bestWindowCount = windowCount;
+          }
+        }
+
+        if (bestCost === Infinity) return scheduled;
+
+        const reconstructedWindows: { start: number; stop: number }[] = [];
+        let currentStartSlot = bestFirstStartSlot;
+        let currentNeededSteps = bestEffectiveSteps;
+        while (currentNeededSteps > 0) {
+          const choice = choiceTable[currentStartSlot][currentNeededSteps];
+          if (choice === null) break;
+          const endSlot = choice.endSlot;
+          const winSteps = choice.winSteps;
+          const winDurationMs = winSteps * stepMs;
+          const currentDurationMs = cumDurationMs[endSlot + 1] - cumDurationMs[currentStartSlot];
+          const overhangMs = currentDurationMs - winDurationMs;
+          const firstPerMs = perMsScores[currentStartSlot];
+          const lastPerMs = perMsScores[endSlot];
+          const startTimeMs = sortedCandidates[currentStartSlot].from + (firstPerMs > lastPerMs ? overhangMs : 0);
+          const stopTimeMs = startTimeMs + winDurationMs;
+          reconstructedWindows.push({ start: startTimeMs, stop: stopTimeMs });
+          currentStartSlot = endSlot + 1;
+          currentNeededSteps -= winSteps;
+        }
+        reconstructedWindows.sort((a, b) => a.start - b.start);
+
+        vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `scheduleWindows(${scheduleTag}): accepted avgPrice=${fmtDbPrice(bestCost / (bestEffectiveSteps * stepMs))} ` +
+          `windows=${reconstructedWindows.map((w) => `${new Date(w.start).toISOString()}..${new Date(w.stop).toISOString()}`).join(", ")}`
+        );
+        scheduled.windows = reconstructedWindows;
+        scheduled.scheduledMs = targetMaxMs;
         return scheduled;
       };
 
