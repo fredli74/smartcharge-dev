@@ -73,9 +73,11 @@
               tile
               prominent
             >
+              <!-- eslint-disable-next-line vue/no-v-html -->
               <span v-html="error.message"></span>
             </v-alert>
             <v-alert v-model="warning.show" dismissible type="warning" tile>
+              <!-- eslint-disable-next-line vue/no-v-html -->
               <span v-html="warning.message"></span>
             </v-alert>
             <v-alert
@@ -85,6 +87,7 @@
               tile
               @input="closedInfo"
             >
+              <!-- eslint-disable-next-line vue/no-v-html -->
               <span v-html="info.message"></span>
             </v-alert>
           </v-flex>

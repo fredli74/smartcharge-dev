@@ -39,6 +39,28 @@ export function log(level: LogLevel, data: unknown) {
     }
   }
 }
+
+export function vehicleLog(level: LogLevel, vehicleUUID: string, data: unknown) {
+  if (level <= LOGLEVEL) {
+    const msg = data instanceof Error ? data.message
+      : typeof data === "object" ? JSON.stringify(data)
+      : data;
+    const s = `${new Date().toISOString()} ${logSymbol[level]} ${vehicleUUID} ${msg}`;
+    switch (level) {
+      case LogLevel.Error:
+      case LogLevel.Warning:
+        console.error(s);
+        break;
+      case LogLevel.Info:
+        console.log(s);
+        break;
+      case LogLevel.Debug:
+      case LogLevel.Trace:
+        console.debug(s);
+        break;
+    }
+  }
+}
 export function logFormat(level: LogLevel, data: unknown): string {
   return `${new Date().toISOString()} ${logSymbol[level]} ${
     data instanceof Error ? (data as Error).message
