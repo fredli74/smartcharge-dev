@@ -1094,7 +1094,7 @@ export class Logic {
       };
 
       // Warmup penalty: extra time-equivalent cost when we interrupt an ongoing charge.
-      const WARMUP_MS = 5 * 60 * 1000;
+      const WARMUP_MS = 15 * 60 * 1000;
       // Minimum discretization step to avoid overly fine granularity in the DP.
       const MIN_STEP_MS = 5 * 60 * 1000;
 
@@ -1247,6 +1247,13 @@ export class Logic {
             bestFirstStartSlot = firstStartSlot;
             bestEffectiveSteps = timeNeededSteps;
             bestWindowCount = windowCount;
+            vehicleLog(
+              LogLevel.Trace,
+              vehicle.vehicle_uuid,
+              `scheduleWindows(${scheduleTag}): select startSlot=${firstStartSlot} cost=${cost} baseCost=${baseCost} ` +
+              `gapCost=${initialGapCost} windows=${windowCount} start=${new Date(sortedCandidates[firstStartSlot].from).toISOString()} isCharging=${isCharging} ` +
+              `hardStart=${new Date(hardStart).toISOString()}`
+            );
           }
         }
 
