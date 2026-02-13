@@ -851,10 +851,11 @@ export class TeslaAgent extends AbstractAgent {
           }
           const existingPrecon = vehicle.precondition_schedules[TeslaScheduleIDs.Precondition];
           if (wantedPrecon) {
-            if (!existingPrecon || (wantedPrecon.precondition_time === existingPrecon.precondition_time
+            const isSame = !!existingPrecon
+              && wantedPrecon.precondition_time === existingPrecon.precondition_time
               && wantedPrecon.days_of_week === existingPrecon.days_of_week
-              && geoDistance(wantedPrecon.latitude, wantedPrecon.longitude, existingPrecon.latitude, existingPrecon.longitude) < 100
-            )) {
+              && geoDistance(wantedPrecon.latitude, wantedPrecon.longitude, existingPrecon.latitude, existingPrecon.longitude) < 100;
+            if (isSame) {
               // No change
               logVehicle(LogLevel.Trace, vehicle, `${vehicle.vin} preconditioning schedule is up to date`);
             } else {

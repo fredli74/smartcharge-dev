@@ -30,7 +30,7 @@ import {
   VehicleLocationSettings,
   Schedule,
 } from "./vehicle-type.js";
-import { log, LogLevel, makePublicID, vehicleLog } from "@shared/utils.js";
+import { LogLevel, makePublicID, vehicleLog } from "@shared/utils.js";
 import { plainToInstance } from "class-transformer";
 import { DBSchedule } from "@server/db-schema.js";
 import { ScheduleType } from "@shared/sc-types.js";
