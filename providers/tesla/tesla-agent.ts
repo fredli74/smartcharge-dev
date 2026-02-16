@@ -678,6 +678,7 @@ export class TeslaAgent extends AbstractAgent {
           return;
         }
       }
+      logVehicle(LogLevel.Error, vehicle, `vehicleWork error for ${vehicle.vin}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
   public async handleSchedules(job: TeslaAgentJob, vehicle: VehicleEntry, location: GQLLocationFragment) {
