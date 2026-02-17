@@ -203,6 +203,7 @@ export class TeslaAgent extends AbstractAgent {
   public name: string = provider.name;
   public kafkaClient: Kafka;
   public kafkaConsumer: Consumer;
+  private telemetryConfigBackoff: { [vin: string]: { step: number; until: number } } = {};
   constructor(scClient: SCClient) {
     super(scClient);
     this.kafkaClient = new Kafka({
@@ -373,8 +374,10 @@ export class TeslaAgent extends AbstractAgent {
       return;
     }
 
-    const clearTelemetryConfigFor = [];
-    const setTelemetryConfigFor = [];
+    const clearTelemetryConfigFor: string[] = [];
+    const setTelemetryConfigFor: string[] = [];
+    const telemetryBackoffBaseMs = 5.625 * 60e3; // 5.625m -> 6m after ceil
+    const telemetryBackoffCapMs = 24 * 60 * 60e3;
 
     // Map service to vehicles
     if (!job.mapped || (job.serviceData.updated && job.mapped < job.serviceData.updated)) {
@@ -447,7 +450,17 @@ export class TeslaAgent extends AbstractAgent {
       }
 
       assert(vehicle !== undefined, "vehicle is undefined");
-      
+
+      const backoff = this.telemetryConfigBackoff[vehicle.vin];
+      if (backoff && backoff.until > Date.now()) {
+        logVehicle(
+          LogLevel.Debug,
+          vehicle,
+          `Telemetry config backoff active for ${vehicle.vin} until ${new Date(backoff.until).toISOString()}`
+        );
+        continue;
+      }
+
       // Handle telemetry config
       if (!vehicle.telemetryConfig) {
         logVehicle(LogLevel.Trace, vehicle, `Calling TeslaAPI.getFleetTelemetryConfig`);
@@ -507,18 +520,44 @@ export class TeslaAgent extends AbstractAgent {
           logVehicle(LogLevel.Trace, v, `Calling TeslaAPI.createFleetTelemetryConfig (batch)`);
         }
       }
-      const telemetry = (await this.callTeslaAPI(job, teslaAPI.createFleetTelemetryConfig, {
-        vins: setTelemetryConfigFor,
-        config: {
-          hostname: config.TESLA_TELEMETRY_HOST,
-          port: config.TESLA_TELEMETRY_PORT,
-          ca: config.TESLA_TELEMETRY_CA.replace(/\\n/g, "\n"),
-          fields: telemetryFields,
-          prefer_typed: true,
-          exp: Math.trunc(Date.now() / 1e3 + 60 * 60 * 24 * 7), // 7 days
-        },
-      } as TeslaTelemetryConfig)).response;
+      let telemetry;
+      try {
+        telemetry = (await this.callTeslaAPI(job, teslaAPI.createFleetTelemetryConfig, {
+          vins: setTelemetryConfigFor,
+          config: {
+            hostname: config.TESLA_TELEMETRY_HOST,
+            port: config.TESLA_TELEMETRY_PORT,
+            ca: config.TESLA_TELEMETRY_CA.replace(/\\n/g, "\n"),
+            fields: telemetryFields,
+            prefer_typed: true,
+            exp: Math.trunc(Date.now() / 1e3 + 60 * 60 * 24 * 7), // 7 days
+          },
+        } as TeslaTelemetryConfig)).response;
+      } catch (err) {
+        if (err instanceof RestClientError && err.code === 403 && err.message.includes("missing scopes")) {
+          for (const vin of setTelemetryConfigFor) {
+            const v = this.vehicles[vin];
+            const prev = this.telemetryConfigBackoff[vin];
+            const step = prev ? prev.step + 1 : 0;
+            const rawDelayMs = telemetryBackoffBaseMs * Math.pow(2, step);
+            const delayMs = Math.min(
+              telemetryBackoffCapMs,
+              Math.ceil(rawDelayMs / 60e3) * 60e3
+            );
+            const until = Date.now() + delayMs;
+            this.telemetryConfigBackoff[vin] = { step, until };
+            if (v) {
+              logVehicle(LogLevel.Warning, v, `Telemetry config blocked by scopes; backoff ${Math.round(delayMs / 60e3)}m`);
+            }
+          }
+          return;
+        }
+        throw err;
+      }
       log(LogLevel.Debug, `Telemetry successfully created for ${telemetry.updated_vehicles} vehicles`);
+      for (const vin of setTelemetryConfigFor) {
+        delete this.telemetryConfigBackoff[vin];
+      }
       if (telemetry.skipped_vehicles) {
         log(LogLevel.Debug, `Skipped vehicles: ${JSON.stringify(telemetry)}`);
         if (telemetry.skipped_vehicles.missing_key) {
