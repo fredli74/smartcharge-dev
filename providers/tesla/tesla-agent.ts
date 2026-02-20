@@ -179,7 +179,7 @@ function mapTelemetryNumber(v: telemetryData.Value["value"]): number {
     case "stringValue": case "intValue": case "floatValue": case "doubleValue":
       return +v.value;
     default:
-      log(LogLevel.Warning, `Tesla Telmetry invalid number value: ${v} (${v.case})`);
+      log(LogLevel.Warning, `Tesla Telemetry invalid number value: ${v} (${v.case})`);
       return NaN;
   }
 }
@@ -229,7 +229,7 @@ export class TeslaAgent extends AbstractAgent {
     this.kafkaConsumer.run({
       eachMessage: async ({ topic, message }) => {
         if (message.value === null) {
-          log(LogLevel.Error, `Tesla Telmetry message value is null`);
+          log(LogLevel.Error, `Tesla Telemetry message value is null`);
           return;
         }
         if (topic === "tesla_connectivity") {
@@ -252,10 +252,10 @@ export class TeslaAgent extends AbstractAgent {
             new Uint8Array(message.value)
           );
           for (const error of data.errors) {
-            log(LogLevel.Error, `Tesla Telmetry error ${error.name} (${JSON.stringify(error.tags)}): ${error.body}`);
+            log(LogLevel.Error, `Tesla Telemetry error ${error.name} (${JSON.stringify(error.tags)}): ${error.body}`);
           }
         } else {
-          log(LogLevel.Error, `Unknown Tesla Telmetry topic: ${topic}`);
+          log(LogLevel.Error, `Unknown Tesla Telemetry topic: ${topic}`);
         }
       },
     });
@@ -1022,7 +1022,7 @@ export class TeslaAgent extends AbstractAgent {
     logVehicle(
       LogLevel.Info,
       vehicle,
-      `Tesla Telmetry connectivity ${data.vin} ${data.connectionId} ${data.networkInterface} ${telemetryConnectivity.ConnectivityEvent[data.status]}`
+      `Tesla Telemetry connectivity ${data.vin} ${data.connectionId} ${data.networkInterface} ${telemetryConnectivity.ConnectivityEvent[data.status]}`
     );
     vehicle.tsUpdate = Date.now();
 
