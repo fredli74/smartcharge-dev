@@ -36,7 +36,7 @@
         <v-select
           v-model="splitCharge"
           :items="splitChargeList"
-          label="Split charge"
+          label="Split charge window"
           placeholder=" "
           :loading="saving.splitCharge"
         >

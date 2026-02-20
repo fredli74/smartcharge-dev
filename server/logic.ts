@@ -1114,8 +1114,10 @@ export class Logic {
           );
           if (minTemp && minTemp.min_temp !== null) {
             const temp = minTemp.min_temp / 10;
-            const y = Math.ceil((-1 / 800) * temp ** 3 + (3 / 80) * temp ** 2 - temp + 15);
-            warmupPenaltyMs = (y < 0 ? 0 : y > 60 ? 60 : y) * 60e3;
+            // Cubic fit through (-20,60), (-10,30), (0,15), (10,0) with clamp to [0,60].
+            const rawMinutes = (-1 / 400) * temp ** 3 + (-5 / 4) * temp + 15;
+            const warmupMinutes = Math.min(60, Math.max(0, rawMinutes));
+            warmupPenaltyMs = Math.round(warmupMinutes * 60e3);
             splitInfo = ` at ${temp.toFixed(1)}°C`;
           }
         }
