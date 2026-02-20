@@ -361,6 +361,7 @@ type VehicleLocationSetting {
 
   """location id"""
   locationID: ID!
+  splitCharge: String!
 }
 
 input VehicleLocationSettingInput {
@@ -370,4 +371,5 @@ input VehicleLocationSettingInput {
 
   """location id"""
   locationID: ID!
+  splitCharge: String!
 }

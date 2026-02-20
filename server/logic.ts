@@ -21,7 +21,7 @@ import {
   capitalize
 } from "@shared/utils.js";
 import { UpdateVehicleDataInput, ChargePlan, Schedule, VehicleLocationSettings } from "./gql/vehicle-type.js";
-import { SmartChargeGoal, ChargeType, ScheduleType } from "@shared/sc-types.js";
+import { SmartChargeGoal, SplitCharge, ChargeType, ScheduleType } from "@shared/sc-types.js";
 import { MIN_STATS_PERIOD, SCHEDULE_TOPUP_MARGIN } from "@shared/smartcharge-defines.js";
 
 const CHARGE_PRIO: Record<ChargeType, number> = {
@@ -876,6 +876,8 @@ export class Logic {
 
     const locationSettings = this.getVehicleLocationSettings(vehicle, location_uuid);
     const minimum_charge = locationSettings.directLevel;
+    const splitCharge = locationSettings.splitCharge || SplitCharge.Auto;
+    const prevPlan = Array.isArray(vehicle.charge_plan) ? vehicle.charge_plan : null;
 
     // Cleanup schedule remove all entries 1 hour after the end time
     const schedule: DBSchedule[] = await this.db.pg.manyOrNone(
@@ -898,6 +900,7 @@ export class Logic {
 
     let chargePlan: ChargePlan[] = [];
     let smartStatus = "";
+    let splitInfo = "";
 
     if (manual && !manual.level) {
       vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Charging disabled until next connection`);
@@ -1094,7 +1097,37 @@ export class Logic {
       };
 
       // Warmup penalty: extra time-equivalent cost when we interrupt an ongoing charge.
-      const WARMUP_MS = 15 * 60 * 1000;
+      const disallowGaps = splitCharge === SplitCharge.Never;
+      let warmupPenaltyMs : number | undefined;
+      if (splitCharge === SplitCharge.Always) {
+        warmupPenaltyMs = 0;
+      } else if (splitCharge === SplitCharge.Auto) {
+        if (location_uuid) {
+          // Estimate a warmup penalty based on the lowest observed temperature during charging at this location
+          const minTemp = await this.db.pg.oneOrNone(
+            `SELECT MIN(cc.outside_deci_temperature) AS min_temp
+            FROM charge_curve cc
+            JOIN charge c ON c.charge_id = cc.charge_id
+            WHERE c.location_uuid = $1
+              AND c.start_ts >= NOW() - interval '6 weeks';`,
+            [location_uuid]
+          );
+          if (minTemp && minTemp.min_temp !== null) {
+            const temp = minTemp.min_temp / 10;
+            const y = Math.ceil((-1 / 800) * temp ** 3 + (3 / 80) * temp ** 2 - temp + 15);
+            warmupPenaltyMs = (y < 0 ? 0 : y > 60 ? 60 : y) * 60e3;
+            splitInfo = ` at ${temp.toFixed(1)}°C`;
+          }
+        }
+        if (warmupPenaltyMs === undefined) {
+          warmupPenaltyMs = 10 * 60 * 1000;
+          splitInfo = ` (default)`;
+        }
+        splitInfo = ` warmupPenalty=${Math.round(warmupPenaltyMs / 60e3)}min${splitInfo}`;
+      }
+      splitInfo = `; splitCharge=${splitCharge}${splitInfo}`;
+      vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Estimated warmup penalty${splitInfo}`);
+
       // Minimum discretization step to avoid overly fine granularity in the DP.
       const MIN_STEP_MS = 5 * 60 * 1000;
 
@@ -1135,8 +1168,7 @@ export class Logic {
           if (duration > 0 && duration < quantumMs) quantumMs = duration;
         }
         quantumMs = isFinite(quantumMs) ? quantumMs : 15 * 60 * 1000;
-        // Discretization step: never coarser than slot size, never finer than MIN_STEP_MS when warmup is enabled.
-        const stepMs = WARMUP_MS > 0 ? Math.min(quantumMs, Math.max(WARMUP_MS, MIN_STEP_MS)) : quantumMs;
+        const stepMs = Math.max(MIN_STEP_MS, warmupPenaltyMs === undefined ? quantumMs : Math.min(quantumMs, warmupPenaltyMs));
 
         const targetMaxMs = Math.max(0, Math.min(timeNeededMs, totalAvailableMs));
         if (targetMaxMs < 1) {
@@ -1205,12 +1237,14 @@ export class Logic {
                   (trimFromStart && (startSlot > 0 || isCharging)) ||
                   (!trimFromStart && remainingSteps > 0) ||
                   (remainingSteps > 0 && hasDataGap);
+                if (disallowGaps && hasGap) continue;
+                assert(warmupPenaltyMs !== undefined || !hasGap);
                 const prevCost = dpTable[endSlot + 1][remainingSteps];
                 const prevWindows = dpWindows[endSlot + 1][remainingSteps];
                 if (prevCost !== Infinity) {
                   // Warmup is a penalty, never a reward. Clamp negative prices to 0 here.
                   const gapRate = trimFromStart ? firstPerMs : lastPerMs;
-                  const gapCost = hasGap ? Math.max(0, gapRate) * WARMUP_MS : 0;
+                  const gapCost = hasGap ? Math.max(0, gapRate) * (warmupPenaltyMs ?? 0) : 0;
                   const newCost = windowCost + prevCost + gapCost;
                   const newWindows = prevWindows + 1;
                   const existingCost = dpTable[startSlot][neededSteps];
@@ -1240,9 +1274,14 @@ export class Logic {
         // Pick the best start slot. If we are already charging, any start after the first slot
         // is treated as an interruption and pays the warmup penalty.
         for (let firstStartSlot = 0; firstStartSlot < numSlots; firstStartSlot++) {
-          const initialGapCost = (isCharging && firstStartSlot > 0)
-            ? Math.max(0, perMsScores[firstStartSlot]) * WARMUP_MS
-            : 0;
+          let initialGapCost = 0;
+          if (isCharging && firstStartSlot > 0) {
+            if (disallowGaps) continue;
+            assert(warmupPenaltyMs !== undefined);
+            // If we are currently charging, starting at a later slot means we have an idle gap until then, which incurs a warmup penalty.
+            // We calculate the gap cost as if the gap were fully priced at the first slot's rate, which is a reasonable approximation.
+            initialGapCost = Math.max(0, perMsScores[firstStartSlot]) * warmupPenaltyMs;
+          }
           const baseCost = dpTable[firstStartSlot][timeNeededSteps];
           if (baseCost === Infinity) continue;
           const cost = baseCost + initialGapCost;
@@ -1450,6 +1489,78 @@ export class Logic {
     if (chargePlan.length) {
       chargePlan = Logic.cleanupPlan(chargePlan);
       vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, chargePlan);
+    }
+
+    {
+      // DESCRIBE CHARGE PLAN IN A HUMAN-READABLE WAY
+      // Compare the new plan with the existing one and log changes in a human-readable way.
+      // We want to log when the plan changes, but the raw JSON can be hard to read.
+    
+      const normalizePlan = (plan: any[] | null): string => {
+        if (!plan || plan.length === 0) return "[]";
+        const normalized = plan.map((entry) => ({
+          type: entry.chargeType ?? entry.charge_type ?? "",
+          level: entry.level ?? null,
+          comment: entry.comment ?? "",
+          start: entry.chargeStart ? new Date(entry.chargeStart).getTime() : null,
+          stop: entry.chargeStop ? new Date(entry.chargeStop).getTime() : null,
+        }));
+        return JSON.stringify(normalized);
+      };
+      const fmtDuration = (ms: number): string => {
+        const totalMinutes = Math.round(ms / 60e3);
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
+        if (hours > 0) return `${hours}h`;
+        return `${minutes}m`;
+      };
+      const fmtTime = (d: Date | null): string => {
+        if (!d) return "now";
+        return d.toISOString().replace("T", " ").replace("Z", "Z");
+      };
+
+      const nextPlan = chargePlan.length > 0 ? chargePlan : null;
+      const prevNorm = normalizePlan(prevPlan);
+      const nextNorm = normalizePlan(nextPlan);
+      const locationChanged = (vehicle.charge_plan_location_uuid || null) !== (nextPlan ? location_uuid : null);
+      if (prevNorm !== nextNorm || locationChanged) {
+        if (!nextPlan) {
+          vehicleLog(LogLevel.Info, vehicle.vehicle_uuid, `Charge schedule cleared`);
+        } else {
+          const totalMs = nextPlan.reduce((sum, entry) => {
+            if (entry.chargeStart && entry.chargeStop) {
+              return sum + (entry.chargeStop.getTime() - entry.chargeStart.getTime());
+            }
+            return sum;
+          }, 0);
+          const windows = nextPlan
+            .map((entry) => {
+              const start = fmtTime(entry.chargeStart);
+              const stop = entry.chargeStop ? fmtTime(entry.chargeStop) : "until done";
+              return `${start} → ${stop} (${entry.chargeType} to ${entry.level}%)`;
+            })
+            .join("; ");
+          let gapInfo = "";
+          for (let i = 0; i < nextPlan.length - 1; i++) {
+            const a = nextPlan[i];
+            const b = nextPlan[i + 1];
+            if (a.chargeStop && b.chargeStart) {
+              const gapMs = b.chargeStart.getTime() - a.chargeStop.getTime();
+              if (gapMs > 0) {
+                gapInfo = `; gaps: ${fmtDuration(gapMs)}`;
+                break;
+              }
+            }
+          }
+          const totalInfo = totalMs > 0 ? `total ${fmtDuration(totalMs)}` : `total unknown`;
+          vehicleLog(
+            LogLevel.Info,
+            vehicle.vehicle_uuid,
+            `Charge schedule updated: ${totalInfo}; ${windows}${gapInfo}${splitInfo}`
+          );
+        }
+      }
     }
     await this.db.pg.one(
       `UPDATE vehicle SET charge_plan = $1:json, charge_plan_location_uuid = $2 WHERE vehicle_uuid = $3 RETURNING *;`,

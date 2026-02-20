@@ -11,6 +11,7 @@ import { GraphQLJSONObject } from "graphql-type-json";
 import { GeoLocation, Location } from "./location-type.js";
 import {
   SmartChargeGoal,
+  SplitCharge,
   ChargeType,
   ChargeConnection,
   ScheduleType,
@@ -34,11 +35,17 @@ export class VehicleLocationSettings {
     directLevel!: number;
   @Field((_type) => String)
     goal!: SmartChargeGoal | string;
+  @Field((_type) => String)
+    splitCharge!: SplitCharge | string;
 }
 // Not used because we cannot union between enum and String in type-graphql
 registerEnumType(SmartChargeGoal, {
   name: "SmartChargeGoal",
   description: "Smart Charge Goal Presets",
+});
+registerEnumType(SplitCharge, {
+  name: "SplitCharge",
+  description: "Split Charge Preference",
 });
 
 /*******************************

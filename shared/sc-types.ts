@@ -18,6 +18,12 @@ export enum SmartChargeGoal {
   Full = "full",
 }
 
+export enum SplitCharge {
+  Never = "never",
+  Auto = "auto",
+  Always = "always",
+}
+
 export enum ChargeType {
   Disable = "disable",
   Calibrate = "calibrate",

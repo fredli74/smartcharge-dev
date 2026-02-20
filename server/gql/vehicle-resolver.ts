@@ -150,6 +150,7 @@ export class VehicleResolver {
           map[obj.locationID] = {
             directLevel: obj.directLevel,
             goal: obj.goal,
+            splitCharge: obj.splitCharge,
           };
           return map;
         },
