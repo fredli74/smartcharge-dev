@@ -1190,7 +1190,12 @@ export class Logic {
                   : sortedCandidates[endSlot].duration;
                 if (overhangMs > trimLimitMs) continue;
                 const windowCost = currentScoreMs - overhangMs * (trimFromStart ? firstPerMs : lastPerMs);
-                if (maxPrice !== undefined && windowCost / winDurationMs > maxPrice) continue;
+                if (maxPrice !== undefined) {
+                  // If we're already charging, allow a window that starts at hardStart even when its
+                  // average is above maxPrice; the gap penalty will still make "stop & wait" expensive.
+                  const allowOverMax = isCharging && startSlot === 0 && !trimFromStart;
+                  if (windowCost / winDurationMs > maxPrice && !allowOverMax) continue;
+                }
                 const remainingSteps = neededSteps - winSteps;
                 if (remainingSteps < 0) continue;
                 // Warmup penalty applies for any charging interruption (idle gap), not just data gaps.
