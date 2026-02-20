@@ -40,6 +40,8 @@ interface TeslaTelemetryData {
   Odometer: number;
   OutsideTemp: number;
   InsideTemp: number;
+  ModuleTempMin: number;
+  ModuleTempMax: number;
   TimeToFullCharge: number;
 
   HvacPower: telemetryData.HvacPowerState;
@@ -86,6 +88,8 @@ const telemetryFields: TelemetryFields = {
   Odometer: { interval_seconds: 15, minimum_delta: 0.05 }, // 0.05 miles = 80 meters
   OutsideTemp: { interval_seconds: 60, minimum_delta: 0.5 },
   InsideTemp: { interval_seconds: 30, minimum_delta: 0.5 },
+  ModuleTempMin: { interval_seconds: 60, minimum_delta: 0.5 },
+  ModuleTempMax: { interval_seconds: 60, minimum_delta: 0.5 },
   TimeToFullCharge: { interval_seconds: 10, minimum_delta: 0.02 }, // 0.02 hours = 1.2 minutes
 
   VehicleName: { interval_seconds: 5 },
@@ -1091,6 +1095,8 @@ export class TeslaAgent extends AbstractAgent {
           case telemetryData.Field.Odometer:
           case telemetryData.Field.OutsideTemp:
           case telemetryData.Field.InsideTemp:
+          case telemetryData.Field.ModuleTempMin:
+          case telemetryData.Field.ModuleTempMax:
           case telemetryData.Field.TimeToFullCharge:
           case telemetryData.Field.ChargeAmps:
           case telemetryData.Field.ChargeCurrentRequest:
