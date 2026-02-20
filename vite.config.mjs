@@ -12,9 +12,11 @@ import path from 'path';
 import globals from './shared/smartcharge-globals.json'; // Adjusted to resolve from `shared`
 import { VitePWA } from 'vite-plugin-pwa'
 
-const commitHash = process.env.SOURCE_VERSION || execSync('git rev-parse --short HEAD').toString().trim();
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config();
+
+const commitHash = process.env.SOURCE_VERSION || execSync('git rev-parse --short HEAD').toString().trim();
+const serverURL = `http://${process.env.SERVER_IP ? (process.env.SERVER_IP.includes(":" ) ? `[${process.env.SERVER_IP}]` : process.env.SERVER_IP) : "localhost"}:${process.env.SERVER_PORT || globals.DEFAULT_PORT}`;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   root: 'app', // Root directory for the Vue app
@@ -30,7 +32,7 @@ export default defineConfig({
   server: {
     proxy: {
       ["/api"]: {
-        target: `http://localhost:${process.env.SERVER_PORT || globals.DEFAULT_PORT}`,
+        target: serverURL,
         ws: true,
       },
     },
