@@ -11,18 +11,29 @@ import { DBInterface } from "./db-interface.js";
 import { DBVehicle, DBCharge, DBChargeCurrent, DBTrip, DBConnected, DBLocationStats, DBStatsMap, DBSchedule, } from "./db-schema.js";
 import {
   LogLevel,
-  log,
+  vehicleLog,
   arrayMean,
   compareStartStopTimes,
   numericStartTime,
   numericStopTime,
   compareStartTimes,
-  capitalize,
-  diffObjects
+  diffObjects,
+  capitalize
 } from "@shared/utils.js";
 import { UpdateVehicleDataInput, ChargePlan, Schedule, VehicleLocationSettings } from "./gql/vehicle-type.js";
-import { SmartChargeGoal, ChargeType, ScheduleType } from "@shared/sc-types.js";
+import { SmartChargeGoal, SplitCharge, ChargeType, ScheduleType } from "@shared/sc-types.js";
 import { MIN_STATS_PERIOD, SCHEDULE_TOPUP_MARGIN } from "@shared/smartcharge-defines.js";
+
+const CHARGE_PRIO: Record<ChargeType, number> = {
+  [ChargeType.Disable]: 0,
+  [ChargeType.Calibrate]: 1,
+  [ChargeType.Minimum]: 2,
+  [ChargeType.Manual]: 3,
+  [ChargeType.Trip]: 4,
+  [ChargeType.Routine]: 5,
+  [ChargeType.Prefered]: 6,
+  [ChargeType.Fill]: 7,
+};
 
 export class Logic {
   constructor(private db: DBInterface) { }
@@ -34,8 +45,8 @@ export class Logic {
   ) {
     // Lookup old record
     const was: DBVehicle = await this.db.getVehicle(undefined, input.id);
-    log(LogLevel.Trace, `input: ${JSON.stringify(input)}`);
-    log(LogLevel.Trace, `vehicle: ${JSON.stringify(was)}`);
+    vehicleLog(LogLevel.Trace, was.vehicle_uuid, `input: ${JSON.stringify(input)}`);
+    vehicleLog(LogLevel.Trace, was.vehicle_uuid, `vehicle: ${JSON.stringify(was)}`);
 
     const vehicle = { ...was };
     let connection: DBConnected | null = null;
@@ -96,7 +107,7 @@ export class Logic {
               connected: true,
             }
           )) as DBConnected;
-          log(LogLevel.Debug, `Started connection ${connection.connected_id}`);
+          vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Started connection ${connection.connected_id}`);
           vehicle.connected_id = connection.connected_id;
           if (connection.location_uuid !== null) {
             await this.createNewStats(vehicle, connection.location_uuid);
@@ -107,20 +118,20 @@ export class Logic {
             `UPDATE connected SET type = $1, location_uuid = $2 WHERE connected_id = $3 RETURNING *;`,
             [input.connectedCharger, vehicle.location_uuid, connection.connected_id]
           )) as DBConnected;
-          log(LogLevel.Debug, `Reconnected to connection ${connection.connected_id}`);
+          vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Reconnected to connection ${connection.connected_id}`);
         }
         doPricePlan = true;
         vehicle.connected_id = connection.connected_id;
-        log(LogLevel.Debug, `Vehicle connected (connected_id=${connection.connected_id})`);
+        vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Vehicle connected (connected_id=${connection.connected_id})`);
       } else {
         // We disconnected
         if (was.connected_id !== null) {
-          log(LogLevel.Debug, `Ending connection ${was.connected_id}`);
+          vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Ending connection ${was.connected_id}`);
           await this.db.pg.none(
             `UPDATE connected SET end_ts = $1, end_level = $2, connected = false WHERE connected_id = $3;`,
             [now, vehicle.level, was.connected_id]
           );
-          log(LogLevel.Debug, `Vehicle no longer connected (connected_id=${was.connected_id})`);
+          vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Vehicle no longer connected (connected_id=${was.connected_id})`);
           vehicle.connected_id = null;
           vehicle.charge_id = null;
         }
@@ -182,7 +193,7 @@ export class Logic {
             }
           }
 
-          log(LogLevel.Debug, `Updating charge ${charge.charge_id} with ${deltaAdded} Wm added`);
+          vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Updating charge ${charge.charge_id} with ${deltaAdded} Wm added`);
           await this.db.pg.none(
             `UPDATE connected SET ($1:name) = ($1:csv) WHERE connected_id=$2;`,
             [{
@@ -214,7 +225,7 @@ export class Logic {
                 const used = (avgPower * duration) / 60; // power (W) * time (s) = Ws / 60 = Wm
                 const added = energyAdded - chargeCurrent.start_added; // Wm
                 const avgTemp = arrayMean(chargeCurrent.outside_deci_temperatures); // deci-celsius
-                log(LogLevel.Debug, `Calculated charge curve between ${chargeCurrent.start_level}% and ${vehicle.level}% is ${(used / 60.0).toFixed(2)}kWh in ${(duration / 60.0).toFixed(2)}m`);
+                vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Calculated charge curve between ${chargeCurrent.start_level}% and ${vehicle.level}% is ${(used / 60.0).toFixed(2)}kWh in ${(duration / 60.0).toFixed(2)}m`);
                 await this.db.setChargeCurve(
                   vehicle.vehicle_uuid, charge.charge_id, chargeCurrent.start_level, duration, avgTemp, used, added);
               }
@@ -263,7 +274,7 @@ export class Logic {
             }
           )) as DBCharge;
           vehicle.charge_id = charge.charge_id;
-          log(LogLevel.Debug, `Started charge ${charge.charge_id}`);
+          vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Started charge ${charge.charge_id}`);
         }
       }
     }
@@ -275,7 +286,7 @@ export class Logic {
         `UPDATE charge SET start_used = COALESCE(start_used, $1), end_used = $1 WHERE charge_id=$2 RETURNING *;`,
         [energyUsed, vehicle.charge_id]
       );
-      log(LogLevel.Trace, `charge: ${JSON.stringify(new_charge)}`);
+      vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `charge: ${JSON.stringify(new_charge)}`);
     }
 
     if (input.powerUse && vehicle.charge_id !== null) {
@@ -288,13 +299,13 @@ export class Logic {
         }
       );
       if (new_current) {
-        log(LogLevel.Trace, `charge_current: ${JSON.stringify(new_current)}`);
+        vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `charge_current: ${JSON.stringify(new_current)}`);
       }
     }
 
     if (was.charge_id !== null && vehicle.charge_id === null) {
       // We stopped charging
-      log(LogLevel.Debug, `Ending charge ${was.charge_id}`);
+      vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Ending charge ${was.charge_id}`);
       await this.db.pg.none(`DELETE FROM charge_current WHERE charge_id=$1;`, [was.charge_id]);
     }
 
@@ -326,7 +337,7 @@ export class Logic {
             }
           )) as DBTrip;
           vehicle.trip_id = trip.trip_id;
-          log(LogLevel.Debug, `Started trip ${trip.trip_id}`);
+          vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Started trip ${trip.trip_id}`);
         }
       } else {
         const distance = vehicle.odometer - trip.start_odometer;
@@ -339,13 +350,14 @@ export class Logic {
               [vehicle.vehicle_uuid, ScheduleType.Manual]
             );
             if (removed) {
-              log(
+              vehicleLog(
                 LogLevel.Trace,
-                `Removed manual schedule for vehicle ${vehicle.vehicle_uuid} after leaving location ${trip.start_location_uuid} on trip ${trip.trip_id} (${distance}m)`
+                vehicle.vehicle_uuid,
+                `Removed manual schedule after leaving location ${trip.start_location_uuid} on trip ${trip.trip_id} (${distance}m)`
               );
             }
           }
-          log(LogLevel.Debug, `Updating trip ${vehicle.trip_id} with ${traveled}m driven`);
+          vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Updating trip ${vehicle.trip_id} with ${traveled}m driven`);
           trip = (await this.db.pg.one(
             `UPDATE trip SET ($1:name) = ($1:csv) WHERE trip_id=$2 RETURNING *;`,
             [{
@@ -360,19 +372,18 @@ export class Logic {
           let stopTrip = false;
           if (vehicle.location_uuid !== null) {
             // We stopped driving at a location we know
-            log(LogLevel.Debug,
-              `Vehicle at location ${vehicle.location_uuid} after driving ${trip.distance / 1e3} km, ending trip ${trip.trip_id}`
+            vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Vehicle at location ${vehicle.location_uuid} after driving ${trip.distance / 1e3} km, ending trip ${trip.trip_id}`
             );
             stopTrip = true;
             if (trip.distance < 1e3) {
               // totally ignore trips less than 1 km
-              log(LogLevel.Debug, `Removing trip ${trip.trip_id}, because it only recorded ${trip.distance} meters`);
+              vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Removing trip ${trip.trip_id}, because it only recorded ${trip.distance} meters`);
               await this.db.pg.none(`DELETE FROM trip WHERE trip_id=$1;`, [
                 vehicle.trip_id,
               ]);
             }
           } else if (vehicle.connected) {
-            log(LogLevel.Debug, `Vehicle connected after driving ${trip.distance / 1e3} km, ending trip ${trip.trip_id}`);
+            vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Vehicle connected after driving ${trip.distance / 1e3} km, ending trip ${trip.trip_id}`);
             stopTrip = true;
           }
           if (stopTrip) {
@@ -380,7 +391,7 @@ export class Logic {
             doPricePlan = true;
           }
         }
-        log(LogLevel.Trace, `trip: ${JSON.stringify(trip)}`);
+        vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `trip: ${JSON.stringify(trip)}`);
       }
     }
 
@@ -647,7 +658,7 @@ export class Logic {
         if (lvl > minimum_charge + needavg && f < bestCost * 0.95) {
           bestCost = f;
           threshold = t;
-          log(LogLevel.Debug, `Cost simulation ${vehicle.vehicle_uuid} t=${t} => ${f}`);
+          vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Cost simulation ${vehicle.vehicle_uuid} t=${t} => ${f}`);
         }
       }
     }
@@ -680,23 +691,13 @@ export class Logic {
   }
 
   private static cleanupPlan(plan: ChargePlan[]): ChargePlan[] {
-    const chargePrio = {
-      [ChargeType.Disable]: 0,
-      [ChargeType.Calibrate]: 1,
-      [ChargeType.Minimum]: 2,
-      [ChargeType.Manual]: 3,
-      [ChargeType.Trip]: 4,
-      [ChargeType.Routine]: 5,
-      [ChargeType.Prefered]: 6,
-      [ChargeType.Fill]: 7,
-    };
     plan.sort((a, b) =>
       compareStartStopTimes(
         a.chargeStart,
         a.chargeStop,
         b.chargeStart,
         b.chargeStop
-      ) || chargePrio[a.chargeType] - chargePrio[b.chargeType]
+      ) || CHARGE_PRIO[a.chargeType] - CHARGE_PRIO[b.chargeType]
     );
 
     function consolidate() {
@@ -840,7 +841,7 @@ export class Logic {
 
     if (!guess || !guess.before || !guess.charge) {
       // missing data to guess
-      log(LogLevel.Debug, `Missing data for smart charging.`);
+      vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Missing data for smart charging.`);
       return null;
     } else {
       const minimumLevel = Math.min(
@@ -853,18 +854,18 @@ export class Logic {
   }
 
   private async refreshVehicleChargePlan(vehicle: DBVehicle) {
-    log(LogLevel.Trace, `vehicle: ${JSON.stringify(vehicle)}`);
+    vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `vehicle: ${JSON.stringify(vehicle)}`);
 
     let location_uuid = vehicle.location_uuid;
     if (location_uuid === null) {
       if (vehicle.connected) {
         // We are connected, but not at a known location
-        log(LogLevel.Debug, `Vehicle connected at unknown location`);
+        vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Vehicle connected at unknown location`);
       } else if (vehicle.location_micro_latitude && vehicle.location_micro_longitude) {
         const closest = await this.db.lookupClosestLocation(vehicle.account_uuid, vehicle.location_micro_latitude, vehicle.location_micro_longitude);
         if (closest) {
           location_uuid = closest.location.location_uuid;
-          log(LogLevel.Debug, `Vehicle at unknown location, closest known location is ${location_uuid} (${closest.distance}m)`);
+          vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Vehicle at unknown location, closest known location is ${location_uuid} (${closest.distance}m)`);
         }
       }
     }
@@ -875,6 +876,8 @@ export class Logic {
 
     const locationSettings = this.getVehicleLocationSettings(vehicle, location_uuid);
     const minimum_charge = locationSettings.directLevel;
+    const splitCharge = locationSettings.splitCharge || SplitCharge.Auto;
+    const prevPlan = Array.isArray(vehicle.charge_plan) ? vehicle.charge_plan : null;
 
     // Cleanup schedule remove all entries 1 hour after the end time
     const schedule: DBSchedule[] = await this.db.pg.manyOrNone(
@@ -893,13 +896,14 @@ export class Logic {
     const manual = scheduleMap[ScheduleType.Manual];
     const trip = scheduleMap[ScheduleType.Trip];
 
-    const startLevel = vehicle.level - 1;
+    let startLevel = vehicle.level - 1;
 
     let chargePlan: ChargePlan[] = [];
     let smartStatus = "";
+    let splitInfo = "";
 
     if (manual && !manual.level) {
-      log(LogLevel.Debug, `Charging disabled until next connection`);
+      vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Charging disabled until next connection`);
       chargePlan.push({
         chargeStart: null,
         chargeStop: null,
@@ -909,24 +913,40 @@ export class Logic {
       });
       smartStatus = `Charging disabled until next plug in`;
     } else {
-      const price_data: { ts: Date; price: number }[] = (location_uuid && (await this.db.pg.manyOrNone(
+      type PriceSlot = Readonly<{ from: number; to: number; price: number }>;
+      type CandidateSlot = Readonly<{ from: number; to: number; duration: number; price: number; score: number }>;
+
+      // TODO: user configurable per site or vehicle? Schedule splitting: "none/min/max"
+      // none = hard cap maxSegments to 1, min = only split if it saves cost, max = always split up to maxSegments
+      // Legacy split threshold (no longer used in DP-based scheduler, kept for reference).
+      // Soft maxPrice behavior:
+      // - Penalize slots above maxPrice in the score/average.
+      const OVERPRICE_PENALTY_FACTOR = 1.5;
+      // - Hard cap: drop any slot above (maxPrice * SOFT_MAXPRICE_CAP_FACTOR).
+      const SOFT_MAXPRICE_CAP_FACTOR = 1.5;
+      // Price values in DB are stored as integer(price * 1e5) to keep precision.
+      const DB_PRICE_SCALE = 1e5;
+      const fmtDbPrice = (p: number): string => (p / DB_PRICE_SCALE).toFixed(5);
+      const priceToScorePerMs = (price: number, maxPrice?: number): number => {
+        return (maxPrice !== undefined && price > maxPrice) ? price * OVERPRICE_PENALTY_FACTOR : price;
+      };
+      const price_data: { ts: Date; price: number }[] = ( location_uuid && (await this.db.pg.manyOrNone(
         `SELECT ts, price FROM price_data p JOIN location l ON (l.price_list_uuid = p.price_list_uuid) WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' ORDER BY ts`,
         [location_uuid]
       ))) || [];
       let duration = 60 * 60e3; // default 1 hour
       let priceAvailable = 0;
-      const priceMap: { ts: number; duration: number; price: number }[] = price_data.map((e, i) => {
-        const start = e.ts.getTime();
+      const priceSlots: ReadonlyArray<PriceSlot> = price_data.map((e, i): PriceSlot => {
+        const from = e.ts.getTime();
         if (i < price_data.length - 1) {
           duration = price_data[i + 1].ts.getTime() - e.ts.getTime();
         }
-        const end = start + duration;
-        if (end > priceAvailable) {
-          priceAvailable = end;
+        const to = from + duration;
+        if (to > priceAvailable) {
+          priceAvailable = to;
         }
-        return { ts: start, duration: duration, price: e.price };
-      }).sort((a, b) => a.price - b.price);
-      // @codex: is this sorted correctly by cheapest price first?
+        return { from, to, price: e.price };
+      });
 
       const chargeCurve = await this.db.getChargeCurve(vehicle.vehicle_uuid, location_uuid);
       const ChargeDuration = (from: number, to: number): number => {
@@ -936,45 +956,23 @@ export class Logic {
         }
         return sum * 1e3;
       };
-      let fillBefore: number = priceAvailable;
-
-      const GeneratePlan = (chargeType: ChargeType, comment: string, level: number, before_ts?: number, maxPrice?: number): boolean => {
-        // Adjust before_ts if it's passed already
-        before_ts = (before_ts || 0) <= now ? undefined : before_ts;
-
-        // Only adjust if it's earlier than 6h before the one we alread had in mind
-        if (before_ts && before_ts < priceAvailable && (fillBefore === priceAvailable || before_ts + 360 * 60e3 < fillBefore)) {
-          fillBefore = before_ts;
-        }
-
-        // Do charge goal adjustments
-        if (level > startLevel && before_ts !== undefined) {
-          // Do we need to split and do a partial charge for future target
-          if (priceAvailable && before_ts > priceAvailable) {
-            const timeNeeded = ChargeDuration(startLevel, level);
-            const startDeadline = before_ts - timeNeeded * 1.5;
-            log(LogLevel.Trace, `${capitalize(chargeType)} charge time ${Math.round(timeNeeded / 60e3)} min, deadline ${new Date(startDeadline).toISOString()}`);
-            if (startDeadline > priceAvailable) {
-              log(LogLevel.Trace, `deadline beyond price data, ignore charge`);
-              return false;
-            } else {
-              before_ts = priceAvailable;
-              level = Math.floor(
-                startLevel +
-                ((level - startLevel) * (priceAvailable - startDeadline)) /
-                (timeNeeded * 1.5)
-              );
-              log(LogLevel.Debug, `${capitalize(chargeType)} partial charge to ${level}% before ${new Date(before_ts).toISOString()}`);
-            }
-          }
-
-          // Do we need to topup charge above maximum
-          if (level > vehicle.maximum_charge) {
-            const topupTime = ChargeDuration(Math.max(startLevel, vehicle.maximum_charge), level);
-            const topupStart = before_ts - SCHEDULE_TOPUP_MARGIN - topupTime;
-            log(LogLevel.Debug,
-              `${capitalize(chargeType)} topup charge from ${vehicle.maximum_charge}% to ${level}% start at ${new Date(topupStart).toISOString()}`
-            );
+      let hardStart = now;
+      let hardEnd = Number.POSITIVE_INFINITY;
+      type SoftIntent = {
+        chargeType: ChargeType;
+        comment: string;
+        level: number;
+        requestedLevel: number;
+        beforeTs?: number;
+      };
+      const softIntents: SoftIntent[] = [];
+      let fillMaxPrice: number | null = null;
+      const addSoftIntent = (chargeType: ChargeType, comment: string, level: number, beforeTs?: number) => {
+        const requestedLevel = level;
+        if (level > vehicle.maximum_charge) {
+          if (beforeTs !== undefined) {
+            const topupTime = ChargeDuration(vehicle.maximum_charge, level);
+            const topupStart = beforeTs - SCHEDULE_TOPUP_MARGIN - topupTime;
             chargePlan.push({
               chargeStart: new Date(topupStart),
               chargeStop: null,
@@ -982,81 +980,396 @@ export class Logic {
               chargeType,
               comment: `topping up`,
             });
-
-            // Adjust charge target to exclude topup range
-            before_ts = topupStart;
-            level = vehicle.maximum_charge;
+            hardEnd = Math.min(hardEnd, topupStart);
           }
+          level = vehicle.maximum_charge;
         }
-
-        if (level > startLevel) {
-          const timeNeeded = ChargeDuration(startLevel, level);
-          assert(timeNeeded > 0);
-
-          if (priceAvailable && before_ts !== undefined) {
-            log(LogLevel.Trace, `${capitalize(chargeType)} charge to ${level}% before ${new Date(before_ts).toISOString()}`);
-
-            // Map priceMap prices to a list of hours to charge
-            let timeLeft = timeNeeded;
-            for (const price of priceMap) {
-              if (timeLeft < 1) break; // Done
-              if (maxPrice && price.price > maxPrice) break; // Prices too high
-
-              if (price.ts > before_ts) continue; // price beyond our target time
-
-              // Duration takes timeLeft, "now" and "before_ts" into account to be accurate
-              const duration = Math.min(Math.min(price.ts + price.duration, before_ts) - Math.max(price.ts, now), timeLeft);
-              if (duration < 1) continue; // no time here
-              chargePlan.push({
-                chargeStart: new Date(price.ts),
-                chargeStop: new Date(price.ts + price.duration),
-                level,
-                chargeType,
-                comment,
-              });
-              timeLeft -= duration;
-              log(LogLevel.Trace, `charge ${duration / 1e3}s ${JSON.stringify(price)} => ${timeLeft / 1e3}s left`);
-            }
-
-            smartStatus = smartStatus || `${capitalize(chargeType)} charge to ${level}% scheduled`;
-          } else {
-            log(LogLevel.Debug, `${capitalize(chargeType)} charge directly to ${level}%`);
-            chargePlan.push({
-              chargeStart: null,
-              chargeStop: new Date(Date.now() + timeNeeded),
-              chargeType,
-              level,
-              comment,
+        softIntents.push({ chargeType, comment, level, requestedLevel, beforeTs });
+      };
+      const sortSoftIntents = (intents: SoftIntent[]): SoftIntent[] => {
+        return intents.slice().sort((a, b) => CHARGE_PRIO[a.chargeType] - CHARGE_PRIO[b.chargeType]);
+      };
+      const buildAllocations = (intents: SoftIntent[]) => {
+        const ordered = sortSoftIntents(intents);
+        let prevNeeded = 0;
+        const out: Array<{
+          durationMs: number;
+          chargeType: ChargeType;
+          comment: string;
+          level: number;
+          requestedLevel: number;
+        }> = [];
+        for (const intent of ordered) {
+          const needed = ChargeDuration(startLevel, intent.level);
+          const durationMs = Math.max(0, needed - prevNeeded);
+          if (durationMs > 0) {
+            out.push({
+              durationMs,
+              chargeType: intent.chargeType,
+              comment: intent.comment,
+              level: intent.level,
+              requestedLevel: intent.requestedLevel
             });
-            smartStatus = smartStatus || `${capitalize(chargeType)} charge directly to ${level}%`;
+            prevNeeded = needed;
           }
-
-          return true;
-        } else {
-          log(LogLevel.Debug, `${level} <= ${startLevel}, no ${chargeType} charge plan added for ${comment}`);
-          return false;
         }
+        return out;
+      };
+      const setSmartStatusFromIntent = (intent: SoftIntent | undefined, mode: "scheduled" | "directly") => {
+        if (smartStatus || !intent) return;
+        const level = intent.requestedLevel ?? intent.level;
+        if (mode === "scheduled") {
+          smartStatus = `${capitalize(intent.chargeType)} charge to ${level}% scheduled`;
+        } else {
+          smartStatus = `${capitalize(intent.chargeType)} charge directly to ${level}%`;
+        }
+      };
+      const applyWindows = (
+        windows: Array<{ start: number; stop: number }>,
+        allocations: Array<{ durationMs: number; chargeType: ChargeType; comment: string; level: number; requestedLevel: number }>
+      ) => {
+        setSmartStatusFromIntent(allocations[0], "scheduled");
+        const sorted = windows.slice().sort((a, b) => a.start - b.start);
+        let i = 0;
+        let remaining = allocations.length > 0 ? allocations[0].durationMs : 0;
+        for (const w of sorted) {
+          let cursor = w.start;
+          let windowLeft = w.stop - w.start;
+          while (windowLeft > 0 && i < allocations.length) {
+            const a = allocations[i];
+            const take = Math.min(windowLeft, remaining);
+            chargePlan.push({
+              chargeStart: new Date(cursor),
+              chargeStop: new Date(cursor + take),
+              level: a.level,
+              chargeType: a.chargeType,
+              comment: a.comment,
+            });
+            cursor += take;
+            windowLeft -= take;
+            remaining -= take;
+            if (remaining <= 0) {
+              i++;
+              remaining = i < allocations.length ? allocations[i].durationMs : 0;
+            }
+          }
+        }
+      };
+      const scheduleSoftIntents = () => {
+        if (softIntents.length === 0 && fillMaxPrice === null) return;
+
+        let intentDeadline = priceAvailable;
+        let intentMaxLevel = startLevel;
+        for (const i of softIntents) {
+          if (i.beforeTs !== undefined) intentDeadline = Math.min(intentDeadline, i.beforeTs);
+          if (i.level > intentMaxLevel) intentMaxLevel = i.level;
+        }
+        const timeNeeded = intentMaxLevel > startLevel ? ChargeDuration(startLevel, intentMaxLevel) : 0;
+        if (intentDeadline >= hardStart) {
+          // Try to fully charge with cheap energy first
+          const max = vehicle.maximum_charge;
+          const fillWindows = (
+            fillMaxPrice === null ? { windows: [], scheduledMs: 0 } :
+            planWindows(ChargeDuration(startLevel, max), intentDeadline, fillMaxPrice, `fill:${max}`, vehicle.connected && Boolean(vehicle.charging_to))
+          );
+          // If we found more charge time than we need to reach the intent max level, we don't need another plan
+          if (fillWindows.windows.length > 0 && fillWindows.scheduledMs >= timeNeeded) {
+            // apply the fill plan, use the intent charge types and comments for each section
+            applyWindows(fillWindows.windows, buildAllocations([ ...softIntents, { chargeType: ChargeType.Fill, comment: `low price`, level: max, requestedLevel: max } ]));
+          } else if (intentMaxLevel > startLevel) {
+            // We cannot fill the entire intent with cheap energy, so we generate a new plan without the maxPrice constraint
+            const plan = planWindows(timeNeeded, intentDeadline, undefined, `intent:${intentMaxLevel}`, vehicle.connected && Boolean(vehicle.charging_to));
+            applyWindows(plan.windows, buildAllocations(softIntents));
+          }
+        } else if (intentMaxLevel > startLevel) {
+          // No price data or deadline: charge directly to the max soft intent level.
+          const topIntent = sortSoftIntents(softIntents)[0];
+          assert(topIntent);
+          setSmartStatusFromIntent(topIntent, "directly");
+          chargePlan.push({
+            chargeStart: null,
+            chargeStop: new Date(now + timeNeeded),
+            chargeType: topIntent.chargeType,
+            level: intentMaxLevel,
+            comment: topIntent.comment,
+          });
+        }
+      };
+
+      // Warmup penalty: extra time-equivalent cost when we interrupt an ongoing charge.
+      const disallowGaps = splitCharge === SplitCharge.Never;
+      let warmupPenaltyMs : number | undefined;
+      if (splitCharge === SplitCharge.Always) {
+        warmupPenaltyMs = 0;
+      } else if (splitCharge === SplitCharge.Auto) {
+        if (location_uuid) {
+          // Estimate a warmup penalty based on the lowest observed temperature during charging at this location
+          const minTemp = await this.db.pg.oneOrNone(
+            `SELECT MIN(cc.outside_deci_temperature) AS min_temp
+            FROM charge_curve cc
+            JOIN charge c ON c.charge_id = cc.charge_id
+            WHERE c.location_uuid = $1
+              AND c.start_ts >= NOW() - interval '6 weeks';`,
+            [location_uuid]
+          );
+          if (minTemp && minTemp.min_temp !== null) {
+            const temp = minTemp.min_temp / 10;
+            // Cubic fit through (-20,60), (-10,30), (0,15), (10,0) with clamp to [0,60].
+            const rawMinutes = (-1 / 400) * temp ** 3 + (-5 / 4) * temp + 15;
+            const warmupMinutes = Math.min(60, Math.max(0, rawMinutes));
+            warmupPenaltyMs = Math.round(warmupMinutes * 60e3);
+            splitInfo = ` at ${temp.toFixed(1)}°C`;
+          }
+        }
+        if (warmupPenaltyMs === undefined) {
+          warmupPenaltyMs = 10 * 60 * 1000;
+          splitInfo = ` (default)`;
+        }
+        splitInfo = ` warmupPenalty=${Math.round(warmupPenaltyMs / 60e3)}min${splitInfo}`;
+      }
+      splitInfo = `; splitCharge=${splitCharge}${splitInfo}`;
+      vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Estimated warmup penalty${splitInfo}`);
+
+      // Minimum discretization step to avoid overly fine granularity in the DP.
+      const MIN_STEP_MS = 5 * 60 * 1000;
+
+      const planWindows = (
+        timeNeededMs: number,
+        beforeTimestampMs: number,
+        maxPrice: number | undefined,
+        scheduleTag: string,
+        isCharging: boolean
+      ): { windows: { start: number; stop: number }[]; scheduledMs: number } => {
+        const scheduled = { windows: [] as { start: number; stop: number }[], scheduledMs: 0 };
+        const hardCapPrice = maxPrice === undefined ? undefined : maxPrice * SOFT_MAXPRICE_CAP_FACTOR;
+        const candidateSlots: ReadonlyArray<CandidateSlot> = priceSlots.flatMap((slot: PriceSlot): CandidateSlot[] => {
+          const fromTimeMs = Math.max(slot.from, hardStart);
+          const toTimeMs = Math.min(slot.to, beforeTimestampMs, hardEnd);
+          if (toTimeMs <= fromTimeMs) return [];
+          if (hardCapPrice !== undefined && slot.price > hardCapPrice) return [];
+          const durationMs = toTimeMs - fromTimeMs;
+          const slotScore = priceToScorePerMs(slot.price, maxPrice) * durationMs;
+          return [{ from: fromTimeMs, to: toTimeMs, duration: durationMs, price: slot.price, score: slotScore }];
+        });
+
+        if (candidateSlots.length === 0) {
+          vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `scheduleWindows(${scheduleTag}): no segments (no price data?)`);
+          return scheduled;
+        }
+
+        // Sort by time to allow gap checks and stable DP traversal.
+        const sortedCandidates = candidateSlots.slice().sort((a, b) => a.from - b.from);
+        let totalAvailableMs = 0;
+        for (const slot of sortedCandidates) {
+          totalAvailableMs += slot.duration;
+        }
+        // Use unclipped slot durations to avoid the first (clipped) slot shrinking the step size.
+        let quantumMs = Infinity;
+        for (const slot of priceSlots) {
+          const duration = slot.to - slot.from;
+          if (duration > 0 && duration < quantumMs) quantumMs = duration;
+        }
+        quantumMs = isFinite(quantumMs) ? quantumMs : 15 * 60 * 1000;
+        const stepMs = Math.max(MIN_STEP_MS, warmupPenaltyMs === undefined ? quantumMs : Math.min(quantumMs, warmupPenaltyMs));
+
+        const targetMaxMs = Math.max(0, Math.min(timeNeededMs, totalAvailableMs));
+        if (targetMaxMs < 1) {
+          vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `scheduleWindows(${scheduleTag}): nothing to schedule (need=${Math.round(timeNeededMs / 60e3)}min avail=${Math.round(totalAvailableMs / 60e3)}min)`);
+          return scheduled;
+        }
+        vehicleLog(
+          LogLevel.Trace,
+          vehicle.vehicle_uuid,
+          `scheduleWindows(${scheduleTag}): need=${Math.round(timeNeededMs / 60e3)}min targetMax=${Math.round(targetMaxMs / 60e3)}min before=${new Date(beforeTimestampMs).toISOString()} ` +
+          `candidates=${candidateSlots.length} avail=${Math.round(totalAvailableMs / 60e3)}min quantum=${Math.round(quantumMs / 60e3)}min ` +
+          `maxPrice=${maxPrice === undefined ? "none" : fmtDbPrice(maxPrice)} capFactor=${SOFT_MAXPRICE_CAP_FACTOR} overPenalty=${OVERPRICE_PENALTY_FACTOR}`
+        );
+
+        const timeNeededSteps = Math.ceil(targetMaxMs / stepMs);
+        const numSlots = sortedCandidates.length;
+
+        const cumDurationMs = new Array(numSlots + 1).fill(0);
+        const perMsScores = new Array(numSlots);
+        for (let i = 1; i <= numSlots; i++) {
+          const slot = sortedCandidates[i - 1];
+          cumDurationMs[i] = cumDurationMs[i - 1] + slot.duration;
+          perMsScores[i - 1] = priceToScorePerMs(slot.price, maxPrice);
+        }
+
+        // DP over (startSlot, neededSteps). Gap penalty is modeled as extra score cost, not extra time.
+        const dpTable = Array.from({ length: numSlots + 1 }, () => new Array(timeNeededSteps + 1).fill(Infinity));
+        const dpWindows = Array.from({ length: numSlots + 1 }, () => new Array(timeNeededSteps + 1).fill(Infinity));
+        const choiceTable = Array.from({ length: numSlots + 1 }, () => new Array(timeNeededSteps + 1).fill(null));
+        for (let startSlot = numSlots; startSlot >= 0; startSlot--) {
+          dpTable[startSlot][0] = 0;
+          dpWindows[startSlot][0] = 0;
+          for (let neededSteps = 1; neededSteps < dpTable[0].length; neededSteps++) {
+            let currentDurationMs = 0;
+            let currentScoreMs = 0;
+            for (let endSlot = startSlot; endSlot < numSlots; endSlot++) {
+              // Only consider contiguous windows; gaps break continuity.
+              if (endSlot > startSlot && sortedCandidates[endSlot].from !== sortedCandidates[endSlot - 1].to) break;
+              currentDurationMs += sortedCandidates[endSlot].duration;
+              currentScoreMs += sortedCandidates[endSlot].score;
+              const firstPerMs = perMsScores[startSlot];
+              const lastPerMs = perMsScores[endSlot];
+              const maxWinSteps = Math.min(neededSteps, Math.floor(currentDurationMs / stepMs));
+              for (let winSteps = 1; winSteps <= maxWinSteps; winSteps++) {
+                const winDurationMs = winSteps * stepMs;
+                const overhangMs = currentDurationMs - winDurationMs;
+                // We only allow trimming within the boundary slot (no dropping whole slots).
+                const trimFromStart = firstPerMs > lastPerMs;
+                const trimLimitMs = trimFromStart
+                  ? sortedCandidates[startSlot].duration
+                  : sortedCandidates[endSlot].duration;
+                if (overhangMs > trimLimitMs) continue;
+                const windowCost = currentScoreMs - overhangMs * (trimFromStart ? firstPerMs : lastPerMs);
+                if (maxPrice !== undefined) {
+                  // If we're already charging, allow a window that starts at hardStart even when its
+                  // average is above maxPrice; the gap penalty will still make "stop & wait" expensive.
+                  const allowOverMax = isCharging && startSlot === 0 && !trimFromStart;
+                  if (windowCost / winDurationMs > maxPrice && !allowOverMax) continue;
+                }
+                const remainingSteps = neededSteps - winSteps;
+                if (remainingSteps < 0) continue;
+                // Warmup penalty applies for any charging interruption (idle gap), not just data gaps.
+                const hasDataGap = endSlot + 1 < numSlots
+                  && sortedCandidates[endSlot + 1].from !== sortedCandidates[endSlot].to;
+                const hasGap =
+                  (trimFromStart && (startSlot > 0 || isCharging)) ||
+                  (!trimFromStart && remainingSteps > 0) ||
+                  (remainingSteps > 0 && hasDataGap);
+                if (disallowGaps && hasGap) continue;
+                assert(warmupPenaltyMs !== undefined || !hasGap);
+                const prevCost = dpTable[endSlot + 1][remainingSteps];
+                const prevWindows = dpWindows[endSlot + 1][remainingSteps];
+                if (prevCost !== Infinity) {
+                  // Warmup is a penalty, never a reward. Clamp negative prices to 0 here.
+                  const gapRate = trimFromStart ? firstPerMs : lastPerMs;
+                  const gapCost = hasGap ? Math.max(0, gapRate) * (warmupPenaltyMs ?? 0) : 0;
+                  const newCost = windowCost + prevCost + gapCost;
+                  const newWindows = prevWindows + 1;
+                  const existingCost = dpTable[startSlot][neededSteps];
+                  const existingWindows = dpWindows[startSlot][neededSteps];
+                  const existingChoice = choiceTable[startSlot][neededSteps];
+                  if (
+                    newCost < existingCost ||
+                    (newCost === existingCost && (
+                      newWindows < existingWindows ||
+                      (newWindows === existingWindows && (!existingChoice || endSlot < existingChoice.endSlot))
+                    ))
+                  ) {
+                    dpTable[startSlot][neededSteps] = newCost;
+                    dpWindows[startSlot][neededSteps] = newWindows;
+                    choiceTable[startSlot][neededSteps] = { endSlot, winSteps };
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        let bestCost = Infinity;
+        let bestFirstStartSlot = 0;
+        let bestEffectiveSteps = timeNeededSteps;
+        let bestWindowCount = Infinity;
+        // Pick the best start slot. If we are already charging, any start after the first slot
+        // is treated as an interruption and pays the warmup penalty.
+        for (let firstStartSlot = 0; firstStartSlot < numSlots; firstStartSlot++) {
+          let initialGapCost = 0;
+          if (isCharging && firstStartSlot > 0) {
+            if (disallowGaps) continue;
+            assert(warmupPenaltyMs !== undefined);
+            // If we are currently charging, starting at a later slot means we have an idle gap until then, which incurs a warmup penalty.
+            // We calculate the gap cost as if the gap were fully priced at the first slot's rate, which is a reasonable approximation.
+            initialGapCost = Math.max(0, perMsScores[firstStartSlot]) * warmupPenaltyMs;
+          }
+          const baseCost = dpTable[firstStartSlot][timeNeededSteps];
+          if (baseCost === Infinity) continue;
+          const cost = baseCost + initialGapCost;
+          const windowCount = dpWindows[firstStartSlot][timeNeededSteps];
+          if (cost < bestCost || (cost === bestCost && windowCount < bestWindowCount)) {
+            bestCost = cost;
+            bestFirstStartSlot = firstStartSlot;
+            bestEffectiveSteps = timeNeededSteps;
+            bestWindowCount = windowCount;
+            vehicleLog(
+              LogLevel.Trace,
+              vehicle.vehicle_uuid,
+              `scheduleWindows(${scheduleTag}): select startSlot=${firstStartSlot} cost=${cost} baseCost=${baseCost} ` +
+              `gapCost=${initialGapCost} windows=${windowCount} start=${new Date(sortedCandidates[firstStartSlot].from).toISOString()} isCharging=${isCharging} ` +
+              `hardStart=${new Date(hardStart).toISOString()}`
+            );
+          }
+        }
+
+        if (bestCost === Infinity) return scheduled;
+
+        const reconstructedWindows: { start: number; stop: number }[] = [];
+        let currentStartSlot = bestFirstStartSlot;
+        let currentNeededSteps = bestEffectiveSteps;
+        while (currentNeededSteps > 0) {
+          const choice = choiceTable[currentStartSlot][currentNeededSteps];
+          if (choice === null) break;
+          const endSlot = choice.endSlot;
+          const winSteps = choice.winSteps;
+          const winDurationMs = winSteps * stepMs;
+          const currentDurationMs = cumDurationMs[endSlot + 1] - cumDurationMs[currentStartSlot];
+          const overhangMs = currentDurationMs - winDurationMs;
+          const firstPerMs = perMsScores[currentStartSlot];
+          const lastPerMs = perMsScores[endSlot];
+          const startTimeMs = sortedCandidates[currentStartSlot].from + (firstPerMs > lastPerMs ? overhangMs : 0);
+          const stopTimeMs = startTimeMs + winDurationMs;
+          reconstructedWindows.push({ start: startTimeMs, stop: stopTimeMs });
+          currentStartSlot = endSlot + 1;
+          currentNeededSteps -= winSteps;
+        }
+        reconstructedWindows.sort((a, b) => a.start - b.start);
+
+        vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `scheduleWindows(${scheduleTag}): accepted avgPrice=${fmtDbPrice(bestCost / (bestEffectiveSteps * stepMs))} ` +
+          `windows=${reconstructedWindows.map((w) => `${new Date(w.start).toISOString()}..${new Date(w.stop).toISOString()}`).join(", ")}`
+        );
+        scheduled.windows = reconstructedWindows;
+        scheduled.scheduledMs = targetMaxMs;
+        return scheduled;
       };
 
       const HandleTripCharge = () => {
         if (trip) {
           assert(trip.level);
           assert(trip.schedule_ts);
-          GeneratePlan(ChargeType.Trip, `upcoming trip`, trip.level, trip.schedule_ts.getTime());
+          addSoftIntent(ChargeType.Trip, `upcoming trip`, trip.level, trip.schedule_ts.getTime());
         }
       };
 
       if (startLevel < minimum_charge) {
         // Emergency charge up to minimum level
-        GeneratePlan(ChargeType.Minimum, `emergency charge`, minimum_charge);
+        const timeNeeded = ChargeDuration(startLevel, minimum_charge);
+        assert(timeNeeded > 0);
+        const stop = hardStart + timeNeeded;
+        chargePlan.push({
+          chargeStart: new Date(hardStart),
+          chargeStop: new Date(stop),
+          chargeType: ChargeType.Minimum,
+          level: minimum_charge,
+          comment: `emergency charge`,
+        });
+        hardStart = stop;
+        startLevel = minimum_charge;
         smartStatus = (vehicle.connected ? `Direct charging to ` : `Connect charger to charge to `) + `${minimum_charge}%`;
       }
 
-      // Manual schedule blocks everything
+      // Manual schedule overrides auto choices
       if (manual) {
         if (!manual.schedule_ts) {
           assert(manual.level);
-          log(LogLevel.Debug, `Manual charging directly to ${manual.level}%`);
+          vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Manual charging directly to ${manual.level}%`);
+          const manualIntent: SoftIntent = {
+            chargeType: ChargeType.Manual,
+            comment: `manual charge`,
+            level: manual.level,
+            requestedLevel: manual.level
+          };
           chargePlan.push({
             chargeStart: null,
             chargeStop: null,
@@ -1064,16 +1377,11 @@ export class Logic {
             level: manual.level,
             comment: `manual charge`,
           });
-          smartStatus = smartStatus || `Manual charging to ${manual.level}%`;
+          setSmartStatusFromIntent(manualIntent, "directly");
         } else {
           assert(manual.level);
           assert(manual.schedule_ts);
-          GeneratePlan(
-            ChargeType.Manual,
-            `manual charge`,
-            manual.level,
-            manual.schedule_ts.getTime()
-          );
+          addSoftIntent(ChargeType.Manual, `manual charge`, manual.level, manual.schedule_ts.getTime());
         }
 
         // Still do trip charging!
@@ -1082,7 +1390,12 @@ export class Logic {
         let stats: DBLocationStats | null = null;
         if (location_uuid) {
           stats = await this.currentStats(vehicle, location_uuid);
-          log(LogLevel.Trace, `stats: ${JSON.stringify(stats)}`);
+          vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `stats: ${JSON.stringify(stats)}`);
+        }
+
+        if (stats && stats.weekly_avg7_price && stats.weekly_avg21_price && stats.threshold) {
+          const averagePrice = stats.weekly_avg7_price + (stats.weekly_avg7_price - stats.weekly_avg21_price) / 2;
+          fillMaxPrice = (averagePrice * stats.threshold) / 100;
         }
 
         const ai = {
@@ -1112,7 +1425,7 @@ export class Logic {
                 ai.ts = schedule.ts;
               } else {
                 // Disable smart charging because without threshold and averages it can not make a good decision
-                log(LogLevel.Debug, `Missing stats for smart charging.`);
+                vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Missing stats for smart charging.`);
                 ai.learning = true;
               }
             }
@@ -1136,8 +1449,8 @@ export class Logic {
                 }
               }
               smartStatus = smartStatus || `Smart charging disabled (learning)`;
-              GeneratePlan(ChargeType.Fill, `learning`, vehicle.maximum_charge, start_ts + 12 * 60 * 60e3);
-              fillBefore = 0; // disable low-price filling
+              addSoftIntent(ChargeType.Fill, `learning`, vehicle.maximum_charge, start_ts + 12 * 60 * 60e3);
+              fillMaxPrice = null; // disable low-price filling
             } else {
               assert(ai.level);
               assert(ai.ts);
@@ -1145,8 +1458,8 @@ export class Logic {
               const before = new Date(ai.ts);
               smartStatus = smartStatus
                 || `Predicting battery level ${ai.level}% (${neededCharge > 0 ? Math.round(neededCharge) + "%" : "no"} charge) is needed before ${before.toISOString()}`;
-              log(LogLevel.Debug, `Current level: ${vehicle.level}, predicting ${ai.level}% (${minimum_charge}+${neededCharge - minimum_charge}) is needed before ${before.toISOString()}`);
-              GeneratePlan(ChargeType.Routine, `routine charge`, ai.level, ai.ts);
+              vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Current level: ${vehicle.level}, predicting ${ai.level}% (${minimum_charge}+${neededCharge - minimum_charge}) is needed before ${before.toISOString()}`);
+              addSoftIntent(ChargeType.Routine, `routine charge`, ai.level, ai.ts);
 
               // locations settings charging
               {
@@ -1160,21 +1473,15 @@ export class Logic {
                   );
 
                 if (goalLevel > ai.level) {
-                  GeneratePlan(ChargeType.Prefered, `charge setting`, goalLevel, ai.ts);
+                  addSoftIntent(ChargeType.Prefered, `charge setting`, goalLevel, ai.ts);
                 }
               }
             }
           }
-
-          // Low price fill charging
-          if (fillBefore && stats && stats.weekly_avg7_price && stats.weekly_avg21_price && stats.threshold) {
-            const averagePrice = stats.weekly_avg7_price + (stats.weekly_avg7_price - stats.weekly_avg21_price) / 2;
-            const thresholdPrice = (averagePrice * stats.threshold) / 100;
-
-            GeneratePlan(ChargeType.Fill, `low price`, vehicle.maximum_charge, fillBefore, thresholdPrice);
-          }
         }
       }
+
+      scheduleSoftIntents();
     }
 
     if (smartStatus) {
@@ -1183,7 +1490,79 @@ export class Logic {
 
     if (chargePlan.length) {
       chargePlan = Logic.cleanupPlan(chargePlan);
-      log(LogLevel.Trace, chargePlan);
+      vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, chargePlan);
+    }
+
+    {
+      // DESCRIBE CHARGE PLAN IN A HUMAN-READABLE WAY
+      // Compare the new plan with the existing one and log changes in a human-readable way.
+      // We want to log when the plan changes, but the raw JSON can be hard to read.
+    
+      const normalizePlan = (plan: any[] | null): string => {
+        if (!plan || plan.length === 0) return "[]";
+        const normalized = plan.map((entry) => ({
+          type: entry.chargeType ?? entry.charge_type ?? "",
+          level: entry.level ?? null,
+          comment: entry.comment ?? "",
+          start: entry.chargeStart ? new Date(entry.chargeStart).getTime() : null,
+          stop: entry.chargeStop ? new Date(entry.chargeStop).getTime() : null,
+        }));
+        return JSON.stringify(normalized);
+      };
+      const fmtDuration = (ms: number): string => {
+        const totalMinutes = Math.round(ms / 60e3);
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
+        if (hours > 0 && minutes > 0) return `${hours}h ${minutes}m`;
+        if (hours > 0) return `${hours}h`;
+        return `${minutes}m`;
+      };
+      const fmtTime = (d: Date | null): string => {
+        if (!d) return "now";
+        return d.toISOString().replace("T", " ").replace("Z", "Z");
+      };
+
+      const nextPlan = chargePlan.length > 0 ? chargePlan : null;
+      const prevNorm = normalizePlan(prevPlan);
+      const nextNorm = normalizePlan(nextPlan);
+      const locationChanged = (vehicle.charge_plan_location_uuid || null) !== (nextPlan ? location_uuid : null);
+      if (prevNorm !== nextNorm || locationChanged) {
+        if (!nextPlan) {
+          vehicleLog(LogLevel.Info, vehicle.vehicle_uuid, `Charge schedule cleared`);
+        } else {
+          const totalMs = nextPlan.reduce((sum, entry) => {
+            if (entry.chargeStart && entry.chargeStop) {
+              return sum + (entry.chargeStop.getTime() - entry.chargeStart.getTime());
+            }
+            return sum;
+          }, 0);
+          const windows = nextPlan
+            .map((entry) => {
+              const start = fmtTime(entry.chargeStart);
+              const stop = entry.chargeStop ? fmtTime(entry.chargeStop) : "until done";
+              return `${start} → ${stop} (${entry.chargeType} to ${entry.level}%)`;
+            })
+            .join("; ");
+          let gapInfo = "";
+          for (let i = 0; i < nextPlan.length - 1; i++) {
+            const a = nextPlan[i];
+            const b = nextPlan[i + 1];
+            if (a.chargeStop && b.chargeStart) {
+              const gapMs = b.chargeStart.getTime() - a.chargeStop.getTime();
+              if (gapMs > 0) {
+                gapInfo = `; gaps: ${fmtDuration(gapMs)}`;
+                break;
+              }
+            }
+          }
+          const totalInfo = totalMs > 0 ? `total ${fmtDuration(totalMs)}` : `total unknown`;
+          vehicleLog(
+            LogLevel.Info,
+            vehicle.vehicle_uuid,
+            `Charge schedule updated: ${totalInfo}; ${windows}${gapInfo}${splitInfo}`
+          );
+        }
+      }
     }
     await this.db.pg.one(
       `UPDATE vehicle SET charge_plan = $1:json, charge_plan_location_uuid = $2 WHERE vehicle_uuid = $3 RETURNING *;`,

@@ -1,7 +1,7 @@
 <template>
   <v-form ref="form">
     <v-row>
-      <v-col cols="12" sm="5" md="6" class="mt-2">
+      <v-col cols="12" sm="4" md="5" class="mt-2">
         <v-list-item-title>{{ name }}</v-list-item-title>
         <v-list-item-subtitle
           class="font-light overline caption secondary--text text--lighten-2"
@@ -9,8 +9,7 @@
           ({{ settings.locationID }})
         </v-list-item-subtitle>
       </v-col>
-      <v-spacer />
-      <v-col cols="6" sm="3" md="3">
+      <v-col cols="6" sm="3" md="2">
         <v-text-field
           v-model="directLevel"
           :rules="[directLevelRules]"
@@ -33,7 +32,25 @@
           </template>
         </v-text-field>
       </v-col>
-      <v-col cols="6" sm="4" md="3">
+      <v-col cols="6" sm="3" md="2">
+        <v-select
+          v-model="splitCharge"
+          :items="splitChargeList"
+          label="Split charge window"
+          placeholder=" "
+          :loading="saving.splitCharge"
+        >
+          <template #append-outer>
+            <v-tooltip bottom max-width="18rem">
+              <template #activator="{ on }">
+                <v-icon v-on="on">mdi-help-circle-outline</v-icon>
+              </template>
+              Control if charging is allowed to split into multiple windows.
+            </v-tooltip>
+          </template>
+        </v-select>
+      </v-col>
+      <v-col cols="12" sm="4" md="3">
         <v-combobox
           v-model="goal"
           :items="goalCBList"
@@ -62,7 +79,6 @@
             v-model="focus"
             active-class="selected-charge"
             color="primary"
-            label="hej"
             mandatory
           >
             <v-btn small>Low Cost</v-btn>
@@ -79,7 +95,7 @@
 import { Component, Vue, Prop } from "vue-property-decorator";
 import deepmerge from "deepmerge";
 import { GQLVehicle, GQLVehicleLocationSetting } from "@shared/sc-schema.js";
-import { SmartChargeGoal } from "@shared/sc-types.js";
+import { SmartChargeGoal, SplitCharge } from "@shared/sc-types.js";
 import { UpdateVehicleParams } from "@shared/sc-client.js";
 
 @Component({})
@@ -90,17 +106,24 @@ export default class EditVehicle extends Vue {
 
   saving!: { [key: string]: boolean };
   goalCBList!: { text: string; value: string }[];
+  splitChargeList!: { text: string; value: string }[];
   data() {
     return {
       saving: {
         directLevel: false,
         goal: false,
+        splitCharge: false,
       },
       goalCBList: [
         { text: "Low cost", value: SmartChargeGoal.Low },
         { text: "Balanced", value: SmartChargeGoal.Balanced },
         { text: "Full charge", value: SmartChargeGoal.Full },
         { text: "Custom", value: "%" },
+      ],
+      splitChargeList: [
+        { text: "Never", value: SplitCharge.Never },
+        { text: "Auto", value: SplitCharge.Auto },
+        { text: "Always", value: SplitCharge.Always },
       ],
     };
   }
@@ -153,6 +176,15 @@ export default class EditVehicle extends Vue {
     this.save("goal");
   }
 
+  get splitCharge(): any {
+    const preset = this.splitChargeList.find((f) => f.value === this.settings.splitCharge);
+    return preset || this.splitChargeList[1];
+  }
+  set splitCharge(value: any) {
+    this.settings.splitCharge = value.value || value;
+    this.save("splitCharge");
+  }
+
   debounceTimer?: any;
   touchedFields: any = {};
   clearSaving: any = {};
@@ -174,6 +206,7 @@ export default class EditVehicle extends Vue {
               locationID: this.settings.locationID,
               directLevel: this.settings.directLevel,
               goal: goal.value || goal,
+              splitCharge: this.settings.splitCharge,
             } as GQLVehicleLocationSetting,
           ],
         };

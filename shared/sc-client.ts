@@ -92,6 +92,7 @@ locationSettings {
   locationID
   directLevel
   goal
+  splitCharge
 }
 batteryLevel
 odometer
