@@ -877,9 +877,12 @@ export class TeslaAgent extends AbstractAgent {
       if (vehicle.isOnline) {
         // Handle preconditioning schedules
         {
-          const scSchedule = vehicle.dbData.schedule
-            .filter((f) => f.type === GQLScheduleType.Trip && f.time && new Date(f.time).getTime() > now)
-            .sort((a, b) => compareStopTimes(a.time, b.time));
+          const autoHvac = vehicle.dbData.providerData && vehicle.dbData.providerData.auto_hvac !== false;
+          const scSchedule = autoHvac
+            ? vehicle.dbData.schedule
+              .filter((f) => f.type === GQLScheduleType.Trip && f.time && new Date(f.time).getTime() > now)
+              .sort((a, b) => compareStopTimes(a.time, b.time))
+            : [];
           let wantedPrecon: TeslaPreconditionSchedule | undefined;
           if (scSchedule.length > 0) {
             const departure = this.ConvertUTCtoLocationTime(location, new Date(scSchedule[0].time!));
