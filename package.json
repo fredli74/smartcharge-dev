@@ -101,7 +101,7 @@
     "vite": "~6.3.4",
     "vite-plugin-node-polyfills": "~0.23.0",
     "vite-plugin-pwa": "~0.21.1",
-    "vite-plugin-static-copy": "~2.2.0",
+    "vite-plugin-static-copy": "~2.3.2",
     "vite-plugin-vuetify": "~2.0.4",
     "vue": "~2.7.16",
     "vue-apexcharts": "~1.7.0",
