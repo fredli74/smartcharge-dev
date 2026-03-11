@@ -14,9 +14,15 @@ function time(): number {
   return Math.floor(new Date().valueOf() / 1e3);
 }
 
-function redactSecret(value: string): string {
+export function redactSecret(value: string): string {
   if (value.length <= 6) return "***";
   return `${value.slice(0, 3)}…${value.slice(-3)}`;
+}
+
+function responseShape(response: unknown): string {
+  if (typeof response !== "object" || !response) return `type=${typeof response}`;
+  const keys = Object.keys(response as Record<string, unknown>);
+  return `keys=[${keys.sort().join(",")}]`;
 }
 
 export interface TeslaTelemetryConfig {
@@ -94,14 +100,14 @@ export class TeslaAPI {
   public parseTokenResponse(response: any): TeslaToken {
     // Parse the token response
     if (typeof response.access_token !== "string") {
-      throw new RestClientError(`Error parsing Tesla oauth2 v3 token response, missing access_token ${JSON.stringify(response)}`, 500);
+      throw new RestClientError(`Error parsing Tesla oauth2 v3 token response, missing access_token (${responseShape(response)})`, 500);
     }
     if (typeof response.refresh_token !== "string") {
-      throw new RestClientError(`Error parsing Tesla oauth2 v3 token response, missing refresh_token ${JSON.stringify(response)}`, 500);
+      throw new RestClientError(`Error parsing Tesla oauth2 v3 token response, missing refresh_token (${responseShape(response)})`, 500);
     }
     const expires = Number.parseInt(response.expires_in);
     if (!Number.isInteger(expires)) {
-      throw new RestClientError(`Error parsing Tesla oauth2 v3 token response, invalid expires_in ${JSON.stringify(response)}`, 500);
+      throw new RestClientError(`Error parsing Tesla oauth2 v3 token response, invalid expires_in (${responseShape(response)})`, 500);
     }
 
     return {
@@ -140,7 +146,7 @@ export class TeslaAPI {
   private renewTokenLock: Set<string> = new Set();
   public async renewToken(refresh_token: string): Promise<TeslaToken> {
     if (this.renewTokenLock.has(refresh_token)) {
-      throw new RestClientError(`Concurrent renewToken(${refresh_token}) calls are not allowed`, 500);
+      throw new RestClientError(`Concurrent renewToken(${redactSecret(refresh_token)}) calls are not allowed`, 500);
     }
     this.renewTokenLock.add(refresh_token);
     try {
@@ -156,7 +162,7 @@ export class TeslaAPI {
       log(LogLevel.Trace, `TeslaAPI.renewToken(${redactSecret(refresh_token)}) response: ${JSON.stringify({ expires_in: authResponse?.expires_in })}`);
       return this.parseTokenResponse(authResponse);
     } catch (e) {
-      console.debug(`TeslaAPI.renewToken(${refresh_token}) error: ${e}`);
+      console.debug(`TeslaAPI.renewToken(${redactSecret(refresh_token)}) error: ${e}`);
       throw e;
     } finally {
       this.renewTokenLock.delete(refresh_token);

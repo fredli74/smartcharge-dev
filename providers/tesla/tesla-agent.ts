@@ -22,7 +22,7 @@ import {
 } from "@shared/utils.js";
 import { GQLLocationFragment, SCClient, UpdateVehicleParams } from "@shared/sc-client.js";
 import config from "./tesla-config.js";
-import teslaAPI, { TeslaAPI, TeslaChargeSchedule, TeslaPreconditionSchedule, TeslaScheduleTimeToDate, TeslaTelemetryConfig } from "./tesla-api.js";
+import teslaAPI, { redactSecret, TeslaAPI, TeslaChargeSchedule, TeslaPreconditionSchedule, TeslaScheduleTimeToDate, TeslaTelemetryConfig } from "./tesla-api.js";
 import { AgentJob, AbstractAgent, IProviderAgent } from "@providers/provider-agent.js";
 import provider, { TeslaServiceData, TeslaProviderMutates, TeslaProviderQueries, TeslaToken } from "./index.js";
 import { GQLVehicle, GQLUpdateVehicleDataInput, GQLChargeConnection, GQLChargeType, GQLGeoLocation, GQLScheduleType } from "@shared/sc-schema.js";
@@ -169,6 +169,24 @@ const logVehicle = (level: LogLevel, vehicle: VehicleEntry, data: unknown) => {
   }
 };
 
+function formatTelemetryValue(v: telemetryData.Value["value"]): string {
+  const value = v.value;
+  if (value === undefined || value === null) {
+    return `${value}`;
+  }
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+  if (typeof value === "string") {
+    return JSON.stringify(value);
+  }
+  return String(value);
+}
+
 interface TeslaAgentState {
   [vehicleUUID: string]: string;  // vehicleUUID -> vin
 }
@@ -183,7 +201,7 @@ function mapTelemetryNumber(v: telemetryData.Value["value"]): number {
     case "stringValue": case "intValue": case "floatValue": case "doubleValue":
       return +v.value;
     default:
-      log(LogLevel.Warning, `Tesla Telemetry invalid number value: ${v} (${v.case})`);
+      log(LogLevel.Warning, `Tesla Telemetry invalid number value: ${formatTelemetryValue(v)} (${v.case})`);
       return NaN;
   }
 }
@@ -297,7 +315,7 @@ export class TeslaAgent extends AbstractAgent {
     }
     job.serviceData.token = token as TeslaToken;
     delete job.serviceData.invalid_token;
-    log(LogLevel.Debug, `Updated token for ${job.serviceID} to ${token.access_token}`);
+    log(LogLevel.Debug, `Updated token for ${job.serviceID} to ${redactSecret(token.access_token)}`);
   }
 
   // Check token and refresh through server provider API
@@ -1051,7 +1069,7 @@ export class TeslaAgent extends AbstractAgent {
     logVehicle(
       LogLevel.Trace,
       vehicle,
-      `Telemetry data for ${vin}: ${telemetryData.Field[key]} = ${value.value} (${value.case})`
+      `Telemetry data for ${vin}: ${telemetryData.Field[key]} = ${formatTelemetryValue(value)} (${value.case})`
     );
     vehicle.tsUpdate = Date.now();
 
@@ -1168,7 +1186,7 @@ export class TeslaAgent extends AbstractAgent {
         logVehicle(
           LogLevel.Error,
           vehicle,
-          `Failed to handle telemetry data for ${vin}: ${telemetryData.Field[key]} = ${value.value} (${value.case})`
+          `Failed to handle telemetry data for ${vin}: ${telemetryData.Field[key]} = ${formatTelemetryValue(value)} (${value.case})`
         );
         logVehicle(LogLevel.Error, vehicle, err);
         return;
