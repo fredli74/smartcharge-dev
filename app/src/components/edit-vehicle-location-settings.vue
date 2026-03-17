@@ -177,7 +177,9 @@ export default class EditVehicle extends Vue {
   }
 
   get splitCharge(): any {
-    const preset = this.splitChargeList.find((f) => f.value === this.settings.splitCharge);
+    const preset = this.splitChargeList.find(
+      (f) => f.value === (this.settings.splitCharge || SplitCharge.Auto)
+    );
     return preset || this.splitChargeList[1];
   }
   set splitCharge(value: any) {
@@ -206,18 +208,20 @@ export default class EditVehicle extends Vue {
               locationID: this.settings.locationID,
               directLevel: this.settings.directLevel,
               goal: goal.value || goal,
-              splitCharge: this.settings.splitCharge,
+              splitCharge: this.settings.splitCharge || SplitCharge.Auto,
             } as GQLVehicleLocationSetting,
           ],
         };
 
         this.clearSaving = deepmerge(this.clearSaving, this.saving);
 
-        await this.$scClient.updateVehicle(update);
-
-        for (const [key, value] of Object.entries(this.clearSaving)) {
-          if (value) {
-            this.$set(this.saving, key, false);
+        try {
+          await this.$scClient.updateVehicle(update);
+        } finally {
+          for (const [key, value] of Object.entries(this.clearSaving)) {
+            if (value) {
+              this.$set(this.saving, key, false);
+            }
           }
         }
       }
