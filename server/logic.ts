@@ -926,6 +926,7 @@ export class Logic {
       const SOFT_MAXPRICE_CAP_FACTOR = 1.5;
       // Price values in DB are stored as integer(price * 1e5) to keep precision.
       const DB_PRICE_SCALE = 1e5;
+      const ACTIVE_CHARGE_STICKY_MS = 10 * 60e3;
       const fmtDbPrice = (p: number): string => (p / DB_PRICE_SCALE).toFixed(5);
       const priceToScorePerMs = (price: number, maxPrice?: number): number => {
         return (maxPrice !== undefined && price > maxPrice) ? price * OVERPRICE_PENALTY_FACTOR : price;
@@ -1104,6 +1105,19 @@ export class Logic {
           }
           const timeNeeded = cohortMaxLevel > plannedLevel ? ChargeDuration(plannedLevel, cohortMaxLevel) : 0;
           if (timeNeeded <= 0) continue;
+          if (isActiveCharge() && timeNeeded <= ACTIVE_CHARGE_STICKY_MS) {
+            hardStart = applyWindows(
+              [{ start: hardStart, stop: hardStart + timeNeeded }],
+              buildAllocations(plannedLevel, cohortIntents)
+            );
+            vehicleLog(
+              LogLevel.Debug,
+              vehicle.vehicle_uuid,
+              `Keeping active charge sticky for the final ${Math.round(timeNeeded / 60e3)} minutes instead of rescheduling`
+            );
+            plannedLevel = cohortMaxLevel;
+            continue;
+          }
 
           if (deadline >= hardStart) {
             // Try to fully charge with cheap energy first
