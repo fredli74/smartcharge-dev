@@ -139,8 +139,8 @@ export class VehicleResolver {
     @PubSub() pubSub: PubSubEngine
   ): Promise<Vehicle> {
     // verify vehicle ownage
-    vehicleLog(LogLevel.Debug, input.id, `updateVehicle: ${JSON.stringify(input)}`);
-    await context.db.getVehicle(accountFilter(context.accountUUID), input.id);
+    const vehicle = await context.db.getVehicle(accountFilter(context.accountUUID), input.id);
+    vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `updateVehicle: ${JSON.stringify(input)}`);
 
     // remap settings array to settings map
     const locationSettingsMap =
