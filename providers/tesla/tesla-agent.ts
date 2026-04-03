@@ -607,6 +607,7 @@ export class TeslaAgent extends AbstractAgent {
               logVehicle(LogLevel.Warning, v, `Telemetry config blocked by scopes; backoff ${Math.round(delayMs / 60e3)}m`);
             }
           }
+          await Promise.all(waitFor);
           return;
         }
         throw err;
