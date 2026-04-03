@@ -93,7 +93,6 @@
 
 <script lang="ts">
 import { Component, Vue, Prop } from "vue-property-decorator";
-import deepmerge from "deepmerge";
 import { GQLVehicle, GQLVehicleLocationSetting } from "@shared/sc-schema.js";
 import { SmartChargeGoal, SplitCharge } from "@shared/sc-types.js";
 import { UpdateVehicleParams } from "@shared/sc-client.js";
@@ -189,9 +188,7 @@ export default class EditVehicle extends Vue {
 
   debounceTimer?: any;
   touchedFields: any = {};
-  clearSaving: any = {};
   async save(field: string) {
-    delete this.clearSaving[field];
     this.$set(this.saving, field, true);
 
     if (this.debounceTimer) {
@@ -213,12 +210,12 @@ export default class EditVehicle extends Vue {
           ],
         };
 
-        this.clearSaving = deepmerge(this.clearSaving, this.saving);
+        const fieldsToClear = { ...this.saving };
 
         try {
           await this.$scClient.updateVehicle(update);
         } finally {
-          for (const [key, value] of Object.entries(this.clearSaving)) {
+          for (const [key, value] of Object.entries(fieldsToClear)) {
             if (value) {
               this.$set(this.saving, key, false);
             }
