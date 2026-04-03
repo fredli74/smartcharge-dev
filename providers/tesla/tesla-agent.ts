@@ -156,6 +156,7 @@ interface VehicleEntry {
 
   isSleepy: boolean;
   isOnline: boolean;
+  lastScheduleSyncAt?: number;
 
   charge_schedules?: { [id: number]: TeslaChargeSchedule }; // Cached charge schedules
   precondition_schedules?: { [id: number]: TeslaPreconditionSchedule }; // Cached precondition schedules
@@ -221,7 +222,41 @@ function stringifyWithTimestamps(data: any): string {
   });
 }
 
+function normalizeChargeSchedules(schedules: { [id: number]: TeslaChargeSchedule } | undefined): unknown[] {
+  return Object.values(schedules || {})
+    .sort((a, b) => a.id - b.id)
+    .map((s) => ({
+      id: s.id,
+      latitude: s.latitude,
+      longitude: s.longitude,
+      start_enabled: s.start_enabled,
+      start_time: s.start_time,
+      end_enabled: s.end_enabled,
+      end_time: s.end_time,
+      days_of_week: s.days_of_week,
+      one_time: s.one_time,
+      enabled: s.enabled,
+    }));
+}
+
+function normalizePreconditionSchedules(schedules: { [id: number]: TeslaPreconditionSchedule } | undefined): unknown[] {
+  return Object.values(schedules || {})
+    .sort((a, b) => a.id - b.id)
+    .map((s) => ({
+      id: s.id,
+      latitude: s.latitude,
+      longitude: s.longitude,
+      precondition_time: s.precondition_time,
+      days_of_week: s.days_of_week,
+      one_time: s.one_time,
+      enabled: s.enabled,
+    }));
+}
+
 export class TeslaAgent extends AbstractAgent {
+  private static readonly ENABLE_SCHEDULE_AUDIT = true;
+  private static readonly SCHEDULE_AUDIT_INTERVAL_MS = 15 * 60e3;
+
   public name: string = provider.name;
   public kafkaClient: Kafka;
   public kafkaConsumer: Consumer;
@@ -692,6 +727,35 @@ export class TeslaAgent extends AbstractAgent {
     const d = typeof t === "string" ? new Date(t).getTime() : typeof t === "number" ? t : null;
     return d === null ? null : method(d / 15 / 60e3) * 15 * 60e3;
   }
+  public async refreshVehicleSchedules(job: TeslaAgentJob, vehicle: VehicleEntry, reason: string, warnOnMismatch = false) {
+    logVehicle(LogLevel.Trace, vehicle, `Calling TeslaAPI.getVehicleSchedules (${reason})`);
+    const schedules = (await this.callTeslaAPI(job, teslaAPI.getVehicleSchedules, vehicle.vin)).response;
+    const charge_schedules: { [id: number]: TeslaChargeSchedule } = {};
+    for (const s of schedules.charge_schedule_data.charge_schedules) {
+      charge_schedules[s.id] = s;
+    }
+    const precondition_schedules: { [id: number]: TeslaPreconditionSchedule } = {};
+    for (const s of schedules.preconditioning_schedule_data.precondition_schedules) {
+      precondition_schedules[s.id] = s;
+    }
+    logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} live charge schedules (${reason}): ${stringifyWithTimestamps(normalizeChargeSchedules(charge_schedules))}`);
+    logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} live preconditioning schedules (${reason}): ${stringifyWithTimestamps(normalizePreconditionSchedules(precondition_schedules))}`);
+    if (warnOnMismatch) {
+      const cachedCharge = stringifyWithTimestamps(normalizeChargeSchedules(vehicle.charge_schedules));
+      const liveCharge = stringifyWithTimestamps(normalizeChargeSchedules(charge_schedules));
+      if (cachedCharge !== liveCharge) {
+        logVehicle(LogLevel.Warning, vehicle, `${vehicle.vin} cached charge schedules differ from live vehicle schedules (${reason}) cached=${cachedCharge} live=${liveCharge}`);
+      }
+      const cachedPrecon = stringifyWithTimestamps(normalizePreconditionSchedules(vehicle.precondition_schedules));
+      const livePrecon = stringifyWithTimestamps(normalizePreconditionSchedules(precondition_schedules));
+      if (cachedPrecon !== livePrecon) {
+        logVehicle(LogLevel.Warning, vehicle, `${vehicle.vin} cached preconditioning schedules differ from live vehicle schedules (${reason}) cached=${cachedPrecon} live=${livePrecon}`);
+      }
+    }
+    vehicle.charge_schedules = charge_schedules;
+    vehicle.precondition_schedules = precondition_schedules;
+    vehicle.lastScheduleSyncAt = Date.now();
+  }
   public async vehicleWork(job: TeslaAgentJob, vehicle: VehicleEntry) {
     assert(vehicle.dbData !== null, "vehicle.dbData is null");
     try {
@@ -702,19 +766,13 @@ export class TeslaAgent extends AbstractAgent {
         await this.updateOnlineStatus(vehicle);
       }
 
-      // If this worker never polled the schedules, we do it now
+      // Poll schedules when we first see the vehicle online, then audit them periodically.
       if (vehicle.isOnline && (vehicle.charge_schedules === undefined || vehicle.precondition_schedules === undefined)) {
-        logVehicle(LogLevel.Trace, vehicle, `Calling TeslaAPI.getVehicleSchedules`);
-        const schedules = (await this.callTeslaAPI(job, teslaAPI.getVehicleSchedules, vehicle.vin)).response;
-        // Map charge_schedule_data.charge_schedules to { [id: number]: TeslaChargeSchedule }
-        vehicle.charge_schedules = {};
-        for (const s of schedules.charge_schedule_data.charge_schedules) {
-          vehicle.charge_schedules[s.id] = s;
-        }
-        vehicle.precondition_schedules = {};
-        for (const s of schedules.preconditioning_schedule_data.precondition_schedules) {
-          vehicle.precondition_schedules[s.id] = s;
-        }
+        await this.refreshVehicleSchedules(job, vehicle, "initial load");
+      } else if (TeslaAgent.ENABLE_SCHEDULE_AUDIT
+        && vehicle.isOnline
+        && (!vehicle.lastScheduleSyncAt || vehicle.lastScheduleSyncAt < Date.now() - TeslaAgent.SCHEDULE_AUDIT_INTERVAL_MS)) {
+        await this.refreshVehicleSchedules(job, vehicle, "periodic audit", true);
       }
 
       const locationID = vehicle.dbData.chargePlanLocationID || vehicle.dbData.locationID;
@@ -822,6 +880,7 @@ export class TeslaAgent extends AbstractAgent {
 
     // If we know the vehicle schedules, we can start working on figuring out schedule updates
     if (vehicle.charge_schedules && vehicle.precondition_schedules) {
+      let didMutateSchedules = false;
       const freeScheduleIDs: number[] = [];
       const usedScheduleIDs = new Set<number>();
       const scheduleUpdates: (TeslaChargeSchedule & { comment: string })[] = [];
@@ -839,6 +898,7 @@ export class TeslaAgent extends AbstractAgent {
           logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} deleting schedule ${s.id} because it does not match location`);
           logVehicle(LogLevel.Trace, vehicle, `Calling TeslaAPI.removeChargeSchedule(${s.id})`);
           await this.callTeslaAPI(job, teslaAPI.removeChargeSchedule, vehicle.vin, s.id);
+          didMutateSchedules = true;
           delete vehicle.charge_schedules[s.id];
         } else {
           vehicleSchedules[s.id] = { ...this.convertFromTeslaSchedule(s, location), scheduleID: s.id };
@@ -927,12 +987,14 @@ export class TeslaAgent extends AbstractAgent {
               logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} updating preconditioning schedule`);
               logVehicle(LogLevel.Trace, vehicle, `Calling TeslaAPI.addPreconditionSchedule`);
               await this.callTeslaAPI(job, teslaAPI.addPreconditionSchedule, vehicle.vin, wantedPrecon);
+              didMutateSchedules = true;
               vehicle.precondition_schedules[TeslaScheduleIDs.Precondition] = wantedPrecon;
             }
           } else if (existingPrecon) {
             logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} deleting preconditioning schedule`);
             logVehicle(LogLevel.Trace, vehicle, `Calling TeslaAPI.removePreconditionSchedule`);
             await this.callTeslaAPI(job, teslaAPI.removePreconditionSchedule, vehicle.vin, TeslaScheduleIDs.Precondition);
+            didMutateSchedules = true;
             delete vehicle.precondition_schedules[TeslaScheduleIDs.Precondition];
           }
         }
@@ -961,6 +1023,7 @@ export class TeslaAgent extends AbstractAgent {
             assert(usedScheduleIDs.has(s.id), "Invalid schedule ID");
             logVehicle(LogLevel.Trace, vehicle, `Calling TeslaAPI.addChargeSchedule(${s.id})`);
             await this.callTeslaAPI(job, teslaAPI.addChargeSchedule, vehicle.vin, s);
+            didMutateSchedules = true;
             // Cache the newly set schedule with correct lat/long (only after successful API call)
             vehicle.charge_schedules[s.id] = s;
             logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} cached schedule ${s.id} @ [${s.latitude},${s.longitude}]`);
@@ -974,6 +1037,7 @@ export class TeslaAgent extends AbstractAgent {
             // Log to database that we are deleting this schedule
             logVehicle(LogLevel.Trace, vehicle, `Calling TeslaAPI.removeChargeSchedule(${s.scheduleID})`);
             await this.callTeslaAPI(job, teslaAPI.removeChargeSchedule, vehicle.vin, s.scheduleID);
+            didMutateSchedules = true;
             delete vehicle.charge_schedules[s.scheduleID];
           }
         }
@@ -986,6 +1050,9 @@ export class TeslaAgent extends AbstractAgent {
             logVehicle(LogLevel.Trace, vehicle, `Calling TeslaAPI.setChargeLimit(${limitedSoc}%)`);
             await this.callTeslaAPI(job, teslaAPI.setChargeLimit, vehicle.vin, limitedSoc);
           }
+        }
+        if (TeslaAgent.ENABLE_SCHEDULE_AUDIT && didMutateSchedules) {
+          await this.refreshVehicleSchedules(job, vehicle, "post-update audit", true);
         }
       }
     }
