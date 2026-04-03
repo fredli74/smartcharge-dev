@@ -14,6 +14,7 @@ import {
   vehicleLog,
   arrayMean,
   compareStartStopTimes,
+  compareStopTimes,
   numericStartTime,
   numericStopTime,
   compareStartTimes,
