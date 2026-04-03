@@ -989,18 +989,26 @@ export class Logic {
       const sortSoftIntents = (intents: SoftIntent[]): SoftIntent[] => {
         return intents.slice().sort((a, b) => CHARGE_PRIO[a.chargeType] - CHARGE_PRIO[b.chargeType]);
       };
-      const buildAllocations = (intents: SoftIntent[]) => {
+      const fillIntent = (level: number): SoftIntent => ({
+        chargeType: ChargeType.Fill,
+        comment: `low price`,
+        level,
+        requestedLevel: level
+      });
+      const isActiveCharge = (): boolean => vehicle.connected && Boolean(vehicle.charging_to) && hardStart <= now;
+      type Allocation = {
+        durationMs: number;
+        chargeType: ChargeType;
+        comment: string;
+        level: number;
+        requestedLevel: number;
+      };
+      const buildAllocations = (baseLevel: number, intents: SoftIntent[]) => {
         const ordered = sortSoftIntents(intents);
         let prevNeeded = 0;
-        const out: Array<{
-          durationMs: number;
-          chargeType: ChargeType;
-          comment: string;
-          level: number;
-          requestedLevel: number;
-        }> = [];
+        const out: Allocation[] = [];
         for (const intent of ordered) {
-          const needed = ChargeDuration(startLevel, intent.level);
+          const needed = ChargeDuration(baseLevel, intent.level);
           const durationMs = Math.max(0, needed - prevNeeded);
           if (durationMs > 0) {
             out.push({
@@ -1026,8 +1034,9 @@ export class Logic {
       };
       const applyWindows = (
         windows: Array<{ start: number; stop: number }>,
-        allocations: Array<{ durationMs: number; chargeType: ChargeType; comment: string; level: number; requestedLevel: number }>
-      ) => {
+        allocations: Allocation[]
+      ): number => {
+        const planStartIndex = chargePlan.length;
         setSmartStatusFromIntent(allocations[0], "scheduled");
         const sorted = windows.slice().sort((a, b) => a.start - b.start);
         let i = 0;
@@ -1054,45 +1063,76 @@ export class Logic {
             }
           }
         }
+        let lastStop = hardStart;
+        for (let j = planStartIndex; j < chargePlan.length; j++) {
+          const stop = chargePlan[j].chargeStop?.getTime();
+          if (stop !== undefined && stop > lastStop) lastStop = stop;
+        }
+        return lastStop;
+      };
+      const planFillWindows = (fromLevel: number, toLevel: number, deadline: number) => {
+        if (fillMaxPrice === null) return { windows: [], scheduledMs: 0 };
+        return planWindows(
+          ChargeDuration(fromLevel, toLevel),
+          deadline,
+          fillMaxPrice,
+          `fill:${toLevel}`,
+          isActiveCharge()
+        );
       };
       const scheduleSoftIntents = () => {
         if (softIntents.length === 0 && fillMaxPrice === null) return;
-
-        let intentDeadline = priceAvailable;
-        let intentMaxLevel = startLevel;
-        for (const i of softIntents) {
-          if (i.beforeTs !== undefined) intentDeadline = Math.min(intentDeadline, i.beforeTs);
-          if (i.level > intentMaxLevel) intentMaxLevel = i.level;
-        }
-        const timeNeeded = intentMaxLevel > startLevel ? ChargeDuration(startLevel, intentMaxLevel) : 0;
-        if (intentDeadline >= hardStart) {
-          // Try to fully charge with cheap energy first
-          const max = vehicle.maximum_charge;
-          const fillWindows = (
-            fillMaxPrice === null ? { windows: [], scheduledMs: 0 } :
-            planWindows(ChargeDuration(startLevel, max), intentDeadline, fillMaxPrice, `fill:${max}`, vehicle.connected && Boolean(vehicle.charging_to))
-          );
-          // If we found more charge time than we need to reach the intent max level, we don't need another plan
-          if (fillWindows.windows.length > 0 && fillWindows.scheduledMs >= timeNeeded) {
-            // apply the fill plan, use the intent charge types and comments for each section
-            applyWindows(fillWindows.windows, buildAllocations([ ...softIntents, { chargeType: ChargeType.Fill, comment: `low price`, level: max, requestedLevel: max } ]));
-          } else if (intentMaxLevel > startLevel) {
-            // We cannot fill the entire intent with cheap energy, so we generate a new plan without the maxPrice constraint
-            const plan = planWindows(timeNeeded, intentDeadline, undefined, `intent:${intentMaxLevel}`, vehicle.connected && Boolean(vehicle.charging_to));
-            applyWindows(plan.windows, buildAllocations(softIntents));
+        const scheduledIntents = softIntents
+          .filter((i) => i.beforeTs !== undefined)
+          .sort((a, b) => compareStopTimes(a.beforeTs, b.beforeTs));
+        if (scheduledIntents.length === 0) {
+          if (fillMaxPrice === null || startLevel >= vehicle.maximum_charge || priceAvailable < hardStart) return;
+          const fillWindows = planFillWindows(startLevel, vehicle.maximum_charge, priceAvailable);
+          if (fillWindows.windows.length > 0 && fillWindows.scheduledMs > 0) {
+            hardStart = applyWindows(fillWindows.windows, buildAllocations(startLevel, [fillIntent(vehicle.maximum_charge)]));
           }
-        } else if (intentMaxLevel > startLevel) {
-          // No price data or deadline: charge directly to the max soft intent level.
-          const topIntent = sortSoftIntents(softIntents)[0];
-          assert(topIntent);
-          setSmartStatusFromIntent(topIntent, "directly");
-          chargePlan.push({
-            chargeStart: null,
-            chargeStop: new Date(now + timeNeeded),
-            chargeType: topIntent.chargeType,
-            level: intentMaxLevel,
-            comment: topIntent.comment,
-          });
+          return;
+        }
+
+        let plannedLevel = startLevel;
+        const deadlines = [...new Set(scheduledIntents.map((i) => i.beforeTs!))];
+        for (const deadline of deadlines) {
+          const cohortIntents = scheduledIntents.filter((i) => i.beforeTs! <= deadline);
+          let cohortMaxLevel = plannedLevel;
+          for (const intent of cohortIntents) {
+            if (intent.level > cohortMaxLevel) cohortMaxLevel = intent.level;
+          }
+          const timeNeeded = cohortMaxLevel > plannedLevel ? ChargeDuration(plannedLevel, cohortMaxLevel) : 0;
+          if (timeNeeded <= 0) continue;
+
+          if (deadline >= hardStart) {
+            // Try to fully charge with cheap energy first
+            const max = vehicle.maximum_charge;
+            const fillWindows = planFillWindows(plannedLevel, max, deadline);
+            if (fillWindows.windows.length > 0 && fillWindows.scheduledMs >= timeNeeded) {
+              hardStart = applyWindows(fillWindows.windows, buildAllocations(plannedLevel, [
+                ...cohortIntents,
+                fillIntent(max)
+              ]));
+            } else {
+              const plan = planWindows(timeNeeded, deadline, undefined, `intent:${cohortMaxLevel}`, isActiveCharge());
+              hardStart = applyWindows(plan.windows, buildAllocations(plannedLevel, cohortIntents));
+            }
+          } else {
+            // No price data or deadline: charge directly to the max soft intent level.
+            const topIntent = sortSoftIntents(cohortIntents)[0];
+            assert(topIntent);
+            setSmartStatusFromIntent(topIntent, "directly");
+            chargePlan.push({
+              chargeStart: null,
+              chargeStop: new Date(now + timeNeeded),
+              chargeType: topIntent.chargeType,
+              level: cohortMaxLevel,
+              comment: topIntent.comment,
+            });
+            hardStart = now + timeNeeded;
+          }
+          plannedLevel = cohortMaxLevel;
         }
       };
 
