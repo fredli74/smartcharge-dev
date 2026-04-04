@@ -36,6 +36,14 @@ const CHARGE_PRIO: Record<ChargeType, number> = {
   [ChargeType.Fill]: 7,
 };
 
+// Detailed tariff data is expected to cover the next 48 hours. The price-based
+// planner only needs to consider scheduled intents once charging for them may
+// need to begin inside this window.
+const PRICE_PLAN_LOOKAHEAD_MS = 48 * 60 * 60e3;
+const PRICE_DATA_LOOKBACK_MS = 60 * 60e3;
+// Fetch one extra slot past the planning horizon so the last in-window slot keeps its real duration.
+const PRICE_DATA_PADDING_MS = 60 * 60e3;
+
 export class Logic {
   constructor(private db: DBInterface) { }
   public init() { }
@@ -872,6 +880,7 @@ export class Logic {
     }
 
     const now = Date.now();
+    const planningHorizonEnd = now + PRICE_PLAN_LOOKAHEAD_MS;
 
     // TODO: Check current vehicle.charge_plan and see if it needs to be recalculated?
 
@@ -932,9 +941,13 @@ export class Logic {
       const priceToScorePerMs = (price: number, maxPrice?: number): number => {
         return (maxPrice !== undefined && price > maxPrice) ? price * OVERPRICE_PENALTY_FACTOR : price;
       };
+      const priceDataStart = new Date(now - PRICE_DATA_LOOKBACK_MS);
+      const priceDataEnd = new Date(planningHorizonEnd + PRICE_DATA_PADDING_MS);
       const price_data: { ts: Date; price: number }[] = ( location_uuid && (await this.db.pg.manyOrNone(
-        `SELECT ts, price FROM price_data p JOIN location l ON (l.price_list_uuid = p.price_list_uuid) WHERE location_uuid = $1 AND ts >= NOW() - interval '1 hour' ORDER BY ts`,
-        [location_uuid]
+        `SELECT ts, price FROM price_data p JOIN location l ON (l.price_list_uuid = p.price_list_uuid)
+        WHERE location_uuid = $1 AND ts >= $2 AND ts < $3
+        ORDER BY ts`,
+        [location_uuid, priceDataStart, priceDataEnd]
       ))) || [];
       let duration = 60 * 60e3; // default 1 hour
       let priceAvailable = 0;
@@ -944,8 +957,8 @@ export class Logic {
           duration = price_data[i + 1].ts.getTime() - e.ts.getTime();
         }
         const to = from + duration;
-        if (to > priceAvailable) {
-          priceAvailable = to;
+        if (from < planningHorizonEnd) {
+          priceAvailable = Math.max(priceAvailable, Math.min(to, planningHorizonEnd));
         }
         return { from, to, price: e.price };
       });
@@ -987,6 +1000,24 @@ export class Logic {
           level = vehicle.maximum_charge;
         }
         softIntents.push({ chargeType, comment, level, requestedLevel, beforeTs });
+      };
+      const addUpcomingSoftIntent = (chargeType: ChargeType, comment: string, level: number, beforeTs: number) => {
+        const cappedLevel = Math.min(level, vehicle.maximum_charge);
+        const alreadyPlannedLevel = softIntents.reduce((max, intent) => Math.max(max, intent.level), startLevel);
+        const topupTime = level > vehicle.maximum_charge
+          ? ChargeDuration(vehicle.maximum_charge, level) + SCHEDULE_TOPUP_MARGIN
+          : 0;
+        const priceDeadline = beforeTs - topupTime;
+        const earliestChargeStart = priceDeadline - ChargeDuration(alreadyPlannedLevel, cappedLevel);
+        if (earliestChargeStart > planningHorizonEnd) {
+          vehicleLog(
+            LogLevel.Trace,
+            vehicle.vehicle_uuid,
+            `Deferring ${chargeType} intent at ${new Date(beforeTs).toISOString()} until it needs charging inside planning horizon ${new Date(planningHorizonEnd).toISOString()}`
+          );
+          return;
+        }
+        addSoftIntent(chargeType, comment, level, beforeTs);
       };
       const sortSoftIntents = (intents: SoftIntent[]): SoftIntent[] => {
         return intents.slice().sort((a, b) => CHARGE_PRIO[a.chargeType] - CHARGE_PRIO[b.chargeType]);
@@ -1393,7 +1424,7 @@ export class Logic {
         if (trip) {
           assert(trip.level);
           assert(trip.schedule_ts);
-          addSoftIntent(ChargeType.Trip, `upcoming trip`, trip.level, trip.schedule_ts.getTime());
+          addUpcomingSoftIntent(ChargeType.Trip, `upcoming trip`, trip.level, trip.schedule_ts.getTime());
         }
       };
 
@@ -1436,7 +1467,7 @@ export class Logic {
         } else {
           assert(manual.level);
           assert(manual.schedule_ts);
-          addSoftIntent(ChargeType.Manual, `manual charge`, manual.level, manual.schedule_ts.getTime());
+          addUpcomingSoftIntent(ChargeType.Manual, `manual charge`, manual.level, manual.schedule_ts.getTime());
         }
 
         // Still do trip charging!
