@@ -1067,10 +1067,11 @@ export class Logic {
       };
       const applyWindows = (
         windows: Array<{ start: number; stop: number }>,
-        allocations: Allocation[]
-      ): number => {
-        const planStartIndex = chargePlan.length;
-        setSmartStatusFromIntent(allocations[0], "scheduled");
+        allocations: Array<{ durationMs: number; chargeType: ChargeType; comment: string; level: number; requestedLevel: number }>
+      ) => {
+        if (windows.length > 0 && allocations.length > 0) {
+          setSmartStatusFromIntent(allocations[0], "scheduled");
+        }
         const sorted = windows.slice().sort((a, b) => a.start - b.start);
         let i = 0;
         let remaining = allocations.length > 0 ? allocations[0].durationMs : 0;
@@ -1357,39 +1358,56 @@ export class Logic {
 
         let bestCost = Infinity;
         let bestFirstStartSlot = 0;
-        let bestEffectiveSteps = timeNeededSteps;
-        let bestWindowCount = Infinity;
-        // Pick the best start slot. If we are already charging, any start after the first slot
-        // is treated as an interruption and pays the warmup penalty.
-        for (let firstStartSlot = 0; firstStartSlot < numSlots; firstStartSlot++) {
-          let initialGapCost = 0;
-          if (isCharging && firstStartSlot > 0) {
-            if (disallowGaps) continue;
-            assert(warmupPenaltyMs !== undefined);
-            // If we are currently charging, starting at a later slot means we have an idle gap until then, which incurs a warmup penalty.
-            // We calculate the gap cost as if the gap were fully priced at the first slot's rate, which is a reasonable approximation.
-            initialGapCost = Math.max(0, perMsScores[firstStartSlot]) * warmupPenaltyMs;
+        let bestEffectiveSteps = 0;
+        for (let effectiveSteps = timeNeededSteps; effectiveSteps > 0; effectiveSteps--) {
+          let levelBestCost = Infinity;
+          let levelBestFirstStartSlot = 0;
+          let levelBestWindowCount = Infinity;
+          // Pick the best start slot. If we are already charging, any start after the first slot
+          // is treated as an interruption and pays the warmup penalty.
+          for (let firstStartSlot = 0; firstStartSlot < numSlots; firstStartSlot++) {
+            let initialGapCost = 0;
+            if (isCharging && firstStartSlot > 0) {
+              if (disallowGaps) continue;
+              assert(warmupPenaltyMs !== undefined);
+              // If we are currently charging, starting at a later slot means we have an idle gap until then, which incurs a warmup penalty.
+              // We calculate the gap cost as if the gap were fully priced at the first slot's rate, which is a reasonable approximation.
+              initialGapCost = Math.max(0, perMsScores[firstStartSlot]) * warmupPenaltyMs;
+            }
+            const baseCost = dpTable[firstStartSlot][effectiveSteps];
+            if (baseCost === Infinity) continue;
+            const cost = baseCost + initialGapCost;
+            const windowCount = dpWindows[firstStartSlot][effectiveSteps];
+            if (cost < levelBestCost || (cost === levelBestCost && windowCount < levelBestWindowCount)) {
+              levelBestCost = cost;
+              levelBestFirstStartSlot = firstStartSlot;
+              levelBestWindowCount = windowCount;
+              vehicleLog(
+                LogLevel.Trace,
+                vehicle.vehicle_uuid,
+                `scheduleWindows(${scheduleTag}): select startSlot=${firstStartSlot} cost=${cost} baseCost=${baseCost} ` +
+                `gapCost=${initialGapCost} windows=${windowCount} steps=${effectiveSteps} start=${new Date(sortedCandidates[firstStartSlot].from).toISOString()} isCharging=${isCharging} ` +
+                `hardStart=${new Date(hardStart).toISOString()}`
+              );
+            }
           }
-          const baseCost = dpTable[firstStartSlot][timeNeededSteps];
-          if (baseCost === Infinity) continue;
-          const cost = baseCost + initialGapCost;
-          const windowCount = dpWindows[firstStartSlot][timeNeededSteps];
-          if (cost < bestCost || (cost === bestCost && windowCount < bestWindowCount)) {
-            bestCost = cost;
-            bestFirstStartSlot = firstStartSlot;
-            bestEffectiveSteps = timeNeededSteps;
-            bestWindowCount = windowCount;
-            vehicleLog(
-              LogLevel.Trace,
-              vehicle.vehicle_uuid,
-              `scheduleWindows(${scheduleTag}): select startSlot=${firstStartSlot} cost=${cost} baseCost=${baseCost} ` +
-              `gapCost=${initialGapCost} windows=${windowCount} start=${new Date(sortedCandidates[firstStartSlot].from).toISOString()} isCharging=${isCharging} ` +
-              `hardStart=${new Date(hardStart).toISOString()}`
-            );
+          if (levelBestCost !== Infinity) {
+            bestCost = levelBestCost;
+            bestFirstStartSlot = levelBestFirstStartSlot;
+            bestEffectiveSteps = effectiveSteps;
+            break;
           }
         }
 
         if (bestCost === Infinity) return scheduled;
+        if (bestEffectiveSteps < timeNeededSteps) {
+          vehicleLog(
+            LogLevel.Trace,
+            vehicle.vehicle_uuid,
+            `scheduleWindows(${scheduleTag}): best-effort fallback steps=${bestEffectiveSteps}/${timeNeededSteps} ` +
+            `scheduled=${Math.round((bestEffectiveSteps * stepMs) / 60e3)}min requested=${Math.round(targetMaxMs / 60e3)}min`
+          );
+        }
 
         const reconstructedWindows: { start: number; stop: number }[] = [];
         let currentStartSlot = bestFirstStartSlot;
@@ -1416,7 +1434,7 @@ export class Logic {
           `windows=${reconstructedWindows.map((w) => `${new Date(w.start).toISOString()}..${new Date(w.stop).toISOString()}`).join(", ")}`
         );
         scheduled.windows = reconstructedWindows;
-        scheduled.scheduledMs = targetMaxMs;
+        scheduled.scheduledMs = bestEffectiveSteps * stepMs;
         return scheduled;
       };
 
