@@ -52,7 +52,7 @@
 
       <EditVehicleLocationSettings
         v-for="l in locationSettings()"
-        :key="l.settings.location"
+        :key="l.settings.locationID"
         :name="l.name"
         :settings="l.settings"
         :vehicle="vehicle"

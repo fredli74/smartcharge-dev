@@ -175,14 +175,11 @@ export default class EditVehicle extends Vue {
     this.save("goal");
   }
 
-  get splitCharge(): any {
-    const preset = this.splitChargeList.find(
-      (f) => f.value === (this.settings.splitCharge || SplitCharge.Auto)
-    );
-    return preset || this.splitChargeList[1];
+  get splitCharge(): string {
+    return this.settings.splitCharge || SplitCharge.Auto;
   }
-  set splitCharge(value: any) {
-    this.settings.splitCharge = value.value || value;
+  set splitCharge(value: string) {
+    this.settings.splitCharge = value;
     this.save("splitCharge");
   }
 
