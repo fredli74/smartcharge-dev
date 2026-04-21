@@ -185,7 +185,11 @@ export default class EditVehicle extends Vue {
 
   debounceTimer?: any;
   touchedFields: any = {};
+  saveTicketSeq = 0;
+  saveTickets: Record<string, number> = {};
   async save(field: string) {
+    const fieldTicket = ++this.saveTicketSeq;
+    this.saveTickets[field] = fieldTicket;
     this.$set(this.saving, field, true);
 
     if (this.debounceTimer) {
@@ -194,6 +198,13 @@ export default class EditVehicle extends Vue {
     this.debounceTimer = setTimeout(async () => {
       const form: any = this.$refs.form;
       if (form.validate && form.validate()) {
+        const fieldsInRequest = Object.entries(this.saving)
+          .filter(([, value]) => value)
+          .map(([key]) => key);
+        const requestTickets: Record<string, number> = {};
+        for (const key of fieldsInRequest) {
+          requestTickets[key] = this.saveTickets[key] || 0;
+        }
         const goal = this.settings.goal as any;
         const update: UpdateVehicleParams = {
           id: this.vehicle.id,
@@ -207,13 +218,11 @@ export default class EditVehicle extends Vue {
           ],
         };
 
-        const fieldsToClear = { ...this.saving };
-
         try {
           await this.$scClient.updateVehicle(update);
         } finally {
-          for (const [key, value] of Object.entries(fieldsToClear)) {
-            if (value) {
+          for (const key of fieldsInRequest) {
+            if (this.saveTickets[key] === requestTickets[key]) {
               this.$set(this.saving, key, false);
             }
           }

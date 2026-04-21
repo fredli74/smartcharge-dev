@@ -49,7 +49,6 @@ import gql from "graphql-tag";
 
 import EditVehicleLocationSettings from "@app/components/edit-vehicle-location-settings.vue";
 import RemoveDialog from "@app/components/remove-dialog.vue";
-import deepmerge from "deepmerge";
 import equal from "fast-deep-equal";
 import { GQLLocation, GQLPriceList } from "@shared/sc-schema.js";
 import { UpdateLocationParams } from "@shared/sc-client.js";
@@ -129,9 +128,11 @@ export default class EditLocation extends Vue {
 
   debounceTimer?: any;
   touchedFields: any = {};
-  clearSaving: any = {};
+  saveTicketSeq = 0;
+  saveTickets: Record<string, number> = {};
   async save(field: string) {
-    delete this.clearSaving[field];
+    const fieldTicket = ++this.saveTicketSeq;
+    this.saveTickets[field] = fieldTicket;
     this.$set(this.saving, field, true);
 
     if (this.debounceTimer) {
@@ -140,6 +141,13 @@ export default class EditLocation extends Vue {
     this.debounceTimer = setTimeout(async () => {
       const form: any = this.$refs.form;
       if (form.validate && form.validate()) {
+        const fieldsInRequest = Object.entries(this.saving)
+          .filter(([, value]) => value)
+          .map(([key]) => key);
+        const requestTickets: Record<string, number> = {};
+        for (const key of fieldsInRequest) {
+          requestTickets[key] = this.saveTickets[key] || 0;
+        }
         const update: UpdateLocationParams = {
           id: this.location.id,
         };
@@ -153,13 +161,13 @@ export default class EditLocation extends Vue {
           delete update.providerData;
         }
 
-        this.clearSaving = deepmerge(this.clearSaving, this.saving);
-
-        await this.$scClient.updateLocation(update);
-
-        for (const [key, value] of Object.entries(this.clearSaving)) {
-          if (value) {
-            this.$set(this.saving, key, false);
+        try {
+          await this.$scClient.updateLocation(update);
+        } finally {
+          for (const key of fieldsInRequest) {
+            if (this.saveTickets[key] === requestTickets[key]) {
+              this.$set(this.saving, key, false);
+            }
           }
         }
       }
