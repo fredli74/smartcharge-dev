@@ -1258,7 +1258,9 @@ export class Logic {
           if (duration > 0 && duration < quantumMs) quantumMs = duration;
         }
         quantumMs = isFinite(quantumMs) ? quantumMs : 15 * 60 * 1000;
-        const stepMs = Math.max(MIN_STEP_MS, warmupPenaltyMs === undefined ? quantumMs : Math.min(quantumMs, warmupPenaltyMs));
+        const stepMs = splitCharge === SplitCharge.Always
+          ? quantumMs
+          : Math.max(MIN_STEP_MS, warmupPenaltyMs === undefined ? quantumMs : Math.min(quantumMs, warmupPenaltyMs));
 
         const targetMaxMs = Math.max(0, Math.min(timeNeededMs, totalAvailableMs));
         if (targetMaxMs < 1) {
@@ -1305,6 +1307,11 @@ export class Logic {
               for (let winSteps = 1; winSteps <= maxWinSteps; winSteps++) {
                 const winDurationMs = winSteps * stepMs;
                 const overhangMs = currentDurationMs - winDurationMs;
+                // DP state advances to endSlot + 1, so any unused time in the chosen window's
+                // covered slots is permanently discarded. To keep the optimization correct,
+                // allow partial trimming only for the final selected window (remainingSteps=0).
+                const remainingSteps = neededSteps - winSteps;
+                if (overhangMs > 0 && remainingSteps > 0) continue;
                 // We only allow trimming within the boundary slot (no dropping whole slots).
                 const trimFromStart = firstPerMs > lastPerMs;
                 const trimLimitMs = trimFromStart
@@ -1318,7 +1325,6 @@ export class Logic {
                   const allowOverMax = isCharging && startSlot === 0 && !trimFromStart;
                   if (windowCost / winDurationMs > maxPrice && !allowOverMax) continue;
                 }
-                const remainingSteps = neededSteps - winSteps;
                 if (remainingSteps < 0) continue;
                 const windowStartMs = sortedCandidates[startSlot].from + (trimFromStart ? overhangMs : 0);
                 const windowStopMs = windowStartMs + winDurationMs;
@@ -1420,16 +1426,18 @@ export class Logic {
           if (choice === null) break;
           const endSlot = choice.endSlot;
           const winSteps = choice.winSteps;
+          const remainingSteps = currentNeededSteps - winSteps;
           const winDurationMs = winSteps * stepMs;
           const currentDurationMs = cumDurationMs[endSlot + 1] - cumDurationMs[currentStartSlot];
           const overhangMs = currentDurationMs - winDurationMs;
+          assert(remainingSteps === 0 || overhangMs === 0);
           const firstPerMs = perMsScores[currentStartSlot];
           const lastPerMs = perMsScores[endSlot];
           const startTimeMs = sortedCandidates[currentStartSlot].from + (firstPerMs > lastPerMs ? overhangMs : 0);
           const stopTimeMs = startTimeMs + winDurationMs;
           reconstructedWindows.push({ start: startTimeMs, stop: stopTimeMs });
           currentStartSlot = endSlot + 1;
-          currentNeededSteps -= winSteps;
+          currentNeededSteps = remainingSteps;
         }
         reconstructedWindows.sort((a, b) => a.start - b.start);
 
