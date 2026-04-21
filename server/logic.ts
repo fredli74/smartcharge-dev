@@ -1069,6 +1069,7 @@ export class Logic {
         windows: Array<{ start: number; stop: number }>,
         allocations: Array<{ durationMs: number; chargeType: ChargeType; comment: string; level: number; requestedLevel: number }>
       ) => {
+        const planStartIndex = chargePlan.length;
         if (windows.length > 0 && allocations.length > 0) {
           setSmartStatusFromIntent(allocations[0], "scheduled");
         }
