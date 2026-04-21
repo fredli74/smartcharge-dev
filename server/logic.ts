@@ -1320,21 +1320,23 @@ export class Logic {
                 }
                 const remainingSteps = neededSteps - winSteps;
                 if (remainingSteps < 0) continue;
-                // Warmup penalty applies for any charging interruption (idle gap), not just data gaps.
-                const hasDataGap = endSlot + 1 < numSlots
-                  && sortedCandidates[endSlot + 1].from !== sortedCandidates[endSlot].to;
-                const hasGap =
-                  (trimFromStart && (startSlot > 0 || isCharging)) ||
-                  (!trimFromStart && remainingSteps > 0) ||
-                  (remainingSteps > 0 && hasDataGap);
-                if (disallowGaps && hasGap) continue;
-                assert(warmupPenaltyMs !== undefined || !hasGap);
+                const windowStartMs = sortedCandidates[startSlot].from + (trimFromStart ? overhangMs : 0);
+                const windowStopMs = windowStartMs + winDurationMs;
+                // Structural gap: there is an actual idle period until the next planned window.
+                const hasGap = remainingSteps > 0
+                  && endSlot + 1 < numSlots
+                  && sortedCandidates[endSlot + 1].from > windowStopMs;
+                // Warmup/interruption penalty applies only when this causes a stop->start cycle:
+                // either we were already charging and delay first charging, or we introduce a later gap.
+                const hasInterruption = (isCharging && windowStartMs > hardStart) || hasGap;
+                if (disallowGaps && hasInterruption) continue;
+                assert(warmupPenaltyMs !== undefined || !hasInterruption);
                 const prevCost = dpTable[endSlot + 1][remainingSteps];
                 const prevWindows = dpWindows[endSlot + 1][remainingSteps];
                 if (prevCost !== Infinity) {
                   // Warmup is a penalty, never a reward. Clamp negative prices to 0 here.
                   const gapRate = trimFromStart ? firstPerMs : lastPerMs;
-                  const gapCost = hasGap ? Math.max(0, gapRate) * (warmupPenaltyMs ?? 0) : 0;
+                  const gapCost = hasInterruption ? Math.max(0, gapRate) * (warmupPenaltyMs ?? 0) : 0;
                   const newCost = windowCost + prevCost + gapCost;
                   const newWindows = prevWindows + 1;
                   const existingCost = dpTable[startSlot][neededSteps];
