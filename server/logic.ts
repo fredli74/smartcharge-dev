@@ -1312,6 +1312,9 @@ export class Logic {
                 // allow partial trimming only for the final selected window (remainingSteps=0).
                 const remainingSteps = neededSteps - winSteps;
                 if (overhangMs > 0 && remainingSteps > 0) continue;
+                // splitCharge=never means one contiguous block only.
+                // Disallow recursive multi-window compositions entirely.
+                if (disallowGaps && remainingSteps > 0) continue;
                 // We only allow trimming within the boundary slot (no dropping whole slots).
                 const trimFromStart = firstPerMs > lastPerMs;
                 const trimLimitMs = trimFromStart
