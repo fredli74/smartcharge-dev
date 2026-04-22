@@ -25,6 +25,7 @@ import teslaAPI, { redactSecret, TeslaAPI, TeslaChargeSchedule, TeslaPreconditio
 import { AgentJob, AbstractAgent, IProviderAgent } from "@providers/provider-agent.js";
 import provider, { TeslaServiceData, TeslaProviderMutates, TeslaProviderQueries, TeslaToken } from "./index.js";
 import { GQLVehicle, GQLUpdateVehicleDataInput, GQLChargeConnection, GQLChargeType, GQLGeoLocation, GQLScheduleType } from "@shared/sc-schema.js";
+import { DEFAULT_LOCATION_RADIUS } from "@shared/smartcharge-defines.js";
 import { Consumer, Kafka, LogEntry, logLevel } from "kafkajs";
 import * as protobuf from "@bufbuild/protobuf";
 import * as telemetryConnectivity from "./telemetry-protos/vehicle_connectivity_pb.js";
@@ -156,6 +157,12 @@ interface VehicleEntry {
   isSleepy: boolean;
   isOnline: boolean;
   lastScheduleSyncAt?: number;
+  lastScheduleSyncAttemptAt?: number;
+  lastScheduleMutationAt?: number;
+  lastPlugInAt?: number;
+  lastImmediateScheduleCheckAt?: number;
+  lastChargingAt?: number;
+  lastEmergencyWakeUpAt?: number;
 
   charge_schedules?: { [id: number]: TeslaChargeSchedule }; // Cached charge schedules
   precondition_schedules?: { [id: number]: TeslaPreconditionSchedule }; // Cached precondition schedules
@@ -194,6 +201,7 @@ interface TeslaAgentJob extends AgentJob {
   serviceData: TeslaServiceData;
   mapped: number;
   state: TeslaAgentState;
+  teslaApiQueue?: Promise<void>;
 }
 
 function mapTelemetryNumber(v: telemetryData.Value["value"]): number {
@@ -302,8 +310,18 @@ function equalPreconditionSchedules(
 }
 
 export class TeslaAgent extends AbstractAgent {
-  private static readonly ENABLE_SCHEDULE_AUDIT = true;
-  private static readonly SCHEDULE_AUDIT_INTERVAL_MS = 15 * 60e3;
+  private static readonly EMERGENCY_WAKE_GRACE_MS = 15 * 60e3;
+  private static readonly EMERGENCY_WAKE_PROVIDER_FIELD = "emergency_wakeup_at";
+  private static readonly IDLE_SERVICE_INTERVAL_S = 5 * 60;
+  private static readonly ACTIVE_SERVICE_INTERVAL_S = 30;
+  private static readonly URGENT_SERVICE_INTERVAL_S = 10;
+  private static readonly FLUID_SCHEDULE_CADENCE_MS = 30 * 60e3;
+  private static readonly LOCKED_IN_SCHEDULE_CADENCE_MS = 5 * 60e3;
+  // 50 km is roughly 30-35 minutes of driving at mixed Swedish road speeds.
+  // Beyond this, a home schedule update is unlikely to help before the vehicle parks
+  // or loses coverage, so we stop maintaining it entirely.
+  private static readonly APPROACH_CHARGE_LOCATION_M = 50e3;
+  private static readonly SCHEDULE_SYNC_RETRY_MS = 60e3;
 
   public name: string = provider.name;
   public kafkaClient: Kafka;
@@ -417,8 +435,16 @@ export class TeslaAgent extends AbstractAgent {
     fn: (...args: [...T, TeslaToken]) => Promise<R>,
     ...args: T
   ): Promise<R> {
-    await this.maintainToken(job);
-    return fn.apply(teslaAPI, [...args, job.serviceData.token]);
+    // Serialize Tesla API calls per service/account. This is intentionally broader
+    // than per-vehicle queueing: it keeps ordering simple and dampens paid API bursts,
+    // at the cost of one vehicle being able to delay another on the same Tesla account.
+    const queue = job.teslaApiQueue || Promise.resolve();
+    const queued = queue.then(async () => {
+      await this.maintainToken(job);
+      return await fn.apply(teslaAPI, [...args, job.serviceData.token]);
+    });
+    job.teslaApiQueue = queued.then(() => undefined, () => undefined);
+    return queued;
   }
 
   private vehicleEntry(vin: string): VehicleEntry {
@@ -471,8 +497,212 @@ export class TeslaAgent extends AbstractAgent {
     return new Date(d.getTime() - this.locationTimezoneOffset(location, d));
   }
 
+  private requestServiceWork(vehicle: VehicleEntry, targetIntervalS: number, reason: string) {
+    if (!vehicle.job) return;
+    vehicle.job.interval = Math.min(vehicle.job.interval, targetIntervalS);
+    vehicle.job.nextrun = Math.min(vehicle.job.nextrun, Date.now());
+    logVehicle(
+      LogLevel.Trace,
+      vehicle,
+      `Requested Tesla service work in ${targetIntervalS}s due to ${reason}`
+    );
+  }
+
+  private isChargingState(
+    state: telemetryData.DetailedChargeStateValue | undefined
+  ): boolean {
+    return state === telemetryData.DetailedChargeStateValue.DetailedChargeStateCharging
+      || state === telemetryData.DetailedChargeStateValue.DetailedChargeStateStarting;
+  }
+
+  private schedulePurposeCadenceMs(vehicle: VehicleEntry, location: GQLLocationFragment, distanceToLocationM: number | null): number {
+    const nearChargeLocationThresholdM = location.geoFenceRadius || DEFAULT_LOCATION_RADIUS;
+    if (
+      Boolean(vehicle.dbData?.isConnected || this.isConnected(vehicle))
+      || (distanceToLocationM !== null && distanceToLocationM < nearChargeLocationThresholdM)
+    ) {
+      return TeslaAgent.LOCKED_IN_SCHEDULE_CADENCE_MS;
+    }
+    return TeslaAgent.FLUID_SCHEDULE_CADENCE_MS;
+  }
+
+  private scheduleServesRequestedPurpose(
+    vehicle: VehicleEntry,
+    existing: NumericChargePlan,
+    requested: NumericChargePlan,
+    now: number,
+    location: GQLLocationFragment,
+    distanceToLocationM: number | null
+  ): boolean {
+    const existingStart = numericStartTime(existing.chargeStart);
+    const existingStop = numericStopTime(existing.chargeStop);
+    const requestedStart = numericStartTime(requested.chargeStart);
+    const requestedStop = numericStopTime(requested.chargeStop);
+
+    if (existingStart === requestedStart && existingStop === requestedStop) {
+      return true;
+    }
+    if (requestedStop < now && existingStop < now && (now - existingStop) < 5 * 60 * 60e3) {
+      return true;
+    }
+    if (requestedStart < now && existingStart < now && existingStop === requestedStop) {
+      if (vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateStopped
+        && (now - existingStart) > 5 * 60 * 60e3) {
+        return false;
+      }
+      return true;
+    }
+
+    const connected = Boolean(vehicle.dbData?.isConnected || this.isConnected(vehicle));
+    const nearChargeLocationThresholdM = location.geoFenceRadius || DEFAULT_LOCATION_RADIUS;
+    const immediateBand = distanceToLocationM !== null && distanceToLocationM < nearChargeLocationThresholdM;
+    const cadenceMs = this.schedulePurposeCadenceMs(vehicle, location, distanceToLocationM);
+    if (requestedStart < now) {
+      const nearEnd = requestedStop <= now + TeslaAgent.LOCKED_IN_SCHEDULE_CADENCE_MS;
+      if (nearEnd) {
+        return existingStart <= now
+          && Math.abs(existingStop - requestedStop) <= TeslaAgent.LOCKED_IN_SCHEDULE_CADENCE_MS;
+      }
+      return existingStart <= now && existingStop > now;
+    }
+
+    if (connected) {
+      return existingStart > now
+        && Math.abs(existingStart - requestedStart) <= TeslaAgent.LOCKED_IN_SCHEDULE_CADENCE_MS;
+    }
+
+    if (immediateBand) {
+      return existingStart > now;
+    }
+
+    return existingStart > now
+      && Math.abs(existingStart - requestedStart) <= cadenceMs;
+  }
+
+  private shouldDeferScheduleMutation(
+    vehicle: VehicleEntry,
+    requestedSchedule: ReadonlyArray<NumericChargePlan>,
+    now: number,
+    location: GQLLocationFragment,
+    distanceToLocationM: number | null
+  ): boolean {
+    const cooldownMs = this.schedulePurposeCadenceMs(vehicle, location, distanceToLocationM);
+    if (!vehicle.lastScheduleMutationAt || vehicle.lastScheduleMutationAt + cooldownMs <= now) {
+      return false;
+    }
+    return requestedSchedule.every((window) => numericStartTime(window.chargeStart) > now);
+  }
+
+  private scheduleAuditIntervalMs(now: number): number | null {
+    // Development-only schedule audit with a hard sunset so it cannot linger in release code.
+    // Starting April 22, 2026:
+    // - run every 10 minutes until July 22, 2026
+    // - then every 30 minutes until October 22, 2026
+    // - then disable completely
+    if (now < Date.UTC(2026, 6, 22)) return 10 * 60e3;
+    if (now < Date.UTC(2026, 9, 22)) return 30 * 60e3;
+    return null;
+  }
+
+  private lastEmergencyWakeUpAt(vehicle: VehicleEntry): number | undefined {
+    const cached = vehicle.lastEmergencyWakeUpAt;
+    if (cached !== undefined) return cached;
+    const providerValue = vehicle.dbData?.providerData?.[TeslaAgent.EMERGENCY_WAKE_PROVIDER_FIELD];
+    const ts = typeof providerValue === "string" ? new Date(providerValue).getTime() : NaN;
+    if (!Number.isFinite(ts)) return undefined;
+    vehicle.lastEmergencyWakeUpAt = ts;
+    return ts;
+  }
+
+  private async recordEmergencyWakeUp(vehicle: VehicleEntry, at: number) {
+    vehicle.lastEmergencyWakeUpAt = at;
+    if (!vehicle.vehicleUUID) return;
+    vehicle.dbData = await this.scClient.updateVehicle({
+      id: vehicle.vehicleUUID,
+      providerData: {
+        [TeslaAgent.EMERGENCY_WAKE_PROVIDER_FIELD]: new Date(at).toISOString(),
+      },
+    });
+  }
+
+  private shouldMaintainRemoteHomeSchedule(
+    vehicle: VehicleEntry,
+    location: GQLLocationFragment,
+    distanceToLocationM: number | null
+  ): boolean {
+    if (vehicle.dbData?.isConnected || this.isConnected(vehicle)) {
+      return true;
+    }
+    const nearChargeLocationThresholdM = location.geoFenceRadius || DEFAULT_LOCATION_RADIUS;
+    if (distanceToLocationM !== null && distanceToLocationM < nearChargeLocationThresholdM) {
+      return true;
+    }
+    return distanceToLocationM !== null && distanceToLocationM < TeslaAgent.APPROACH_CHARGE_LOCATION_M;
+  }
+
+  private async tryEmergencyWakeForCharging(
+    job: TeslaAgentJob,
+    vehicle: VehicleEntry,
+    requestedSchedule: ReadonlyArray<NumericChargePlan>,
+    wantedSoc: number | undefined
+  ): Promise<boolean> {
+    const now = Date.now();
+    const activeWindow = requestedSchedule.find((window) => {
+      const start = numericStartTime(window.chargeStart);
+      const stop = numericStopTime(window.chargeStop);
+      return start <= now && now < stop;
+    });
+    if (!activeWindow || vehicle.isOnline || !(vehicle.dbData?.isConnected || this.isConnected(vehicle))) {
+      return false;
+    }
+    if (this.isChargingState(vehicle.telemetryData.DetailedChargeState)) {
+      return false;
+    }
+    const rawTargetSoc = wantedSoc ?? vehicle.telemetryData.ChargeLimitSoc ?? null;
+    const targetSoc = rawTargetSoc === null || rawTargetSoc === undefined
+      ? null
+      : Math.max(config.TESLA_LOWEST_POSSIBLE_CHARGETO, Math.min(rawTargetSoc, 100));
+    if (targetSoc === null || vehicle.telemetryData.Soc === undefined || vehicle.telemetryData.Soc >= targetSoc - 1.5) {
+      return false;
+    }
+    const blockedSince = Math.max(
+      numericStartTime(activeWindow.chargeStart),
+      vehicle.lastChargingAt || 0
+    );
+    if (now < blockedSince + TeslaAgent.EMERGENCY_WAKE_GRACE_MS) {
+      return false;
+    }
+    const lastWakeUpAt = this.lastEmergencyWakeUpAt(vehicle);
+    if (
+      lastWakeUpAt
+      && new Date(lastWakeUpAt).toISOString().slice(0, 10) === new Date(now).toISOString().slice(0, 10)
+    ) {
+      logVehicle(
+        LogLevel.Debug,
+        vehicle,
+        `${vehicle.vin} skipping emergency wake-up because today's budget is already used`
+      );
+      return false;
+    }
+
+    logVehicle(
+      LogLevel.Info,
+      vehicle,
+      `${vehicle.vin} emergency wake-up: connected, below target, and not charging for ${Math.round((now - blockedSince) / 60e3)}m`
+    );
+    const wake = await this.callTeslaAPI(job, teslaAPI.wakeUp, vehicle.vin);
+    const wakeState = wake?.response?.state;
+    if (wakeState !== "online") {
+      logVehicle(LogLevel.Warning, vehicle, `${vehicle.vin} emergency wake-up did not report online state`);
+      return false;
+    }
+    await this.recordEmergencyWakeUp(vehicle, now);
+    await this.refreshVehicleSchedules(job, vehicle, "post-emergency wake");
+    return true;
+  }
+
   public async serviceWork(job: TeslaAgentJob) {
-    job.interval = 60;
+    let desiredIntervalS = TeslaAgent.IDLE_SERVICE_INTERVAL_S;
 
     if (job.serviceData.invalid_token) {
       log(LogLevel.Trace, `Service ${job.serviceID} has an invalid token, skipping work`);
@@ -548,6 +778,10 @@ export class TeslaAgent extends AbstractAgent {
         vehicle.vehicleDataInput = { ...d, ...vehicle.vehicleDataInput };
         vehicle.lastVehicleDataInput = { ...d };
         vehicle.network = { ...data.providerData.network, ...vehicle.network };
+        vehicle.lastEmergencyWakeUpAt = this.lastEmergencyWakeUpAt(vehicle);
+        if (this.isChargingState(vehicle.telemetryData.DetailedChargeState)) {
+          vehicle.lastChargingAt = Date.now();
+        }
         await this.updateOnlineStatus(vehicle);
       } else {
         vehicle.dbData = data;
@@ -599,6 +833,16 @@ export class TeslaAgent extends AbstractAgent {
         continue;
       } else {
         // From here we consider the telemetry config to be working so we can handle vehicle commands
+        desiredIntervalS = Math.min(
+          desiredIntervalS,
+          this.isConnected(vehicle)
+            ? this.isChargingState(vehicle.telemetryData.DetailedChargeState)
+              ? TeslaAgent.URGENT_SERVICE_INTERVAL_S
+              : TeslaAgent.ACTIVE_SERVICE_INTERVAL_S
+            : vehicle.isOnline
+              ? TeslaAgent.ACTIVE_SERVICE_INTERVAL_S
+              : TeslaAgent.IDLE_SERVICE_INTERVAL_S
+        );
         if (telemetryExpires < Date.now() / 1e3 + 60 * 60 * 24) {
           logVehicle(LogLevel.Info, vehicle, `Telemetry config for ${vehicle.vin} expires soon, refreshing`);
           setTelemetryConfigFor.push(vehicle.vin);
@@ -720,7 +964,7 @@ export class TeslaAgent extends AbstractAgent {
         }
       }
     } else {
-      job.interval = 5 * 60; // Poll every 5 minutes
+      this.adjustInterval(job, desiredIntervalS);
     }
 
     await Promise.all(waitFor);
@@ -778,6 +1022,7 @@ export class TeslaAgent extends AbstractAgent {
   }
   public async refreshVehicleSchedules(job: TeslaAgentJob, vehicle: VehicleEntry, reason: string, warnOnMismatch = false) {
     logVehicle(LogLevel.Trace, vehicle, `Calling TeslaAPI.getVehicleSchedules (${reason})`);
+    vehicle.lastScheduleSyncAttemptAt = Date.now();
     const schedules = (await this.callTeslaAPI(job, teslaAPI.getVehicleSchedules, vehicle.vin)).response;
     const charge_schedules: { [id: number]: TeslaChargeSchedule } = {};
     for (const s of schedules.charge_schedule_data.charge_schedules) {
@@ -808,6 +1053,10 @@ export class TeslaAgent extends AbstractAgent {
   public async vehicleWork(job: TeslaAgentJob, vehicle: VehicleEntry) {
     assert(vehicle.dbData !== null, "vehicle.dbData is null");
     try {
+      const now = Date.now();
+      const forceImmediateScheduleCheck = (vehicle.lastPlugInAt || 0) > (vehicle.lastImmediateScheduleCheckAt || 0);
+      const auditIntervalMs = this.scheduleAuditIntervalMs(now);
+
       // 24 minutes without a single update, I consider the vehicle offline
       if (vehicle.isOnline && vehicle.tsUpdate < Date.now() - 24 * 60e3) {
         logVehicle(LogLevel.Info, vehicle, `Vehicle ${vehicle.vin} is offline (stale connection)`);
@@ -817,24 +1066,29 @@ export class TeslaAgent extends AbstractAgent {
 
       // Poll schedules when we first see the vehicle online, then audit them periodically.
       if (vehicle.isOnline && (vehicle.charge_schedules === undefined || vehicle.precondition_schedules === undefined)) {
+        const lastAttemptAt = vehicle.lastScheduleSyncAttemptAt;
+        if (!forceImmediateScheduleCheck
+          && lastAttemptAt !== undefined
+          && lastAttemptAt + TeslaAgent.SCHEDULE_SYNC_RETRY_MS > now) {
+          return;
+        }
         await this.refreshVehicleSchedules(job, vehicle, "initial load");
-      } else if (TeslaAgent.ENABLE_SCHEDULE_AUDIT
+      } else if (auditIntervalMs !== null
         && vehicle.isOnline
-        && (!vehicle.lastScheduleSyncAt || vehicle.lastScheduleSyncAt < Date.now() - TeslaAgent.SCHEDULE_AUDIT_INTERVAL_MS)) {
+        && (!vehicle.lastScheduleSyncAt || vehicle.lastScheduleSyncAt < now - auditIntervalMs)) {
         await this.refreshVehicleSchedules(job, vehicle, "periodic audit", true);
       }
 
       const locationID = vehicle.dbData.chargePlanLocationID || vehicle.dbData.locationID;
-      if (locationID && vehicle.telemetryData.Location) {
+      if (locationID) {
         const location = await this.getLocation(locationID);
-        const distance = geoDistance(
-          location.geoLocation.latitude, location.geoLocation.longitude,
-          vehicle.telemetryData.Location.latitude, vehicle.telemetryData.Location.longitude
-        );
-        // If 7km or closer, take schedules into account
-        if (distance < 7e3) {
-          await this.handleSchedules(job, vehicle, location);
-        }
+        const distance = vehicle.telemetryData.Location
+          ? geoDistance(
+            location.geoLocation.latitude, location.geoLocation.longitude,
+            vehicle.telemetryData.Location.latitude, vehicle.telemetryData.Location.longitude
+          )
+          : null;
+        await this.handleSchedules(job, vehicle, location, distance, forceImmediateScheduleCheck);
       }
     } catch (err) {
       // Check if err is RestClientError
@@ -849,11 +1103,20 @@ export class TeslaAgent extends AbstractAgent {
       logVehicle(LogLevel.Error, vehicle, `vehicleWork error for ${vehicle.vin}: ${err instanceof Error ? err.message : String(err)}`);
     }
   }
-  public async handleSchedules(job: TeslaAgentJob, vehicle: VehicleEntry, location: GQLLocationFragment) {
+  public async handleSchedules(
+    job: TeslaAgentJob,
+    vehicle: VehicleEntry,
+    location: GQLLocationFragment,
+    distanceToLocationM: number | null,
+    forceImmediateScheduleCheck: boolean
+  ) {
     assert(vehicle.dbData !== null, "vehicle.dbData is null");
     assert(vehicle.telemetryData !== null, "vehicle.telemetryData is null");
     let wantedSoc: number | undefined;
     const now = Date.now();
+    if (forceImmediateScheduleCheck) {
+      vehicle.lastImmediateScheduleCheckAt = now;
+    }
 
     // Handle charge plans
     const chargePlan: (NumericChargePlan & { comment?: string })[] = (vehicle.dbData.chargePlan || [])
@@ -926,9 +1189,21 @@ export class TeslaAgent extends AbstractAgent {
       }, [] as (NumericChargePlan & { comment?: string })[]);
     logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} requested schedule: ${stringifyWithTimestamps(requestedSchedule)}`);
 
+    if (!this.shouldMaintainRemoteHomeSchedule(vehicle, location, distanceToLocationM)) {
+      logVehicle(
+        LogLevel.Trace,
+        vehicle,
+        `${vehicle.vin} skipping home schedule maintenance while far from location (${Math.round((distanceToLocationM || 0) / 1e3)}km)`
+      );
+      return;
+    }
+
 
     // If we know the vehicle schedules, we can start working on figuring out schedule updates
     if (vehicle.charge_schedules && vehicle.precondition_schedules) {
+      const canMutateSchedules = vehicle.isOnline
+        || await this.tryEmergencyWakeForCharging(job, vehicle, requestedSchedule, wantedSoc);
+      const deferScheduleMutation = this.shouldDeferScheduleMutation(vehicle, requestedSchedule, now, location, distanceToLocationM);
       let didMutateSchedules = false;
       const freeScheduleIDs: number[] = [];
       const usedScheduleIDs = new Set<number>();
@@ -964,28 +1239,16 @@ export class TeslaAgent extends AbstractAgent {
       // A modification is the same as creating a new schedule as we overwrite old IDs instead of deleting
       // overwrite = delete + create in one API call
       for (const r of requestedSchedule.reverse()) {
-        const rStart = numericStartTime(r.chargeStart);
-        const rStop = numericStopTime(r.chargeStop);
         for (const s of reversedVehicleSchedules) {
           if (usedScheduleIDs.has(s.scheduleID)) continue;
-
-          const sStart = numericStartTime(s.chargeStart);
-          const sStop = numericStopTime(s.chargeStop);
-
-          if (sStart === rStart && sStop === rStop) {
-            logVehicle(LogLevel.Trace, vehicle, `${vehicle.vin} found exact match for schedule ${s.scheduleID}`);
-          } else if (rStop < now && sStop < now && (now - sStop) < 5 * 60 * 60e3) {
-            logVehicle(LogLevel.Trace, vehicle, `${vehicle.vin} found schedule ${s.scheduleID} in the past with stop time less than 5 hours ago (${new Date(sStop).toISOString()})`);
-          } else if (rStart < now && sStart < now && rStop === sStop) {
-            if (vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateStopped
-              && (now - sStart) > 5 * 60 * 60e3) {
-              logVehicle(LogLevel.Trace, vehicle, `${vehicle.vin} found schedule ${s.scheduleID} in the past, but vehicle is not charging (${new Date(sStart).toISOString()})`);
-              continue;
-            }
-            logVehicle(LogLevel.Trace, vehicle, `${vehicle.vin} found active schedule ${s.scheduleID} with matching stop time (${new Date(sStop).toISOString()})`);
-          } else {
+          if (!this.scheduleServesRequestedPurpose(vehicle, s, r, now, location, distanceToLocationM)) {
             continue;
           }
+          logVehicle(
+            LogLevel.Trace,
+            vehicle,
+            `${vehicle.vin} found purpose match for schedule ${s.scheduleID} (${new Date(numericStartTime(s.chargeStart)).toISOString()}..${new Date(numericStopTime(s.chargeStop)).toISOString()})`
+          );
           r.scheduleID = s.scheduleID;
           usedScheduleIDs.add(s.scheduleID);
           break;
@@ -1001,7 +1264,15 @@ export class TeslaAgent extends AbstractAgent {
       }
       logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} schedule updates: ${stringifyWithTimestamps(scheduleUpdates)}`);
 
-      if (vehicle.isOnline) {
+      if (canMutateSchedules) {
+        if (!forceImmediateScheduleCheck && deferScheduleMutation && scheduleUpdates.length > 0) {
+          logVehicle(
+            LogLevel.Debug,
+            vehicle,
+            `${vehicle.vin} deferring schedule rewrite for ${Math.ceil((vehicle.lastScheduleMutationAt! + this.schedulePurposeCadenceMs(vehicle, location, distanceToLocationM) - now) / 60e3)}m while schedule purpose is still fluid`
+          );
+          return;
+        }
         // Handle preconditioning schedules
         {
           const autoHvac = vehicle.dbData.providerData && vehicle.dbData.providerData.auto_hvac !== false;
@@ -1100,8 +1371,11 @@ export class TeslaAgent extends AbstractAgent {
             await this.callTeslaAPI(job, teslaAPI.setChargeLimit, vehicle.vin, limitedSoc);
           }
         }
-        if (TeslaAgent.ENABLE_SCHEDULE_AUDIT && didMutateSchedules) {
+        if (this.scheduleAuditIntervalMs(now) !== null && didMutateSchedules) {
           await this.refreshVehicleSchedules(job, vehicle, "post-update audit", true);
+        }
+        if (didMutateSchedules) {
+          vehicle.lastScheduleMutationAt = Date.now();
         }
       }
     }
@@ -1172,6 +1446,7 @@ export class TeslaAgent extends AbstractAgent {
     } else if (data.status === telemetryConnectivity.ConnectivityEvent.CONNECTED) {
       vehicle.network[data.connectionId] = data.networkInterface;
     }
+    this.requestServiceWork(vehicle, TeslaAgent.URGENT_SERVICE_INTERVAL_S, "connectivity change");
     if (vehicle.vehicleUUID) {
       await this.updateOnlineStatus(vehicle);
     }
@@ -1182,6 +1457,7 @@ export class TeslaAgent extends AbstractAgent {
     const key = datum.key;
     const value = datum.value && datum.value.value;
     const vehicle = this.vehicleEntry(vin);
+    const previousDetailedChargeState = vehicle.telemetryData.DetailedChargeState;
     logVehicle(
       LogLevel.Trace,
       vehicle,
@@ -1262,6 +1538,10 @@ export class TeslaAgent extends AbstractAgent {
           case telemetryData.Field.DetailedChargeState:
             assert(value.case === "detailedChargeStateValue", `Invalid DetailedChargeState value type ${value.case}`);
             vehicle.telemetryData.DetailedChargeState = value.value;
+            if (previousDetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateDisconnected
+              && value.value !== telemetryData.DetailedChargeStateValue.DetailedChargeStateDisconnected) {
+              vehicle.lastPlugInAt = Date.now();
+            }
             break;
           case telemetryData.Field.HvacAutoMode:
             assert(value.case === "hvacAutoModeValue", `Invalid HvacAutoMode value type ${value.case}`);
@@ -1312,6 +1592,19 @@ export class TeslaAgent extends AbstractAgent {
       // the correct number should be 11 kW on 3 phases (3*16*230).
       // I used the following formula to calculate the correct number of phases:
       // (charger_power * 1e3) / (charger_actual_current * charger_voltage)
+    }
+
+    if (this.isChargingState(vehicle.telemetryData.DetailedChargeState)) {
+      vehicle.lastChargingAt = Date.now();
+    }
+    if (
+      key === telemetryData.Field.DetailedChargeState
+      || key === telemetryData.Field.ChargeState
+      || key === telemetryData.Field.ChargeEnableRequest
+      || key === telemetryData.Field.ScheduledChargingPending
+      || key === telemetryData.Field.Location
+    ) {
+      this.requestServiceWork(vehicle, TeslaAgent.URGENT_SERVICE_INTERVAL_S, telemetryData.Field[key]);
     }
 
     if (vehicle.vehicleUUID) {
