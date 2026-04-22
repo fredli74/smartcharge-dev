@@ -35,8 +35,8 @@ export class VehicleLocationSettings {
     directLevel!: number;
   @Field((_type) => String)
     goal!: SmartChargeGoal | string;
-  @Field((_type) => String)
-    splitCharge!: SplitCharge | string;
+  @Field((_type) => SplitCharge)
+    splitCharge!: SplitCharge;
 }
 // Not used because we cannot union between enum and String in type-graphql
 registerEnumType(SmartChargeGoal, {

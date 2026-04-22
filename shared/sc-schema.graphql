@@ -206,6 +206,13 @@ type ServiceProvider {
   serviceID: ID!
 }
 
+"""Split Charge Preference"""
+enum SplitCharge {
+  Always
+  Auto
+  Never
+}
+
 type StateMap {
   chargeCost: Float!
   chargeCostSaved: Float!
@@ -361,7 +368,7 @@ type VehicleLocationSetting {
 
   """location id"""
   locationID: ID!
-  splitCharge: String!
+  splitCharge: SplitCharge!
 }
 
 input VehicleLocationSettingInput {
@@ -371,5 +378,5 @@ input VehicleLocationSettingInput {
 
   """location id"""
   locationID: ID!
-  splitCharge: String!
+  splitCharge: SplitCharge!
 }
