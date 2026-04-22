@@ -140,18 +140,24 @@ export default class EditVehicle extends Vue {
     return true;
   }
 
+  getOrCreateLocationSettings(locationID: string): GQLVehicleLocationSetting {
+    if (!this.vehicle.locationSettings) {
+      this.$set(this.vehicle, "locationSettings", []);
+    }
+    const existing = this.vehicle.locationSettings.find((f) => f.locationID === locationID);
+    if (existing) return existing;
+    const created = DefaultVehicleLocationSettings(locationID);
+    this.vehicle.locationSettings.push(created);
+    return created;
+  }
+
   locationSettings(): any[] {
     return (
       (this.locations &&
         this.locations
           .filter((l) => l.ownerID === this.vehicle.ownerID)
           .map((l) => {
-            const settings: GQLVehicleLocationSetting =
-              (this.vehicle.locationSettings &&
-                this.vehicle.locationSettings.find(
-                  (f) => f.locationID === l.id
-                )) ||
-              DefaultVehicleLocationSettings(l.id);
+            const settings = this.getOrCreateLocationSettings(l.id);
             return {
               name: l.name,
               settings,
