@@ -18,7 +18,6 @@ import {
   numericStopTime,
   compareStartTimes,
   diffObjects,
-  capitalize
 } from "@shared/utils.js";
 import { UpdateVehicleDataInput, ChargePlan, Schedule, VehicleLocationSettings } from "./gql/vehicle-type.js";
 import { SmartChargeGoal, SplitCharge, ChargeType, ScheduleType } from "@shared/sc-types.js";
@@ -912,6 +911,7 @@ export class Logic {
     const trip = scheduleMap[ScheduleType.Trip];
 
     let startLevel = vehicle.level - 1;
+    const initialLevel = startLevel;
 
     let chargePlan: ChargePlan[] = [];
     let smartStatus = "";
@@ -1053,23 +1053,11 @@ export class Logic {
         }
         return out;
       };
-      const setSmartStatusFromIntent = (intent: SoftIntent | undefined, mode: "scheduled" | "directly") => {
-        if (smartStatus || !intent) return;
-        const level = intent.requestedLevel ?? intent.level;
-        if (mode === "scheduled") {
-          smartStatus = `${capitalize(intent.chargeType)} charge to ${level}% scheduled`;
-        } else {
-          smartStatus = `${capitalize(intent.chargeType)} charge directly to ${level}%`;
-        }
-      };
       const applyWindows = (
         windows: Array<{ start: number; stop: number }>,
         allocations: Array<{ durationMs: number; chargeType: ChargeType; comment: string; level: number; requestedLevel: number }>
       ) => {
         const planStartIndex = chargePlan.length;
-        if (windows.length > 0 && allocations.length > 0) {
-          setSmartStatusFromIntent(allocations[0], "scheduled");
-        }
         const sorted = windows.slice().sort((a, b) => a.start - b.start);
         let i = 0;
         let remaining = allocations.length > 0 ? allocations[0].durationMs : 0;
@@ -1175,7 +1163,6 @@ export class Logic {
             // No price data or deadline: charge directly to the max soft intent level.
             const topIntent = sortSoftIntents(cohortIntents)[0];
             assert(topIntent);
-            setSmartStatusFromIntent(topIntent, "directly");
             chargePlan.push({
               chargeStart: null,
               chargeStop: new Date(now + timeNeeded),
@@ -1611,12 +1598,6 @@ export class Logic {
         if (!manual.schedule_ts) {
           assert(manual.level);
           vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Manual charging directly to ${manual.level}%`);
-          const manualIntent: SoftIntent = {
-            chargeType: ChargeType.Manual,
-            comment: `manual charge`,
-            level: manual.level,
-            requestedLevel: manual.level
-          };
           chargePlan.push({
             chargeStart: null,
             chargeStop: null,
@@ -1624,7 +1605,7 @@ export class Logic {
             level: manual.level,
             comment: `manual charge`,
           });
-          setSmartStatusFromIntent(manualIntent, "directly");
+          smartStatus = `Manual charge directly to ${manual.level}%`;
         } else {
           assert(manual.level);
           assert(manual.schedule_ts);
@@ -1731,13 +1712,38 @@ export class Logic {
       scheduleSoftIntents();
     }
 
-    if (smartStatus) {
-      this.setSmartStatus(vehicle, smartStatus);
-    }
-
     if (chargePlan.length) {
       chargePlan = Logic.cleanupPlan(chargePlan);
       vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, chargePlan);
+    }
+
+    if (!smartStatus && chargePlan.length > 0) {
+      const milestones: { level: number; chargeType: ChargeType }[] = [];
+      let plannedLevel = initialLevel;
+      for (const entry of chargePlan) {
+        if (entry.level > plannedLevel) {
+          milestones.push({ level: entry.level, chargeType: entry.chargeType });
+          plannedLevel = entry.level;
+        }
+      }
+      if (milestones.length > 0) {
+        const first = milestones[0];
+        const last = milestones[milestones.length - 1];
+        const firstText = first.chargeType === ChargeType.Manual
+          ? `Manual charge to ${first.level}%`
+          : first.chargeType === ChargeType.Trip
+            ? `Charge to ${first.level}% before trip`
+            : first.chargeType === ChargeType.Fill
+              ? `Fill charge to ${first.level}% scheduled`
+              : `Charge to ${first.level}% scheduled`;
+        smartStatus = last.level > first.level
+          ? `${firstText}, then ${last.chargeType === ChargeType.Fill ? `fill to ${last.level}%` : `to ${last.level}%`}`
+          : firstText;
+      }
+    }
+
+    if (smartStatus) {
+      this.setSmartStatus(vehicle, smartStatus);
     }
 
     {
