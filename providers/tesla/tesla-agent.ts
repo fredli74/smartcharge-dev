@@ -169,11 +169,10 @@ interface VehicleEntry {
 }
 
 const logVehicle = (level: LogLevel, vehicle: VehicleEntry, data: unknown) => {
-  if (vehicle.vehicleUUID) {
-    vehicleLog(level, vehicle.vehicleUUID, data);
-  } else {
-    log(level, data);
-  }
+  // Tesla issues are investigated by VIN first. Keep VIN on every vehicle-scoped
+  // log line, and include the internal vehicle UUID too once the vehicle is mapped.
+  const vehicleRef = vehicle.vehicleUUID ? `${vehicle.vehicleUUID} ${vehicle.vin}` : vehicle.vin;
+  vehicleLog(level, vehicleRef, data);
 };
 
 function formatTelemetryValue(v: telemetryData.Value["value"]): string {
