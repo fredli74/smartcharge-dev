@@ -42,10 +42,7 @@ export function log(level: LogLevel, data: unknown) {
 
 export function vehicleLog(level: LogLevel, vehicleUUID: string, data: unknown) {
   if (level <= LOGLEVEL) {
-    const msg = data instanceof Error ? data.message
-      : typeof data === "object" ? JSON.stringify(data)
-      : data;
-    const s = `${new Date().toISOString()} ${logSymbol[level]} ${vehicleUUID} ${msg}`;
+    const s = logFormat(level, `${vehicleUUID} ${formatLogData(data)}`);
     switch (level) {
       case LogLevel.Error:
       case LogLevel.Warning:
@@ -62,11 +59,13 @@ export function vehicleLog(level: LogLevel, vehicleUUID: string, data: unknown) 
   }
 }
 export function logFormat(level: LogLevel, data: unknown): string {
-  return `${new Date().toISOString()} ${logSymbol[level]} ${
-    data instanceof Error ? (data as Error).message
+  return `${new Date().toISOString()} ${logSymbol[level]} ${formatLogData(data)}`;
+}
+
+function formatLogData(data: unknown): string {
+  return data instanceof Error ? data.message
     : typeof data === "object" ? JSON.stringify(data)
-    : data
-  }`;
+    : String(data);
 }
 
 export function arrayMean(list: number[]) {
