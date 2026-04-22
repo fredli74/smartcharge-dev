@@ -1184,7 +1184,7 @@ export class Logic {
         }
       };
 
-      // Warmup penalty: extra time-equivalent cost when we interrupt an ongoing charge.
+      // Warmup penalty: extra effective charging time required after restarting a stopped charge.
       const disallowGaps = splitCharge === SplitCharge.Never;
       let warmupPenaltyMs : number | undefined;
       if (splitCharge === SplitCharge.Always) {
@@ -1239,14 +1239,16 @@ export class Logic {
        *    - never:  restart is forbidden after charging stops, so at most one contiguous window.
        *    - auto:   restart is allowed and pays a warmup penalty.
        *    - always: restart is allowed with zero penalty.
-       * 5. The warmup penalty is modeled as a time-equivalent cost at the restarted interval's raw
-       *    price. If the vehicle is already charging and the first candidate interval starts later
-       *    than hardStart, the initial state is treated as stopped so a later take is penalized.
+       * 5. The warmup penalty is modeled as lost effective charging time after a restart. When a
+       *    stopped plan restarts, it accrues warmupDebtMs. Selected intervals first pay down that
+       *    debt, and only the remaining time in those intervals counts as delivered charging.
+       *    If the vehicle is already charging and the first candidate interval starts later than
+       *    hardStart, the initial state is treated as stopped so a later take incurs warmup debt.
        *
        * maxPrice semantics
        *
        * - Intervals above maxPrice * SOFT_MAXPRICE_CAP_FACTOR are dropped entirely.
-       * - For the remaining intervals, the optimizer minimizes actual energy cost plus restart penalties.
+       * - For the remaining intervals, the optimizer minimizes actual energy cost.
        * - A finished plan is feasible only if its average raw interval price is <= maxPrice:
        *     totalChargeCost <= maxPrice * totalScheduledDuration
        * - If no full-duration feasible plan exists, best effort means "schedule the longest feasible
@@ -1255,7 +1257,7 @@ export class Logic {
        * Objective and tie-breaks
        *
        * - Primary:   maximize delivered charging duration up to the requested target.
-       * - Secondary: minimize total objective cost (energy cost + restart penalties).
+       * - Secondary: minimize total energy cost of the selected tariff intervals.
        * - Tertiary:  minimize number of charging windows.
        * - Last:      prefer an earlier first charging start.
        *
@@ -1281,8 +1283,9 @@ export class Logic {
           stepIndex: number | null;
           phase: PlanPhase;
           deliveredMs: number;
+          scheduledMs: number;
+          warmupDebtMs: number;
           chargeCostMs: number;
-          objectiveCostMs: number;
           windows: number;
           firstStartMs?: number;
         }>;
@@ -1332,10 +1335,10 @@ export class Logic {
         );
 
         const phases: ReadonlyArray<PlanPhase> = ["idle", "charging", "stopped"];
-        const makePhaseMaps = (): Record<PlanPhase, Map<number, number[]>> => ({
-          idle: new Map<number, number[]>(),
-          charging: new Map<number, number[]>(),
-          stopped: new Map<number, number[]>(),
+        const makePhaseMaps = (): Record<PlanPhase, Map<string, number[]>> => ({
+          idle: new Map<string, number[]>(),
+          charging: new Map<string, number[]>(),
+          stopped: new Map<string, number[]>(),
         });
         const nodes: PlanNode[] = [];
         const firstStartForRanking = (node: PlanNode): number => node.firstStartMs ?? Number.POSITIVE_INFINITY;
@@ -1343,16 +1346,19 @@ export class Logic {
         let nodesPrunedDominated = 0;
         let nodesPrunedReplaced = 0;
         const dominatesForContinuation = (left: PlanNode, right: PlanNode): boolean => {
+          assert(left.phase === right.phase);
+          assert(left.deliveredMs === right.deliveredMs);
+          assert(left.warmupDebtMs === right.warmupDebtMs);
           const leftStart = firstStartForRanking(left);
           const rightStart = firstStartForRanking(right);
-          return left.objectiveCostMs <= right.objectiveCostMs
+          return left.chargeCostMs <= right.chargeCostMs
+            && left.scheduledMs >= right.scheduledMs
             && left.windows <= right.windows
-            && left.chargeCostMs <= right.chargeCostMs
             && leftStart <= rightStart
             && (
-              left.objectiveCostMs < right.objectiveCostMs
+              left.chargeCostMs < right.chargeCostMs
+              || left.scheduledMs > right.scheduledMs
               || left.windows < right.windows
-              || left.chargeCostMs < right.chargeCostMs
               || leftStart < rightStart
             );
         };
@@ -1360,17 +1366,21 @@ export class Logic {
           const leftDelivered = Math.min(left.deliveredMs, targetMaxMs);
           const rightDelivered = Math.min(right.deliveredMs, targetMaxMs);
           if (leftDelivered !== rightDelivered) return leftDelivered - rightDelivered;
-          if (left.objectiveCostMs !== right.objectiveCostMs) return right.objectiveCostMs - left.objectiveCostMs;
-          if (left.windows !== right.windows) return right.windows - left.windows;
           if (left.chargeCostMs !== right.chargeCostMs) return right.chargeCostMs - left.chargeCostMs;
+          if (left.windows !== right.windows) return right.windows - left.windows;
           return firstStartForRanking(right) - firstStartForRanking(left);
         };
         const recordNode = (
-          states: Record<PlanPhase, Map<number, number[]>>,
+          states: Record<PlanPhase, Map<string, number[]>>,
           node: PlanNode
         ) => {
           const stateMap = states[node.phase];
-          const existingIndices = stateMap.get(node.deliveredMs) || [];
+          assert(node.warmupDebtMs >= 0);
+          if (node.phase !== "charging") {
+            assert(node.warmupDebtMs === 0);
+          }
+          const stateKey = `${node.deliveredMs}:${node.warmupDebtMs}`;
+          const existingIndices = stateMap.get(stateKey) || [];
           if (existingIndices.some((index) => dominatesForContinuation(nodes[index], node))) {
             nodesPrunedDominated++;
             return;
@@ -1380,19 +1390,16 @@ export class Logic {
           const nodeIndex = nodes.length - 1;
           const survivorIndices = existingIndices.filter((index) => !dominatesForContinuation(node, nodes[index]));
           nodesPrunedReplaced += existingIndices.length - survivorIndices.length;
-          stateMap.set(
-            node.deliveredMs,
-            survivorIndices.concat(nodeIndex)
-          );
+          stateMap.set(stateKey, survivorIndices.concat(nodeIndex));
         };
-        const countFrontierNodes = (states: Record<PlanPhase, Map<number, number[]>>): number => {
+        const countFrontierNodes = (states: Record<PlanPhase, Map<string, number[]>>): number => {
           let count = 0;
           for (const phase of phases) {
             for (const stateIndices of states[phase].values()) count += stateIndices.length;
           }
           return count;
         };
-        const frontierSummary = (states: Record<PlanPhase, Map<number, number[]>>): string => {
+        const frontierSummary = (states: Record<PlanPhase, Map<string, number[]>>): string => {
           return phases.map((phase) => {
             const buckets = states[phase].size;
             let statesCount = 0;
@@ -1411,8 +1418,9 @@ export class Logic {
           stepIndex: null,
           phase: initialPhase,
           deliveredMs: 0,
+          scheduledMs: 0,
+          warmupDebtMs: 0,
           chargeCostMs: 0,
-          objectiveCostMs: 0,
           windows: 0,
         });
         vehicleLog(
@@ -1436,8 +1444,9 @@ export class Logic {
                   stepIndex,
                   phase: skipPhase,
                   deliveredMs: state.deliveredMs,
+                  scheduledMs: state.scheduledMs,
+                  warmupDebtMs: 0,
                   chargeCostMs: state.chargeCostMs,
-                  objectiveCostMs: state.objectiveCostMs,
                   windows: state.windows,
                   firstStartMs: state.firstStartMs,
                 });
@@ -1445,8 +1454,11 @@ export class Logic {
                 if (state.deliveredMs >= targetMaxMs) continue;
                 const restart = phase === "stopped";
                 if (restart && disallowGaps) continue;
-                const startsNewWindow = state.deliveredMs === 0 || phase !== "charging";
-                const restartPenaltyCostMs = restart ? Math.max(0, step.price) * (warmupPenaltyMs ?? 0) : 0;
+                const startsNewWindow = state.scheduledMs === 0 || phase !== "charging";
+                const warmupDebtMs = restart ? (warmupPenaltyMs ?? 0) : state.warmupDebtMs;
+                const consumedWarmupMs = Math.min(step.duration, warmupDebtMs);
+                const deliveredIncrementMs = step.duration - consumedWarmupMs;
+                const remainingWarmupDebtMs = warmupDebtMs - consumedWarmupMs;
                 const nextPhase: PlanPhase = stepIndex + 1 < atomicSteps.length && atomicSteps[stepIndex + 1].start === step.stop
                   ? "charging"
                   : "stopped";
@@ -1455,9 +1467,10 @@ export class Logic {
                   action: "take",
                   stepIndex,
                   phase: nextPhase,
-                  deliveredMs: state.deliveredMs + step.duration,
+                  deliveredMs: state.deliveredMs + deliveredIncrementMs,
+                  scheduledMs: state.scheduledMs + step.duration,
+                  warmupDebtMs: nextPhase === "charging" ? remainingWarmupDebtMs : 0,
                   chargeCostMs: state.chargeCostMs + step.chargeCostMs,
-                  objectiveCostMs: state.objectiveCostMs + step.chargeCostMs + restartPenaltyCostMs,
                   windows: state.windows + (startsNewWindow ? 1 : 0),
                   firstStartMs: state.firstStartMs ?? step.start,
                 });
@@ -1477,8 +1490,8 @@ export class Logic {
 
         const isFeasibleAverage = (node: PlanNode): boolean => {
           return maxPrice === undefined
-            || node.deliveredMs === 0
-            || node.chargeCostMs <= maxPrice * node.deliveredMs;
+            || node.scheduledMs === 0
+            || node.chargeCostMs <= maxPrice * node.scheduledMs;
         };
 
         let bestIndex: number | undefined;
@@ -1514,7 +1527,8 @@ export class Logic {
           LogLevel.Trace,
           vehicle.vehicle_uuid,
           `scheduleWindows(${scheduleTag}): best phase=${best.phase} delivered=${Math.round(best.deliveredMs / 60e3)}min ` +
-          `objective=${best.objectiveCostMs} chargeCost=${best.chargeCostMs} windows=${best.windows} firstStart=${new Date(firstStartForRanking(best)).toISOString()} ` +
+          `scheduled=${Math.round(best.scheduledMs / 60e3)}min chargeCost=${best.chargeCostMs} windows=${best.windows} ` +
+          `warmupDebt=${Math.round(best.warmupDebtMs / 60e3)}min firstStart=${new Date(firstStartForRanking(best)).toISOString()} ` +
           `feasibleFinalStates=${feasibleFinalStates}`
         );
         const deliveredMs = Math.min(best.deliveredMs, targetMaxMs);
@@ -1554,11 +1568,11 @@ export class Logic {
           }
         }
 
-        vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `scheduleWindows(${scheduleTag}): accepted avgPrice=${fmtDbPrice(best.chargeCostMs / best.deliveredMs)} ` +
+        vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `scheduleWindows(${scheduleTag}): accepted avgPrice=${fmtDbPrice(best.chargeCostMs / best.scheduledMs)} ` +
           `windows=${reconstructedWindows.map((w) => `${new Date(w.start).toISOString()}..${new Date(w.stop).toISOString()}`).join(", ")}`
         );
         scheduled.windows = reconstructedWindows;
-        scheduled.scheduledMs = best.deliveredMs;
+        scheduled.scheduledMs = best.scheduledMs;
         return scheduled;
       };
 
