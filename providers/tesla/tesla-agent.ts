@@ -253,6 +253,55 @@ function normalizePreconditionSchedules(schedules: { [id: number]: TeslaPrecondi
     }));
 }
 
+const SCHEDULE_COORD_ABS_EPSILON = 0.00001;
+
+function sameCoordinate(a: number, b: number): boolean {
+  return Math.abs(a - b) <= SCHEDULE_COORD_ABS_EPSILON;
+}
+
+function equalChargeSchedules(
+  left: { [id: number]: TeslaChargeSchedule } | undefined,
+  right: { [id: number]: TeslaChargeSchedule } | undefined
+): boolean {
+  const leftSchedules = Object.values(left || {}).sort((a, b) => a.id - b.id);
+  const rightSchedules = Object.values(right || {}).sort((a, b) => a.id - b.id);
+  if (leftSchedules.length !== rightSchedules.length) return false;
+  return leftSchedules.every((schedule, index) => {
+    const other = rightSchedules[index];
+    assert(other);
+    return schedule.id === other.id
+      && sameCoordinate(schedule.latitude, other.latitude)
+      && sameCoordinate(schedule.longitude, other.longitude)
+      && schedule.start_enabled === other.start_enabled
+      && schedule.start_time === other.start_time
+      && schedule.end_enabled === other.end_enabled
+      && schedule.end_time === other.end_time
+      && schedule.days_of_week === other.days_of_week
+      && schedule.one_time === other.one_time
+      && schedule.enabled === other.enabled;
+  });
+}
+
+function equalPreconditionSchedules(
+  left: { [id: number]: TeslaPreconditionSchedule } | undefined,
+  right: { [id: number]: TeslaPreconditionSchedule } | undefined
+): boolean {
+  const leftSchedules = Object.values(left || {}).sort((a, b) => a.id - b.id);
+  const rightSchedules = Object.values(right || {}).sort((a, b) => a.id - b.id);
+  if (leftSchedules.length !== rightSchedules.length) return false;
+  return leftSchedules.every((schedule, index) => {
+    const other = rightSchedules[index];
+    assert(other);
+    return schedule.id === other.id
+      && sameCoordinate(schedule.latitude, other.latitude)
+      && sameCoordinate(schedule.longitude, other.longitude)
+      && schedule.precondition_time === other.precondition_time
+      && schedule.days_of_week === other.days_of_week
+      && schedule.one_time === other.one_time
+      && schedule.enabled === other.enabled;
+  });
+}
+
 export class TeslaAgent extends AbstractAgent {
   private static readonly ENABLE_SCHEDULE_AUDIT = true;
   private static readonly SCHEDULE_AUDIT_INTERVAL_MS = 15 * 60e3;
@@ -744,12 +793,12 @@ export class TeslaAgent extends AbstractAgent {
     if (warnOnMismatch) {
       const cachedCharge = stringifyWithTimestamps(normalizeChargeSchedules(vehicle.charge_schedules));
       const liveCharge = stringifyWithTimestamps(normalizeChargeSchedules(charge_schedules));
-      if (cachedCharge !== liveCharge) {
+      if (!equalChargeSchedules(vehicle.charge_schedules, charge_schedules)) {
         logVehicle(LogLevel.Warning, vehicle, `${vehicle.vin} cached charge schedules differ from live vehicle schedules (${reason}) cached=${cachedCharge} live=${liveCharge}`);
       }
       const cachedPrecon = stringifyWithTimestamps(normalizePreconditionSchedules(vehicle.precondition_schedules));
       const livePrecon = stringifyWithTimestamps(normalizePreconditionSchedules(precondition_schedules));
-      if (cachedPrecon !== livePrecon) {
+      if (!equalPreconditionSchedules(vehicle.precondition_schedules, precondition_schedules)) {
         logVehicle(LogLevel.Warning, vehicle, `${vehicle.vin} cached preconditioning schedules differ from live vehicle schedules (${reason}) cached=${cachedPrecon} live=${livePrecon}`);
       }
     }
