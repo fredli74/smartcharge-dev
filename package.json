@@ -15,6 +15,8 @@
     "_create:schema": "node dist/server/gql/build-schema-files.js",
     "build:app": "vite build",
     "build:server": "npm run _babel:shared && npm run _babel:providers && npm run _babel:server && npm run _create:schema",
+    "test:node": "node --test providers/**/*.test.mjs",
+    "test": "npm run build:server && npm run test:node",
     "start:server": "node dist/server/server.js",
     "start:worker": "node dist/server/agency.js -d INTERNAL_SERVICE_TOKEN http://localhost:3030"
   },
