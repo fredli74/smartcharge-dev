@@ -1323,6 +1323,13 @@ export class Logic {
           `intervals=${atomicSteps.length} avail=${Math.round(totalAvailableMs / 60e3)}min minQuantum=${Math.round(minIntervalMs / 60e3)}min ` +
           `maxPrice=${maxPrice === undefined ? "none" : fmtDbPrice(maxPrice)} capFactor=${SOFT_MAXPRICE_CAP_FACTOR}`
         );
+        vehicleLog(
+          LogLevel.Trace,
+          vehicle.vehicle_uuid,
+          `scheduleWindows(${scheduleTag}): intervalPreview=${atomicSteps.slice(0, 8).map((step) =>
+            `${new Date(step.start).toISOString()}..${new Date(step.stop).toISOString()}@${fmtDbPrice(step.price)}`
+          ).join(", ")}${atomicSteps.length > 8 ? ", ..." : ""}`
+        );
 
         const phases: ReadonlyArray<PlanPhase> = ["idle", "charging", "stopped"];
         const makePhaseMaps = (): Record<PlanPhase, Map<number, number[]>> => ({
@@ -1332,6 +1339,9 @@ export class Logic {
         });
         const nodes: PlanNode[] = [];
         const firstStartForRanking = (node: PlanNode): number => node.firstStartMs ?? Number.POSITIVE_INFINITY;
+        let nodesRecorded = 0;
+        let nodesPrunedDominated = 0;
+        let nodesPrunedReplaced = 0;
         const dominatesForContinuation = (left: PlanNode, right: PlanNode): boolean => {
           const leftStart = firstStartForRanking(left);
           const rightStart = firstStartForRanking(right);
@@ -1362,16 +1372,33 @@ export class Logic {
           const stateMap = states[node.phase];
           const existingIndices = stateMap.get(node.deliveredMs) || [];
           if (existingIndices.some((index) => dominatesForContinuation(nodes[index], node))) {
+            nodesPrunedDominated++;
             return;
           }
           nodes.push(node);
+          nodesRecorded++;
           const nodeIndex = nodes.length - 1;
+          const survivorIndices = existingIndices.filter((index) => !dominatesForContinuation(node, nodes[index]));
+          nodesPrunedReplaced += existingIndices.length - survivorIndices.length;
           stateMap.set(
             node.deliveredMs,
-            existingIndices
-              .filter((index) => !dominatesForContinuation(node, nodes[index]))
-              .concat(nodeIndex)
+            survivorIndices.concat(nodeIndex)
           );
+        };
+        const countFrontierNodes = (states: Record<PlanPhase, Map<number, number[]>>): number => {
+          let count = 0;
+          for (const phase of phases) {
+            for (const stateIndices of states[phase].values()) count += stateIndices.length;
+          }
+          return count;
+        };
+        const frontierSummary = (states: Record<PlanPhase, Map<number, number[]>>): string => {
+          return phases.map((phase) => {
+            const buckets = states[phase].size;
+            let statesCount = 0;
+            for (const stateIndices of states[phase].values()) statesCount += stateIndices.length;
+            return `${phase}:buckets=${buckets},states=${statesCount}`;
+          }).join(" ");
         };
 
         const initialPhase: PlanPhase = isCharging
@@ -1388,47 +1415,63 @@ export class Logic {
           objectiveCostMs: 0,
           windows: 0,
         });
+        vehicleLog(
+          LogLevel.Trace,
+          vehicle.vehicle_uuid,
+          `scheduleWindows(${scheduleTag}): seed phase=${initialPhase} frontier=${frontierSummary(states)}`
+        );
 
         for (let stepIndex = 0; stepIndex < atomicSteps.length; stepIndex++) {
           const step = atomicSteps[stepIndex];
           const nextStates = makePhaseMaps();
           for (const phase of phases) {
-            for (const stateIndex of states[phase].values()) {
-              const state = nodes[stateIndex];
-              const skipPhase: PlanPhase = phase === "charging" ? "stopped" : phase;
-              recordNode(nextStates, {
-                prev: stateIndex,
-                action: "skip",
-                stepIndex,
-                phase: skipPhase,
-                deliveredMs: state.deliveredMs,
-                chargeCostMs: state.chargeCostMs,
-                objectiveCostMs: state.objectiveCostMs,
-                windows: state.windows,
-                firstStartMs: state.firstStartMs,
-              });
+            for (const stateIndices of states[phase].values()) {
+              for (const stateIndex of stateIndices) {
+                const state = nodes[stateIndex];
+                assert(state);
+                const skipPhase: PlanPhase = phase === "charging" ? "stopped" : phase;
+                recordNode(nextStates, {
+                  prev: stateIndex,
+                  action: "skip",
+                  stepIndex,
+                  phase: skipPhase,
+                  deliveredMs: state.deliveredMs,
+                  chargeCostMs: state.chargeCostMs,
+                  objectiveCostMs: state.objectiveCostMs,
+                  windows: state.windows,
+                  firstStartMs: state.firstStartMs,
+                });
 
-              if (state.deliveredMs >= targetMaxMs) continue;
-              const restart = phase === "stopped";
-              if (restart && disallowGaps) continue;
-              const startsNewWindow = state.deliveredMs === 0 || phase !== "charging";
-              const restartPenaltyCostMs = restart ? Math.max(0, step.price) * (warmupPenaltyMs ?? 0) : 0;
-              const nextPhase: PlanPhase = stepIndex + 1 < atomicSteps.length && atomicSteps[stepIndex + 1].start === step.stop
-                ? "charging"
-                : "stopped";
-              recordNode(nextStates, {
-                prev: stateIndex,
-                action: "take",
-                stepIndex,
-                phase: nextPhase,
-                deliveredMs: state.deliveredMs + step.duration,
-                chargeCostMs: state.chargeCostMs + step.chargeCostMs,
-                objectiveCostMs: state.objectiveCostMs + step.chargeCostMs + restartPenaltyCostMs,
-                windows: state.windows + (startsNewWindow ? 1 : 0),
-                firstStartMs: state.firstStartMs ?? step.start,
-              });
+                if (state.deliveredMs >= targetMaxMs) continue;
+                const restart = phase === "stopped";
+                if (restart && disallowGaps) continue;
+                const startsNewWindow = state.deliveredMs === 0 || phase !== "charging";
+                const restartPenaltyCostMs = restart ? Math.max(0, step.price) * (warmupPenaltyMs ?? 0) : 0;
+                const nextPhase: PlanPhase = stepIndex + 1 < atomicSteps.length && atomicSteps[stepIndex + 1].start === step.stop
+                  ? "charging"
+                  : "stopped";
+                recordNode(nextStates, {
+                  prev: stateIndex,
+                  action: "take",
+                  stepIndex,
+                  phase: nextPhase,
+                  deliveredMs: state.deliveredMs + step.duration,
+                  chargeCostMs: state.chargeCostMs + step.chargeCostMs,
+                  objectiveCostMs: state.objectiveCostMs + step.chargeCostMs + restartPenaltyCostMs,
+                  windows: state.windows + (startsNewWindow ? 1 : 0),
+                  firstStartMs: state.firstStartMs ?? step.start,
+                });
+              }
             }
           }
+          vehicleLog(
+            LogLevel.Trace,
+            vehicle.vehicle_uuid,
+            `scheduleWindows(${scheduleTag}): after step=${stepIndex + 1}/${atomicSteps.length} ` +
+            `${new Date(step.start).toISOString()}..${new Date(step.stop).toISOString()}@${fmtDbPrice(step.price)} ` +
+            `frontier=${frontierSummary(nextStates)} total=${countFrontierNodes(nextStates)} nodesRecorded=${nodesRecorded} ` +
+            `prunedDominated=${nodesPrunedDominated} prunedReplaced=${nodesPrunedReplaced}`
+          );
           states = nextStates;
         }
 
@@ -1439,11 +1482,13 @@ export class Logic {
         };
 
         let bestIndex: number | undefined;
+        let feasibleFinalStates = 0;
         for (const phase of phases) {
           for (const stateIndices of states[phase].values()) {
             for (const stateIndex of stateIndices) {
               const node = nodes[stateIndex];
               if (!isFeasibleAverage(node)) continue;
+              feasibleFinalStates++;
               if (bestIndex === undefined || compareFinalNodes(node, nodes[bestIndex]) > 0) {
                 bestIndex = stateIndex;
               }
@@ -1451,12 +1496,27 @@ export class Logic {
           }
         }
 
-        if (bestIndex === undefined) return scheduled;
+        if (bestIndex === undefined) {
+          vehicleLog(
+            LogLevel.Trace,
+            vehicle.vehicle_uuid,
+            `scheduleWindows(${scheduleTag}): no feasible final state frontier=${frontierSummary(states)} total=${countFrontierNodes(states)} ` +
+            `nodesRecorded=${nodesRecorded} prunedDominated=${nodesPrunedDominated} prunedReplaced=${nodesPrunedReplaced}`
+          );
+          return scheduled;
+        }
         const best = nodes[bestIndex];
         if (best.deliveredMs <= 0) {
           vehicleLog(LogLevel.Trace, vehicle.vehicle_uuid, `scheduleWindows(${scheduleTag}): no feasible intervals after constraints`);
           return scheduled;
         }
+        vehicleLog(
+          LogLevel.Trace,
+          vehicle.vehicle_uuid,
+          `scheduleWindows(${scheduleTag}): best phase=${best.phase} delivered=${Math.round(best.deliveredMs / 60e3)}min ` +
+          `objective=${best.objectiveCostMs} chargeCost=${best.chargeCostMs} windows=${best.windows} firstStart=${new Date(firstStartForRanking(best)).toISOString()} ` +
+          `feasibleFinalStates=${feasibleFinalStates}`
+        );
         const deliveredMs = Math.min(best.deliveredMs, targetMaxMs);
         if (deliveredMs < targetMaxMs) {
           vehicleLog(
@@ -1476,6 +1536,13 @@ export class Logic {
           }
         }
         selectedSteps.reverse();
+        vehicleLog(
+          LogLevel.Trace,
+          vehicle.vehicle_uuid,
+          `scheduleWindows(${scheduleTag}): selectedSteps=${selectedSteps.map((step) =>
+            `${new Date(step.start).toISOString()}..${new Date(step.stop).toISOString()}@${fmtDbPrice(step.price)}`
+          ).join(", ")}`
+        );
 
         const reconstructedWindows: { start: number; stop: number }[] = [];
         for (const step of selectedSteps) {
