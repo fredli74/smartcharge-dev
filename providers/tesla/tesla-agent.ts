@@ -395,6 +395,7 @@ function equalPreconditionSchedules(
 
 export class TeslaAgent extends AbstractAgent {
   private static readonly EMERGENCY_WAKE_GRACE_MS = 15 * 60e3;
+  private static readonly CHARGE_SCHEDULE_QUANTUM_MS = 15 * 60e3;
   private static readonly EMERGENCY_WAKE_PROVIDER_FIELD = "emergency_wakeup_at";
   private static readonly IDLE_SERVICE_INTERVAL_S = 5 * 60;
   private static readonly ACTIVE_SERVICE_INTERVAL_S = 30;
@@ -1029,7 +1030,7 @@ export class TeslaAgent extends AbstractAgent {
   }
   public quantizeTime(t: string | number | null, method: (n: number) => number): number | null {
     const d = typeof t === "string" ? new Date(t).getTime() : typeof t === "number" ? t : null;
-    return d === null ? null : method(d / 15 / 60e3) * 15 * 60e3;
+    return d === null ? null : method(d / TeslaAgent.CHARGE_SCHEDULE_QUANTUM_MS) * TeslaAgent.CHARGE_SCHEDULE_QUANTUM_MS;
   }
   public async refreshVehicleSchedules(job: TeslaAgentJob, vehicle: VehicleEntry, reason: string, warnOnMismatch = false) {
     logVehicle(LogLevel.Trace, vehicle, `Calling TeslaAPI.getVehicleSchedules (${reason})`);
@@ -1166,19 +1167,28 @@ export class TeslaAgent extends AbstractAgent {
       logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} skipping charge blocker logic because SOC is above or close to the limit`);
 
     } else if (vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateCharging && !insideFirstCharge) {
-      // We are charging to the limit, we need to stop charging
-      chargePlan.unshift({
-        chargeStart: null, chargeStop: this.quantizeTime(now - 10 * 60e3, Math.floor),
-        comment: "completed schedule to stop ongoing charging"
-      });
-      logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} added charge blocker to stop ongoing charging`);
+      const nextFullSegmentEnd = this.quantizeTime(now, Math.ceil)! + TeslaAgent.CHARGE_SCHEDULE_QUANTUM_MS;
+      if (firstChargeStart < nextFullSegmentEnd) {
+        logVehicle(
+          LogLevel.Trace,
+          vehicle,
+          `${vehicle.vin} keeping ongoing charge because the next planned restart is before ${new Date(nextFullSegmentEnd).toISOString()}`
+        );
+      } else {
+        // We are charging outside the current plan. Only stop if the next planned restart is not
+        // before the end of the next full tariff segment; otherwise keep charging to avoid short
+        // stop/start churn while still respecting tariff-interval fidelity.
+        chargePlan.unshift({
+          chargeStart: null, chargeStop: this.quantizeTime(now - 10 * 60e3, Math.floor),
+          comment: "completed schedule to stop ongoing charging"
+        });
+      }
     } else if (vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateDisconnected && firstChargeStart > now + 17 * 60 * 60e3) {
       // We are disconnected, and the first charge is more than 17 hours in the future, so we need a charge blocker
       chargePlan.unshift({
         chargeStart: null, chargeStop: this.quantizeTime(now - 10 * 60e3, Math.floor),
         comment: "completed schedule to prevent charging when plugging in"
       });
-      logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} added charge blocker to prevent charging when plugging in`);
     }
 
     // Build requested schedule
@@ -1371,7 +1381,11 @@ export class TeslaAgent extends AbstractAgent {
               break;
             }
             usedScheduleIDs.add(s.id);
-            logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} setting schedule ${s.id}`);
+            if (s.comment === "new schedule") {
+              logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} setting schedule ${s.id}`);
+            } else {
+              logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} ${s.comment}`);
+            }
             assert(usedScheduleIDs.has(s.id), "Invalid schedule ID");
             logVehicle(LogLevel.Trace, vehicle, `Calling TeslaAPI.addChargeSchedule(${s.id})`);
             await this.callTeslaAPI(job, teslaAPI.addChargeSchedule, vehicle.vin, s);
