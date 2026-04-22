@@ -16,7 +16,6 @@ import {
   diffObjects,
   delay,
   compareStartStopTimes,
-  compareStopTimes,
   geoDistance,
   compareStartTimes,
 } from "@shared/utils.js";
@@ -1009,7 +1008,7 @@ export class TeslaAgent extends AbstractAgent {
           const scSchedule = autoHvac
             ? vehicle.dbData.schedule
               .filter((f) => f.type === GQLScheduleType.Trip && f.time && new Date(f.time).getTime() > now)
-              .sort((a, b) => compareStopTimes(a.time, b.time))
+              .sort((a, b) => compareStartTimes(a.time, b.time))
             : [];
           let wantedPrecon: TeslaPreconditionSchedule | undefined;
           if (scSchedule.length > 0) {
