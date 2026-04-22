@@ -1118,7 +1118,7 @@ export class Logic {
         if (softIntents.length === 0 && fillMaxPrice === null) return;
         const scheduledIntents = softIntents
           .filter((i) => i.beforeTs !== undefined)
-          .sort((a, b) => numericStopTime(a.beforeTs) - numericStopTime(b.beforeTs));
+          .sort((a, b) => numericStartTime(a.beforeTs) - numericStartTime(b.beforeTs));
         if (scheduledIntents.length === 0) {
           if (fillMaxPrice === null || startLevel >= vehicle.maximum_charge || priceAvailable < hardStart) return;
           const fillWindows = planFillWindows(startLevel, vehicle.maximum_charge, priceAvailable);
