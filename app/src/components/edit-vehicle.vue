@@ -233,14 +233,14 @@ export default class EditVehicle extends Vue {
     }
     this.debounceTimer = setTimeout(async () => {
       const form: any = this.$refs.form;
-      if (form.validate && form.validate()) {
-        const fieldsInRequest = Object.entries(this.saving)
-          .filter(([, value]) => value)
-          .map(([key]) => key);
-        const requestTickets: Record<string, number> = {};
-        for (const key of fieldsInRequest) {
-          requestTickets[key] = this.saveTickets[key] || 0;
-        }
+      const fieldsInRequest = Object.entries(this.saving)
+        .filter(([, value]) => value)
+        .map(([key]) => key);
+      const requestTickets: Record<string, number> = {};
+      for (const key of fieldsInRequest) {
+        requestTickets[key] = this.saveTickets[key] || 0;
+      }
+      if (!form.validate || form.validate()) {
         const update: UpdateVehicleParams = {
           id: this.vehicle.id,
           providerData: {},
@@ -272,6 +272,12 @@ export default class EditVehicle extends Vue {
             if (this.saveTickets[key] === requestTickets[key]) {
               this.$set(this.saving, key, false);
             }
+          }
+        }
+      } else {
+        for (const key of fieldsInRequest) {
+          if (this.saveTickets[key] === requestTickets[key]) {
+            this.$set(this.saving, key, false);
           }
         }
       }
