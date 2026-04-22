@@ -42,6 +42,10 @@ const PRICE_PLAN_LOOKAHEAD_MS = 48 * 60 * 60e3;
 const PRICE_DATA_LOOKBACK_MS = 60 * 60e3;
 // Fetch one extra slot past the planning horizon so the last in-window slot keeps its real duration.
 const PRICE_DATA_PADDING_MS = 60 * 60e3;
+// Manual one-off schedules should survive very short repositioning trips, but be cleared
+// once the vehicle has clearly departed from the starting known location. This is a
+// departure heuristic, not a geofence: schedule maintenance uses its own distance bands.
+const MANUAL_SCHEDULE_DEPARTURE_THRESHOLD_M = 3e3;
 
 export class Logic {
   constructor(private db: DBInterface) { }
@@ -351,8 +355,10 @@ export class Logic {
         const distance = vehicle.odometer - trip.start_odometer;
         const traveled = Math.round(distance - trip.distance);
         if (traveled > 0) {
-          if (trip.start_location_uuid !== null && trip.distance < 7e3 && distance >= 7e3) {
-            // We have left the starting known location on a real trip (crossing the 7 km threshold), clear any manual schedule
+          if (trip.start_location_uuid !== null
+            && trip.distance < MANUAL_SCHEDULE_DEPARTURE_THRESHOLD_M
+            && distance >= MANUAL_SCHEDULE_DEPARTURE_THRESHOLD_M) {
+            // Clear manual schedules once departure crosses the real-trip threshold.
             const removed = await this.db.pg.oneOrNone(
               `DELETE FROM schedule WHERE vehicle_uuid = $1 AND schedule_type = $2 RETURNING *;`,
               [vehicle.vehicle_uuid, ScheduleType.Manual]
