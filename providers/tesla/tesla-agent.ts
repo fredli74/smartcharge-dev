@@ -175,6 +175,91 @@ const logVehicle = (level: LogLevel, vehicle: VehicleEntry, data: unknown) => {
   vehicleLog(level, vehicleRef, data);
 };
 
+export function teslaSchedulePurposeCadenceMs(
+  connected: boolean,
+  location: GQLLocationFragment,
+  distanceToLocationM: number | null,
+  lockedInCadenceMs: number,
+  fluidCadenceMs: number
+): number {
+  const nearChargeLocationThresholdM = location.geoFenceRadius || DEFAULT_LOCATION_RADIUS;
+  if (connected || (distanceToLocationM !== null && distanceToLocationM < nearChargeLocationThresholdM)) {
+    return lockedInCadenceMs;
+  }
+  return fluidCadenceMs;
+}
+
+export function teslaScheduleServesRequestedPurpose(
+  connected: boolean,
+  detailedChargeState: telemetryData.DetailedChargeStateValue | undefined,
+  existing: NumericChargePlan,
+  requested: NumericChargePlan,
+  now: number,
+  location: GQLLocationFragment,
+  distanceToLocationM: number | null,
+  lockedInCadenceMs: number,
+  fluidCadenceMs: number
+): boolean {
+  const existingStart = numericStartTime(existing.chargeStart);
+  const existingStop = numericStopTime(existing.chargeStop);
+  const requestedStart = numericStartTime(requested.chargeStart);
+  const requestedStop = numericStopTime(requested.chargeStop);
+
+  if (existingStart === requestedStart && existingStop === requestedStop) {
+    return true;
+  }
+  if (requestedStop < now && existingStop < now && (now - existingStop) < 5 * 60 * 60e3) {
+    return true;
+  }
+  if (requestedStart < now && existingStart < now && existingStop === requestedStop) {
+    if (detailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateStopped
+      && (now - existingStart) > 5 * 60 * 60e3) {
+      return false;
+    }
+    return true;
+  }
+
+  const nearChargeLocationThresholdM = location.geoFenceRadius || DEFAULT_LOCATION_RADIUS;
+  const immediateBand = distanceToLocationM !== null && distanceToLocationM < nearChargeLocationThresholdM;
+  const cadenceMs = teslaSchedulePurposeCadenceMs(connected, location, distanceToLocationM, lockedInCadenceMs, fluidCadenceMs);
+  if (requestedStart < now) {
+    const nearEnd = requestedStop <= now + lockedInCadenceMs;
+    if (nearEnd) {
+      return existingStart <= now
+        && Math.abs(existingStop - requestedStop) <= lockedInCadenceMs;
+    }
+    return existingStart <= now && existingStop > now;
+  }
+
+  if (connected) {
+    return existingStart > now
+      && Math.abs(existingStart - requestedStart) <= lockedInCadenceMs;
+  }
+
+  if (immediateBand) {
+    return existingStart > now;
+  }
+
+  return existingStart > now
+    && Math.abs(existingStart - requestedStart) <= cadenceMs;
+}
+
+export function teslaShouldMaintainRemoteHomeSchedule(
+  connected: boolean,
+  location: GQLLocationFragment,
+  distanceToLocationM: number | null,
+  approachChargeLocationM: number
+): boolean {
+  if (connected) {
+    return true;
+  }
+  const nearChargeLocationThresholdM = location.geoFenceRadius || DEFAULT_LOCATION_RADIUS;
+  if (distanceToLocationM !== null && distanceToLocationM < nearChargeLocationThresholdM) {
+    return true;
+  }
+  return distanceToLocationM !== null && distanceToLocationM < approachChargeLocationM;
+}
+
 function formatTelemetryValue(v: telemetryData.Value["value"]): string {
   const value = v.value;
   if (value === undefined || value === null) {
@@ -514,70 +599,6 @@ export class TeslaAgent extends AbstractAgent {
       || state === telemetryData.DetailedChargeStateValue.DetailedChargeStateStarting;
   }
 
-  private schedulePurposeCadenceMs(vehicle: VehicleEntry, location: GQLLocationFragment, distanceToLocationM: number | null): number {
-    const nearChargeLocationThresholdM = location.geoFenceRadius || DEFAULT_LOCATION_RADIUS;
-    if (
-      Boolean(vehicle.dbData?.isConnected || this.isConnected(vehicle))
-      || (distanceToLocationM !== null && distanceToLocationM < nearChargeLocationThresholdM)
-    ) {
-      return TeslaAgent.LOCKED_IN_SCHEDULE_CADENCE_MS;
-    }
-    return TeslaAgent.FLUID_SCHEDULE_CADENCE_MS;
-  }
-
-  private scheduleServesRequestedPurpose(
-    vehicle: VehicleEntry,
-    existing: NumericChargePlan,
-    requested: NumericChargePlan,
-    now: number,
-    location: GQLLocationFragment,
-    distanceToLocationM: number | null
-  ): boolean {
-    const existingStart = numericStartTime(existing.chargeStart);
-    const existingStop = numericStopTime(existing.chargeStop);
-    const requestedStart = numericStartTime(requested.chargeStart);
-    const requestedStop = numericStopTime(requested.chargeStop);
-
-    if (existingStart === requestedStart && existingStop === requestedStop) {
-      return true;
-    }
-    if (requestedStop < now && existingStop < now && (now - existingStop) < 5 * 60 * 60e3) {
-      return true;
-    }
-    if (requestedStart < now && existingStart < now && existingStop === requestedStop) {
-      if (vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateStopped
-        && (now - existingStart) > 5 * 60 * 60e3) {
-        return false;
-      }
-      return true;
-    }
-
-    const connected = Boolean(vehicle.dbData?.isConnected || this.isConnected(vehicle));
-    const nearChargeLocationThresholdM = location.geoFenceRadius || DEFAULT_LOCATION_RADIUS;
-    const immediateBand = distanceToLocationM !== null && distanceToLocationM < nearChargeLocationThresholdM;
-    const cadenceMs = this.schedulePurposeCadenceMs(vehicle, location, distanceToLocationM);
-    if (requestedStart < now) {
-      const nearEnd = requestedStop <= now + TeslaAgent.LOCKED_IN_SCHEDULE_CADENCE_MS;
-      if (nearEnd) {
-        return existingStart <= now
-          && Math.abs(existingStop - requestedStop) <= TeslaAgent.LOCKED_IN_SCHEDULE_CADENCE_MS;
-      }
-      return existingStart <= now && existingStop > now;
-    }
-
-    if (connected) {
-      return existingStart > now
-        && Math.abs(existingStart - requestedStart) <= TeslaAgent.LOCKED_IN_SCHEDULE_CADENCE_MS;
-    }
-
-    if (immediateBand) {
-      return existingStart > now;
-    }
-
-    return existingStart > now
-      && Math.abs(existingStart - requestedStart) <= cadenceMs;
-  }
-
   private shouldDeferScheduleMutation(
     vehicle: VehicleEntry,
     requestedSchedule: ReadonlyArray<NumericChargePlan>,
@@ -585,7 +606,13 @@ export class TeslaAgent extends AbstractAgent {
     location: GQLLocationFragment,
     distanceToLocationM: number | null
   ): boolean {
-    const cooldownMs = this.schedulePurposeCadenceMs(vehicle, location, distanceToLocationM);
+    const cooldownMs = teslaSchedulePurposeCadenceMs(
+      Boolean(vehicle.dbData?.isConnected || this.isConnected(vehicle)),
+      location,
+      distanceToLocationM,
+      TeslaAgent.LOCKED_IN_SCHEDULE_CADENCE_MS,
+      TeslaAgent.FLUID_SCHEDULE_CADENCE_MS
+    );
     if (!vehicle.lastScheduleMutationAt || vehicle.lastScheduleMutationAt + cooldownMs <= now) {
       return false;
     }
@@ -622,21 +649,6 @@ export class TeslaAgent extends AbstractAgent {
         [TeslaAgent.EMERGENCY_WAKE_PROVIDER_FIELD]: new Date(at).toISOString(),
       },
     });
-  }
-
-  private shouldMaintainRemoteHomeSchedule(
-    vehicle: VehicleEntry,
-    location: GQLLocationFragment,
-    distanceToLocationM: number | null
-  ): boolean {
-    if (vehicle.dbData?.isConnected || this.isConnected(vehicle)) {
-      return true;
-    }
-    const nearChargeLocationThresholdM = location.geoFenceRadius || DEFAULT_LOCATION_RADIUS;
-    if (distanceToLocationM !== null && distanceToLocationM < nearChargeLocationThresholdM) {
-      return true;
-    }
-    return distanceToLocationM !== null && distanceToLocationM < TeslaAgent.APPROACH_CHARGE_LOCATION_M;
   }
 
   private async tryEmergencyWakeForCharging(
@@ -1188,7 +1200,12 @@ export class TeslaAgent extends AbstractAgent {
       }, [] as (NumericChargePlan & { comment?: string })[]);
     logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} requested schedule: ${stringifyWithTimestamps(requestedSchedule)}`);
 
-    if (!this.shouldMaintainRemoteHomeSchedule(vehicle, location, distanceToLocationM)) {
+    if (!teslaShouldMaintainRemoteHomeSchedule(
+      Boolean(vehicle.dbData?.isConnected || this.isConnected(vehicle)),
+      location,
+      distanceToLocationM,
+      TeslaAgent.APPROACH_CHARGE_LOCATION_M
+    )) {
       logVehicle(
         LogLevel.Trace,
         vehicle,
@@ -1240,7 +1257,17 @@ export class TeslaAgent extends AbstractAgent {
       for (const r of requestedSchedule.reverse()) {
         for (const s of reversedVehicleSchedules) {
           if (usedScheduleIDs.has(s.scheduleID)) continue;
-          if (!this.scheduleServesRequestedPurpose(vehicle, s, r, now, location, distanceToLocationM)) {
+          if (!teslaScheduleServesRequestedPurpose(
+            Boolean(vehicle.dbData?.isConnected || this.isConnected(vehicle)),
+            vehicle.telemetryData.DetailedChargeState,
+            s,
+            r,
+            now,
+            location,
+            distanceToLocationM,
+            TeslaAgent.LOCKED_IN_SCHEDULE_CADENCE_MS,
+            TeslaAgent.FLUID_SCHEDULE_CADENCE_MS
+          )) {
             continue;
           }
           logVehicle(
@@ -1268,7 +1295,13 @@ export class TeslaAgent extends AbstractAgent {
           logVehicle(
             LogLevel.Debug,
             vehicle,
-            `${vehicle.vin} deferring schedule rewrite for ${Math.ceil((vehicle.lastScheduleMutationAt! + this.schedulePurposeCadenceMs(vehicle, location, distanceToLocationM) - now) / 60e3)}m while schedule purpose is still fluid`
+            `${vehicle.vin} deferring schedule rewrite for ${Math.ceil((vehicle.lastScheduleMutationAt! + teslaSchedulePurposeCadenceMs(
+              Boolean(vehicle.dbData?.isConnected || this.isConnected(vehicle)),
+              location,
+              distanceToLocationM,
+              TeslaAgent.LOCKED_IN_SCHEDULE_CADENCE_MS,
+              TeslaAgent.FLUID_SCHEDULE_CADENCE_MS
+            ) - now) / 60e3)}m while schedule purpose is still fluid`
           );
           return;
         }
