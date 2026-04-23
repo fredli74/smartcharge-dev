@@ -635,10 +635,11 @@ export class TeslaAgent extends AbstractAgent {
     const cached = vehicle.lastEmergencyWakeUpAt;
     if (cached !== undefined) return cached;
     const providerValue = vehicle.dbData?.providerData?.[TeslaAgent.EMERGENCY_WAKE_PROVIDER_FIELD];
-    const ts = typeof providerValue === "string" ? new Date(providerValue).getTime() : NaN;
-    if (!Number.isFinite(ts)) return undefined;
-    vehicle.lastEmergencyWakeUpAt = ts;
-    return ts;
+    if (providerValue === undefined || providerValue === null) return undefined;
+    assert(typeof providerValue === "number", `${TeslaAgent.EMERGENCY_WAKE_PROVIDER_FIELD} must be stored as epoch milliseconds`);
+    assert(Number.isFinite(providerValue), `${TeslaAgent.EMERGENCY_WAKE_PROVIDER_FIELD} must be a finite epoch millisecond timestamp`);
+    vehicle.lastEmergencyWakeUpAt = providerValue;
+    return providerValue;
   }
 
   private async recordEmergencyWakeUp(vehicle: VehicleEntry, at: number) {
@@ -647,7 +648,7 @@ export class TeslaAgent extends AbstractAgent {
     vehicle.dbData = await this.scClient.updateVehicle({
       id: vehicle.vehicleUUID,
       providerData: {
-        [TeslaAgent.EMERGENCY_WAKE_PROVIDER_FIELD]: new Date(at).toISOString(),
+        [TeslaAgent.EMERGENCY_WAKE_PROVIDER_FIELD]: at,
       },
     });
   }
@@ -1283,7 +1284,7 @@ export class TeslaAgent extends AbstractAgent {
           logVehicle(
             LogLevel.Trace,
             vehicle,
-            `${vehicle.vin} found purpose match for schedule ${s.scheduleID} (${new Date(numericStartTime(s.chargeStart)).toISOString()}..${new Date(numericStopTime(s.chargeStop)).toISOString()})`
+            `${vehicle.vin} found purpose match for schedule ${s.scheduleID}: ${stringifyWithTimestamps(s)}`
           );
           r.scheduleID = s.scheduleID;
           usedScheduleIDs.add(s.scheduleID);
