@@ -1225,11 +1225,17 @@ export class TeslaAgent extends AbstractAgent {
       return;
     }
 
+    const canMutateSchedules = vehicle.isOnline
+      || await this.tryEmergencyWakeForCharging(job, vehicle, requestedSchedule, wantedSoc);
 
-    // If we know the vehicle schedules, we can start working on figuring out schedule updates
-    if (vehicle.charge_schedules && vehicle.precondition_schedules) {
-      const canMutateSchedules = vehicle.isOnline
-        || await this.tryEmergencyWakeForCharging(job, vehicle, requestedSchedule, wantedSoc);
+    // Schedule reconciliation needs a live schedule view. After a restart, an offline vehicle may
+    // only get that by emergency-waking first and refreshing schedules as part of that wake path.
+    if (!vehicle.charge_schedules || !vehicle.precondition_schedules) {
+      logVehicle(LogLevel.Trace, vehicle, `${vehicle.vin} skipping schedule reconciliation because live schedules are unknown`);
+      return;
+    }
+
+    {
       const deferScheduleMutation = this.shouldDeferScheduleMutation(vehicle, requestedSchedule, now, location, distanceToLocationM);
       let didMutateSchedules = false;
       const freeScheduleIDs: number[] = [];
