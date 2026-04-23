@@ -18,6 +18,18 @@
           >
             Polling is disabled
           </div>
+          <v-tooltip v-if="scheduleSyncWarning && scheduleSyncTooltip" bottom>
+            <template #activator="{ on }">
+              <div
+                :class="scheduleSyncWarningClass"
+                style="font-size: 0.8em"
+                v-on="on"
+              >
+                {{ scheduleSyncWarning }}
+              </div>
+            </template>
+            <span>{{ scheduleSyncTooltip }}</span>
+          </v-tooltip>
         </v-flex>
         <v-flex sm6 grow class="">
           <v-layout row align-center>
@@ -278,6 +290,37 @@ export default class VehicleVue extends Vue {
   }
   get vehicleConnectedAtUnknownLocation(): boolean {
     return Boolean(this.vehicleAtUnknownLocation && this.vehicle!.isConnected);
+  }
+  get scheduleSyncWarningClass(): string {
+    return this.scheduleSyncIssue?.kind === "incorrect"
+      ? "pt-2 deep-orange--text text--accent-4"
+      : "pt-2 amber--text text--darken-4";
+  }
+  get scheduleSyncIssue(): any {
+    const issue = this.vehicle?.providerData?.schedule_sync_issue;
+    return issue && typeof issue === "object" ? issue : undefined;
+  }
+  get scheduleSyncWarning(): string | undefined {
+    const issue = this.scheduleSyncIssue;
+    if (!issue) return undefined;
+    if (issue.kind === "incorrect") {
+      return "Vehicle schedule is incorrect.";
+    }
+    if (issue.kind === "drift") {
+      return "Vehicle schedule will update when online.";
+    }
+    return undefined;
+  }
+  get scheduleSyncTooltip(): string | undefined {
+    const issue = this.scheduleSyncIssue;
+    if (!issue) return undefined;
+    if (issue.kind === "incorrect") {
+      return "Tesla on-board schedule is wrong for the current charge plan and may affect charging until the vehicle is online again.";
+    }
+    if (issue.kind === "drift") {
+      return "Tesla on-board schedule is not exact, but it still serves the current charging purpose. It will update when the vehicle is online.";
+    }
+    return undefined;
   }
   get addLocationURL(): RawLocation {
     assert(this.vehicle !== undefined);

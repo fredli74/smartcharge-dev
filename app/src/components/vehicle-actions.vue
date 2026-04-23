@@ -31,15 +31,17 @@
     </v-tooltip>
     <v-tooltip top :disabled="disableTooltips">
       <template #activator="{ on }">
-        <v-btn
-          depressed fab :small="smallButton" :outlined="!hasSchedule"
-          :color="hasSchedule ? vehicle.isConnected ? 'success darken-1' : 'warning' : ''" v-on="on"
-          @click="scheduleClick()"
-        >
-          <v-icon :large="!smallButton">mdi-calendar-clock</v-icon>
-        </v-btn>
+        <div class="d-inline-flex" v-on="on">
+          <v-btn
+            depressed fab :small="smallButton" :outlined="!hasSchedule"
+            :color="scheduleButtonColor"
+            @click="scheduleClick()"
+          >
+            <v-icon :large="!smallButton">{{ scheduleButtonIcon }}</v-icon>
+          </v-btn>
+        </div>
       </template>
-      <span>Schedule</span>
+      <span>{{ scheduleTooltip }}</span>
     </v-tooltip>
   </v-card-actions>
 </template>
@@ -149,6 +151,37 @@ export default class VehicleActions extends Vue {
       }
     }
     return false;
+  }
+  get scheduleSyncIssue(): any {
+    const issue = this.vehicle?.providerData?.schedule_sync_issue;
+    return issue && typeof issue === "object" ? issue : undefined;
+  }
+  get scheduleButtonColor() {
+    if (this.scheduleSyncIssue?.kind === "incorrect") {
+      return "deep-orange accent-4";
+    }
+    if (this.scheduleSyncIssue?.kind === "drift") {
+      return "amber darken-2";
+    }
+    return this.hasSchedule ? this.vehicle.isConnected ? "success darken-1" : "warning" : "";
+  }
+  get scheduleButtonIcon() {
+    if (this.scheduleSyncIssue?.kind === "incorrect") {
+      return "mdi-calendar-alert";
+    }
+    if (this.scheduleSyncIssue?.kind === "drift") {
+      return "mdi-calendar-refresh";
+    }
+    return "mdi-calendar-clock";
+  }
+  get scheduleTooltip() {
+    if (this.scheduleSyncIssue?.kind === "incorrect") {
+      return "Vehicle schedule is incorrect";
+    }
+    if (this.scheduleSyncIssue?.kind === "drift") {
+      return "Vehicle schedule will update when online";
+    }
+    return "Schedule";
   }
 
   get manualChargeState() {

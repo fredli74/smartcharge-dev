@@ -134,6 +134,13 @@ interface NumericChargePlan {
   chargeStop: number | null;
 }
 
+interface TeslaScheduleSyncIssue {
+  kind: "incorrect" | "drift";
+  reason: "offline";
+  locationID: string;
+  since: number;
+}
+
 interface VehicleEntry {
   vin: string;
   vehicleUUID: string | null;
@@ -205,7 +212,7 @@ export function teslaScheduleServesRequestedPurpose(
   const requestedStart = numericStartTime(requested.chargeStart);
   const requestedStop = numericStopTime(requested.chargeStop);
 
-  if (existingStart === requestedStart && existingStop === requestedStop) {
+  if (teslaScheduleMatchesExactly(existing, requested)) {
     return true;
   }
   if (requestedStop < now && existingStop < now && (now - existingStop) < 5 * 60 * 60e3) {
@@ -242,6 +249,29 @@ export function teslaScheduleServesRequestedPurpose(
 
   return existingStart > now
     && Math.abs(existingStart - requestedStart) <= cadenceMs;
+}
+
+function teslaScheduleMatchesExactly(existing: NumericChargePlan, requested: NumericChargePlan): boolean {
+  return numericStartTime(existing.chargeStart) === numericStartTime(requested.chargeStart)
+    && numericStopTime(existing.chargeStop) === numericStopTime(requested.chargeStop);
+}
+
+function classifyOfflineScheduleSyncIssue(
+  requestedSchedule: ReadonlyArray<NumericChargePlan>,
+  now: number,
+  hasInexactPurposeMatch: boolean
+): TeslaScheduleSyncIssue["kind"] | null {
+  const relevantRequestedSchedule = requestedSchedule.filter((r) => numericStopTime(r.chargeStop) > now);
+  if (relevantRequestedSchedule.length === 0) {
+    return null;
+  }
+  if (relevantRequestedSchedule[0].scheduleID === undefined) {
+    return "incorrect";
+  }
+  if (hasInexactPurposeMatch || relevantRequestedSchedule.some((r) => r.scheduleID === undefined)) {
+    return "drift";
+  }
+  return null;
 }
 
 export function teslaShouldMaintainRemoteHomeSchedule(
@@ -395,8 +425,10 @@ function equalPreconditionSchedules(
 
 export class TeslaAgent extends AbstractAgent {
   private static readonly EMERGENCY_WAKE_GRACE_MS = 15 * 60e3;
+  private static readonly EMERGENCY_WAKE_COOLDOWN_MS = 23 * 60 * 60e3;
   private static readonly CHARGE_SCHEDULE_QUANTUM_MS = 15 * 60e3;
   private static readonly EMERGENCY_WAKE_PROVIDER_FIELD = "emergency_wakeup_at";
+  private static readonly SCHEDULE_SYNC_ISSUE_PROVIDER_FIELD = "schedule_sync_issue";
   private static readonly IDLE_SERVICE_INTERVAL_S = 5 * 60;
   private static readonly ACTIVE_SERVICE_INTERVAL_S = 30;
   private static readonly URGENT_SERVICE_INTERVAL_S = 10;
@@ -653,6 +685,28 @@ export class TeslaAgent extends AbstractAgent {
     });
   }
 
+  private async updateScheduleSyncIssue(vehicle: VehicleEntry, issue: TeslaScheduleSyncIssue | null) {
+    const current = vehicle.dbData?.providerData?.[TeslaAgent.SCHEDULE_SYNC_ISSUE_PROVIDER_FIELD] as TeslaScheduleSyncIssue | null | undefined;
+    if (issue === null) {
+      if (current === undefined || current === null) return;
+    } else if (
+      current
+      && current.kind === issue.kind
+      && current.reason === issue.reason
+      && current.locationID === issue.locationID
+    ) {
+      return;
+    }
+    assert(vehicle.vehicleUUID, "vehicle.vehicleUUID is null");
+    assert(vehicle.dbData, "vehicle.dbData is null");
+    vehicle.dbData = await this.scClient.updateVehicle({
+      id: vehicle.vehicleUUID,
+      providerData: {
+        [TeslaAgent.SCHEDULE_SYNC_ISSUE_PROVIDER_FIELD]: issue,
+      },
+    });
+  }
+
   private async tryEmergencyWakeForCharging(
     job: TeslaAgentJob,
     vehicle: VehicleEntry,
@@ -688,12 +742,12 @@ export class TeslaAgent extends AbstractAgent {
     const lastWakeUpAt = this.lastEmergencyWakeUpAt(vehicle);
     if (
       lastWakeUpAt
-      && new Date(lastWakeUpAt).toISOString().slice(0, 10) === new Date(now).toISOString().slice(0, 10)
+      && now < lastWakeUpAt + TeslaAgent.EMERGENCY_WAKE_COOLDOWN_MS
     ) {
       logVehicle(
         LogLevel.Debug,
         vehicle,
-        `${vehicle.vin} skipping emergency wake-up because today's budget is already used`
+        `${vehicle.vin} skipping emergency wake-up because the cooldown is still active`
       );
       return false;
     }
@@ -1102,6 +1156,8 @@ export class TeslaAgent extends AbstractAgent {
           )
           : null;
         await this.handleSchedules(job, vehicle, location, distance, forceImmediateScheduleCheck);
+      } else {
+        await this.updateScheduleSyncIssue(vehicle, null);
       }
     } catch (err) {
       // Check if err is RestClientError
@@ -1217,6 +1273,7 @@ export class TeslaAgent extends AbstractAgent {
       distanceToLocationM,
       TeslaAgent.APPROACH_CHARGE_LOCATION_M
     )) {
+      await this.updateScheduleSyncIssue(vehicle, null);
       logVehicle(
         LogLevel.Trace,
         vehicle,
@@ -1230,6 +1287,8 @@ export class TeslaAgent extends AbstractAgent {
 
     // Schedule reconciliation needs a live schedule view. After a restart, an offline vehicle may
     // only get that by emergency-waking first and refreshing schedules as part of that wake path.
+    // If schedules are still unknown, do not invent a sync issue state; we only persist a flag
+    // when we know the vehicle schedule is wrong.
     if (!vehicle.charge_schedules || !vehicle.precondition_schedules) {
       logVehicle(LogLevel.Trace, vehicle, `${vehicle.vin} skipping schedule reconciliation because live schedules are unknown`);
       return;
@@ -1238,6 +1297,7 @@ export class TeslaAgent extends AbstractAgent {
     {
       const deferScheduleMutation = this.shouldDeferScheduleMutation(vehicle, requestedSchedule, now, location, distanceToLocationM);
       let didMutateSchedules = false;
+      let hasInexactPurposeMatch = false;
       const freeScheduleIDs: number[] = [];
       const usedScheduleIDs = new Set<number>();
       const scheduleUpdates: (TeslaChargeSchedule & { comment: string })[] = [];
@@ -1271,7 +1331,7 @@ export class TeslaAgent extends AbstractAgent {
       // Find out if we have a schedules that matches our request that we can use without modification
       // A modification is the same as creating a new schedule as we overwrite old IDs instead of deleting
       // overwrite = delete + create in one API call
-      for (const r of requestedSchedule.reverse()) {
+      for (const r of [...requestedSchedule].reverse()) {
         for (const s of reversedVehicleSchedules) {
           if (usedScheduleIDs.has(s.scheduleID)) continue;
           if (!teslaScheduleServesRequestedPurpose(
@@ -1292,6 +1352,9 @@ export class TeslaAgent extends AbstractAgent {
             vehicle,
             `${vehicle.vin} found purpose match for schedule ${s.scheduleID}: ${stringifyWithTimestamps(s)}`
           );
+          if (!teslaScheduleMatchesExactly(s, r)) {
+            hasInexactPurposeMatch = true;
+          }
           r.scheduleID = s.scheduleID;
           usedScheduleIDs.add(s.scheduleID);
           break;
@@ -1308,6 +1371,7 @@ export class TeslaAgent extends AbstractAgent {
       logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} schedule updates: ${stringifyWithTimestamps(scheduleUpdates)}`);
 
       if (canMutateSchedules) {
+        await this.updateScheduleSyncIssue(vehicle, null);
         if (!forceImmediateScheduleCheck && deferScheduleMutation && scheduleUpdates.length > 0) {
           logVehicle(
             LogLevel.Debug,
@@ -1430,6 +1494,14 @@ export class TeslaAgent extends AbstractAgent {
         if (didMutateSchedules) {
           vehicle.lastScheduleMutationAt = Date.now();
         }
+      } else {
+        const issueKind = classifyOfflineScheduleSyncIssue(requestedSchedule, now, hasInexactPurposeMatch);
+        await this.updateScheduleSyncIssue(
+          vehicle,
+          issueKind
+            ? { kind: issueKind, reason: "offline", locationID: location.id, since: now }
+            : null
+        );
       }
     }
   }
