@@ -42,8 +42,8 @@
                 </div>
                 <v-tooltip v-if="scheduleSyncTooltip" bottom>
                   <template #activator="{ on }">
-                    <div class="schedule-sync-status" :class="scheduleSyncStatusClass" v-on="on">
-                      <v-icon>{{ scheduleSyncIcon }}</v-icon>
+                    <div class="schedule-sync-status" v-on="on">
+                      <v-icon :class="scheduleSyncStatusClass">{{ scheduleSyncIcon }}</v-icon>
                     </div>
                   </template>
                   <span>{{ scheduleSyncTooltip }}</span>
