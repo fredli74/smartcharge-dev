@@ -18,18 +18,6 @@
           >
             Polling is disabled
           </div>
-          <v-tooltip v-if="scheduleSyncWarning && scheduleSyncTooltip" bottom>
-            <template #activator="{ on }">
-              <div
-                :class="scheduleSyncWarningClass"
-                style="font-size: 0.8em"
-                v-on="on"
-              >
-                {{ scheduleSyncWarning }}
-              </div>
-            </template>
-            <span>{{ scheduleSyncTooltip }}</span>
-          </v-tooltip>
         </v-flex>
         <v-flex sm6 grow class="">
           <v-layout row align-center>
@@ -45,13 +33,21 @@
               </v-tooltip>
             </v-flex>
             <v-flex sm12 grow class="" style="z-index: 2">
-              <div v-if="freshInfo" id="temperatures" style="margin: 0 auto">
-                <div>
+              <div v-if="freshInfo || scheduleSyncTooltip" id="temperatures" style="margin: 0 auto">
+                <div v-if="freshInfo">
                   <v-icon>mdi-weather-partly-cloudy</v-icon>{{ Number(vehicle.outsideTemperature).toFixed(1) }}&#176;
                 </div>
-                <div>
+                <div v-if="freshInfo">
                   <v-icon style="top: 1px">mdi-car</v-icon>{{ Number(vehicle.insideTemperature).toFixed(1) }}&#176;
                 </div>
+                <v-tooltip v-if="scheduleSyncTooltip" bottom>
+                  <template #activator="{ on }">
+                    <div class="schedule-sync-status" :class="scheduleSyncStatusClass" v-on="on">
+                      <v-icon>{{ scheduleSyncIcon }}</v-icon>
+                    </div>
+                  </template>
+                  <span>{{ scheduleSyncTooltip }}</span>
+                </v-tooltip>
               </div>
             </v-flex>
           </v-layout>
@@ -291,34 +287,31 @@ export default class VehicleVue extends Vue {
   get vehicleConnectedAtUnknownLocation(): boolean {
     return Boolean(this.vehicleAtUnknownLocation && this.vehicle!.isConnected);
   }
-  get scheduleSyncWarningClass(): string {
-    return this.scheduleSyncIssue?.kind === "incorrect"
-      ? "pt-2 deep-orange--text text--accent-4"
-      : "pt-2 amber--text text--darken-4";
-  }
   get scheduleSyncIssue(): any {
     const issue = this.vehicle?.providerData?.schedule_sync_issue;
     return issue && typeof issue === "object" ? issue : undefined;
   }
-  get scheduleSyncWarning(): string | undefined {
+  get effectiveScheduleSyncKind(): "incorrect" | "drift" | undefined {
     const issue = this.scheduleSyncIssue;
-    if (!issue) return undefined;
-    if (issue.kind === "incorrect") {
-      return "Vehicle schedule is incorrect.";
-    }
-    if (issue.kind === "drift") {
-      return "Vehicle schedule will update when online.";
-    }
-    return undefined;
+    if (!issue || !this.vehicle?.isConnected) return undefined;
+    return issue.kind;
+  }
+  get scheduleSyncStatusClass(): string {
+    return this.effectiveScheduleSyncKind === "incorrect"
+      ? "deep-orange--text text--accent-4"
+      : "amber--text text--darken-4";
+  }
+  get scheduleSyncIcon(): string {
+    return this.effectiveScheduleSyncKind === "incorrect"
+      ? "mdi-calendar-alert"
+      : "mdi-calendar-refresh";
   }
   get scheduleSyncTooltip(): string | undefined {
-    const issue = this.scheduleSyncIssue;
-    if (!issue) return undefined;
-    if (issue.kind === "incorrect") {
-      return "Tesla on-board schedule is wrong for the current charge plan and may affect charging until the vehicle is online again.";
+    if (this.effectiveScheduleSyncKind === "incorrect") {
+      return "Vehicle onboard schedule is incorrect and will affect planned charging. Please take the vehicle online.";
     }
-    if (issue.kind === "drift") {
-      return "Tesla on-board schedule is not exact, but it still serves the current charging purpose. It will update when the vehicle is online.";
+    if (this.effectiveScheduleSyncKind === "drift") {
+      return "Vehicle onboard schedule is not exact and will update when online.";
     }
     return undefined;
   }
@@ -477,6 +470,11 @@ export default class VehicleVue extends Vue {
 }
 #temperatures > div + div {
   margin-left: 1em;
+}
+#temperatures .schedule-sync-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 #temperatures .v-icon {
   font-size: 90%;

@@ -136,7 +136,6 @@ interface NumericChargePlan {
 
 interface TeslaScheduleSyncIssue {
   kind: "incorrect" | "drift";
-  reason: "offline";
   locationID: string;
   since: number;
 }
@@ -256,7 +255,7 @@ function teslaScheduleMatchesExactly(existing: NumericChargePlan, requested: Num
     && numericStopTime(existing.chargeStop) === numericStopTime(requested.chargeStop);
 }
 
-function classifyOfflineScheduleSyncIssue(
+function classifyScheduleSyncIssue(
   requestedSchedule: ReadonlyArray<NumericChargePlan>,
   now: number,
   hasInexactPurposeMatch: boolean
@@ -692,7 +691,6 @@ export class TeslaAgent extends AbstractAgent {
     } else if (
       current
       && current.kind === issue.kind
-      && current.reason === issue.reason
       && current.locationID === issue.locationID
     ) {
       return;
@@ -1267,8 +1265,9 @@ export class TeslaAgent extends AbstractAgent {
       }, [] as (NumericChargePlan & { comment?: string })[]);
     logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} requested schedule: ${stringifyWithTimestamps(requestedSchedule)}`);
 
+    const connected = Boolean(vehicle.dbData?.isConnected || this.isConnected(vehicle));
     if (!teslaShouldMaintainRemoteHomeSchedule(
-      Boolean(vehicle.dbData?.isConnected || this.isConnected(vehicle)),
+      connected,
       location,
       distanceToLocationM,
       TeslaAgent.APPROACH_CHARGE_LOCATION_M
@@ -1335,7 +1334,7 @@ export class TeslaAgent extends AbstractAgent {
         for (const s of reversedVehicleSchedules) {
           if (usedScheduleIDs.has(s.scheduleID)) continue;
           if (!teslaScheduleServesRequestedPurpose(
-            Boolean(vehicle.dbData?.isConnected || this.isConnected(vehicle)),
+            connected,
             vehicle.telemetryData.DetailedChargeState,
             s,
             r,
@@ -1369,15 +1368,25 @@ export class TeslaAgent extends AbstractAgent {
         }
       }
       logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} schedule updates: ${stringifyWithTimestamps(scheduleUpdates)}`);
+      const issueKind = classifyScheduleSyncIssue(requestedSchedule, now, hasInexactPurposeMatch);
 
       if (canMutateSchedules) {
-        await this.updateScheduleSyncIssue(vehicle, null);
         if (!forceImmediateScheduleCheck && deferScheduleMutation && scheduleUpdates.length > 0) {
+          await this.updateScheduleSyncIssue(
+            vehicle,
+            issueKind
+              ? {
+                kind: connected ? issueKind : "drift",
+                locationID: location.id,
+                since: now,
+              }
+              : null
+          );
           logVehicle(
             LogLevel.Debug,
             vehicle,
             `${vehicle.vin} deferring schedule rewrite for ${Math.ceil((vehicle.lastScheduleMutationAt! + teslaSchedulePurposeCadenceMs(
-              Boolean(vehicle.dbData?.isConnected || this.isConnected(vehicle)),
+              connected,
               location,
               distanceToLocationM,
               TeslaAgent.LOCKED_IN_SCHEDULE_CADENCE_MS,
@@ -1386,6 +1395,7 @@ export class TeslaAgent extends AbstractAgent {
           );
           return;
         }
+        await this.updateScheduleSyncIssue(vehicle, null);
         // Handle preconditioning schedules
         {
           const autoHvac = vehicle.dbData.providerData && vehicle.dbData.providerData.auto_hvac !== false;
@@ -1495,11 +1505,10 @@ export class TeslaAgent extends AbstractAgent {
           vehicle.lastScheduleMutationAt = Date.now();
         }
       } else {
-        const issueKind = classifyOfflineScheduleSyncIssue(requestedSchedule, now, hasInexactPurposeMatch);
         await this.updateScheduleSyncIssue(
           vehicle,
           issueKind
-            ? { kind: issueKind, reason: "offline", locationID: location.id, since: now }
+            ? { kind: "drift", locationID: location.id, since: now }
             : null
         );
       }
