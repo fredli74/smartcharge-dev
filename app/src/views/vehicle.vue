@@ -298,8 +298,8 @@ export default class VehicleVue extends Vue {
   }
   get scheduleSyncStatusClass(): string {
     return this.effectiveScheduleSyncKind === "incorrect"
-      ? "deep-orange--text text--accent-4"
-      : "amber--text text--darken-4";
+      ? "red--text text--accent-4"
+      : "light-blue--text text--darken-2";
   }
   get scheduleSyncIcon(): string {
     return this.effectiveScheduleSyncKind === "incorrect"
@@ -311,7 +311,7 @@ export default class VehicleVue extends Vue {
       return "Vehicle onboard schedule is incorrect and will affect planned charging. Please take the vehicle online.";
     }
     if (this.effectiveScheduleSyncKind === "drift") {
-      return "Vehicle onboard schedule is not exact and will update when online.";
+      return "Vehicle onboard schedule is not exact, but will update when online.";
     }
     return undefined;
   }
