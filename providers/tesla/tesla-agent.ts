@@ -257,6 +257,7 @@ function teslaScheduleMatchesExactly(existing: NumericChargePlan, requested: Num
 
 function classifyScheduleSyncIssue(
   requestedSchedule: ReadonlyArray<NumericChargePlan>,
+  existingSchedules: ReadonlyArray<NumericChargePlan>,
   now: number,
   hasInexactPurposeMatch: boolean
 ): TeslaScheduleSyncIssue["kind"] | null {
@@ -265,12 +266,50 @@ function classifyScheduleSyncIssue(
     return null;
   }
   if (relevantRequestedSchedule[0].scheduleID === undefined) {
-    return "incorrect";
+    const firstRequested = relevantRequestedSchedule[0];
+    const firstExisting = existingSchedules
+      .filter((s) => numericStopTime(s.chargeStop) > now)
+      .sort((a, b) => compareStartStopTimes(a.chargeStart, a.chargeStop, b.chargeStart, b.chargeStop))[0];
+    if (!firstExisting) {
+      return "incorrect";
+    }
+    if (numericStartTime(firstExisting.chargeStart) > numericStartTime(firstRequested.chargeStart)
+      || numericStopTime(firstExisting.chargeStop) < numericStopTime(firstRequested.chargeStop)) {
+      return "incorrect";
+    }
+    // An earlier/longer onboard schedule can still wake the car so Smart Charge can
+    // correct it before the desired charging behavior is affected.
+    return "drift";
   }
-  if (hasInexactPurposeMatch || relevantRequestedSchedule.some((r) => r.scheduleID === undefined)) {
+  if (relevantRequestedSchedule.some((r) => r.scheduleID === undefined)) {
+    return "drift";
+  }
+  if (hasInexactPurposeMatch) {
     return "drift";
   }
   return null;
+}
+
+function classifyChargingSetupSyncIssue(
+  requestedSchedule: ReadonlyArray<NumericChargePlan>,
+  existingSchedules: ReadonlyArray<NumericChargePlan>,
+  now: number,
+  hasInexactPurposeMatch: boolean,
+  wantedSocLimit: number | null,
+  actualSocLimit: number | undefined,
+  currentSoc: number | undefined,
+  connected: boolean
+): TeslaScheduleSyncIssue["kind"] | null {
+  const scheduleIssueKind = classifyScheduleSyncIssue(requestedSchedule, existingSchedules, now, hasInexactPurposeMatch);
+  if (connected && wantedSocLimit !== null && actualSocLimit !== undefined) {
+    if ((currentSoc ?? Number.POSITIVE_INFINITY) < wantedSocLimit && actualSocLimit < wantedSocLimit) {
+      return "incorrect";
+    }
+    if (actualSocLimit !== wantedSocLimit) {
+      return scheduleIssueKind === "incorrect" ? "incorrect" : "drift";
+    }
+  }
+  return scheduleIssueKind;
 }
 
 export function teslaShouldMaintainRemoteHomeSchedule(
@@ -648,7 +687,12 @@ export class TeslaAgent extends AbstractAgent {
     if (!vehicle.lastScheduleMutationAt || vehicle.lastScheduleMutationAt + cooldownMs <= now) {
       return false;
     }
-    return requestedSchedule.every((window) => numericStartTime(window.chargeStart) > now);
+    const nextAllowedMutationAt = vehicle.lastScheduleMutationAt + cooldownMs;
+    const firstRelevantStart = requestedSchedule
+      .map((window) => numericStartTime(window.chargeStart))
+      .filter((start) => start > now)
+      .sort((a, b) => a - b)[0];
+    return firstRelevantStart !== undefined && nextAllowedMutationAt < firstRelevantStart;
   }
 
   private scheduleAuditIntervalMs(now: number): number | null {
@@ -1368,15 +1412,41 @@ export class TeslaAgent extends AbstractAgent {
         }
       }
       logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} schedule updates: ${stringifyWithTimestamps(scheduleUpdates)}`);
-      const issueKind = classifyScheduleSyncIssue(requestedSchedule, now, hasInexactPurposeMatch);
+      const wantedSocLimit = wantedSoc === null
+        ? null
+        : Math.max(config.TESLA_LOWEST_POSSIBLE_CHARGETO, Math.min(wantedSoc, 100));
+      const issueKind = classifyChargingSetupSyncIssue(
+        requestedSchedule,
+        Object.values(vehicleSchedules),
+        now,
+        hasInexactPurposeMatch,
+        wantedSocLimit,
+        vehicle.telemetryData.ChargeLimitSoc,
+        vehicle.telemetryData.Soc,
+        connected
+      );
+      const scheduleMutationCooldownMs = teslaSchedulePurposeCadenceMs(
+        connected,
+        location,
+        distanceToLocationM,
+        TeslaAgent.LOCKED_IN_SCHEDULE_CADENCE_MS,
+        TeslaAgent.FLUID_SCHEDULE_CADENCE_MS
+      );
+      const nextAllowedScheduleMutationAt = (vehicle.lastScheduleMutationAt || now) + scheduleMutationCooldownMs;
+      const needsChargeLimitUpdate = connected
+        && wantedSocLimit !== null
+        && (vehicle.telemetryData.Soc ?? Number.POSITIVE_INFINITY) < wantedSocLimit
+        && vehicle.telemetryData.ChargeLimitSoc !== undefined
+        && vehicle.telemetryData.ChargeLimitSoc < wantedSocLimit
+        && requestedSchedule.some((window) => numericStopTime(window.chargeStop) > now && numericStartTime(window.chargeStart) <= nextAllowedScheduleMutationAt);
 
       if (canMutateSchedules) {
-        if (!forceImmediateScheduleCheck && deferScheduleMutation && scheduleUpdates.length > 0) {
+        if (!forceImmediateScheduleCheck && deferScheduleMutation && scheduleUpdates.length > 0 && !needsChargeLimitUpdate) {
           await this.updateScheduleSyncIssue(
             vehicle,
             issueKind
               ? {
-                kind: issueKind,
+                kind: "drift",
                 locationID: location.id,
                 since: now,
               }
@@ -1385,13 +1455,7 @@ export class TeslaAgent extends AbstractAgent {
           logVehicle(
             LogLevel.Debug,
             vehicle,
-            `${vehicle.vin} deferring schedule rewrite for ${Math.ceil((vehicle.lastScheduleMutationAt! + teslaSchedulePurposeCadenceMs(
-              connected,
-              location,
-              distanceToLocationM,
-              TeslaAgent.LOCKED_IN_SCHEDULE_CADENCE_MS,
-              TeslaAgent.FLUID_SCHEDULE_CADENCE_MS
-            ) - now) / 60e3)}m while schedule purpose is still fluid`
+            `${vehicle.vin} deferring schedule rewrite for ${Math.ceil((nextAllowedScheduleMutationAt - now) / 60e3)}m while schedule purpose is still fluid`
           );
           return;
         }
@@ -1490,12 +1554,11 @@ export class TeslaAgent extends AbstractAgent {
         }
 
         // Update SOC if needed
-        if (this.isConnected(vehicle) && wantedSoc) {
-          const limitedSoc = Math.max(config.TESLA_LOWEST_POSSIBLE_CHARGETO, Math.min(wantedSoc, 100));
-          if (vehicle.telemetryData.ChargeLimitSoc !== limitedSoc) {
-            logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} setting charge limit to ${limitedSoc}%`);
-            logVehicle(LogLevel.Trace, vehicle, `Calling TeslaAPI.setChargeLimit(${limitedSoc}%)`);
-            await this.callTeslaAPI(job, teslaAPI.setChargeLimit, vehicle.vin, limitedSoc);
+        if (this.isConnected(vehicle) && wantedSocLimit !== null) {
+          if (vehicle.telemetryData.ChargeLimitSoc !== wantedSocLimit) {
+            logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} setting charge limit to ${wantedSocLimit}%`);
+            logVehicle(LogLevel.Trace, vehicle, `Calling TeslaAPI.setChargeLimit(${wantedSocLimit}%)`);
+            await this.callTeslaAPI(job, teslaAPI.setChargeLimit, vehicle.vin, wantedSocLimit);
           }
         }
         if (this.scheduleAuditIntervalMs(now) !== null && didMutateSchedules) {

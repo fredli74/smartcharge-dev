@@ -308,10 +308,10 @@ export default class VehicleVue extends Vue {
   }
   get scheduleSyncTooltip(): string | undefined {
     if (this.effectiveScheduleSyncKind === "incorrect") {
-      return "Vehicle onboard schedule is incorrect and will affect planned charging. Please take the vehicle online.";
+      return "Vehicle onboard charge schedule or limit is incorrect and will affect planned charging. Please take the vehicle online.";
     }
     if (this.effectiveScheduleSyncKind === "drift") {
-      return "Vehicle onboard schedule is not exact, but will update when online.";
+      return "Vehicle onboard charge schedule or limit is not exact, but will update when online.";
     }
     return undefined;
   }
