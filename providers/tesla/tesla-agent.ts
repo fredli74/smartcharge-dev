@@ -1376,7 +1376,7 @@ export class TeslaAgent extends AbstractAgent {
             vehicle,
             issueKind
               ? {
-                kind: connected ? issueKind : "drift",
+                kind: issueKind,
                 locationID: location.id,
                 since: now,
               }
@@ -1508,7 +1508,7 @@ export class TeslaAgent extends AbstractAgent {
         await this.updateScheduleSyncIssue(
           vehicle,
           issueKind
-            ? { kind: "drift", locationID: location.id, since: now }
+            ? { kind: issueKind, locationID: location.id, since: now }
             : null
         );
       }
