@@ -273,12 +273,11 @@ function classifyScheduleSyncIssue(
     if (!firstExisting) {
       return "incorrect";
     }
-    if (numericStartTime(firstExisting.chargeStart) > numericStartTime(firstRequested.chargeStart)
-      || numericStopTime(firstExisting.chargeStop) < numericStopTime(firstRequested.chargeStop)) {
+    if (numericStartTime(firstExisting.chargeStart) > numericStartTime(firstRequested.chargeStart)) {
       return "incorrect";
     }
-    // An earlier/longer onboard schedule can still wake the car so Smart Charge can
-    // correct it before the desired charging behavior is affected.
+    // An earlier start, earlier stop, or longer onboard schedule can still wake the car
+    // so Smart Charge can correct it before the desired charging behavior is affected.
     return "drift";
   }
   if (relevantRequestedSchedule.some((r) => r.scheduleID === undefined)) {
