@@ -6,6 +6,7 @@ import {
   teslaSchedulePurposeCadenceMs,
   teslaScheduleServesRequestedPurpose,
   teslaShouldMaintainRemoteHomeSchedule,
+  teslaWantedSocLimit,
 } from "../../dist/providers/tesla/tesla-agent.js";
 import * as telemetryData from "../../dist/providers/tesla/telemetry-protos/vehicle_data_pb.js";
 
@@ -140,4 +141,8 @@ test("schedule cadence locks in when connected or inside the immediate band", ()
     teslaSchedulePurposeCadenceMs(false, location, 10_000, TeslaAgent.LOCKED_IN_SCHEDULE_CADENCE_MS, TeslaAgent.FLUID_SCHEDULE_CADENCE_MS),
     TeslaAgent.FLUID_SCHEDULE_CADENCE_MS
   );
+});
+
+test("missing wanted SOC means no charge-limit target", () => {
+  assert.equal(teslaWantedSocLimit(undefined), null);
 });

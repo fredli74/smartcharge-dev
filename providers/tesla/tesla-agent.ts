@@ -255,6 +255,11 @@ function teslaScheduleMatchesExactly(existing: NumericChargePlan, requested: Num
     && numericStopTime(existing.chargeStop) === numericStopTime(requested.chargeStop);
 }
 
+export function teslaWantedSocLimit(wantedSoc: number | undefined): number | null {
+  if (wantedSoc === undefined) return null;
+  return Math.max(config.TESLA_LOWEST_POSSIBLE_CHARGETO, Math.min(wantedSoc, 100));
+}
+
 function classifyScheduleSyncIssue(
   requestedSchedule: ReadonlyArray<NumericChargePlan>,
   existingSchedules: ReadonlyArray<NumericChargePlan>,
@@ -1411,9 +1416,7 @@ export class TeslaAgent extends AbstractAgent {
         }
       }
       logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} schedule updates: ${stringifyWithTimestamps(scheduleUpdates)}`);
-      const wantedSocLimit = wantedSoc === null
-        ? null
-        : Math.max(config.TESLA_LOWEST_POSSIBLE_CHARGETO, Math.min(wantedSoc, 100));
+      const wantedSocLimit = teslaWantedSocLimit(wantedSoc);
       const issueKind = classifyChargingSetupSyncIssue(
         requestedSchedule,
         Object.values(vehicleSchedules),
