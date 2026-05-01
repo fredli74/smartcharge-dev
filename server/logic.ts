@@ -1098,7 +1098,8 @@ export class Logic {
         }
         return lastStop;
       };
-      const planFillWindows = (fromLevel: number, toLevel: number, deadline: number) => {
+      const yieldToEventLoop = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
+      const planFillWindows = async (fromLevel: number, toLevel: number, deadline: number) => {
         if (fillMaxPrice === null) return { windows: [], scheduledMs: 0 };
         return planWindows(
           ChargeDuration(fromLevel, toLevel),
@@ -1108,14 +1109,14 @@ export class Logic {
           isActiveCharge()
         );
       };
-      const scheduleSoftIntents = () => {
+      const scheduleSoftIntents = async () => {
         if (softIntents.length === 0 && fillMaxPrice === null) return;
         const scheduledIntents = softIntents
           .filter((i) => i.beforeTs !== undefined)
           .sort((a, b) => numericStartTime(a.beforeTs) - numericStartTime(b.beforeTs));
         if (scheduledIntents.length === 0) {
           if (fillMaxPrice === null || startLevel >= vehicle.maximum_charge || priceAvailable < hardStart) return;
-          const fillWindows = planFillWindows(startLevel, vehicle.maximum_charge, priceAvailable);
+          const fillWindows = await planFillWindows(startLevel, vehicle.maximum_charge, priceAvailable);
           if (fillWindows.windows.length > 0 && fillWindows.scheduledMs > 0) {
             hardStart = applyWindows(fillWindows.windows, buildAllocations(startLevel, [fillIntent(vehicle.maximum_charge)]));
           }
@@ -1149,14 +1150,14 @@ export class Logic {
           if (deadline >= hardStart) {
             // Try to fully charge with cheap energy first
             const max = vehicle.maximum_charge;
-            const fillWindows = planFillWindows(plannedLevel, max, deadline);
+            const fillWindows = await planFillWindows(plannedLevel, max, deadline);
             if (fillWindows.windows.length > 0 && fillWindows.scheduledMs >= timeNeeded) {
               hardStart = applyWindows(fillWindows.windows, buildAllocations(plannedLevel, [
                 ...cohortIntents,
                 fillIntent(max)
               ]));
             } else {
-              const plan = planWindows(timeNeeded, deadline, undefined, `intent:${cohortMaxLevel}`, isActiveCharge());
+              const plan = await planWindows(timeNeeded, deadline, undefined, `intent:${cohortMaxLevel}`, isActiveCharge());
               hardStart = applyWindows(plan.windows, buildAllocations(plannedLevel, cohortIntents));
             }
           } else {
@@ -1259,13 +1260,13 @@ export class Logic {
        * system still consumes { start, stop } windows, so the refactor stays behind the existing
        * planWindows() interface.
        */
-      const planWindows = (
+      const planWindows = async (
         timeNeededMs: number,
         beforeTimestampMs: number,
         maxPrice: number | undefined,
         scheduleTag: string,
         isCharging: boolean
-      ): { windows: { start: number; stop: number }[]; scheduledMs: number } => {
+      ): Promise<{ windows: { start: number; stop: number }[]; scheduledMs: number }> => {
         type AtomicStep = Readonly<{ start: number; stop: number; duration: number; price: number; chargeCostMs: number }>;
         type PlanPhase = "idle" | "charging" | "stopped";
         type PlanAction = "seed" | "skip" | "take";
@@ -1327,32 +1328,24 @@ export class Logic {
         );
 
         const phases: ReadonlyArray<PlanPhase> = ["idle", "charging", "stopped"];
-        const makePhaseMaps = (): Record<PlanPhase, Map<string, number[]>> => ({
-          idle: new Map<string, number[]>(),
-          charging: new Map<string, number[]>(),
-          stopped: new Map<string, number[]>(),
+        const makePhaseMaps = (): Record<PlanPhase, Map<string, number>> => ({
+          idle: new Map<string, number>(),
+          charging: new Map<string, number>(),
+          stopped: new Map<string, number>(),
         });
         const nodes: PlanNode[] = [];
         const firstStartForRanking = (node: PlanNode): number => node.firstStartMs ?? Number.POSITIVE_INFINITY;
         let nodesRecorded = 0;
         let nodesPrunedDominated = 0;
         let nodesPrunedReplaced = 0;
-        const dominatesForContinuation = (left: PlanNode, right: PlanNode): boolean => {
+        const compareContinuationNodes = (left: PlanNode, right: PlanNode): number => {
           assert(left.phase === right.phase);
           assert(left.deliveredMs === right.deliveredMs);
+          assert(left.scheduledMs === right.scheduledMs);
           assert(left.warmupDebtMs === right.warmupDebtMs);
-          const leftStart = firstStartForRanking(left);
-          const rightStart = firstStartForRanking(right);
-          return left.chargeCostMs <= right.chargeCostMs
-            && left.scheduledMs >= right.scheduledMs
-            && left.windows <= right.windows
-            && leftStart <= rightStart
-            && (
-              left.chargeCostMs < right.chargeCostMs
-              || left.scheduledMs > right.scheduledMs
-              || left.windows < right.windows
-              || leftStart < rightStart
-            );
+          if (left.chargeCostMs !== right.chargeCostMs) return right.chargeCostMs - left.chargeCostMs;
+          if (left.windows !== right.windows) return right.windows - left.windows;
+          return firstStartForRanking(right) - firstStartForRanking(left);
         };
         const compareFinalNodes = (left: PlanNode, right: PlanNode): number => {
           const leftDelivered = Math.min(left.deliveredMs, targetMaxMs);
@@ -1363,7 +1356,7 @@ export class Logic {
           return firstStartForRanking(right) - firstStartForRanking(left);
         };
         const recordNode = (
-          states: Record<PlanPhase, Map<string, number[]>>,
+          states: Record<PlanPhase, Map<string, number>>,
           node: PlanNode
         ) => {
           const stateMap = states[node.phase];
@@ -1371,32 +1364,33 @@ export class Logic {
           if (node.phase !== "charging") {
             assert(node.warmupDebtMs === 0);
           }
-          const stateKey = `${node.deliveredMs}:${node.warmupDebtMs}`;
-          const existingIndices = stateMap.get(stateKey) || [];
-          if (existingIndices.some((index) => dominatesForContinuation(nodes[index], node))) {
-            nodesPrunedDominated++;
-            return;
+          const deliveredMs = Math.min(node.deliveredMs, targetMaxMs);
+          const normalizedNode = deliveredMs === node.deliveredMs ? node : { ...node, deliveredMs };
+          const stateKey = `${normalizedNode.deliveredMs}:${normalizedNode.scheduledMs}:${normalizedNode.warmupDebtMs}`;
+          const existingIndex = stateMap.get(stateKey);
+          if (existingIndex !== undefined) {
+            if (compareContinuationNodes(nodes[existingIndex], normalizedNode) >= 0) {
+              nodesPrunedDominated++;
+              return;
+            }
+            nodesPrunedReplaced++;
           }
-          nodes.push(node);
+          nodes.push(normalizedNode);
           nodesRecorded++;
           const nodeIndex = nodes.length - 1;
-          const survivorIndices = existingIndices.filter((index) => !dominatesForContinuation(node, nodes[index]));
-          nodesPrunedReplaced += existingIndices.length - survivorIndices.length;
-          stateMap.set(stateKey, survivorIndices.concat(nodeIndex));
+          stateMap.set(stateKey, nodeIndex);
         };
-        const countFrontierNodes = (states: Record<PlanPhase, Map<string, number[]>>): number => {
+        const countFrontierNodes = (states: Record<PlanPhase, Map<string, number>>): number => {
           let count = 0;
           for (const phase of phases) {
-            for (const stateIndices of states[phase].values()) count += stateIndices.length;
+            count += states[phase].size;
           }
           return count;
         };
-        const frontierSummary = (states: Record<PlanPhase, Map<string, number[]>>): string => {
+        const frontierSummary = (states: Record<PlanPhase, Map<string, number>>): string => {
           return phases.map((phase) => {
             const buckets = states[phase].size;
-            let statesCount = 0;
-            for (const stateIndices of states[phase].values()) statesCount += stateIndices.length;
-            return `${phase}:buckets=${buckets},states=${statesCount}`;
+            return `${phase}:buckets=${buckets},states=${buckets}`;
           }).join(" ");
         };
 
@@ -1425,48 +1419,46 @@ export class Logic {
           const step = atomicSteps[stepIndex];
           const nextStates = makePhaseMaps();
           for (const phase of phases) {
-            for (const stateIndices of states[phase].values()) {
-              for (const stateIndex of stateIndices) {
-                const state = nodes[stateIndex];
-                assert(state);
-                const skipPhase: PlanPhase = phase === "charging" ? "stopped" : phase;
-                recordNode(nextStates, {
-                  prev: stateIndex,
-                  action: "skip",
-                  stepIndex,
-                  phase: skipPhase,
-                  deliveredMs: state.deliveredMs,
-                  scheduledMs: state.scheduledMs,
-                  warmupDebtMs: 0,
-                  chargeCostMs: state.chargeCostMs,
-                  windows: state.windows,
-                  firstStartMs: state.firstStartMs,
-                });
+            for (const stateIndex of states[phase].values()) {
+              const state = nodes[stateIndex];
+              assert(state);
+              const skipPhase: PlanPhase = phase === "charging" ? "stopped" : phase;
+              recordNode(nextStates, {
+                prev: stateIndex,
+                action: "skip",
+                stepIndex,
+                phase: skipPhase,
+                deliveredMs: state.deliveredMs,
+                scheduledMs: state.scheduledMs,
+                warmupDebtMs: 0,
+                chargeCostMs: state.chargeCostMs,
+                windows: state.windows,
+                firstStartMs: state.firstStartMs,
+              });
 
-                if (state.deliveredMs >= targetMaxMs) continue;
-                const restart = phase === "stopped";
-                if (restart && disallowGaps) continue;
-                const startsNewWindow = state.scheduledMs === 0 || phase !== "charging";
-                const warmupDebtMs = restart ? (warmupPenaltyMs ?? 0) : state.warmupDebtMs;
-                const consumedWarmupMs = Math.min(step.duration, warmupDebtMs);
-                const deliveredIncrementMs = step.duration - consumedWarmupMs;
-                const remainingWarmupDebtMs = warmupDebtMs - consumedWarmupMs;
-                const nextPhase: PlanPhase = stepIndex + 1 < atomicSteps.length && atomicSteps[stepIndex + 1].start === step.stop
-                  ? "charging"
-                  : "stopped";
-                recordNode(nextStates, {
-                  prev: stateIndex,
-                  action: "take",
-                  stepIndex,
-                  phase: nextPhase,
-                  deliveredMs: state.deliveredMs + deliveredIncrementMs,
-                  scheduledMs: state.scheduledMs + step.duration,
-                  warmupDebtMs: nextPhase === "charging" ? remainingWarmupDebtMs : 0,
-                  chargeCostMs: state.chargeCostMs + step.chargeCostMs,
-                  windows: state.windows + (startsNewWindow ? 1 : 0),
-                  firstStartMs: state.firstStartMs ?? step.start,
-                });
-              }
+              if (state.deliveredMs >= targetMaxMs) continue;
+              const restart = phase === "stopped";
+              if (restart && disallowGaps) continue;
+              const startsNewWindow = state.scheduledMs === 0 || phase !== "charging";
+              const warmupDebtMs = restart ? (warmupPenaltyMs ?? 0) : state.warmupDebtMs;
+              const consumedWarmupMs = Math.min(step.duration, warmupDebtMs);
+              const deliveredIncrementMs = step.duration - consumedWarmupMs;
+              const remainingWarmupDebtMs = warmupDebtMs - consumedWarmupMs;
+              const nextPhase: PlanPhase = stepIndex + 1 < atomicSteps.length && atomicSteps[stepIndex + 1].start === step.stop
+                ? "charging"
+                : "stopped";
+              recordNode(nextStates, {
+                prev: stateIndex,
+                action: "take",
+                stepIndex,
+                phase: nextPhase,
+                deliveredMs: state.deliveredMs + deliveredIncrementMs,
+                scheduledMs: state.scheduledMs + step.duration,
+                warmupDebtMs: nextPhase === "charging" ? remainingWarmupDebtMs : 0,
+                chargeCostMs: state.chargeCostMs + step.chargeCostMs,
+                windows: state.windows + (startsNewWindow ? 1 : 0),
+                firstStartMs: state.firstStartMs ?? step.start,
+              });
             }
           }
           vehicleLog(
@@ -1478,6 +1470,7 @@ export class Logic {
             `prunedDominated=${nodesPrunedDominated} prunedReplaced=${nodesPrunedReplaced}`
           );
           states = nextStates;
+          await yieldToEventLoop();
         }
 
         const isFeasibleAverage = (node: PlanNode): boolean => {
@@ -1489,14 +1482,12 @@ export class Logic {
         let bestIndex: number | undefined;
         let feasibleFinalStates = 0;
         for (const phase of phases) {
-          for (const stateIndices of states[phase].values()) {
-            for (const stateIndex of stateIndices) {
-              const node = nodes[stateIndex];
-              if (!isFeasibleAverage(node)) continue;
-              feasibleFinalStates++;
-              if (bestIndex === undefined || compareFinalNodes(node, nodes[bestIndex]) > 0) {
-                bestIndex = stateIndex;
-              }
+          for (const stateIndex of states[phase].values()) {
+            const node = nodes[stateIndex];
+            if (!isFeasibleAverage(node)) continue;
+            feasibleFinalStates++;
+            if (bestIndex === undefined || compareFinalNodes(node, nodes[bestIndex]) > 0) {
+              bestIndex = stateIndex;
             }
           }
         }
@@ -1709,7 +1700,7 @@ export class Logic {
         }
       }
 
-      scheduleSoftIntents();
+      await scheduleSoftIntents();
     }
 
     if (chargePlan.length) {
