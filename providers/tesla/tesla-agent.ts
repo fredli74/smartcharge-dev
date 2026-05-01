@@ -834,6 +834,11 @@ export class TeslaAgent extends AbstractAgent {
         query: TeslaProviderQueries.Vehicles,
         service_uuid: job.serviceID,
       });
+      if (list.length === 0 && Object.keys(job.state).length === 0) {
+        log(LogLevel.Debug, `Service ${job.serviceID} returned no Tesla vehicles while unmapped; retrying mapping later`);
+        this.adjustInterval(job, TeslaAgent.ACTIVE_SERVICE_INTERVAL_S);
+        return;
+      }
       for (const v of list) {
         if (v.vehicle_uuid) {
           job.state[v.vehicle_uuid] = v.vin;
