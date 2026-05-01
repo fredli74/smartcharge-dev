@@ -120,6 +120,7 @@ const server: IProviderServer = {
         }
 
         const vehicles = [];
+        let incomplete = false;
         const serviceList = await context.db.getServiceProviders(
           accountFilter(context.accountUUID),
           data.service_uuid,
@@ -141,6 +142,7 @@ const server: IProviderServer = {
           if (!s.service_data.invalid_token && s.service_data.token) {
             const token = await maintainServiceToken(context.db, s);
             if (!token) {
+              incomplete = true;
               continue;
             }
             try {
@@ -178,8 +180,12 @@ const server: IProviderServer = {
               vehicles.push(...list);
             } catch (err: any) {
               log(LogLevel.Error, err);
+              incomplete = true;
             }
           }
+        }
+        if (incomplete) {
+          return null;
         }
         return vehicles;
       }

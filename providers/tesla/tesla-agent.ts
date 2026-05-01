@@ -834,11 +834,14 @@ export class TeslaAgent extends AbstractAgent {
         query: TeslaProviderQueries.Vehicles,
         service_uuid: job.serviceID,
       });
-      if (list.length === 0 && Object.keys(job.state).length === 0) {
-        log(LogLevel.Debug, `Service ${job.serviceID} returned no Tesla vehicles while unmapped; retrying mapping later`);
-        this.adjustInterval(job, TeslaAgent.ACTIVE_SERVICE_INTERVAL_S);
+      if (list == null) {
+        log(LogLevel.Trace, `Service ${job.serviceID} vehicle mapping did not complete; retrying mapping later`);
+        // Token refresh and transient provider errors are handled elsewhere; do not
+        // ramp through active polling intervals before retrying this low-urgency mapping.
+        job.interval = TeslaAgent.IDLE_SERVICE_INTERVAL_S;
         return;
       }
+      assert(Array.isArray(list));
       for (const v of list) {
         if (v.vehicle_uuid) {
           job.state[v.vehicle_uuid] = v.vin;
