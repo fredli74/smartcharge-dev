@@ -1678,7 +1678,10 @@ export class Logic {
               smartStatus = smartStatus
                 || `Predicting battery level ${ai.level}% (${neededCharge > 0 ? Math.round(neededCharge) + "%" : "no"} charge) is needed before ${before.toISOString()}`;
               vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Current level: ${vehicle.level}, predicting ${ai.level}% (${minimum_charge}+${neededCharge - minimum_charge}) is needed before ${before.toISOString()}`);
-              addSoftIntent(ChargeType.Routine, `routine charge`, ai.level, ai.ts);
+              // Only add routine charge intent if actual charging is needed
+              if (neededCharge > 0) {
+                addSoftIntent(ChargeType.Routine, `routine charge`, ai.level, ai.ts);
+              }
 
               // locations settings charging
               {
