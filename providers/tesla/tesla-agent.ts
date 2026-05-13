@@ -1472,7 +1472,7 @@ export class TeslaAgent extends AbstractAgent {
         await this.updateScheduleSyncIssue(vehicle, null);
         // Handle preconditioning schedules
         {
-          const autoHvac = vehicle.dbData.providerData && vehicle.dbData.providerData.auto_hvac !== false;
+          const autoHvac = vehicle.dbData.providerData && vehicle.dbData.providerData.auto_hvac === true;
           const scSchedule = autoHvac
             ? vehicle.dbData.schedule
               .filter((f) => f.type === GQLScheduleType.Trip && f.time && new Date(f.time).getTime() > now)
