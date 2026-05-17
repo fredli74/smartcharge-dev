@@ -387,6 +387,7 @@ function stringifyWithTimestamps(data: any): string {
 
 function normalizeChargeSchedules(schedules: { [id: number]: TeslaChargeSchedule } | undefined): unknown[] {
   return Object.values(schedules || {})
+    .filter((s) => s.id >= TeslaScheduleIDs.First && s.id <= TeslaScheduleIDs.Last)
     .sort((a, b) => a.id - b.id)
     .map((s) => ({
       id: s.id,
@@ -404,6 +405,7 @@ function normalizeChargeSchedules(schedules: { [id: number]: TeslaChargeSchedule
 
 function normalizePreconditionSchedules(schedules: { [id: number]: TeslaPreconditionSchedule } | undefined): unknown[] {
   return Object.values(schedules || {})
+    .filter((s) => s.id === TeslaScheduleIDs.Precondition)
     .sort((a, b) => a.id - b.id)
     .map((s) => ({
       id: s.id,
@@ -416,7 +418,9 @@ function normalizePreconditionSchedules(schedules: { [id: number]: TeslaPrecondi
     }));
 }
 
-const SCHEDULE_COORD_ABS_EPSILON = 0.00001;
+// Epsilon covers float32 rounding (~8e-6 ULP near 60°N) plus the observed DB-to-float32
+// conversion drift (up to ~3e-5) from micro-degree integer storage vs IEEE 754 float32.
+const SCHEDULE_COORD_ABS_EPSILON = 0.00005;
 
 function sameCoordinate(a: number, b: number): boolean {
   return Math.abs(a - b) <= SCHEDULE_COORD_ABS_EPSILON;
@@ -426,8 +430,9 @@ function equalChargeSchedules(
   left: { [id: number]: TeslaChargeSchedule } | undefined,
   right: { [id: number]: TeslaChargeSchedule } | undefined
 ): boolean {
-  const leftSchedules = Object.values(left || {}).sort((a, b) => a.id - b.id);
-  const rightSchedules = Object.values(right || {}).sort((a, b) => a.id - b.id);
+  const isSmartChargeId = (id: number) => id >= TeslaScheduleIDs.First && id <= TeslaScheduleIDs.Last;
+  const leftSchedules = Object.values(left || {}).filter((s) => isSmartChargeId(s.id)).sort((a, b) => a.id - b.id);
+  const rightSchedules = Object.values(right || {}).filter((s) => isSmartChargeId(s.id)).sort((a, b) => a.id - b.id);
   if (leftSchedules.length !== rightSchedules.length) return false;
   return leftSchedules.every((schedule, index) => {
     const other = rightSchedules[index];
@@ -449,8 +454,8 @@ function equalPreconditionSchedules(
   left: { [id: number]: TeslaPreconditionSchedule } | undefined,
   right: { [id: number]: TeslaPreconditionSchedule } | undefined
 ): boolean {
-  const leftSchedules = Object.values(left || {}).sort((a, b) => a.id - b.id);
-  const rightSchedules = Object.values(right || {}).sort((a, b) => a.id - b.id);
+  const leftSchedules = Object.values(left || {}).filter((s) => s.id === TeslaScheduleIDs.Precondition).sort((a, b) => a.id - b.id);
+  const rightSchedules = Object.values(right || {}).filter((s) => s.id === TeslaScheduleIDs.Precondition).sort((a, b) => a.id - b.id);
   if (leftSchedules.length !== rightSchedules.length) return false;
   return leftSchedules.every((schedule, index) => {
     const other = rightSchedules[index];
