@@ -706,12 +706,12 @@ export class TeslaAgent extends AbstractAgent {
 
   private scheduleAuditIntervalMs(now: number): number | null {
     // Development-only schedule audit with a hard sunset so it cannot linger in release code.
-    // Starting April 22, 2026:
-    // - run every 10 minutes until July 22, 2026
-    // - then every 30 minutes until October 22, 2026
+    // Keep dates in the past so audit remains disabled unless explicitly reintroduced.
+    // - run every 10 minutes until May 1, 2026
+    // - then every 30 minutes until June 1, 2026
     // - then disable completely
-    if (now < Date.UTC(2026, 6, 22)) return 10 * 60e3;
-    if (now < Date.UTC(2026, 9, 22)) return 30 * 60e3;
+    if (now < Date.UTC(2026, 4, 1)) return 10 * 60e3;
+    if (now < Date.UTC(2026, 5, 1)) return 30 * 60e3;
     return null;
   }
 
@@ -1414,6 +1414,12 @@ export class TeslaAgent extends AbstractAgent {
           );
           if (!teslaScheduleMatchesExactly(s, r)) {
             hasInexactPurposeMatch = true;
+            scheduleUpdates.push({
+              ...this.convertToTeslaSchedule(r, location),
+              id: s.scheduleID,
+              enabled: undefined,
+              comment: `adjusting existing schedule ${s.scheduleID}`
+            });
           }
           r.scheduleID = s.scheduleID;
           usedScheduleIDs.add(s.scheduleID);
@@ -1526,13 +1532,15 @@ export class TeslaAgent extends AbstractAgent {
           let findid = TeslaScheduleIDs.First;
           freeScheduleIDs.push(...Object.keys(vehicleSchedules).map((s) => parseInt(s)).filter((s) => !usedScheduleIDs.has(s)));
           for (const s of scheduleUpdates) {
-            if (freeScheduleIDs.length > 0) {
-              s.id = freeScheduleIDs.shift();
-            } else {
-              for (; findid <= TeslaScheduleIDs.Last; findid++) {
-                if (!usedScheduleIDs.has(findid)) {
-                  s.id = findid;
-                  break;
+            if (s.id === undefined) {
+              if (freeScheduleIDs.length > 0) {
+                s.id = freeScheduleIDs.shift();
+              } else {
+                for (; findid <= TeslaScheduleIDs.Last; findid++) {
+                  if (!usedScheduleIDs.has(findid)) {
+                    s.id = findid;
+                    break;
+                  }
                 }
               }
             }
@@ -1551,7 +1559,11 @@ export class TeslaAgent extends AbstractAgent {
             await this.callTeslaAPI(job, teslaAPI.addChargeSchedule, vehicle.vin, s);
             didMutateSchedules = true;
             // Cache the newly set schedule with correct lat/long (only after successful API call)
-            vehicle.charge_schedules[s.id] = s;
+            const existingEnabled = vehicle.charge_schedules[s.id]?.enabled;
+            vehicle.charge_schedules[s.id] = {
+              ...s,
+              enabled: s.enabled ?? existingEnabled ?? true,
+            };
             logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} cached schedule ${s.id} @ [${s.latitude},${s.longitude}]`);
           }
         }
