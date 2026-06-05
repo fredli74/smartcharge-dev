@@ -1417,7 +1417,7 @@ export class TeslaAgent extends AbstractAgent {
             scheduleUpdates.push({
               ...this.convertToTeslaSchedule(r, location),
               id: s.scheduleID,
-              enabled: undefined,
+              enabled: true,
               comment: `adjusting existing schedule ${s.scheduleID}`
             });
           }
@@ -1559,11 +1559,7 @@ export class TeslaAgent extends AbstractAgent {
             await this.callTeslaAPI(job, teslaAPI.addChargeSchedule, vehicle.vin, s);
             didMutateSchedules = true;
             // Cache the newly set schedule with correct lat/long (only after successful API call)
-            const existingEnabled = vehicle.charge_schedules[s.id]?.enabled;
-            vehicle.charge_schedules[s.id] = {
-              ...s,
-              enabled: s.enabled ?? existingEnabled ?? true,
-            };
+            vehicle.charge_schedules[s.id] = s;
             logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} cached schedule ${s.id} @ [${s.latitude},${s.longitude}]`);
           }
         }

@@ -51,7 +51,7 @@ interface TeslaSchedule {
   name?: string;
   days_of_week: number;
   one_time?: boolean;
-  enabled?: boolean;
+  enabled: boolean;
   latitude: number;
   longitude: number;
 }
