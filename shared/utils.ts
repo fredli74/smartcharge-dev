@@ -41,23 +41,12 @@ export function log(level: LogLevel, data: unknown) {
 }
 
 export function vehicleLog(level: LogLevel, vehicleUUID: string, data: unknown) {
+  // Guard here too, so formatting is skipped entirely when the level is disabled.
   if (level <= LOGLEVEL) {
-    const s = logFormat(level, `${vehicleUUID} ${formatLogData(data)}`);
-    switch (level) {
-      case LogLevel.Error:
-      case LogLevel.Warning:
-        console.error(s);
-        break;
-      case LogLevel.Info:
-        console.log(s);
-        break;
-      case LogLevel.Debug:
-      case LogLevel.Trace:
-        console.debug(s);
-        break;
-    }
+    log(level, `${vehicleUUID} ${formatLogData(data)}`);
   }
 }
+
 export function logFormat(level: LogLevel, data: unknown): string {
   return `${new Date().toISOString()} ${logSymbol[level]} ${formatLogData(data)}`;
 }
