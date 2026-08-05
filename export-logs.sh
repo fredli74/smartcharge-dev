@@ -86,6 +86,11 @@ archive_old_months() {
 
     echo "  → archiving ${service} ${month:0:4}-${month:4:2}"
 
+    if [[ -e "$archive" ]]; then
+      echo "  ! archive already exists, refusing to overwrite: $archive"
+      continue
+    fi
+
     tar -czf "$tmp" -C "$LOG_DIR" "${files[@]}"
     mv "$tmp" "$archive"
 
