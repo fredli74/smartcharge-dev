@@ -7,12 +7,13 @@
 
 import {
   GQLSchedule,
+  GQLSplitCharge,
   GQLVehicleLocationSetting,
   GQLVehicle,
 } from "./sc-schema.js";
 import { compareStartTimes } from "./utils.js";
 import { DEFAULT_DIRECTLEVEL } from "./smartcharge-defines.js";
-import { SmartChargeGoal, SplitCharge } from "./sc-types.js";
+import { SmartChargeGoal } from "./sc-types.js";
 
 export function scheduleMap(
   schedule: GQLSchedule[]
@@ -33,7 +34,7 @@ export function DefaultVehicleLocationSettings(
     locationID: location_uuid,
     directLevel: DEFAULT_DIRECTLEVEL,
     goal: SmartChargeGoal.Balanced,
-    splitCharge: SplitCharge.Auto,
+    splitCharge: GQLSplitCharge.Auto,
   };
 }
 

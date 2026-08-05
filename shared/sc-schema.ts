@@ -275,7 +275,7 @@ export interface GQLVehicleLocationSetting {
    */
   directLevel: number;
   goal: string;
-  splitCharge: GQLSplitCharge;
+  splitCharge: GQLSplitCharge | null;
 }
 
 /**
@@ -444,7 +444,7 @@ export interface GQLVehicleLocationSettingInput {
    */
   directLevel: number;
   goal: string;
-  splitCharge: GQLSplitCharge;
+  splitCharge: GQLSplitCharge | null;
 }
 
 export interface GQLSubscription {
@@ -1058,7 +1058,7 @@ export interface VehicleLocationSettingToGoalResolver<TParent = GQLVehicleLocati
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 
-export interface VehicleLocationSettingToSplitChargeResolver<TParent = GQLVehicleLocationSetting, TResult = GQLSplitCharge> {
+export interface VehicleLocationSettingToSplitChargeResolver<TParent = GQLVehicleLocationSetting, TResult = GQLSplitCharge | null> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 

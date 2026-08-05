@@ -93,8 +93,8 @@
 
 <script lang="ts">
 import { Component, Vue, Prop } from "vue-property-decorator";
-import { GQLVehicle, GQLVehicleLocationSetting } from "@shared/sc-schema.js";
-import { SmartChargeGoal, SplitCharge } from "@shared/sc-types.js";
+import { GQLSplitCharge, GQLVehicle, GQLVehicleLocationSetting } from "@shared/sc-schema.js";
+import { SmartChargeGoal } from "@shared/sc-types.js";
 import { UpdateVehicleParams } from "@shared/sc-client.js";
 
 @Component({})
@@ -120,9 +120,9 @@ export default class EditVehicle extends Vue {
         { text: "Custom", value: "%" },
       ],
       splitChargeList: [
-        { text: "Never", value: SplitCharge.Never },
-        { text: "Auto", value: SplitCharge.Auto },
-        { text: "Always", value: SplitCharge.Always },
+        { text: "Never", value: GQLSplitCharge.Never },
+        { text: "Auto", value: GQLSplitCharge.Auto },
+        { text: "Always", value: GQLSplitCharge.Always },
       ],
     };
   }
@@ -176,10 +176,10 @@ export default class EditVehicle extends Vue {
   }
 
   get splitCharge(): string {
-    return this.settings.splitCharge || SplitCharge.Auto;
+    return this.settings.splitCharge || GQLSplitCharge.Auto;
   }
   set splitCharge(value: string) {
-    this.settings.splitCharge = value;
+    this.settings.splitCharge = value as GQLSplitCharge;
     this.save("splitCharge");
   }
 
@@ -213,7 +213,7 @@ export default class EditVehicle extends Vue {
               locationID: this.settings.locationID,
               directLevel: this.settings.directLevel,
               goal: goal.value || goal,
-              splitCharge: this.settings.splitCharge || SplitCharge.Auto,
+              splitCharge: this.settings.splitCharge || GQLSplitCharge.Auto,
             } as GQLVehicleLocationSetting,
           ],
         };
