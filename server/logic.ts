@@ -7,7 +7,7 @@
 
 import { strict as assert } from "assert";
 
-import { DBInterface } from "./db-interface.js";
+import { ChargeCurve, DBInterface } from "./db-interface.js";
 import { DBVehicle, DBCharge, DBChargeCurrent, DBTrip, DBConnected, DBLocationStats, DBStatsMap, DBSchedule, } from "./db-schema.js";
 import {
   LogLevel,
@@ -53,6 +53,20 @@ const PRICE_DATA_PADDING_MS = 60 * 60e3;
 // once the vehicle has clearly departed from the starting known location. This is a
 // departure heuristic, not a geofence: schedule maintenance uses its own distance bands.
 const MANUAL_SCHEDULE_DEPARTURE_THRESHOLD_M = 3e3;
+
+/**
+ * Time (ms) to charge from one battery level to another along a charge curve.
+ *
+ * The final percent counts as 0.75 of a band: charging stops as soon as the target level is
+ * reported, so the last band is on average only part-driven and counting it whole overshoots.
+ */
+export function chargeDuration(chargeCurve: ChargeCurve, from: number, to: number): number {
+  let sum = 0;
+  for (let l = from; l < to; ++l) {
+    sum += chargeCurve[Math.max(0, Math.min(100, Math.ceil(l)))] * (l + 1 < to ? 1.0 : 0.75);
+  }
+  return sum * 1e3;
+}
 
 export class Logic {
   constructor(private db: DBInterface) { }
@@ -960,13 +974,7 @@ export class Logic {
       });
 
       const chargeCurve = await this.db.getChargeCurve(vehicle.vehicle_uuid, location_uuid);
-      const ChargeDuration = (from: number, to: number): number => {
-        let sum = 0;
-        for (let l = from; l < to; ++l) {
-          sum += chargeCurve[Math.max(0, Math.min(100, Math.ceil(l)))] * (l < to ? 1.0 : 0.75); // remove 25% of the last % to not overshoot
-        }
-        return sum * 1e3;
-      };
+      const ChargeDuration = (from: number, to: number): number => chargeDuration(chargeCurve, from, to);
       let hardStart = now;
       let hardEnd = Number.POSITIVE_INFINITY;
       type SoftIntent = {
@@ -1108,10 +1116,9 @@ export class Logic {
               // re-plan charging that is already scheduled.
               plannedLevel = fillWindows.deliveredMs >= fillTargetMs ? max : cohortMaxLevel;
               continue;
-            } else {
-              const plan = await planWindows(timeNeeded, deadline, undefined, `intent:${cohortMaxLevel}`, isActiveCharge());
-              hardStart = applyWindows(plan.windows, buildAllocations(plannedLevel, cohortIntents));
             }
+            const plan = await planWindows(timeNeeded, deadline, undefined, `intent:${cohortMaxLevel}`, isActiveCharge());
+            hardStart = applyWindows(plan.windows, buildAllocations(plannedLevel, cohortIntents));
           } else {
             // No price data or deadline: charge directly to the max soft intent level.
             const topIntent = sortSoftIntents(cohortIntents)[0];
@@ -1131,44 +1138,38 @@ export class Logic {
 
       // Warmup penalty: extra effective charging time required after restarting a stopped charge.
       const disallowGaps = splitCharge === SplitCharge.Never;
-      let warmupPenaltyMs : number | undefined;
-      if (splitCharge === SplitCharge.Always) {
-        warmupPenaltyMs = 0;
-      } else if (splitCharge === SplitCharge.Auto) {
-        if (location_uuid) {
-          // Estimate a warmup penalty based on the lowest observed temperature during charging at this location
-          const minTemp = await this.db.pg.oneOrNone(
-            `SELECT MIN(cc.outside_deci_temperature) AS min_temp
+      let warmupPenaltyMs = 0;
+      if (splitCharge === SplitCharge.Auto) {
+        // Estimate a warmup penalty from the lowest temperature observed while charging here
+        const minTemp = location_uuid && await this.db.pg.oneOrNone(
+          `SELECT MIN(cc.outside_deci_temperature) AS min_temp
             FROM charge_curve cc
             JOIN charge c ON c.charge_id = cc.charge_id
             WHERE c.location_uuid = $1
               AND c.start_ts >= NOW() - interval '6 weeks';`,
-            [location_uuid]
-          );
-          if (minTemp && minTemp.min_temp !== null) {
-            const temp = minTemp.min_temp / 10;
-            // Cubic fit through (-20,60), (-10,30), (0,15), (10,0) with clamp to [0,60].
-            const rawMinutes = (-1 / 400) * temp ** 3 + (-5 / 4) * temp + 15;
-            const warmupMinutes = Math.min(60, Math.max(0, rawMinutes));
-            warmupPenaltyMs = Math.round(warmupMinutes * 60e3);
-            splitInfo = ` at ${temp.toFixed(1)}°C`;
-          }
-        }
-        if (warmupPenaltyMs === undefined) {
-          warmupPenaltyMs = 10 * 60 * 1000;
+          [location_uuid]
+        );
+        if (minTemp && minTemp.min_temp !== null) {
+          const temp = minTemp.min_temp / 10;
+          // Cubic fit through (-20,60), (-10,30), (0,15), (10,0) with clamp to [0,60].
+          const rawMinutes = (-1 / 400) * temp ** 3 + (-5 / 4) * temp + 15;
+          warmupPenaltyMs = Math.round(Math.min(60, Math.max(0, rawMinutes)) * 60e3);
+          splitInfo = ` at ${temp.toFixed(1)}°C`;
+        } else {
+          warmupPenaltyMs = 10 * 60e3;
           splitInfo = ` (default)`;
         }
         splitInfo = ` warmupPenalty=${Math.round(warmupPenaltyMs / 60e3)}min${splitInfo}`;
       }
       splitInfo = `; splitCharge=${splitCharge}${splitInfo}`;
-      vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Estimated warmup penalty${splitInfo}`);
+      vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `Charge split${splitInfo}`);
 
       // Scheduling specification and optimizer: see planChargeWindows() in charge-window-planner.ts
       const plannerCtx: ChargeWindowPlannerContext = {
         vehicleUUID: vehicle.vehicle_uuid,
         priceSlots,
         disallowGaps,
-        warmupPenaltyMs: warmupPenaltyMs ?? 0,
+        warmupPenaltyMs,
       };
       const planWindows = (
         timeNeededMs: number,
@@ -1176,7 +1177,7 @@ export class Logic {
         maxPrice: number | undefined,
         scheduleTag: string,
         isCharging: boolean
-      ) => planChargeWindows(plannerCtx, { timeNeededMs, beforeTimestampMs, hardStart, hardEnd, maxPrice, scheduleTag, isCharging });
+      ) => planChargeWindows(plannerCtx, { timeNeededMs, hardStart, until: Math.min(beforeTimestampMs, hardEnd), maxPrice, scheduleTag, isCharging });
 
       const HandleTripCharge = () => {
         if (trip) {

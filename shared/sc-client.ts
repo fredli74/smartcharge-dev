@@ -69,6 +69,10 @@ serviceID
 providerData
 priceListID
 `;
+// Single source of truth for the VehicleLocationSetting field list; any query selecting
+// locationSettings must use this, or saved settings silently read back as defaults.
+export const vehicleLocationSettingsFields = `locationID directLevel goal splitCharge`;
+
 export const vehicleFragment = `
 id
 ownerID
@@ -88,12 +92,7 @@ geoLocation {
   longitude
 }
 locationID
-locationSettings {
-  locationID
-  directLevel
-  goal
-  splitCharge
-}
+locationSettings { ${vehicleLocationSettingsFields} }
 batteryLevel
 odometer
 outsideTemperature

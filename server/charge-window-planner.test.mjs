@@ -22,7 +22,6 @@ const ctx = (priceSlots, { disallowGaps = false, warmupPenaltyMs = 0 } = {}) => 
 });
 const plan = (c, args) => planChargeWindows(c, {
   hardStart: 0,
-  hardEnd: Number.POSITIVE_INFINITY,
   maxPrice: undefined,
   scheduleTag: "test",
   isCharging: false,
@@ -71,7 +70,7 @@ test("allocation labels split windows at delivered-time boundaries", () => {
 
 test("zero warmup penalty splits into the cheapest intervals", async () => {
   const slots = [slot(0, H, 10), slot(H, 2 * H, 50), slot(2 * H, 3 * H, 10)];
-  const r = await plan(ctx(slots), { timeNeededMs: 2 * H, beforeTimestampMs: 3 * H });
+  const r = await plan(ctx(slots), { timeNeededMs: 2 * H, until: 3 * H });
   assert.deepEqual(r.windows, [{ start: 0, stop: H }, { start: 2 * H, stop: 3 * H }]);
   assert.equal(r.deliveredMs, 2 * H);
   assert.equal(r.scheduledMs, 2 * H);
@@ -79,40 +78,53 @@ test("zero warmup penalty splits into the cheapest intervals", async () => {
 
 test("warmup penalty makes one contiguous window beat splitting", async () => {
   const slots = [slot(0, H, 10), slot(H, 2 * H, 50), slot(2 * H, 3 * H, 10)];
-  const r = await plan(ctx(slots, { warmupPenaltyMs: H }), { timeNeededMs: 2 * H, beforeTimestampMs: 3 * H });
+  const r = await plan(ctx(slots, { warmupPenaltyMs: H }), { timeNeededMs: 2 * H, until: 3 * H });
   assert.deepEqual(r.windows, [{ start: 0, stop: 2 * H }]);
   assert.equal(r.deliveredMs, 2 * H);
 });
 
 test("never mode schedules at most one contiguous window", async () => {
   const slots = [slot(0, H, 10), slot(H, 2 * H, 50), slot(2 * H, 3 * H, 10)];
-  const r = await plan(ctx(slots, { disallowGaps: true }), { timeNeededMs: 2 * H, beforeTimestampMs: 3 * H });
+  const r = await plan(ctx(slots, { disallowGaps: true }), { timeNeededMs: 2 * H, until: 3 * H });
   assert.deepEqual(r.windows, [{ start: 0, stop: 2 * H }]);
+});
+
+test("active charge only skips warmup debt when an interval starts at hardStart", async () => {
+  const slots = [slot(0, H, 10), slot(H, 2 * H, 10)];
+  const active = ctx(slots, { warmupPenaltyMs: 30 * M });
+  // hardStart inside the first interval: charging continues, so no restart and no warmup debt.
+  const seeded = await plan(active, { timeNeededMs: 2 * H, until: 2 * H, isCharging: true });
+  assert.deepEqual(seeded.windows, [{ start: 0, stop: 2 * H }]);
+  assert.equal(seeded.deliveredMs, 2 * H);
+  // hardStart before the first interval: the first take is a restart and pays the penalty.
+  const gapped = await plan(active, { timeNeededMs: 2 * H, hardStart: -30 * M, until: 2 * H, isCharging: true });
+  assert.equal(gapped.scheduledMs, 2 * H);
+  assert.equal(gapped.deliveredMs, 1.5 * H);
 });
 
 test("never mode with active charge and no immediate interval yields no plan", async () => {
   const slots = [slot(H, 2 * H, 10)];
-  const r = await plan(ctx(slots, { disallowGaps: true }), { timeNeededMs: H, beforeTimestampMs: 2 * H, isCharging: true });
+  const r = await plan(ctx(slots, { disallowGaps: true }), { timeNeededMs: H, until: 2 * H, isCharging: true });
   assert.deepEqual(r.windows, []);
   assert.equal(r.deliveredMs, 0);
 });
 
 test("maxPrice yields best-effort shorter plan instead of over-average plan", async () => {
   const slots = [slot(0, H, 10), slot(H, 2 * H, 20)];
-  const r = await plan(ctx(slots), { timeNeededMs: 2 * H, beforeTimestampMs: 2 * H, maxPrice: 14e5 });
+  const r = await plan(ctx(slots), { timeNeededMs: 2 * H, until: 2 * H, maxPrice: 14e5 });
   assert.deepEqual(r.windows, [{ start: 0, stop: H }]);
   assert.equal(r.deliveredMs, H);
 });
 
 test("slots above the soft maxPrice cap are dropped entirely", async () => {
   const slots = [slot(0, H, 10), slot(H, 2 * H, 22)];
-  const r = await plan(ctx(slots), { timeNeededMs: 2 * H, beforeTimestampMs: 2 * H, maxPrice: 14e5 });
+  const r = await plan(ctx(slots), { timeNeededMs: 2 * H, until: 2 * H, maxPrice: 14e5 });
   assert.deepEqual(r.windows, [{ start: 0, stop: H }]);
 });
 
 test("deliveredMs excludes warmup debt while scheduledMs includes it", async () => {
   const slots = [slot(0, H, 10), slot(2 * H, 3 * H, 10)];
-  const r = await plan(ctx(slots, { warmupPenaltyMs: 30 * M }), { timeNeededMs: 2 * H, beforeTimestampMs: 3 * H });
+  const r = await plan(ctx(slots, { warmupPenaltyMs: 30 * M }), { timeNeededMs: 2 * H, until: 3 * H });
   assert.deepEqual(r.windows, [{ start: 0, stop: H }, { start: 2 * H, stop: 3 * H }]);
   assert.equal(r.scheduledMs, 2 * H);
   assert.equal(r.deliveredMs, 1.5 * H);

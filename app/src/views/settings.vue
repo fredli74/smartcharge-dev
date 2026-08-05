@@ -106,6 +106,7 @@ import gql from "graphql-tag";
 import EditVehicle from "@app/components/edit-vehicle.vue";
 import EditLocation from "@app/components/edit-location.vue";
 import { GQLVehicle, GQLLocation } from "@shared/sc-schema.js";
+import { vehicleLocationSettingsFields } from "@shared/sc-client.js";
 
 @Component({
   components: { EditVehicle, EditLocation },
@@ -139,11 +140,7 @@ import { GQLVehicle, GQLLocation } from "@shared/sc-schema.js";
             ownerID
             name
             maximumLevel
-            locationSettings {
-              locationID
-              directLevel
-              goal
-            }
+            locationSettings { ${vehicleLocationSettingsFields} }
             providerData
           }
         }

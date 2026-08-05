@@ -378,5 +378,5 @@ input VehicleLocationSettingInput {
 
   """location id"""
   locationID: ID!
-  splitCharge: SplitCharge
+  splitCharge: SplitCharge = Auto
 }

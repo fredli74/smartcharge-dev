@@ -33,7 +33,7 @@ import {
 import { LogLevel, makePublicID, vehicleLog } from "@shared/utils.js";
 import { plainToInstance } from "class-transformer";
 import { DBSchedule } from "@server/db-schema.js";
-import { ScheduleType, SplitCharge } from "@shared/sc-types.js";
+import { ScheduleType } from "@shared/sc-types.js";
 import { GraphQLError } from "graphql";
 
 interface VehicleSubscriptionPayload {
@@ -150,7 +150,7 @@ export class VehicleResolver {
           map[obj.locationID] = {
             directLevel: obj.directLevel,
             goal: obj.goal,
-            splitCharge: obj.splitCharge ?? SplitCharge.Auto,
+            splitCharge: obj.splitCharge,
           };
           return map;
         },
