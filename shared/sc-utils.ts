@@ -7,6 +7,7 @@
 
 import {
   GQLSchedule,
+  GQLSplitCharge,
   GQLVehicleLocationSetting,
   GQLVehicle,
 } from "./sc-schema.js";
@@ -33,6 +34,7 @@ export function DefaultVehicleLocationSettings(
     locationID: location_uuid,
     directLevel: DEFAULT_DIRECTLEVEL,
     goal: SmartChargeGoal.Balanced,
+    splitCharge: GQLSplitCharge.Auto,
   };
 }
 

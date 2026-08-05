@@ -2,7 +2,7 @@ import { accountFilter } from "@server/gql/api.js";
 import type { IContext } from "@server/gql/api.js";
 import provider, { TeslaProviderMutates, TeslaProviderQueries, TeslaProviderData, TeslaToken } from "./index.js";
 import { DBInterface } from "@server/db-interface.js";
-import teslaAPI, { TeslaAPI } from "./tesla-api.js";
+import teslaAPI, { redactSecret, TeslaAPI } from "./tesla-api.js";
 import { log, LogLevel } from "@shared/utils.js";
 import { IProviderServer } from "@providers/provider-server.js";
 import { TeslaNewListEntry } from "./app/tesla-helper.js";
@@ -17,7 +17,7 @@ export async function authorize(
   callbackURI: string
 ): Promise<TeslaToken> {
   try {
-    log(LogLevel.Trace, `authorize(${code}, ${callbackURI})`);
+    log(LogLevel.Trace, `authorize(${redactSecret(code)}, ${callbackURI})`);
     return await teslaAPI.authorize(code, callbackURI);
   } catch (err) {
     log(LogLevel.Error, err);
@@ -38,7 +38,7 @@ export async function maintainServiceToken(
     service.service_data.token.expires_at !== undefined &&
     !TeslaAPI.tokenExpired(service.service_data.token as TeslaToken)
   ) {
-    log(LogLevel.Trace, `Token ${service.service_data.token.access_token} is still valid`);
+    log(LogLevel.Trace, `Token ${redactSecret(service.service_data.token.access_token)} is still valid`);
     return service.service_data.token as TeslaToken;
   }
 
@@ -51,11 +51,11 @@ export async function maintainServiceToken(
   );
   // If we got a row back, we are the only thread that is refreshing the token
   if (updateService) {
-    log(LogLevel.Debug, `Token ${service.service_data.token.access_token} is expired, calling renewToken`);
+    log(LogLevel.Debug, `Token ${redactSecret(service.service_data.token.access_token)} is expired, calling renewToken`);
     try {
       const newToken = await teslaAPI.renewToken(service.service_data.token.refresh_token);
       // Update the token in the database
-      log(LogLevel.Trace, `Token ${service.service_data.token.access_token} renewed to ${newToken.access_token}`);
+      log(LogLevel.Trace, `Token ${redactSecret(service.service_data.token.access_token)} renewed to ${redactSecret(newToken.access_token)}`);
       log(LogLevel.Info, `Updating service_provider ${service.service_uuid} with new token`);
       await db.pg.none(
         `UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $2) WHERE service_uuid=$1;
@@ -74,7 +74,7 @@ export async function maintainServiceToken(
       return newToken;
     } catch (err: any) {
       if (err && (err.message === "login_required" || err.message === "server_error")) {
-        log(LogLevel.Warning, `Refresh token ${service.service_data.token.refresh_token} is invalid (${err.message})`);
+        log(LogLevel.Warning, `Refresh token ${redactSecret(service.service_data.token.refresh_token)} is invalid (${err.message})`);
         log(LogLevel.Info, `Setting service_provider ${service.service_uuid} as invalid token status`);
         await db.pg.none(
           `UPDATE service_provider SET service_data = jsonb_strip_nulls(service_data || $2) WHERE service_uuid=$1;
@@ -97,7 +97,7 @@ export async function maintainServiceToken(
       );
     }
   } else {
-    log(LogLevel.Debug, `Token ${service.service_data.token.access_token} is already being refreshed, ignoring`);
+    log(LogLevel.Debug, `Token ${redactSecret(service.service_data.token.access_token)} is already being refreshed, ignoring`);
     return null;
   }
 }
@@ -105,7 +105,6 @@ export async function maintainServiceToken(
 const server: IProviderServer = {
   ...provider,
   query: async (data: any, context: IContext) => {
-    console.debug(data);
     switch (data.query) {
       case TeslaProviderQueries.Vehicles: {
         if (data.token) {
@@ -121,6 +120,7 @@ const server: IProviderServer = {
         }
 
         const vehicles = [];
+        let incomplete = false;
         const serviceList = await context.db.getServiceProviders(
           accountFilter(context.accountUUID),
           data.service_uuid,
@@ -142,6 +142,7 @@ const server: IProviderServer = {
           if (!s.service_data.invalid_token && s.service_data.token) {
             const token = await maintainServiceToken(context.db, s);
             if (!token) {
+              incomplete = true;
               continue;
             }
             try {
@@ -179,8 +180,12 @@ const server: IProviderServer = {
               vehicles.push(...list);
             } catch (err: any) {
               log(LogLevel.Error, err);
+              incomplete = true;
             }
           }
+        }
+        if (incomplete) {
+          return null;
         }
         return vehicles;
       }

@@ -39,12 +39,22 @@ export function log(level: LogLevel, data: unknown) {
     }
   }
 }
+
+export function vehicleLog(level: LogLevel, vehicleUUID: string, data: unknown) {
+  // Guard here too, so formatting is skipped entirely when the level is disabled.
+  if (level <= LOGLEVEL) {
+    log(level, `${vehicleUUID} ${formatLogData(data)}`);
+  }
+}
+
 export function logFormat(level: LogLevel, data: unknown): string {
-  return `${new Date().toISOString()} ${logSymbol[level]} ${
-    data instanceof Error ? (data as Error).message
+  return `${new Date().toISOString()} ${logSymbol[level]} ${formatLogData(data)}`;
+}
+
+function formatLogData(data: unknown): string {
+  return data instanceof Error ? data.message
     : typeof data === "object" ? JSON.stringify(data)
-    : data
-  }`;
+    : String(data);
 }
 
 export function arrayMean(list: number[]) {

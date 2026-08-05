@@ -275,6 +275,16 @@ export interface GQLVehicleLocationSetting {
    */
   directLevel: number;
   goal: string;
+  splitCharge: GQLSplitCharge | null;
+}
+
+/**
+ * Split Charge Preference
+ */
+export enum GQLSplitCharge {
+  Never = 'Never',
+  Auto = 'Auto',
+  Always = 'Always'
 }
 
 export interface GQLResolverTest {
@@ -434,6 +444,7 @@ export interface GQLVehicleLocationSettingInput {
    */
   directLevel: number;
   goal: string;
+  splitCharge: GQLSplitCharge | null;
 }
 
 export interface GQLSubscription {
@@ -1032,6 +1043,7 @@ export interface GQLVehicleLocationSettingTypeResolver<TParent = GQLVehicleLocat
   locationID?: VehicleLocationSettingToLocationIDResolver<TParent>;
   directLevel?: VehicleLocationSettingToDirectLevelResolver<TParent>;
   goal?: VehicleLocationSettingToGoalResolver<TParent>;
+  splitCharge?: VehicleLocationSettingToSplitChargeResolver<TParent>;
 }
 
 export interface VehicleLocationSettingToLocationIDResolver<TParent = GQLVehicleLocationSetting, TResult = string> {
@@ -1043,6 +1055,10 @@ export interface VehicleLocationSettingToDirectLevelResolver<TParent = GQLVehicl
 }
 
 export interface VehicleLocationSettingToGoalResolver<TParent = GQLVehicleLocationSetting, TResult = string> {
+  (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
+}
+
+export interface VehicleLocationSettingToSplitChargeResolver<TParent = GQLVehicleLocationSetting, TResult = GQLSplitCharge | null> {
   (parent: TParent, args: {}, context: any, info: GraphQLResolveInfo): TResult | Promise<TResult>;
 }
 

@@ -1,7 +1,7 @@
 <template>
   <v-form ref="form">
     <v-row>
-      <v-col cols="12" sm="5" md="6" class="mt-2">
+      <v-col cols="12" sm="4" md="5" class="mt-2">
         <v-list-item-title>{{ name }}</v-list-item-title>
         <v-list-item-subtitle
           class="font-light overline caption secondary--text text--lighten-2"
@@ -9,8 +9,7 @@
           ({{ settings.locationID }})
         </v-list-item-subtitle>
       </v-col>
-      <v-spacer />
-      <v-col cols="6" sm="3" md="3">
+      <v-col cols="6" sm="3" md="2">
         <v-text-field
           v-model="directLevel"
           :rules="[directLevelRules]"
@@ -33,7 +32,25 @@
           </template>
         </v-text-field>
       </v-col>
-      <v-col cols="6" sm="4" md="3">
+      <v-col cols="6" sm="3" md="2">
+        <v-select
+          v-model="splitCharge"
+          :items="splitChargeList"
+          label="Split charge window"
+          placeholder=" "
+          :loading="saving.splitCharge"
+        >
+          <template #append-outer>
+            <v-tooltip bottom max-width="18rem">
+              <template #activator="{ on }">
+                <v-icon v-on="on">mdi-help-circle-outline</v-icon>
+              </template>
+              Control if charging is allowed to split into multiple windows.
+            </v-tooltip>
+          </template>
+        </v-select>
+      </v-col>
+      <v-col cols="12" sm="4" md="3">
         <v-combobox
           v-model="goal"
           :items="goalCBList"
@@ -62,7 +79,6 @@
             v-model="focus"
             active-class="selected-charge"
             color="primary"
-            label="hej"
             mandatory
           >
             <v-btn small>Low Cost</v-btn>
@@ -77,8 +93,7 @@
 
 <script lang="ts">
 import { Component, Vue, Prop } from "vue-property-decorator";
-import deepmerge from "deepmerge";
-import { GQLVehicle, GQLVehicleLocationSetting } from "@shared/sc-schema.js";
+import { GQLSplitCharge, GQLVehicle, GQLVehicleLocationSetting } from "@shared/sc-schema.js";
 import { SmartChargeGoal } from "@shared/sc-types.js";
 import { UpdateVehicleParams } from "@shared/sc-client.js";
 
@@ -90,17 +105,24 @@ export default class EditVehicle extends Vue {
 
   saving!: { [key: string]: boolean };
   goalCBList!: { text: string; value: string }[];
+  splitChargeList!: { text: string; value: string }[];
   data() {
     return {
       saving: {
         directLevel: false,
         goal: false,
+        splitCharge: false,
       },
       goalCBList: [
         { text: "Low cost", value: SmartChargeGoal.Low },
         { text: "Balanced", value: SmartChargeGoal.Balanced },
         { text: "Full charge", value: SmartChargeGoal.Full },
         { text: "Custom", value: "%" },
+      ],
+      splitChargeList: [
+        { text: "Never", value: GQLSplitCharge.Never },
+        { text: "Auto", value: GQLSplitCharge.Auto },
+        { text: "Always", value: GQLSplitCharge.Always },
       ],
     };
   }
@@ -153,11 +175,21 @@ export default class EditVehicle extends Vue {
     this.save("goal");
   }
 
+  get splitCharge(): string {
+    return this.settings.splitCharge || GQLSplitCharge.Auto;
+  }
+  set splitCharge(value: string) {
+    this.settings.splitCharge = value as GQLSplitCharge;
+    this.save("splitCharge");
+  }
+
   debounceTimer?: any;
   touchedFields: any = {};
-  clearSaving: any = {};
+  saveTicketSeq = 0;
+  saveTickets: Record<string, number> = {};
   async save(field: string) {
-    delete this.clearSaving[field];
+    const fieldTicket = ++this.saveTicketSeq;
+    this.saveTickets[field] = fieldTicket;
     this.$set(this.saving, field, true);
 
     if (this.debounceTimer) {
@@ -165,7 +197,14 @@ export default class EditVehicle extends Vue {
     }
     this.debounceTimer = setTimeout(async () => {
       const form: any = this.$refs.form;
-      if (form.validate && form.validate()) {
+      const fieldsInRequest = Object.entries(this.saving)
+        .filter(([, value]) => value)
+        .map(([key]) => key);
+      const requestTickets: Record<string, number> = {};
+      for (const key of fieldsInRequest) {
+        requestTickets[key] = this.saveTickets[key] || 0;
+      }
+      if (!form.validate || form.validate()) {
         const goal = this.settings.goal as any;
         const update: UpdateVehicleParams = {
           id: this.vehicle.id,
@@ -174,16 +213,23 @@ export default class EditVehicle extends Vue {
               locationID: this.settings.locationID,
               directLevel: this.settings.directLevel,
               goal: goal.value || goal,
+              splitCharge: this.settings.splitCharge || GQLSplitCharge.Auto,
             } as GQLVehicleLocationSetting,
           ],
         };
 
-        this.clearSaving = deepmerge(this.clearSaving, this.saving);
-
-        await this.$scClient.updateVehicle(update);
-
-        for (const [key, value] of Object.entries(this.clearSaving)) {
-          if (value) {
+        try {
+          await this.$scClient.updateVehicle(update);
+        } finally {
+          for (const key of fieldsInRequest) {
+            if (this.saveTickets[key] === requestTickets[key]) {
+              this.$set(this.saving, key, false);
+            }
+          }
+        }
+      } else {
+        for (const key of fieldsInRequest) {
+          if (this.saveTickets[key] === requestTickets[key]) {
             this.$set(this.saving, key, false);
           }
         }

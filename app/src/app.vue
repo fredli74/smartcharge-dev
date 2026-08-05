@@ -73,9 +73,13 @@
               tile
               prominent
             >
+              <!-- Intentionally rendered as trusted app/server-provided HTML. Do not pass user-supplied content here. -->
+              <!-- eslint-disable-next-line vue/no-v-html -->
               <span v-html="error.message"></span>
             </v-alert>
             <v-alert v-model="warning.show" dismissible type="warning" tile>
+              <!-- Intentionally rendered as trusted app/server-provided HTML. Do not pass user-supplied content here. -->
+              <!-- eslint-disable-next-line vue/no-v-html -->
               <span v-html="warning.message"></span>
             </v-alert>
             <v-alert
@@ -85,6 +89,8 @@
               tile
               @input="closedInfo"
             >
+              <!-- Intentionally rendered as trusted app/server-provided HTML. Do not pass user-supplied content here. -->
+              <!-- eslint-disable-next-line vue/no-v-html -->
               <span v-html="info.message"></span>
             </v-alert>
           </v-flex>

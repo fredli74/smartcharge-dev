@@ -52,7 +52,7 @@
 
       <EditVehicleLocationSettings
         v-for="l in locationSettings()"
-        :key="l.settings.location"
+        :key="l.settings.locationID"
         :name="l.name"
         :settings="l.settings"
         :vehicle="vehicle"
@@ -94,7 +94,6 @@
 import { Component, Vue, Prop } from "vue-property-decorator";
 import EditVehicleLocationSettings from "@app/components/edit-vehicle-location-settings.vue";
 import RemoveDialog from "@app/components/remove-dialog.vue";
-import deepmerge from "deepmerge";
 import equal from "fast-deep-equal";
 import {
   GQLVehicle,
@@ -141,18 +140,24 @@ export default class EditVehicle extends Vue {
     return true;
   }
 
+  getOrCreateLocationSettings(locationID: string): GQLVehicleLocationSetting {
+    if (!this.vehicle.locationSettings) {
+      this.$set(this.vehicle, "locationSettings", []);
+    }
+    const existing = this.vehicle.locationSettings.find((f) => f.locationID === locationID);
+    if (existing) return existing;
+    const created = DefaultVehicleLocationSettings(locationID);
+    this.vehicle.locationSettings.push(created);
+    return created;
+  }
+
   locationSettings(): any[] {
     return (
       (this.locations &&
         this.locations
           .filter((l) => l.ownerID === this.vehicle.ownerID)
           .map((l) => {
-            const settings: GQLVehicleLocationSetting =
-              (this.vehicle.locationSettings &&
-                this.vehicle.locationSettings.find(
-                  (f) => f.locationID === l.id
-                )) ||
-              DefaultVehicleLocationSettings(l.id);
+            const settings = this.getOrCreateLocationSettings(l.id);
             return {
               name: l.name,
               settings,
@@ -216,9 +221,11 @@ export default class EditVehicle extends Vue {
 
   debounceTimer?: any;
   touchedFields: any = {};
-  clearSaving: any = {};
+  saveTicketSeq = 0;
+  saveTickets: Record<string, number> = {};
   async save(field: string) {
-    delete this.clearSaving[field];
+    const fieldTicket = ++this.saveTicketSeq;
+    this.saveTickets[field] = fieldTicket;
     this.$set(this.saving, field, true);
 
     if (this.debounceTimer) {
@@ -226,7 +233,14 @@ export default class EditVehicle extends Vue {
     }
     this.debounceTimer = setTimeout(async () => {
       const form: any = this.$refs.form;
-      if (form.validate && form.validate()) {
+      const fieldsInRequest = Object.entries(this.saving)
+        .filter(([, value]) => value)
+        .map(([key]) => key);
+      const requestTickets: Record<string, number> = {};
+      for (const key of fieldsInRequest) {
+        requestTickets[key] = this.saveTickets[key] || 0;
+      }
+      if (!form.validate || form.validate()) {
         const update: UpdateVehicleParams = {
           id: this.vehicle.id,
           providerData: {},
@@ -251,12 +265,18 @@ export default class EditVehicle extends Vue {
           delete update.providerData;
         }
 
-        this.clearSaving = deepmerge(this.clearSaving, this.saving);
-
-        await this.$scClient.updateVehicle(update);
-
-        for (const [key, value] of Object.entries(this.clearSaving)) {
-          if (value) {
+        try {
+          await this.$scClient.updateVehicle(update);
+        } finally {
+          for (const key of fieldsInRequest) {
+            if (this.saveTickets[key] === requestTickets[key]) {
+              this.$set(this.saving, key, false);
+            }
+          }
+        }
+      } else {
+        for (const key of fieldsInRequest) {
+          if (this.saveTickets[key] === requestTickets[key]) {
             this.$set(this.saving, key, false);
           }
         }

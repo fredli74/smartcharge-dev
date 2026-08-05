@@ -30,10 +30,10 @@ import {
   VehicleLocationSettings,
   Schedule,
 } from "./vehicle-type.js";
-import { log, LogLevel, makePublicID } from "@shared/utils.js";
+import { LogLevel, makePublicID, vehicleLog } from "@shared/utils.js";
 import { plainToInstance } from "class-transformer";
 import { DBSchedule } from "@server/db-schema.js";
-import { ScheduleType } from "@shared/sc-types.js";
+import { ScheduleType, SplitCharge } from "@shared/sc-types.js";
 import { GraphQLError } from "graphql";
 
 interface VehicleSubscriptionPayload {
@@ -117,8 +117,8 @@ export class VehicleResolver {
     @Ctx() context: IContext
   ): Promise<boolean> {
     // verify vehicle ownage
-    log(LogLevel.Debug, `removeVehicle: ${JSON.stringify(id)}`);
     const vehicle = await context.db.getVehicle(accountFilter(context.accountUUID), id);
+    vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `removeVehicle: ${JSON.stringify(id)}`);
 
     const publicID = makePublicID(vehicle.vehicle_uuid);
     if (confirm.toLowerCase() !== publicID) {
@@ -139,8 +139,8 @@ export class VehicleResolver {
     @PubSub() pubSub: PubSubEngine
   ): Promise<Vehicle> {
     // verify vehicle ownage
-    log(LogLevel.Debug, `updateVehicle: ${JSON.stringify(input)}`);
-    await context.db.getVehicle(accountFilter(context.accountUUID), input.id);
+    const vehicle = await context.db.getVehicle(accountFilter(context.accountUUID), input.id);
+    vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `updateVehicle: ${JSON.stringify(input)}`);
 
     // remap settings array to settings map
     const locationSettingsMap =
@@ -150,6 +150,7 @@ export class VehicleResolver {
           map[obj.locationID] = {
             directLevel: obj.directLevel,
             goal: obj.goal,
+            splitCharge: obj.splitCharge ?? SplitCharge.Auto,
           };
           return map;
         },
@@ -184,11 +185,11 @@ export class VehicleResolver {
     @PubSub() pubSub: PubSubEngine
   ): Promise<boolean> {
     // verify vehicle ownage
-    log(LogLevel.Debug, `removeSchedule: ${JSON.stringify(id)}`);
     const vehicle = await context.db.getVehicle(
       accountFilter(context.accountUUID),
       vehicleID
     );
+    vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `removeSchedule: ${JSON.stringify(id)}`);
 
     await context.db.removeSchedule(id, vehicle.vehicle_uuid);
     await context.logic.refreshChargePlan(vehicle.vehicle_uuid);
@@ -213,8 +214,8 @@ export class VehicleResolver {
     @PubSub() pubSub: PubSubEngine
   ): Promise<DBSchedule[]> {
     // verify vehicle ownage
-    log(LogLevel.Debug, `updateSchedule: ${JSON.stringify(id)} ${JSON.stringify(vehicleID)}`);
     const vehicle = await context.db.getVehicle(accountFilter(context.accountUUID), vehicleID);
+    vehicleLog(LogLevel.Debug, vehicle.vehicle_uuid, `updateSchedule: ${JSON.stringify(id)} ${JSON.stringify(vehicleID)}`);
 
     await context.db.updateSchedule(
       id,

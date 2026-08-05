@@ -33,13 +33,21 @@
               </v-tooltip>
             </v-flex>
             <v-flex sm12 grow class="" style="z-index: 2">
-              <div v-if="freshInfo" id="temperatures" style="margin: 0 auto">
-                <div>
+              <div v-if="freshInfo || scheduleSyncTooltip" id="temperatures" style="margin: 0 auto">
+                <div v-if="freshInfo">
                   <v-icon>mdi-weather-partly-cloudy</v-icon>{{ Number(vehicle.outsideTemperature).toFixed(1) }}&#176;
                 </div>
-                <div>
+                <div v-if="freshInfo">
                   <v-icon style="top: 1px">mdi-car</v-icon>{{ Number(vehicle.insideTemperature).toFixed(1) }}&#176;
                 </div>
+                <v-tooltip v-if="scheduleSyncTooltip" bottom>
+                  <template #activator="{ on }">
+                    <div class="schedule-sync-status" v-on="on">
+                      <v-icon :class="scheduleSyncStatusClass">{{ scheduleSyncIcon }}</v-icon>
+                    </div>
+                  </template>
+                  <span>{{ scheduleSyncTooltip }}</span>
+                </v-tooltip>
               </div>
             </v-flex>
           </v-layout>
@@ -279,6 +287,34 @@ export default class VehicleVue extends Vue {
   get vehicleConnectedAtUnknownLocation(): boolean {
     return Boolean(this.vehicleAtUnknownLocation && this.vehicle!.isConnected);
   }
+  get scheduleSyncIssue(): any {
+    const issue = this.vehicle?.providerData?.schedule_sync_issue;
+    return issue && typeof issue === "object" ? issue : undefined;
+  }
+  get effectiveScheduleSyncKind(): "incorrect" | "drift" | undefined {
+    const issue = this.scheduleSyncIssue;
+    if (!issue || !this.vehicle?.isConnected) return undefined;
+    return issue.kind;
+  }
+  get scheduleSyncStatusClass(): string {
+    return this.effectiveScheduleSyncKind === "incorrect"
+      ? "red--text text--accent-4"
+      : "light-blue--text text--darken-2";
+  }
+  get scheduleSyncIcon(): string {
+    return this.effectiveScheduleSyncKind === "incorrect"
+      ? "mdi-calendar-alert"
+      : "mdi-calendar-refresh";
+  }
+  get scheduleSyncTooltip(): string | undefined {
+    if (this.effectiveScheduleSyncKind === "incorrect") {
+      return "Vehicle onboard charge schedule or limit is incorrect and will affect planned charging. Please take the vehicle online.";
+    }
+    if (this.effectiveScheduleSyncKind === "drift") {
+      return "Vehicle onboard charge schedule or limit is not exact, but will update when online.";
+    }
+    return undefined;
+  }
   get addLocationURL(): RawLocation {
     assert(this.vehicle !== undefined);
     assert(this.vehicle.geoLocation !== null);
@@ -434,6 +470,11 @@ export default class VehicleVue extends Vue {
 }
 #temperatures > div + div {
   margin-left: 1em;
+}
+#temperatures .schedule-sync-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 #temperatures .v-icon {
   font-size: 90%;

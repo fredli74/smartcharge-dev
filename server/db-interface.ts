@@ -23,7 +23,7 @@ import {
 } from "./db-schema.js";
 import { log, LogLevel, geoDistance } from "@shared/utils.js";
 import config from "@shared/smartcharge-config.js";
-import { SmartChargeGoal } from "@shared/sc-types.js";
+import { SmartChargeGoal, SplitCharge } from "@shared/sc-types.js";
 import { DEFAULT_DIRECTLEVEL } from "@shared/smartcharge-defines.js";
 import { VehicleLocationSettings, Schedule } from "./gql/vehicle-type.js";
 
@@ -311,6 +311,7 @@ export class DBInterface {
       locationID: location_uuid || "",
       directLevel: DEFAULT_DIRECTLEVEL,
       goal: SmartChargeGoal.Balanced,
+      splitCharge: SplitCharge.Auto,
     };
   }
 
