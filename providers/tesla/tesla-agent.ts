@@ -706,11 +706,9 @@ export class TeslaAgent extends AbstractAgent {
 
   private scheduleAuditIntervalMs(now: number): number | null {
     // Development-only schedule audit with a hard sunset so it cannot linger in release code.
-    // - run every 10 minutes until August 1, 2026
-    // - then every 30 minutes until September 1, 2026
+    // - run every 30 minutes until October 1, 2026
     // - then disable completely
-    if (now < Date.UTC(2026, 7, 1)) return 10 * 60e3;
-    if (now < Date.UTC(2026, 8, 1)) return 30 * 60e3;
+    if (now < Date.UTC(2026, 9, 1)) return 30 * 60e3;
     return null;
   }
 
