@@ -31,9 +31,6 @@ export enum ChargeType {
   Manual = "manual",
   Trip = "trip",
   Routine = "routine",
-  Prefered = "prefered",
-  // Bridge release: replaces the misspelt Prefered in the next release. Nothing produces it yet, but
-  // clients that may be cached across that release must already understand it.
   Preferred = "preferred",
   Fill = "fill",
 }

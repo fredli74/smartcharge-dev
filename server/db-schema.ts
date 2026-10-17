@@ -5,7 +5,7 @@
  * @license MIT (MIT)
  */
 
-export const DB_VERSION = `1.0-beta`;
+export const DB_VERSION = `1.0-beta.1`;
 
 export type UnstructuredData = Record<string, unknown>;
 
