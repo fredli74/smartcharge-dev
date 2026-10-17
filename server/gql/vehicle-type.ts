@@ -52,7 +52,10 @@ registerEnumType(SplitCharge, {
  *         ChargePlan          *
  *******************************/
 
-registerEnumType(ChargeType, { name: "ChargeType" });
+registerEnumType(ChargeType, {
+  name: "ChargeType",
+  valuesConfig: { Prefered: { deprecationReason: "Misspelt; replaced by Preferred" } },
+});
 
 @ObjectType()
 export class ChargePlan {
