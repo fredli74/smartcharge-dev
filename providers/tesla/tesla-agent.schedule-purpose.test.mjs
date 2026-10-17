@@ -192,10 +192,10 @@ const blockedCharge = (onboardStartsInMs, chargeType = "Routine") => {
 };
 
 test("emergency wake for needed charge whose allocation passed before the grace, while a top-up follows", async () => {
-  // The planner allocates the first 10 minutes of a run to Routine and the rest to Prefered.
+  // The planner allocates the first 10 minutes of a run to Routine and the rest to Preferred.
   const routineStop = iso(Date.now() - 10 * 60e3);
   const withRoutineHead = (soc) => {
-    const fixture = blockedCharge(undefined, "Prefered");
+    const fixture = blockedCharge(undefined, "Preferred");
     const [prefered] = fixture.vehicle.dbData.chargePlan;
     fixture.vehicle.dbData.chargePlan = [
       { ...prefered, chargeType: "Routine", chargeStop: routineStop, level: 60 },
@@ -284,7 +284,7 @@ test("emergency wake waits for an onboard start inside a plan entry that continu
   const { vehicle, wakes, tick } = blockedCharge(15 * 60e3);
   const [needed] = vehicle.dbData.chargePlan;
   const split = iso(Date.now() + 10 * 60e3);
-  vehicle.dbData.chargePlan = [{ ...needed, chargeStop: split }, { ...needed, chargeStart: split, chargeType: "Prefered" }];
+  vehicle.dbData.chargePlan = [{ ...needed, chargeStop: split }, { ...needed, chargeStart: split, chargeType: "Preferred" }];
   assert.equal(await tick(), false);
   assert.deepEqual(wakes, []);
 });
@@ -325,8 +325,8 @@ test("emergency wake grace runs from the start of the charging run", async () =>
 });
 
 test("emergency wake only for needed charge, not for price-driven top-ups", async () => {
-  // Prefered and Fill windows are price-driven top-ups, e.g. a small "charge setting" top-up.
-  for (const chargeType of ["Prefered", "Fill"]) {
+  // Preferred and Fill windows are price-driven top-ups, e.g. a small "charge setting" top-up.
+  for (const chargeType of ["Preferred", "Fill"]) {
     const { wakes, tick } = blockedCharge(undefined, chargeType);
     await tick();
     assert.deepEqual(wakes, [], chargeType);
@@ -389,7 +389,7 @@ test("a plan entry shorter than the schedule quantum does not cut the written wi
   const start = TeslaAgent.prototype.quantizeTime(Date.now(), Math.ceil) + 60 * 60e3;
   const { agent, calls } = await runHandleSchedules([
     { chargeType: "Routine", chargeStart: iso(start + 5 * 60e3), chargeStop: iso(start + 10 * 60e3), level: 60 },
-    { chargeType: "Prefered", chargeStart: iso(start + 10 * 60e3), chargeStop: iso(start + 60 * 60e3), level: 80 },
+    { chargeType: "Preferred", chargeStart: iso(start + 10 * 60e3), chargeStop: iso(start + 60 * 60e3), level: 80 },
   ]);
   const expected = agent.convertToTeslaSchedule({ chargeStart: start, chargeStop: start + 60 * 60e3 }, location);
   assert.deepEqual(

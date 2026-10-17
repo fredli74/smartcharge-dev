@@ -69,7 +69,7 @@ const Color = {
   levelLimits: "#008ffbaa",
   predicted: "#33B2DF",
   plan: "#2e93faff",
-  planPrefered: "#2e93fabb",
+  planPreferred: "#2e93fabb",
   planText: "#305f8f",
   charge: "#30bb6f",
   trip: "#ff4560",
@@ -339,10 +339,8 @@ export default class eventchart extends Vue {
           x: from,
           x2: to,
           strokeDashArray: 0,
-          fillColor: a.plan.chargeType === GQLChargeType.Fill
-            || a.plan.chargeType === GQLChargeType.Prefered
-            || a.plan.chargeType === GQLChargeType.Preferred
-            ? Color.planPrefered
+          fillColor: a.plan.chargeType === GQLChargeType.Fill || a.plan.chargeType === GQLChargeType.Preferred
+            ? Color.planPreferred
             : Color.plan,
           borderColor: "none",
           borderWidth: 0,

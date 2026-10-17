@@ -38,7 +38,6 @@ const CHARGE_PRIO: Record<ChargeType, number> = {
   [ChargeType.Manual]: 3,
   [ChargeType.Trip]: 4,
   [ChargeType.Routine]: 5,
-  [ChargeType.Prefered]: 6,
   [ChargeType.Preferred]: 6,
   [ChargeType.Fill]: 7,
 };
@@ -1316,7 +1315,7 @@ export class Logic {
                   );
 
                 if (goalLevel > ai.level) {
-                  addSoftIntent(ChargeType.Prefered, `charge setting`, goalLevel, ai.ts);
+                  addSoftIntent(ChargeType.Preferred, `charge setting`, goalLevel, ai.ts);
                 }
               }
             }

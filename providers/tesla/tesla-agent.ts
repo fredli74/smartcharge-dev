@@ -811,7 +811,7 @@ export class TeslaAgent extends AbstractAgent {
     // Wake only for needed charge that has started and is not reached, also when its allocation already
     // passed (the plan is not recomputed while the car sleeps). Price-driven top-ups (above the level the next
     // departure needs) are not worth a paid wake: the client shows the unsynced schedule and the user decides.
-    if (!plan.some((p) => p.chargeType !== GQLChargeType.Prefered
+    if (!plan.some((p) => p.chargeType !== GQLChargeType.Preferred
       && p.chargeType !== GQLChargeType.Fill
       && numericStartTime(p.chargeStart) <= now
       && soc < p.level - 1.5)) {

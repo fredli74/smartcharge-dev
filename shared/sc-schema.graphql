@@ -39,7 +39,6 @@ enum ChargeType {
   Fill
   Manual
   Minimum
-  Prefered @deprecated(reason: "Misspelt; replaced by Preferred")
   Preferred
   Routine
   Trip
