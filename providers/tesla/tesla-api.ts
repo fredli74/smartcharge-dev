@@ -5,6 +5,7 @@
  * @license MIT (MIT)
  */
 
+import { strict as assert } from "assert";
 import { RestClient, RestClientError, Options } from "@shared/restclient.js";
 import config from "./tesla-config.js";
 import { log, LogLevel } from "@shared/utils.js";
@@ -65,20 +66,21 @@ export interface TeslaPreconditionSchedule extends TeslaSchedule {
   precondition_time: number;
 }
 
-// Convert a Tesla days_of_week bitmask and time and convert it to the first upcoming date
-export function TeslaScheduleTimeToDate(days_of_week: number, time: number): Date | null {
-  // Tesla uses a bitmask for days of the week, starting with Sunday
-  const when = new Date();
-  const dayOfWeek = when.getUTCDay();
-  for (let i = 0; i < 7; ++i) {
-    if (days_of_week & (1 << ((dayOfWeek + i) % 7))) {
-      // Add i days to the current date
-      when.setUTCDate(when.getUTCDate() + i);
-      when.setUTCHours(Math.floor(time / 60), time % 60, 0, 0);
-      return when;
-    }
+// Convert a Tesla days_of_week bitmask (starting with Sunday) and minute of day to the occurrence nearest
+// to now. All dates are local time at the schedule location, in UTC fields. Nearest, not first upcoming:
+// a one-time schedule that ended or started moments ago is still the current one, and a recurring
+// schedule's next start is the nearest occurrence whenever it is less than 12 hours away.
+export function TeslaScheduleTimeToDate(days_of_week: number, time: number, now: Date): Date {
+  assert(days_of_week > 0 && days_of_week < 1 << 7, "Invalid days_of_week");
+  let nearest: Date | undefined;
+  for (let i = -7; i <= 7; ++i) {
+    const when = new Date(now);
+    when.setUTCDate(when.getUTCDate() + i);
+    if (!(days_of_week & (1 << when.getUTCDay()))) continue;
+    when.setUTCHours(Math.floor(time / 60), time % 60, 0, 0);
+    if (!nearest || Math.abs(when.getTime() - now.getTime()) < Math.abs(nearest.getTime() - now.getTime())) nearest = when;
   }
-  return null;
+  return nearest!;
 }
 
 /**
