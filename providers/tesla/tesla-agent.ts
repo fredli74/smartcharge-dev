@@ -673,12 +673,12 @@ export class TeslaAgent extends AbstractAgent {
     return this.locationCache[locationID];
   }
 
+  // Offset of local time at the location from UTC, at the UTC instant d
   private locationTimezoneOffset(location: GQLLocationFragment, d: Date): number {
     // Ignore location for now, let's assume every location has Europe/Stockholm timezone
     // TODO: Implement location timezone from getLocation(locationUUID) data
-    const utcTime = new Date(d.toLocaleString("sv-SE", { timeZone: "UTC" }));
-    const localTime = new Date(d.toLocaleString("sv-SE", { timeZone: "Europe/Stockholm" }));
-    return localTime.getTime() - utcTime.getTime();
+    const localTime = d.toLocaleString("sv-SE", { timeZone: "Europe/Stockholm" }); // "YYYY-MM-DD hh:mm:ss"
+    return Date.parse(`${localTime.replace(" ", "T")}Z`) - Math.floor(d.getTime() / 1e3) * 1e3;
   }
 
   // Converts UTC time to local time at location
@@ -688,7 +688,10 @@ export class TeslaAgent extends AbstractAgent {
 
   // Converts local time at location to UTC time
   private ConvertLocationTimeToUTC(location: GQLLocationFragment, d: Date): Date {
-    return new Date(d.getTime() - this.locationTimezoneOffset(location, d));
+    // The offset belongs to the UTC instant, so take it at a first guess of that instant; read at the local
+    // time itself it is an hour off around a DST change. The repeated autumn hour resolves to its second pass.
+    const guess = new Date(d.getTime() - this.locationTimezoneOffset(location, d));
+    return new Date(d.getTime() - this.locationTimezoneOffset(location, guess));
   }
 
   private requestServiceWork(vehicle: VehicleEntry, targetIntervalS: number, reason: string) {
