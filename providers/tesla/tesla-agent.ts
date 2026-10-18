@@ -169,6 +169,7 @@ interface VehicleEntry {
   lastImmediateScheduleCheckAt?: number;
   lastChargingAt?: number;
   lastEmergencyWakeUpAt?: number;
+  commandBackoffUntil?: number;
 
   charge_schedules?: { [id: number]: TeslaChargeSchedule }; // Cached charge schedules
   precondition_schedules?: { [id: number]: TeslaPreconditionSchedule }; // Cached precondition schedules
@@ -248,6 +249,26 @@ export function teslaScheduleServesRequestedPurpose(
 
   return existingStart > now
     && Math.abs(existingStart - requestedStart) <= cadenceMs;
+}
+
+// 5 min locked-in mutation cooldown, 5 min command backoff after a failed write, and slack for service ticks.
+const RUNNING_WINDOW_END_SYNC_MARGIN_MS = 15 * 60e3;
+
+// A rewrite that cannot change what the car does (yet) only costs a paid command. Only called for an inexact
+// match of teslaScheduleServesRequestedPurpose.
+export function teslaScheduleRewriteIsMoot(existing: NumericChargePlan, requested: NumericChargePlan, now: number, charging: boolean): boolean {
+  const existingStop = numericStopTime(existing.chargeStop);
+  const requestedStop = numericStopTime(requested.chargeStop);
+  // Both ended: a completed end-only blocker whose end creeps with now. While charging, the rewrite is what
+  // stops it. A completed start+end window is no blocker: the car disables a one-time window once it has run.
+  if (existingStop < now && requestedStop < now) return existing.chargeStart === null && !charging;
+  // Charging inside a window whose passed start moved. The car stops at its onboard end by itself, so a
+  // flipping end only has to reach it shortly before the earlier of the two ends.
+  assert(numericStartTime(existing.chargeStart) > now || numericStartTime(requested.chargeStart) <= now,
+    "A purpose match with a passed existing start has a passed requested start");
+  return charging
+    && numericStartTime(existing.chargeStart) <= now
+    && (existingStop === requestedStop || Math.min(existingStop, requestedStop) > now + RUNNING_WINDOW_END_SYNC_MARGIN_MS);
 }
 
 function teslaScheduleMatchesExactly(existing: NumericChargePlan, requested: NumericChargePlan): boolean {
@@ -473,7 +494,15 @@ function equalPreconditionSchedules(
 export class TeslaAgent extends AbstractAgent {
   private static readonly EMERGENCY_WAKE_GRACE_MS = 15 * 60e3;
   private static readonly EMERGENCY_WAKE_COOLDOWN_MS = 23 * 60 * 60e3;
+  // A wake is billed; waiting at most this long for the car's own onboard schedule is cheaper.
+  private static readonly EMERGENCY_WAKE_ONBOARD_START_MS = 30 * 60e3;
+  // An asleep car reports charging within seconds of its own schedule start; a wake can take a few minutes.
+  private static readonly EMERGENCY_WAKE_ONBOARD_GRACE_MS = 5 * 60e3;
+  // An onboard schedule belongs to a location when it was written within this distance of it
+  private static readonly SCHEDULE_LOCATION_MATCH_M = 100;
   private static readonly CHARGE_SCHEDULE_QUANTUM_MS = 15 * 60e3;
+  // Pause after any failed Tesla call; telemetry still owns the online state.
+  private static readonly COMMAND_BACKOFF_MS = 5 * 60e3;
   private static readonly EMERGENCY_WAKE_PROVIDER_FIELD = "emergency_wakeup_at";
   private static readonly SCHEDULE_SYNC_ISSUE_PROVIDER_FIELD = "schedule_sync_issue";
   private static readonly IDLE_SERVICE_INTERVAL_S = 5 * 60;
@@ -481,10 +510,11 @@ export class TeslaAgent extends AbstractAgent {
   private static readonly URGENT_SERVICE_INTERVAL_S = 10;
   private static readonly FLUID_SCHEDULE_CADENCE_MS = 30 * 60e3;
   private static readonly LOCKED_IN_SCHEDULE_CADENCE_MS = 5 * 60e3;
-  // 50 km is roughly 30-35 minutes of driving at mixed Swedish road speeds.
-  // Beyond this, a home schedule update is unlikely to help before the vehicle parks
-  // or loses coverage, so we stop maintaining it entirely.
-  private static readonly APPROACH_CHARGE_LOCATION_M = 50e3;
+  // An unplugged car's schedule only matters at plug-in, but the blocking schedule must be onboard
+  // before the cable goes in. Arriving cars drop off the network close to home (Wi-Fi handover:
+  // most disconnects while arriving happen within a few hundred metres), so sync from 2 km out.
+  // Farther away every plan change was written to the car for nothing.
+  private static readonly APPROACH_CHARGE_LOCATION_M = 2e3;
   private static readonly SCHEDULE_SYNC_RETRY_MS = 60e3;
 
   public name: string = provider.name;
@@ -706,11 +736,9 @@ export class TeslaAgent extends AbstractAgent {
 
   private scheduleAuditIntervalMs(now: number): number | null {
     // Development-only schedule audit with a hard sunset so it cannot linger in release code.
-    // - run every 10 minutes until August 1, 2026
-    // - then every 30 minutes until September 1, 2026
+    // - run every 30 minutes until October 1, 2026
     // - then disable completely
-    if (now < Date.UTC(2026, 7, 1)) return 10 * 60e3;
-    if (now < Date.UTC(2026, 8, 1)) return 30 * 60e3;
+    if (now < Date.UTC(2026, 9, 1)) return 30 * 60e3;
     return null;
   }
 
@@ -760,32 +788,36 @@ export class TeslaAgent extends AbstractAgent {
   private async tryEmergencyWakeForCharging(
     job: TeslaAgentJob,
     vehicle: VehicleEntry,
-    requestedSchedule: ReadonlyArray<NumericChargePlan>,
-    wantedSoc: number | undefined
+    location: GQLLocationFragment
   ): Promise<boolean> {
     const now = Date.now();
-    const activeWindow = requestedSchedule.find((window) => {
-      const start = numericStartTime(window.chargeStart);
-      const stop = numericStopTime(window.chargeStop);
-      return start <= now && now < stop;
-    });
-    if (!activeWindow || vehicle.isOnline || !(vehicle.dbData?.isConnected || this.isConnected(vehicle))) {
+    // The charging run covering now, from the plan as the server made it: the schedule handleSchedules
+    // writes is quantized, drops ended entries and back-dates a Stopped car's start to kick it.
+    // The server stores no plan (null) when no charging is needed. An entry starting after now still extends
+    // the run it overlaps or touches, as handleSchedules merges it into the same written window.
+    const plan = vehicle.dbData!.chargePlan ?? [];
+    let runStart = -Infinity;
+    let runStop = -Infinity;
+    for (const p of [...plan].sort((a, b) => compareStartTimes(a.chargeStart, b.chargeStart))) {
+      const start = numericStartTime(p.chargeStart);
+      if (start > Math.max(now, runStop)) break;
+      if (start > runStop) runStart = start;
+      runStop = Math.max(runStop, numericStopTime(p.chargeStop));
+    }
+    const soc = vehicle.telemetryData.Soc;
+    if (runStop <= now || soc === undefined) {
       return false;
     }
-    if (this.isChargingState(vehicle.telemetryData.DetailedChargeState)) {
+    // Wake only for needed charge that has started and is not reached, also when its allocation already
+    // passed (the plan is not recomputed while the car sleeps). Price-driven top-ups (above the level the next
+    // departure needs) are not worth a paid wake: the client shows the unsynced schedule and the user decides.
+    if (!plan.some((p) => p.chargeType !== GQLChargeType.Prefered
+      && p.chargeType !== GQLChargeType.Fill
+      && numericStartTime(p.chargeStart) <= now
+      && soc < p.level - 1.5)) {
       return false;
     }
-    const rawTargetSoc = wantedSoc ?? vehicle.telemetryData.ChargeLimitSoc ?? null;
-    const targetSoc = rawTargetSoc === null || rawTargetSoc === undefined
-      ? null
-      : Math.max(config.TESLA_LOWEST_POSSIBLE_CHARGETO, Math.min(rawTargetSoc, 100));
-    if (targetSoc === null || vehicle.telemetryData.Soc === undefined || vehicle.telemetryData.Soc >= targetSoc - 1.5) {
-      return false;
-    }
-    const blockedSince = Math.max(
-      numericStartTime(activeWindow.chargeStart),
-      vehicle.lastChargingAt || 0
-    );
+    const blockedSince = Math.max(runStart, vehicle.lastChargingAt || 0);
     if (now < blockedSince + TeslaAgent.EMERGENCY_WAKE_GRACE_MS) {
       return false;
     }
@@ -801,19 +833,35 @@ export class TeslaAgent extends AbstractAgent {
       );
       return false;
     }
+    // The car starts on its own from an onboard schedule here that is due soon within this run, or just
+    // started and may still be booting.
+    const onboardStart = Object.values(vehicle.charge_schedules ?? {}).some((s) => {
+      if (!s.enabled || geoDistance(s.latitude, s.longitude, location.geoLocation.latitude, location.geoLocation.longitude) > TeslaAgent.SCHEDULE_LOCATION_MATCH_M) return false;
+      const start = this.convertFromTeslaSchedule(s, location).chargeStart;
+      return start !== null
+        && now < start + TeslaAgent.EMERGENCY_WAKE_ONBOARD_GRACE_MS
+        && start <= now + TeslaAgent.EMERGENCY_WAKE_ONBOARD_START_MS
+        && start < runStop;
+    });
+    if (onboardStart) {
+      logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} skipping emergency wake-up because an onboard schedule starts soon`);
+      return false;
+    }
 
     logVehicle(
       LogLevel.Info,
       vehicle,
       `${vehicle.vin} emergency wake-up: connected, below target, and not charging for ${Math.round((now - blockedSince) / 60e3)}m`
     );
+    // wake_up is billed and answers while the car boots (normally offline): start the cooldown on any
+    // answer so ticks don't re-wake. A throw starts none, so a wake_up rejected with an HTTP error is sent
+    // again once the command backoff in vehicleWork has passed.
     const wake = await this.callTeslaAPI(job, teslaAPI.wakeUp, vehicle.vin);
-    const wakeState = wake?.response?.state;
-    if (wakeState !== "online") {
-      logVehicle(LogLevel.Warning, vehicle, `${vehicle.vin} emergency wake-up did not report online state`);
+    await this.recordEmergencyWakeUp(vehicle, now);
+    if (wake?.response?.state !== "online") {
+      // Telemetry connectivity requests service work once the car is up; schedules are applied then.
       return false;
     }
-    await this.recordEmergencyWakeUp(vehicle, now);
     await this.refreshVehicleSchedules(job, vehicle, "post-emergency wake");
     return true;
   }
@@ -1099,11 +1147,11 @@ export class TeslaAgent extends AbstractAgent {
   public convertFromTeslaSchedule(schedule: Partial<TeslaChargeSchedule>, location: GQLLocationFragment): NumericChargePlan {
     schedule.start_time = schedule.start_time || 0;
     schedule.end_time = schedule.end_time || 0;
+    const now = this.ConvertUTCtoLocationTime(location, new Date());
     let start = null;
     let stop = null;
     if (schedule.start_enabled && schedule.days_of_week) {
-      start = TeslaScheduleTimeToDate(schedule.days_of_week, schedule.start_time);
-      assert(start !== null, "Invalid start time");
+      start = TeslaScheduleTimeToDate(schedule.days_of_week, schedule.start_time, now);
       if (schedule.end_enabled) {
         // Copy start to stop
         stop = new Date(start.getTime());
@@ -1113,8 +1161,7 @@ export class TeslaAgent extends AbstractAgent {
         stop.setUTCHours(Math.floor(schedule.end_time / 60), schedule.end_time % 60, 0, 0);
       }
     } else if (schedule.end_enabled && schedule.days_of_week) {
-      stop = TeslaScheduleTimeToDate(schedule.days_of_week, schedule.end_time);
-      assert(stop !== null, "Invalid stop time");
+      stop = TeslaScheduleTimeToDate(schedule.days_of_week, schedule.end_time, now);
     }
     return {
       scheduleID: schedule.id,
@@ -1151,7 +1198,8 @@ export class TeslaAgent extends AbstractAgent {
     const schedules = (await this.callTeslaAPI(job, teslaAPI.getVehicleSchedules, vehicle.vin)).response;
     const charge_schedules: { [id: number]: TeslaChargeSchedule } = {};
     for (const s of schedules.charge_schedule_data.charge_schedules) {
-      charge_schedules[s.id] = s;
+      // days_of_week comes from Tesla, also for the owner's own schedules: drop one outside the bitmask
+      if (s.days_of_week >= 0 && s.days_of_week < 1 << 7) charge_schedules[s.id] = s;
     }
     const precondition_schedules: { [id: number]: TeslaPreconditionSchedule } = {};
     for (const s of schedules.preconditioning_schedule_data.precondition_schedules) {
@@ -1180,6 +1228,10 @@ export class TeslaAgent extends AbstractAgent {
     try {
       const now = Date.now();
       const forceImmediateScheduleCheck = (vehicle.lastPlugInAt || 0) > (vehicle.lastImmediateScheduleCheckAt || 0);
+      if (forceImmediateScheduleCheck) {
+        // Recorded before any command, so a failing one consumes the plug-in's single bypass of the backoffs
+        vehicle.lastImmediateScheduleCheckAt = now;
+      }
       const auditIntervalMs = this.scheduleAuditIntervalMs(now);
 
       // 24 minutes without a single update, I consider the vehicle offline
@@ -1188,6 +1240,7 @@ export class TeslaAgent extends AbstractAgent {
         vehicle.network = {};
         await this.updateOnlineStatus(vehicle);
       }
+      if (!forceImmediateScheduleCheck && now < (vehicle.commandBackoffUntil ?? 0)) return;
 
       // Poll schedules when we first see the vehicle online, then audit them periodically.
       if (vehicle.isOnline && (vehicle.charge_schedules === undefined || vehicle.precondition_schedules === undefined)) {
@@ -1218,14 +1271,12 @@ export class TeslaAgent extends AbstractAgent {
         await this.updateScheduleSyncIssue(vehicle, null);
       }
     } catch (err) {
-      // Check if err is RestClientError
+      // A Tesla call failed (timeout, the car asleep, rate limit, ...); most failures are billed, so back off
+      // instead of retrying each tick. Telemetry keeps owning the online state.
       if (err instanceof RestClientError) {
-        if (err.code === 408) { // Request timeout
-          logVehicle(LogLevel.Warning, vehicle, `Request timeout for ${vehicle.vin} (${err.message})`);
-          vehicle.network = {};
-          await this.updateOnlineStatus(vehicle);
-          return;
-        }
+        logVehicle(LogLevel.Warning, vehicle, `Vehicle ${vehicle.vin} command failed (${err.message}), pausing commands`);
+        vehicle.commandBackoffUntil = Date.now() + TeslaAgent.COMMAND_BACKOFF_MS;
+        return;
       }
       logVehicle(LogLevel.Error, vehicle, `vehicleWork error for ${vehicle.vin}: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -1241,10 +1292,6 @@ export class TeslaAgent extends AbstractAgent {
     assert(vehicle.telemetryData !== null, "vehicle.telemetryData is null");
     let wantedSoc: number | undefined;
     const now = Date.now();
-    if (forceImmediateScheduleCheck) {
-      vehicle.lastImmediateScheduleCheckAt = now;
-    }
-
     // Handle charge plans
     const chargePlan: (NumericChargePlan & { comment?: string })[] = (vehicle.dbData.chargePlan || [])
       .filter((p) => {
@@ -1270,8 +1317,8 @@ export class TeslaAgent extends AbstractAgent {
       ).sort((a, b) => compareStartStopTimes(a.chargeStart, a.chargeStop, b.chargeStart, b.chargeStop));
 
     // Check if we are inside the first charge plan
-    const insideFirstCharge = chargePlan.length > 0 && now >= numericStartTime(chargePlan[0].chargeStart);
     const firstChargeStart = chargePlan.length > 0 ? numericStartTime(chargePlan[0].chargeStart) : Infinity;
+    const insideFirstCharge = now >= firstChargeStart;
 
     if (vehicle.telemetryData.DetailedChargeState === telemetryData.DetailedChargeStateValue.DetailedChargeStateStopped && insideFirstCharge) {
       // We are inside the first charge, but it is not charging, so we back-date the start time by at least 10 minutes
@@ -1308,24 +1355,28 @@ export class TeslaAgent extends AbstractAgent {
 
     // Build requested schedule
     const requestedSchedule = chargePlan
-      // Remove open ended plans, cause Tesla does not support them
-      .filter((p) => p.chargeStart !== null || p.chargeStop !== null)
       // Consolidate plans that are overlapping or edge-to-edge
       .reduce((acc, p) => {
         if (acc.length > 0) {
           const last = acc[acc.length - 1];
-          if (compareStartTimes(p.chargeStart, last.chargeStop) <= 0) {
-            // Overlapping or edge-to-edge, merge them
-            last.chargeStop = p.chargeStop;
+          // A null stop is open ended: numericStopTime reads it as never ending
+          if (numericStartTime(p.chargeStart) <= numericStopTime(last.chargeStop)) {
+            // Overlapping or edge-to-edge, merge them. Quantizing can sort a shorter plan after a longer one
+            // with the same start, so keep the later stop.
+            if (numericStopTime(p.chargeStop) > numericStopTime(last.chargeStop)) last.chargeStop = p.chargeStop;
             return acc;
           }
         }
         acc.push(p);
         return acc;
-      }, [] as (NumericChargePlan & { comment?: string })[]);
+      }, [] as (NumericChargePlan & { comment?: string })[])
+      // Remove open ended plans, cause Tesla does not support them. After merging: "now" merged with
+      // "never stop" is open ended too (Tesla rejects it as days_of_week 0).
+      .filter((p) => p.chargeStart !== null || p.chargeStop !== null);
     logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} requested schedule: ${stringifyWithTimestamps(requestedSchedule)}`);
 
     const connected = Boolean(vehicle.dbData?.isConnected || this.isConnected(vehicle));
+    const charging = this.isChargingState(vehicle.telemetryData.DetailedChargeState);
     if (!teslaShouldMaintainRemoteHomeSchedule(
       connected,
       location,
@@ -1341,8 +1392,9 @@ export class TeslaAgent extends AbstractAgent {
       return;
     }
 
+    // A wake only helps a plugged-in car that is not already charging
     const canMutateSchedules = vehicle.isOnline
-      || await this.tryEmergencyWakeForCharging(job, vehicle, requestedSchedule, wantedSoc);
+      || (connected && !charging && await this.tryEmergencyWakeForCharging(job, vehicle, location));
 
     // Schedule reconciliation needs a live schedule view. After a restart, an offline vehicle may
     // only get that by emergency-waking first and refreshing schedules as part of that wake path.
@@ -1367,10 +1419,11 @@ export class TeslaAgent extends AbstractAgent {
         assert(s.id !== undefined, "Invalid schedule ID");
         // Filter out any schedule entry that is not ours
         if (!s.one_time || (s.id < TeslaScheduleIDs.First || s.id > TeslaScheduleIDs.Last)) continue;
-        if (geoDistance(s.latitude, s.longitude, location.geoLocation.latitude, location.geoLocation.longitude) > 100) {
+        if (geoDistance(s.latitude, s.longitude, location.geoLocation.latitude, location.geoLocation.longitude) > TeslaAgent.SCHEDULE_LOCATION_MATCH_M) {
           // Not our location
           // Due to a bug in Tesla API, when we overwrite a schedule, it does not update the location,
-          // so we need to delete it if the location does not match
+          // so we need to delete it if the location does not match, once the car takes commands
+          if (!canMutateSchedules) continue;
           logVehicle(LogLevel.Debug, vehicle, `${vehicle.vin} deleting schedule ${s.id} because it does not match location`);
           logVehicle(LogLevel.Trace, vehicle, `Calling TeslaAPI.removeChargeSchedule(${s.id})`);
           await this.callTeslaAPI(job, teslaAPI.removeChargeSchedule, vehicle.vin, s.id);
@@ -1411,7 +1464,9 @@ export class TeslaAgent extends AbstractAgent {
             vehicle,
             `${vehicle.vin} found purpose match for schedule ${s.scheduleID}: ${stringifyWithTimestamps(s)}`
           );
-          if (!teslaScheduleMatchesExactly(s, r)) {
+          // A rewrite re-enables a schedule the car disabled, so it is never moot then
+          if (!teslaScheduleMatchesExactly(s, r)
+            && !(vehicle.charge_schedules[s.scheduleID].enabled && teslaScheduleRewriteIsMoot(s, r, now, charging))) {
             hasInexactPurposeMatch = true;
             scheduleUpdates.push({
               ...this.convertToTeslaSchedule(r, location),
@@ -1506,7 +1561,7 @@ export class TeslaAgent extends AbstractAgent {
             const isSame = !!existingPrecon
               && wantedPrecon.precondition_time === existingPrecon.precondition_time
               && wantedPrecon.days_of_week === existingPrecon.days_of_week
-              && geoDistance(wantedPrecon.latitude, wantedPrecon.longitude, existingPrecon.latitude, existingPrecon.longitude) < 100;
+              && geoDistance(wantedPrecon.latitude, wantedPrecon.longitude, existingPrecon.latitude, existingPrecon.longitude) < TeslaAgent.SCHEDULE_LOCATION_MATCH_M;
             if (isSame) {
               // No change
               logVehicle(LogLevel.Trace, vehicle, `${vehicle.vin} preconditioning schedule is up to date`);
@@ -1664,6 +1719,8 @@ export class TeslaAgent extends AbstractAgent {
       delete vehicle.network[data.connectionId];
     } else if (data.status === telemetryConnectivity.ConnectivityEvent.CONNECTED) {
       vehicle.network[data.connectionId] = data.networkInterface;
+      // A fresh connection is new evidence that the car takes commands
+      vehicle.commandBackoffUntil = undefined;
     }
     this.requestServiceWork(vehicle, TeslaAgent.URGENT_SERVICE_INTERVAL_S, "connectivity change");
     if (vehicle.vehicleUUID) {
