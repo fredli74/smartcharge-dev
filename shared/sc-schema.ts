@@ -129,7 +129,13 @@ export enum GQLChargeType {
   Manual = 'Manual',
   Trip = 'Trip',
   Routine = 'Routine',
+  
+  /**
+   * 
+   * @deprecated Misspelt; replaced by Preferred
+   */
   Prefered = 'Prefered',
+  Preferred = 'Preferred',
   Fill = 'Fill'
 }
 

@@ -39,6 +39,7 @@ const CHARGE_PRIO: Record<ChargeType, number> = {
   [ChargeType.Trip]: 4,
   [ChargeType.Routine]: 5,
   [ChargeType.Prefered]: 6,
+  [ChargeType.Preferred]: 6,
   [ChargeType.Fill]: 7,
 };
 

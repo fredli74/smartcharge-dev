@@ -339,7 +339,9 @@ export default class eventchart extends Vue {
           x: from,
           x2: to,
           strokeDashArray: 0,
-          fillColor: a.plan.chargeType === GQLChargeType.Fill || a.plan.chargeType === GQLChargeType.Prefered
+          fillColor: a.plan.chargeType === GQLChargeType.Fill
+            || a.plan.chargeType === GQLChargeType.Prefered
+            || a.plan.chargeType === GQLChargeType.Preferred
             ? Color.planPrefered
             : Color.plan,
           borderColor: "none",
