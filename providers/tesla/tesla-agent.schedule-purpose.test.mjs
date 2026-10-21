@@ -410,6 +410,28 @@ test("a window inside an open-ended top-up merges into it", async () => {
   );
 });
 
+test("charging stops at a window's level even when a higher window follows edge-to-edge", async () => {
+  const tripStart = TeslaAgent.prototype.quantizeTime(Date.now(), Math.ceil) + 5 * 60 * 60e3;
+  const { calls } = await runHandleSchedules([
+    { chargeType: "Manual", chargeStart: iso(Date.now() - 60 * 60e3), chargeStop: iso(tripStart), level: 80 },
+    { chargeType: "Trip", chargeStart: iso(tripStart), chargeStop: null, level: 100 },
+  ], {
+    telemetryData: { Soc: 80, ChargeLimitSoc: 100, DetailedChargeState: telemetryData.DetailedChargeStateValue.DetailedChargeStateCharging },
+  });
+  assert.deepEqual(
+    calls.filter((c) => c.fn === teslaAPI.addChargeSchedule).map((c) => [c.arg.start_enabled, c.arg.end_enabled]).sort(),
+    [[false, true], [true, false]]
+  );
+});
+
+test("a stopped car whose SOC sagged just below a reached window's level is not restarted", async () => {
+  const { calls } = await runHandleSchedules(
+    [{ chargeType: "Manual", chargeStart: iso(Date.now() - 60 * 60e3), chargeStop: iso(Date.now() + 60 * 60e3), level: 80 }],
+    { telemetryData: { Soc: 79, ChargeLimitSoc: 100, DetailedChargeState: telemetryData.DetailedChargeStateValue.DetailedChargeStateStopped } }
+  );
+  assert.deepEqual(calls, []);
+});
+
 test("a completed blocker whose end crept is rewritten only when the car disabled it", async () => {
   // Unplugged with no plan: handleSchedules requests a completed end-only blocker at now - 10 min.
   const stop = TeslaAgent.prototype.quantizeTime(Date.now() - 10 * 60e3, Math.floor) - 15 * 60e3;

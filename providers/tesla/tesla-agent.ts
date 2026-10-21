@@ -1302,6 +1302,9 @@ export class TeslaAgent extends AbstractAgent {
         if (p.chargeType === GQLChargeType.Disable) return false;
         // Skip plans that have already ended
         if (p.chargeStop && numericStopTime(p.chargeStop) < now) return false;
+        // Skip plans whose level is reached; the charge limit is the highest level, so only the schedule stops charging here.
+        // Once stopped, the same 1.5% hysteresis as the emergency wake keeps a sagging SOC from restarting it.
+        if ((vehicle.telemetryData!.Soc ?? 0) >= p.level - (this.isChargingState(vehicle.telemetryData!.DetailedChargeState) ? 0 : 1.5)) return false;
         // Ignore plans that are 30 hours in the future
         if (p.chargeStart && numericStartTime(p.chargeStart) > now + 30 * 60 * 60e3) return false;
         return true;
