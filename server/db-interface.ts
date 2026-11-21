@@ -81,6 +81,15 @@ export class DBInterface {
     log(LogLevel.Info, `Checking database`);
     try {
       version = await this.getDatabaseVersion();
+      if (version === "1.0-beta") {
+        // The charge type "prefered" was renamed to "preferred"; stored charge plans still carry the old value.
+        log(LogLevel.Info, `Upgrading database ${version} to ${DB_VERSION}`);
+        await this.pg.tx(async (t) => {
+          await t.none(`UPDATE vehicle SET charge_plan = replace(charge_plan::text, '"prefered"', '"preferred"')::jsonb WHERE charge_plan::text LIKE '%"prefered"%';`);
+          await t.none(`UPDATE setting SET value = $1:json WHERE key = 'version';`, [DB_VERSION]);
+        });
+        version = DB_VERSION;
+      }
       if (version !== DB_VERSION) {
         throw "Database is out of date. No automatic upgrade script found.";
       }
