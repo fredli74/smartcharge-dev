@@ -17,6 +17,7 @@
     "build:server": "npm run _babel:shared && npm run _babel:providers && npm run _babel:server && npm run _create:schema",
     "test:node": "node --test providers/**/*.test.mjs server/*.test.mjs",
     "test": "npm run build:server && npm run test:node",
+    "test:bench": "npm run build && playwright test -c bench",
     "start:server": "node dist/server/server.js",
     "start:worker": "node dist/server/agency.js -d INTERNAL_SERVICE_TOKEN http://localhost:3030"
   },
@@ -62,6 +63,7 @@
     "@babel/preset-typescript": "~7.16.7",
     "@bufbuild/protobuf": "~2.2.3",
     "@mdi/font": "~6.9.96",
+    "@playwright/test": "1.61.1",
     "@types/assert": "~1.5.11",
     "@types/auth0-js": "~9.14.7",
     "@types/compression": "~1.7.5",
