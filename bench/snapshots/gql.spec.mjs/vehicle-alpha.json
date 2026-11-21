@@ -1,0 +1,60 @@
+{
+  "id": "00000000-0000-4000-8000-000000000010",
+  "ownerID": "4ec896dd-1397-58a9-96ab-cb716bb3d62e",
+  "serviceID": "00000000-0000-4000-8000-000000000001",
+  "name": "Bench Alpha",
+  "maximumLevel": 80,
+  "schedule": [
+    {
+      "id": 6,
+      "vehicleID": "00000000-0000-4000-8000-000000000010",
+      "type": "AI",
+      "level": 42,
+      "time": "2026-01-15T10:00:00.000Z",
+      "__typename": "Schedule"
+    }
+  ],
+  "providerData": {
+    "car_type": "model3",
+    "provider": "tesla"
+  },
+  "geoLocation": {
+    "latitude": 59.3,
+    "longitude": 18,
+    "__typename": "GeoLocation"
+  },
+  "locationID": "00000000-0000-4000-8000-000000000003",
+  "locationSettings": [],
+  "batteryLevel": 37,
+  "odometer": 12192000,
+  "outsideTemperature": -5,
+  "insideTemperature": 12,
+  "climateControl": false,
+  "isConnected": true,
+  "chargingTo": null,
+  "estimatedTimeLeft": null,
+  "isDriving": false,
+  "status": "Online (wifi)",
+  "smartStatus": "Predicting battery level 42% (5% charge) is needed before 2026-01-15T10:00:00.000Z",
+  "chargePlan": [
+    {
+      "chargeType": "Routine",
+      "chargeStart": "2026-01-15T00:00:00.000Z",
+      "chargeStop": "2026-01-15T00:28:45.000Z",
+      "level": 42,
+      "comment": "routine charge",
+      "__typename": "ChargePlan"
+    },
+    {
+      "chargeType": "Preferred",
+      "chargeStart": "2026-01-15T00:28:45.000Z",
+      "chargeStop": "2026-01-15T02:15:00.000Z",
+      "level": 61,
+      "comment": "charge setting",
+      "__typename": "ChargePlan"
+    }
+  ],
+  "chargePlanLocationID": "00000000-0000-4000-8000-000000000003",
+  "updated": "2026-01-14T13:30:00.000Z",
+  "__typename": "Vehicle"
+}

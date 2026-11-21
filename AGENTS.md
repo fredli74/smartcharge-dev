@@ -17,6 +17,7 @@
 - providers/: External integrations and provider agents (e.g., tesla/).
 - shared/: Cross-cutting utilities, GraphQL types, and clients shared by server/providers.
 - dist/: Build output (do not edit). deploy/: Dockerfiles and scripts.
+- bench/: Regression bench (seeded server, GraphQL and screenshot snapshots); see Testing Guidelines.
 
 ## Architecture Overview
 - Frontend: Vue 2 SPA served by Vite, calls the server via GraphQL HTTP and subscriptions (graphql-ws).
@@ -42,7 +43,9 @@
 - Run npm run lint before committing; keep console usage minimal and purposeful.
 
 ## Testing Guidelines
-- No formal test suite configured yet. For substantial changes, add targeted unit tests near code (e.g., server/__tests__) and keep coverage for critical logic (pricing, scheduling, auth) high. Ensure lint passes and build succeeds.
+- npm test: Unit tests (node:test) next to the code (*.test.mjs). Add targeted tests for critical logic (pricing, scheduling, auth).
+- npm run test:bench: Regression bench for every dependency update or UI/GraphQL change. It builds, starts a throwaway Postgres 15 and the server on a frozen clock, seeds it by replaying four simulated days through the real Logic (bench/seed.mjs), then compares the app's GraphQL responses and screenshots of the built app against bench/snapshots/, and drives the UI like a user (buttons, slider drags, the date-time picker) while checking each resulting server call through the app's client. An interaction spec must leave the seeded state as it found it (bench/schedule.spec.mjs ends by asserting so); new UI flows get a spec of their own. Needs Postgres 15 server binaries, faketime and Playwright's Chromium (npx playwright install --with-deps chromium). It is not part of CI: run it locally (agents included) before and after a change.
+- A bench failure is a regression until proven otherwise: inspect the diff images in test-results/bench/ first. Only an intended change updates the baselines (npx playwright test -c bench --update-snapshots), and the PR shows the updated snapshots.
 
 ## Commit & Pull Request Guidelines
 - Messages: Short, imperative mood (e.g., Fix charge schedule). Optional Conventional Commit prefix (fix:, docs:, feat:), as seen in history.
