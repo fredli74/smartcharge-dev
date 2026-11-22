@@ -1,5 +1,4 @@
 // The app's own GraphQL client, signed in to the seeded account.
-import { readFileSync } from "node:fs";
 import { SCClient } from "../dist/shared/sc-client.js";
 import * as S from "./scenario.mjs";
 
@@ -9,5 +8,9 @@ export async function signedInClient() {
   return client;
 }
 
-// Bench Alpha as seeded; interaction specs end by asserting they left it like this.
-export const SEEDED_ALPHA = readFileSync(new URL("./snapshots/api/gql.spec.mjs/vehicle-alpha.json", import.meta.url), "utf8");
+// Bench Alpha as the app sees it; interaction specs take it first and must leave it unchanged
+export const alphaState = async (client) => JSON.stringify(await client.getVehicle(S.ALPHA.id));
+
+// Bench Alpha's schedule entries of one type
+export const alphaSchedule = async (client, type) => (await client.getVehicle(S.ALPHA.id)).schedule
+  .filter((s) => s.type === type).map(({ level, time }) => ({ level, time }));

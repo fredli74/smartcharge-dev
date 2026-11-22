@@ -1,6 +1,7 @@
 // Starts the bench: a throwaway Postgres, the seed replay, then the built server on the frozen anchor.
+import { strict as assert } from "node:assert";
 import { execFileSync, spawn } from "node:child_process";
-import { mkdtempSync, openSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, openSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import net from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -11,6 +12,12 @@ import * as S from "./scenario.mjs";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 export default async function globalSetup() {
+  // The bench's placeholder car must never ship: fail if the built app carries its marker
+  const appDir = path.join(HERE, "../dist/app");
+  for (const file of readdirSync(appDir, { recursive: true, withFileTypes: true }).filter((f) => f.isFile())) {
+    assert(!readFileSync(path.join(file.path, file.name)).includes("BENCH-ONLY PLACEHOLDER"),
+      `${path.join(file.path, file.name)} contains the bench-only placeholder car`);
+  }
   // The server logs a busy port and keeps running, so readiness would poll whatever else owns it
   await new Promise((resolve, reject) => {
     const probe = net.createServer().once("error", reject).listen(S.SERVER_PORT, () => probe.close(resolve));
@@ -32,7 +39,7 @@ export default async function globalSetup() {
     env: { ...env, SINGLE_USER: "true", SERVER_PORT: `${S.SERVER_PORT}` },
     stdio: ["ignore", log, log],
   });
-  const teardown = async () => {
+  const teardown = () => {
     server.kill();
     pg.stop();
     rmSync(dir, { recursive: true, force: true });
@@ -40,7 +47,7 @@ export default async function globalSetup() {
   for (;;) {
     if (server.exitCode !== null) {
       process.stderr.write(readFileSync(logFile));
-      await teardown();
+      teardown();
       throw new Error(`bench server exited with ${server.exitCode}, its log is above`);
     }
     if (await fetch(`${S.BASE_URL}/api/config`).then((r) => r.ok, () => false)) break;

@@ -6,8 +6,8 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 // Production runs Postgres 15 (deploy/postgres.Dockerfile).
-const PG_BIN = process.env.BENCH_PG_BIN || "/usr/lib/postgresql/15/bin";
-const FAKETIME_LIB = process.env.BENCH_FAKETIME_LIB || "/usr/lib/x86_64-linux-gnu/faketime/libfaketime.so.1";
+const PG_BIN = "/usr/lib/postgresql/15/bin";
+const FAKETIME_LIB = "/usr/lib/x86_64-linux-gnu/faketime/libfaketime.so.1";
 const PORT = 54329;
 
 export function writeClockFile(file, ms) {
@@ -19,7 +19,6 @@ export function startPostgres(clockFile) {
   const data = path.join(dir, "data");
   const run = (bin, args, env = process.env) =>
     execFileSync(path.join(PG_BIN, bin), args, { env, stdio: ["ignore", "ignore", "inherit"] });
-  const psql = (sql) => run("psql", ["-h", dir, "-p", `${PORT}`, "-U", "postgres", "-v", "ON_ERROR_STOP=1", "-q", "-c", sql]);
 
   run("initdb", ["-D", data, "-U", "postgres", "-A", "trust", "-E", "UTF8", "--no-sync"]);
   run("pg_ctl", ["-D", data, "-l", path.join(dir, "postgres.log"), "-w", "-o",
@@ -31,16 +30,14 @@ export function startPostgres(clockFile) {
     FAKETIME_NO_CACHE: "1",
     FAKETIME_DONT_FAKE_MONOTONIC: "1",
   });
-  const stop = () => {
-    run("pg_ctl", ["-D", data, "-m", "immediate", "stop"]);
-    rmSync(dir, { recursive: true, force: true });
+  // Each -c runs on its own, so CREATE DATABASE stays outside a transaction
+  run("psql", ["-h", dir, "-p", `${PORT}`, "-U", "postgres", "-v", "ON_ERROR_STOP=1", "-q",
+    "-c", "CREATE ROLE scserver LOGIN PASSWORD 'scserver';", "-c", "CREATE DATABASE smartcharge OWNER scserver;"]);
+  return {
+    url: `postgres://scserver:scserver@localhost:${PORT}/smartcharge`,
+    stop() {
+      run("pg_ctl", ["-D", data, "-m", "immediate", "stop"]);
+      rmSync(dir, { recursive: true, force: true });
+    },
   };
-  try {
-    psql(`CREATE ROLE scserver LOGIN PASSWORD 'scserver';`);
-    psql(`CREATE DATABASE smartcharge OWNER scserver;`);
-  } catch (err) {
-    stop();
-    throw err;
-  }
-  return { url: `postgres://scserver:scserver@localhost:${PORT}/smartcharge`, stop };
 }

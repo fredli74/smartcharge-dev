@@ -21,5 +21,5 @@ export const WORK = { id: "00000000-0000-4000-8000-000000000004", name: "Work", 
 export const AWAY = { latitude: 59.4, longitude: 17.9 }; // not a known location
 
 // Alpha commutes and is plugged in at home at the anchor; Beta ends the replay parked away from any location.
-export const ALPHA = { id: "00000000-0000-4000-8000-000000000010", name: "Bench Alpha" };
-export const BETA = { id: "00000000-0000-4000-8000-000000000011", name: "Bench Beta" };
+export const ALPHA = { id: "00000000-0000-4000-8000-000000000010", name: "Bench Alpha", status: "Online (wifi)" };
+export const BETA = { id: "00000000-0000-4000-8000-000000000011", name: "Bench Beta", status: "Sleeping" };

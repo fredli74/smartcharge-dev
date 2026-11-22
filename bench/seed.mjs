@@ -5,6 +5,7 @@ import * as S from "./scenario.mjs";
 
 const { DBInterface, SINGLE_USER_UUID } = await import("../dist/server/db-interface.js");
 const { Logic } = await import("../dist/server/logic.js");
+const { numericStartTime, numericStopTime } = await import("../dist/shared/utils.js");
 
 const db = new DBInterface();
 await db.init();
@@ -12,7 +13,6 @@ const logic = new Logic(db);
 
 // Stockholm winter time; the scenario never crosses a DST change.
 const localHour = (t) => ((t / 3600e3 + 1) % 24 + 24) % 24;
-const localDay = (t) => new Date(t + 3600e3).getUTCDay(); // 0 = Sunday
 
 // Fixed rows, with fixed ids so snapshots and URLs are stable
 await db.pg.none(`UPDATE account SET api_token = $1 WHERE account_uuid = $2;`, [S.TOKEN, SINGLE_USER_UUID]);
@@ -26,11 +26,12 @@ for (const [loc, priceList] of [[S.HOME, S.PRICE_LIST_ID], [S.WORK, null]]) {
     [loc.id, SINGLE_USER_UUID, loc.name, loc.latitude * 1e6, loc.longitude * 1e6, priceList]
   );
 }
+// The status text is the provider agent's; without one the app lists a vehicle as not polled yet
 for (const v of [S.ALPHA, S.BETA]) {
   await db.pg.none(
-    `INSERT INTO vehicle(vehicle_uuid, account_uuid, service_uuid, name, maximum_charge, provider_data)
-      VALUES($1, $2, $3, $4, 80, $5);`,
-    [v.id, SINGLE_USER_UUID, S.SERVICE_ID, v.name, { provider: "tesla", car_type: "model3" }]
+    `INSERT INTO vehicle(vehicle_uuid, account_uuid, service_uuid, name, maximum_charge, provider_data, status)
+      VALUES($1, $2, $3, $4, 80, $5, $6);`,
+    [v.id, SINGLE_USER_UUID, S.SERVICE_ID, v.name, { provider: "tesla", car_type: "model3" }, v.status]
   );
 }
 
@@ -45,17 +46,14 @@ for (let t = S.PRICES_FROM; t <= S.PRICES_TO; t += 15 * 60e3) {
 // Where each vehicle is at local time t: [from, to] while driving, a place when parked
 function itinerary(vehicle, t) {
   const h = localHour(t);
-  const day = localDay(t);
+  const day = new Date(t + 3600e3).getUTCDay(); // 0 = Sunday
   if (vehicle === S.ALPHA) {
-    // Commutes Monday and Tuesday; on Wednesday a half day at the office brings it home at the anchor (14:30)
-    const workday = day >= 1 && day <= 3;
-    const backHome = day === 3 ? 14 : 16;
-    if (workday && h >= 7.5 && h < 8) return [S.HOME, S.WORK];
-    if (workday && h >= 8 && h < backHome) return S.WORK;
-    if (workday && h >= backHome && h < backHome + 0.5) return [S.WORK, S.HOME];
-    if ((day === 0 || day === 6) && h >= 11 && h < 11.5) return [S.HOME, S.WORK];
-    if ((day === 0 || day === 6) && h >= 11.5 && h < 13) return S.WORK;
-    if ((day === 0 || day === 6) && h >= 13 && h < 13.5) return [S.WORK, S.HOME];
+    // Commutes Monday to Wednesday (a half day on Wednesday brings it home at the anchor, 14:30) and makes a
+    // weekend outing to Work; the replay has no Thursday or Friday
+    const [leave, back] = day >= 1 && day <= 3 ? [7.5, day === 3 ? 14 : 16] : [11, 13];
+    if (h >= leave && h < leave + 0.5) return [S.HOME, S.WORK];
+    if (h >= leave + 0.5 && h < back) return S.WORK;
+    if (h >= back && h < back + 0.5) return [S.WORK, S.HOME];
     return S.HOME;
   }
   // Beta stays home until Wednesday noon, then drives off and parks away from any known location
@@ -93,9 +91,7 @@ for (let t = S.REPLAY_FROM; t <= S.ANCHOR; t += S.TICK_MS) {
     // Charge like the car would: follow the active window of the plan the server made
     const { charge_plan } = await db.getVehicle(undefined, vehicle.id);
     const active = connected && (charge_plan || []).find((p) =>
-      (p.chargeStart === null || new Date(p.chargeStart).getTime() <= t)
-      && (p.chargeStop === null || t < new Date(p.chargeStop).getTime())
-      && state.level < p.level);
+      numericStartTime(p.chargeStart) <= t && t < numericStopTime(p.chargeStop) && state.level < p.level);
     if (active) {
       state.level += 1;
       state.energyAdded += (11 * S.TICK_MS) / 3600e3;
@@ -120,7 +116,4 @@ for (let t = S.REPLAY_FROM; t <= S.ANCHOR; t += S.TICK_MS) {
   }
 }
 assert(Date.now() === S.ANCHOR, "the replay must end exactly at the anchor");
-// The provider agent reports a status text; without one the app lists a vehicle as not polled yet
-await db.pg.none(`UPDATE vehicle SET status = $1 WHERE vehicle_uuid = $2;`, ["Online (wifi)", S.ALPHA.id]);
-await db.pg.none(`UPDATE vehicle SET status = $1 WHERE vehicle_uuid = $2;`, ["Sleeping", S.BETA.id]);
 process.exit(0); // DBInterface starts a maintenance interval that would keep the seed alive
