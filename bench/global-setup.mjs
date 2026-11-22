@@ -1,6 +1,7 @@
 // Starts the bench: a throwaway Postgres, the seed replay, then the built server on the frozen anchor.
 import { execFileSync, spawn } from "node:child_process";
 import { mkdtempSync, openSync, readFileSync, rmSync } from "node:fs";
+import net from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -10,6 +11,10 @@ import * as S from "./scenario.mjs";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 export default async function globalSetup() {
+  // The server logs a busy port and keeps running, so readiness would poll whatever else owns it
+  await new Promise((resolve, reject) => {
+    const probe = net.createServer().once("error", reject).listen(S.SERVER_PORT, () => probe.close(resolve));
+  });
   // The node children run outside the repo so the server's dotenv never reads the repo's .env
   const dir = mkdtempSync(path.join(tmpdir(), "smartcharge-bench-run-"));
   const clock = path.join(dir, "clock");
