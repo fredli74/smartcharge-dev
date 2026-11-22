@@ -23,7 +23,6 @@ export default defineConfig({
     colorScheme: "light",
     serviceWorkers: "block",
   },
-  // The GraphQL contract does not depend on a screen, the UI specs run at both sizes
   projects: [
     { name: "api", testMatch: "gql.spec.mjs" },
     // A phone: the app is mostly used as an installed PWA

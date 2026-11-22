@@ -1,5 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 720" width="1440" height="720">
-  <!-- Bench stand-in for the Tesla configurator render, drawn for the bench (no third-party artwork). -->
+  <!-- BENCH-ONLY PLACEHOLDER: stands in for Tesla's renders in bench screenshots. It must never ship in the app;
+       bench/global-setup.mjs refuses to run if this marker is found in dist/app. -->
   <rect width="1440" height="720" fill="#f2f2f2"/>
   <ellipse cx="720" cy="560" rx="520" ry="34" fill="#d6d6d6"/>
   <path d="M250 500 L290 400 Q330 330 430 315 L610 300 Q700 230 820 230 L960 232 Q1060 240 1130 320 L1200 350 Q1240 370 1245 420 L1250 500 Z" fill="#7a8a99"/>

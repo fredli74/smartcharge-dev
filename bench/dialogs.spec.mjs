@@ -1,26 +1,17 @@
 // The parts of the vehicle dialogs on their own: the level slider, the date-time picker and the charge
-// control buttons. Every test ends with the vehicle exactly as seeded.
-import { test, expect, openVehicle, dragSlider } from "./fixtures.mjs";
-import { signedInClient, SEEDED_ALPHA } from "./client.mjs";
+// control buttons. Every test ends with the vehicle as it found it.
+import { test, expect, openVehicle, newTrip, openMenu, pickerDay, pickerTime, dragSlider } from "./fixtures.mjs";
+import { signedInClient, alphaState, alphaSchedule } from "./client.mjs";
 import * as S from "./scenario.mjs";
-
-const seeded = async (client) => `${JSON.stringify(await client.getVehicle(S.ALPHA.id), null, 2)}\n`;
-
-// The schedule dialog with a new, unsaved trip; its level starts at the vehicle's maximum (80%)
-async function newTrip(page) {
-  await openVehicle(page, S.ALPHA);
-  await page.locator("button:has(i.mdi-calendar-clock)").click();
-  await page.getByRole("button", { name: "add trip" }).click();
-  return page.locator(".new-schedule");
-}
 
 test("level slider: limits, warning above maximum, cancel", async ({ page }) => {
   const client = await signedInClient();
+  const before = await alphaState(client);
   const item = await newTrip(page);
   const level = item.locator("button:has(i.mdi-lightning-bolt)");
   await expect(level).toContainText("80%");
   await level.click();
-  const menu = page.locator(".menuable__content__active");
+  const menu = openMenu(page);
   const slider = menu.locator("[role=slider]");
 
   await test.step("it stops at the direct charge level", async () => {
@@ -43,23 +34,22 @@ test("level slider: limits, warning above maximum, cancel", async ({ page }) => 
   await test.step("an unsaved trip leaves nothing behind", async () => {
     await item.getByRole("button", { name: "Cancel" }).click();
     await expect(page.locator(".new-schedule")).toHaveCount(0);
-    expect(await seeded(client)).toBe(SEEDED_ALPHA);
+    expect(await alphaState(client)).toBe(before);
   });
 });
 
 test("date-time picker: past disabled, month navigation, minute steps, cancel", async ({ page }) => {
   const client = await signedInClient();
+  const before = await alphaState(client);
   const item = await newTrip(page);
   const time = item.locator("button:has(i.mdi-clock-start)");
-  const before = (await time.textContent()).trim(); // innerText would be CSS-uppercased
+  const shown = (await time.textContent()).trim(); // innerText would be CSS-uppercased
   await time.click();
-  const picker = page.locator(".menuable__content__active .vdatetime-popup");
-  const day = (d) => picker.locator(".vdatetime-calendar__month__day", { hasText: new RegExp(`^${d}$`) });
-  const hour = (h) => picker.locator(".vdatetime-time-picker__list--hours .vdatetime-time-picker__item", { hasText: new RegExp(`^${h}$`) });
+  const picker = openMenu(page);
 
   await test.step("days before today are disabled", async () => {
-    await expect(day(13)).toHaveClass(/--disabled/);
-    await expect(day(14)).not.toHaveClass(/--disabled/);
+    await expect(pickerDay(page, 13)).toHaveClass(/--disabled/);
+    await expect(pickerDay(page, 14)).not.toHaveClass(/--disabled/);
     await expect(picker).toHaveScreenshot("calendar.png");
   });
   await test.step("the month can be changed and changed back", async () => {
@@ -70,9 +60,9 @@ test("date-time picker: past disabled, month navigation, minute steps, cancel", 
     await expect(month).toHaveText("Januari 2026");
   });
   await test.step("today's past hours are disabled", async () => {
-    await day(14).click();
-    await expect(hour("13")).toHaveClass(/--disabled/);
-    await expect(hour("15")).not.toHaveClass(/--disabled/);
+    await pickerDay(page, 14).click();
+    await expect(pickerTime(page, "hours", "13")).toHaveClass(/--disabled/);
+    await expect(pickerTime(page, "hours", "15")).not.toHaveClass(/--disabled/);
   });
   await test.step("minutes come in steps of ten", async () => {
     await expect(picker.locator(".vdatetime-time-picker__list--minutes .vdatetime-time-picker__item"))
@@ -80,18 +70,18 @@ test("date-time picker: past disabled, month navigation, minute steps, cancel", 
   });
   await test.step("cancel keeps the time", async () => {
     await picker.locator(".vdatetime-popup__actions__button--cancel").click();
-    await expect(time).toHaveText(before);
+    await expect(time).toHaveText(shown);
   });
   await test.step("an unsaved trip leaves nothing behind", async () => {
     await item.getByRole("button", { name: "Cancel" }).click();
-    expect(await seeded(client)).toBe(SEEDED_ALPHA);
+    expect(await alphaState(client)).toBe(before);
   });
 });
 
 test("charge control: start with a level, stop, back to smart charge", async ({ page }) => {
   const client = await signedInClient();
-  const manual = async () => (await client.getVehicle(S.ALPHA.id)).schedule
-    .filter((s) => s.type === "Manual").map(({ level, time }) => ({ level, time }));
+  const before = await alphaState(client);
+  const manual = () => alphaSchedule(client, "Manual");
   await openVehicle(page, S.ALPHA);
   await page.locator("#vehicle-actions button:has(i.mdi-lightning-bolt)").click();
   const dialog = page.locator(".v-dialog--active");
@@ -121,6 +111,6 @@ test("charge control: start with a level, stop, back to smart charge", async ({ 
   await test.step("smart charge removes the override", async () => {
     await mode("Smart Charge").click();
     await expect.poll(manual).toEqual([]);
-    await expect.poll(() => seeded(client)).toBe(SEEDED_ALPHA);
+    await expect.poll(() => alphaState(client)).toBe(before);
   });
 });
