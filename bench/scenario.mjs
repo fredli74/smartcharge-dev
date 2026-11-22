@@ -8,7 +8,8 @@ export const TICK_MS = 5 * 60e3;
 export const PRICES_FROM = ANCHOR - 25 * 24 * 60 * 60e3;
 export const PRICES_TO = Date.parse("2026-01-15T23:00:00Z");
 
-export const SERVER_PORT = 3009;
+// Outside 3000-3010: that range is published to the host and shared by every session's dev servers.
+export const SERVER_PORT = 54330;
 export const BASE_URL = `http://localhost:${SERVER_PORT}`;
 // The server accepts exactly 64 characters after "Bearer ".
 export const TOKEN = "bench".padEnd(64, "0");
