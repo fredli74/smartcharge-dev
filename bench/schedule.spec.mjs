@@ -36,6 +36,11 @@ test("trip schedule: add, edit and remove", async ({ page }) => {
     // The dialog's back button is a chevron on a phone and a cross on a desktop
     await page.locator(".v-dialog--active .v-toolbar button").first().click();
     await expect(page.locator(".v-dialog--active")).toHaveCount(0);
+    // The closed dialog gives focus back to the schedule button, and on a desktop leaves the mouse over it; either
+    // opens its tooltip, after a delay that races the screenshot. Take the screenshot without it.
+    await page.evaluate(() => document.activeElement.blur());
+    await page.mouse.move(0, 0);
+    await expect(page.locator(".v-tooltip__content.menuable__content__active")).toHaveCount(0);
     await expect(page).toHaveScreenshot("vehicle-with-trip.png", { fullPage: true });
   });
 
