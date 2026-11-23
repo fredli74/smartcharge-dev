@@ -55,29 +55,27 @@
               </v-btn>
             </template>
             <v-card>
-              <v-row>
-                <v-col class="mx-4 mt-3 mb-n5">
-                  <v-slider
-                    v-model="levelSlider"
-                    class="pt-8"
-                    thumb-label="always"
-                    :min="directLevel"
-                    :max="100"
-                    prepend-icon="mdi-battery-charging-30"
-                    append-icon="mdi-battery-charging-100"
-                    :color="
-                      levelSlider > vehicle.maximumLevel ? 'deep-orange' : ''
-                    "
-                    :thumb-color="
-                      levelSlider > vehicle.maximumLevel
-                        ? 'deep-orange darken-2'
-                        : ''
-                    "
-                    @start="capturing = true"
-                    @end="stopCapture"
-                  />
-                </v-col>
-              </v-row>
+              <div class="px-4 pt-3 mb-n5">
+                <v-slider
+                  v-model="levelSlider"
+                  class="pt-8"
+                  thumb-label="always"
+                  :min="directLevel"
+                  :max="100"
+                  prepend-icon="mdi-battery-charging-30"
+                  append-icon="mdi-battery-charging-100"
+                  :color="
+                    levelSlider > vehicle.maximumLevel ? 'deep-orange' : ''
+                  "
+                  :thumb-color="
+                    levelSlider > vehicle.maximumLevel
+                      ? 'deep-orange darken-2'
+                      : ''
+                  "
+                  @start="capturing = true"
+                  @end="stopCapture"
+                />
+              </div>
               <v-card-actions>
                 <v-spacer />
 
