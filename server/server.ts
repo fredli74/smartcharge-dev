@@ -240,7 +240,9 @@ program
       const PORT = parseInt(program.opts().port || config.SERVER_PORT);
       const IP = program.opts().ip || config.SERVER_IP;
       
-      // Start server
+      // Start server. A listen error (e.g. a busy port) must end the process: ws forwards it to the WebSocket
+      // server, where graphql-ws only logs it, and the server would keep running without listening.
+      httpServer.once("error", (err) => { throw err; });
       httpServer.listen(PORT, IP, () => {
         log(LogLevel.Info, `HTTP Server running on [${IP}]:${PORT}`);
       });
