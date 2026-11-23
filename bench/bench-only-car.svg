@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 720" width="1440" height="720">
+  <!-- BENCH-ONLY PLACEHOLDER: stands in for Tesla's renders in bench screenshots. It must never ship in the app;
+       bench/global-setup.mjs refuses to run if this marker is found in dist/app. -->
+  <rect width="1440" height="720" fill="#f2f2f2"/>
+  <ellipse cx="720" cy="560" rx="520" ry="34" fill="#d6d6d6"/>
+  <path d="M250 500 L290 400 Q330 330 430 315 L610 300 Q700 230 820 230 L960 232 Q1060 240 1130 320 L1200 350 Q1240 370 1245 420 L1250 500 Z" fill="#7a8a99"/>
+  <path d="M640 305 Q710 255 820 255 L950 258 Q1020 265 1070 315 Z" fill="#c9d6e2"/>
+  <circle cx="460" cy="510" r="70" fill="#333"/>
+  <circle cx="460" cy="510" r="32" fill="#999"/>
+  <circle cx="1050" cy="510" r="70" fill="#333"/>
+  <circle cx="1050" cy="510" r="32" fill="#999"/>
+</svg>

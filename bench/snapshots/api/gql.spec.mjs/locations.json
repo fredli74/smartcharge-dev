@@ -1,0 +1,32 @@
+[
+  {
+    "id": "00000000-0000-4000-8000-000000000003",
+    "ownerID": "4ec896dd-1397-58a9-96ab-cb716bb3d62e",
+    "name": "Home",
+    "geoLocation": {
+      "latitude": 59.3,
+      "longitude": 18,
+      "__typename": "GeoLocation"
+    },
+    "geoFenceRadius": 250,
+    "serviceID": null,
+    "providerData": {},
+    "priceListID": "00000000-0000-4000-8000-000000000002",
+    "__typename": "Location"
+  },
+  {
+    "id": "00000000-0000-4000-8000-000000000004",
+    "ownerID": "4ec896dd-1397-58a9-96ab-cb716bb3d62e",
+    "name": "Work",
+    "geoLocation": {
+      "latitude": 59.33,
+      "longitude": 18.06,
+      "__typename": "GeoLocation"
+    },
+    "geoFenceRadius": 250,
+    "serviceID": null,
+    "providerData": {},
+    "priceListID": null,
+    "__typename": "Location"
+  }
+]
