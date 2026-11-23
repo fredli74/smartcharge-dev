@@ -15,7 +15,8 @@ import { VitePWA } from 'vite-plugin-pwa'
 dotenv.config();
 
 const commitHash = process.env.SOURCE_VERSION || execSync('git rev-parse --short HEAD').toString().trim();
-const serverURL = `http://${process.env.SERVER_IP ? (process.env.SERVER_IP.includes(":" ) ? `[${process.env.SERVER_IP}]` : process.env.SERVER_IP) : "localhost"}:${process.env.SERVER_PORT || globals.DEFAULT_PORT}`;
+// SERVER_URL points the dev and preview proxy at any server, e.g. https://smartcharge.dev for a local client on live data.
+const serverURL = process.env.SERVER_URL || `http://${process.env.SERVER_IP ? (process.env.SERVER_IP.includes(":" ) ? `[${process.env.SERVER_IP}]` : process.env.SERVER_IP) : "localhost"}:${process.env.SERVER_PORT || globals.DEFAULT_PORT}`;
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
@@ -33,6 +34,7 @@ export default defineConfig({
     proxy: {
       ["/api"]: {
         target: serverURL,
+        changeOrigin: true,
         ws: true,
       },
     },
