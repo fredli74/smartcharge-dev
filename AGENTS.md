@@ -54,4 +54,4 @@
 ## Security & Configuration Tips
 - Secrets: Never commit real tokens or credentials. Use .env (see .env.example) and follow INSTALL for PostgreSQL setup.
 - First run: Server generates INTERNAL_SERVICE_TOKEN; store it in .env for the worker.
-- Node: Use v18.20.x (Volta pinned). Keep dependencies updated via ncu-update.sh/npm-update.sh when relevant.
+- Node: Use v24.x (Volta pinned). Keep dependencies updated via ncu-update.sh/npm-update.sh when relevant.

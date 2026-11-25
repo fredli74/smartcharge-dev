@@ -5,7 +5,7 @@
  * @license MIT (MIT)
  */
 
-import globals from "./smartcharge-globals.json" assert { type: "json" };
+import globals from "./smartcharge-globals.json" with { type: "json" };
 export const API_PATH = globals.API_PATH;
 export const DEFAULT_PORT = globals.DEFAULT_PORT;
 
