@@ -27,7 +27,7 @@ import { Command } from "commander";
 
 import config from "@shared/smartcharge-config.js";
 import { ApolloServer } from "@apollo/server"
-import { expressMiddleware } from "@apollo/server/express4";
+import { expressMiddleware } from "@as-integrations/express4";
 import { ApolloServerPluginDrainHttpServer } from "@apollo/server/plugin/drainHttpServer";
 import { DBAccount } from "./db-schema.js";
 import { GraphQLError } from "graphql";
@@ -75,8 +75,7 @@ program
             return await db.lookupAccount(cred[1]);
           }
         } catch {
-          throw new GraphQLError("Authorization failed", undefined, undefined, undefined, undefined, undefined,
-            { code: "UNAUTHORIZED" });
+          throw new GraphQLError("Authorization failed", { extensions: { code: "UNAUTHORIZED" } });
         }
       };
 

@@ -21,9 +21,7 @@ export async function authorize(
     return await teslaAPI.authorize(code, callbackURI);
   } catch (err) {
     log(LogLevel.Error, err);
-    throw new GraphQLError("Invalid token",
-      undefined, undefined, undefined, undefined, undefined, { code: "INVALID_TOKEN" }
-    );
+    throw new GraphQLError("Invalid token", { extensions: { code: "INVALID_TOKEN" } });
   }
 }
 
@@ -92,9 +90,7 @@ export async function maintainServiceToken(
         );
         log(LogLevel.Error, `Unexpected error raised when renewing token ${JSON.stringify(err)}`);
       }
-      throw new GraphQLError("Invalid token",
-        undefined, undefined, undefined, undefined, undefined, { code: "INVALID_TOKEN" }
-      );
+      throw new GraphQLError("Invalid token", { extensions: { code: "INVALID_TOKEN" } });
     }
   } else {
     log(LogLevel.Debug, `Token ${redactSecret(service.service_data.token.access_token)} is already being refreshed, ignoring`);
@@ -201,23 +197,17 @@ const server: IProviderServer = {
       case TeslaProviderMutates.RefreshToken: {
         log(LogLevel.Trace, `TeslaProviderMutates.RefreshToken ${JSON.stringify(data)}`);
         if (!data.service_uuid) {
-          throw new GraphQLError("Invalid call to RefreshToken",
-            undefined, undefined, undefined, undefined, undefined, { code: "BAD_USER_INPUT" }
-          );
+          throw new GraphQLError("Invalid call to RefreshToken", { extensions: { code: "BAD_USER_INPUT" } });
         }
         const service = await context.db.pg.oneOrNone(
           `SELECT * FROM service_provider WHERE service_uuid=$1;`,
           [data.service_uuid]
         );
         if (!service) {
-          throw new GraphQLError("Service not found",
-            undefined, undefined, undefined, undefined, undefined, { code: "BAD_USER_INPUT" }
-          );
+          throw new GraphQLError("Service not found", { extensions: { code: "BAD_USER_INPUT" } });
         }
         if (!service.service_data.token) {
-          throw new GraphQLError("Service does not have a token",
-            undefined, undefined, undefined, undefined, undefined, { code: "INVALID_TOKEN" }
-          );
+          throw new GraphQLError("Service does not have a token", { extensions: { code: "INVALID_TOKEN" } });
         }
         return await maintainServiceToken(context.db, service);
       }
@@ -225,9 +215,7 @@ const server: IProviderServer = {
         const input = data.input as TeslaNewListEntry;
         log(LogLevel.Trace, `TeslaProviderMutates.NewVehicle(${JSON.stringify(input)})`);
         if (context.accountUUID === undefined) {
-          throw new GraphQLError("No accountUUID in context",
-            undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
-          );
+          throw new GraphQLError("No accountUUID in context", { extensions: { code: "UNAUTHENTICATED" } });
         }
         const vehicle = await context.db.newVehicle(
           context.accountUUID,

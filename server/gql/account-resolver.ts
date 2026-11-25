@@ -50,9 +50,7 @@ export class AccountResolver {
   @Query((_returns) => Account)
   async account(@Ctx() context: IContext): Promise<Account> {
     if (!context.accountUUID) {
-      throw new GraphQLError("Not logged in",
-        undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
-      );
+      throw new GraphQLError("Not logged in", { extensions: { code: "UNAUTHENTICATED" } });
     }
     return plainToInstance(
       Account,
@@ -67,15 +65,11 @@ export class AccountResolver {
   ): Promise<Account> {
     if (!config.SINGLE_USER) {
       throw new GraphQLError(
-        "loginWithPassword only allowed in SINGLE_USER mode",
-        undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
-      );
+        "loginWithPassword only allowed in SINGLE_USER mode", { extensions: { code: "UNAUTHENTICATED" } });
     }
     if (password !== config.SINGLE_USER_PASSWORD) {
       throw new GraphQLError(
-        `loginWithPassword called with invalid password`,
-        undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
-      );
+        `loginWithPassword called with invalid password`, { extensions: { code: "UNAUTHENTICATED" } });
     }
     return plainToInstance(Account, await context.db.getAccount(SINGLE_USER_UUID));
   }
@@ -87,16 +81,12 @@ export class AccountResolver {
   ): Promise<Account> {
     if (config.SINGLE_USER) {
       throw new GraphQLError(
-        `loginWithIDToken not allowed in SINGLE_USER mode`,
-        undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
-      );
+        `loginWithIDToken not allowed in SINGLE_USER mode`, { extensions: { code: "UNAUTHENTICATED" } });
     }
     const payload = await jwkVerify(idToken); 
     if (typeof payload !== "object" || !payload.iss || !payload.sub || !payload.name) {
       throw new GraphQLError(
-        `Invalid token, required payload is iss, sub and name`,
-        undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
-      );
+        `Invalid token, required payload is iss, sub and name`, { extensions: { code: "UNAUTHENTICATED" } });
     }
     const [domain, subject] = payload.sub.split("|");
     const uuid = makeAccountUUID(subject, domain);

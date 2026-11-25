@@ -5,7 +5,8 @@
  * @license MIT (MIT)
  */
 
-import { SubscriptionTopic, apolloPubSub } from "./subscription.js";
+import { SubscriptionTopic, pubSub } from "./subscription.js";
+import { filter, pipe } from "@graphql-yoga/subscription";
 import {
   Resolver,
   Ctx,
@@ -18,11 +19,11 @@ import {
   Query,
   ObjectType,
   Field,
+  SubscribeResolverData,
 } from "type-graphql";
 import type { IContext } from "@server/gql/api.js";
-import { GraphQLJSONObject } from "graphql-type-json";
+import { GraphQLJSONObject } from "graphql-scalars";
 import { INTERNAL_SERVICE_UUID } from "@server/db-interface.js";
-import { withFilter } from "graphql-subscriptions";
 import providers from "@providers/provider-servers.js";
 import { IProviderServer } from "@providers/provider-server.js";
 import { DBServiceProvider } from "@server/db-schema.js";
@@ -35,6 +36,11 @@ const providerMap = providers.reduce((a, p) => {
   a[p.name.toLowerCase()] = p;
   return a;
 }, {} as { [name: string]: IProviderServer });
+
+interface ActionSubscriptionArgs {
+  providerName?: string | null;
+  serviceID?: string | null;
+}
 
 @ObjectType()
 export abstract class Action {
@@ -61,14 +67,11 @@ export class ProviderResolver {
   ): Promise<any> {
     const provider = providerMap[name];
     if (provider === undefined) {
-      throw new GraphQLError("Invalid provider name specified",
-        undefined, undefined, undefined, undefined, undefined, { code: "PROVIDER_ERROR" }
-      );
+      throw new GraphQLError("Invalid provider name specified", { extensions: { code: "PROVIDER_ERROR" } });
     }
     if (provider.query === undefined) {
       throw new GraphQLError(`Query not implemented in provider ${provider.name}`,
-        undefined, undefined, undefined, undefined, undefined, { code: "PROVIDER_ERROR" }
-      );
+        { extensions: { code: "PROVIDER_ERROR" } });
     }
     return {
       result: await provider.query(input, context),
@@ -82,14 +85,11 @@ export class ProviderResolver {
   ): Promise<any> {
     const provider = providerMap[name];
     if (provider === undefined) {
-      throw new GraphQLError(`Invalid provider name (${name}) specified`,
-        undefined, undefined, undefined, undefined, undefined, { code: "PROVIDER_ERROR" }
-      );
+      throw new GraphQLError(`Invalid provider name (${name}) specified`, { extensions: { code: "PROVIDER_ERROR" } });
     }
     if (provider.mutation === undefined) {
       throw new GraphQLError(`Mutation not implemented in provider ${provider.name}`,
-        undefined, undefined, undefined, undefined, undefined, { code: "PROVIDER_ERROR" }
-      );
+        { extensions: { code: "PROVIDER_ERROR" } });
     }
     return {
       result: await provider.mutation(input, context),
@@ -115,9 +115,7 @@ export class ProviderResolver {
       (context.accountUUID !== INTERNAL_SERVICE_UUID &&
         service.account_uuid !== context.accountUUID)
     ) {
-      throw new GraphQLError("Invalid service id specified",
-        undefined, undefined, undefined, undefined, undefined, { code: "BAD_USER_INPUT" }
-      );
+      throw new GraphQLError("Invalid service id specified", { extensions: { code: "BAD_USER_INPUT" } });
     }
 
     const id =
@@ -138,44 +136,26 @@ export class ProviderResolver {
       actionMemDatabase[actionObj.actionID] = actionObj;
     }
 
-    await apolloPubSub.publish(SubscriptionTopic.ActionUpdate, actionObj);
+    pubSub.publish(SubscriptionTopic.ActionUpdate, actionObj);
     return actionObj;
   }
 
   @Subscription((_returns) => Action, {
-    subscribe: withFilter(
-      (_payload?: Action, args?: any, context?: IContext) => {
-        if (!args || !context) {
-          throw new GraphQLError("Internal error",
-            undefined, undefined, undefined, undefined, undefined, { code: "PROVIDER_ERROR" }
-          );
-        }
-        if (args.providerName === undefined && args.serviceID === undefined) {
-          throw new GraphQLError("Argument error",
-            undefined, undefined, undefined, undefined, undefined, { code: "PROVIDER_ERROR" }
-          );
-        }
-        if (
-          args.serviceID === undefined &&
-          context.accountUUID !== INTERNAL_SERVICE_UUID
-        ) {
-          throw new GraphQLError("Permission denied",
-            undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
-          );
-        }
-        return apolloPubSub.asyncIterator(SubscriptionTopic.ActionUpdate);
-      },
-      (payload?: Action, args?: any, _context?: IContext) => {
-        return Boolean(
-          args &&
-            payload &&
-            (args.providerName === undefined ||
-              args.providerName === payload.providerName) &&
-            (args.serviceID === undefined ||
-              args.serviceID === payload.serviceID)
-        );
+    subscribe: ({ args, context }: SubscribeResolverData<unknown, ActionSubscriptionArgs, IContext>) => {
+      if (args.providerName === undefined && args.serviceID === undefined) {
+        throw new GraphQLError("Argument error", { extensions: { code: "PROVIDER_ERROR" } });
       }
-    ),
+      if (args.serviceID === undefined && context.accountUUID !== INTERNAL_SERVICE_UUID) {
+        throw new GraphQLError("Permission denied", { extensions: { code: "UNAUTHENTICATED" } });
+      }
+      return pipe(
+        pubSub.subscribe(SubscriptionTopic.ActionUpdate),
+        filter((payload: Action) =>
+          (args.providerName === undefined || args.providerName === payload.providerName) &&
+          (args.serviceID === undefined || args.serviceID === payload.serviceID)
+        )
+      );
+    },
   })
   async actionSubscription(
     @Root() payload: Action,

@@ -6,7 +6,7 @@
  */
 
 import { ObjectType, ID, Root, Resolver, FieldResolver } from "type-graphql";
-import { GraphQLJSONObject } from "graphql-type-json";
+import { GraphQLJSONObject } from "graphql-scalars";
 import "reflect-metadata";
 import { DBServiceProvider } from "@server/db-schema.js";
 

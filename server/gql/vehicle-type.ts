@@ -6,8 +6,9 @@
  */
 
 import "reflect-metadata";
-import { Field, ObjectType, InputType, Int, ID, registerEnumType, Float, Resolver, FieldResolver, Root, Ctx, GraphQLISODateTime } from "type-graphql";
-import { GraphQLJSONObject } from "graphql-type-json";
+import { Field, ObjectType, InputType, Int, ID, registerEnumType, Float, Resolver, FieldResolver, Root, Ctx } from "type-graphql";
+import { GraphQLISODateTime } from "./date-time.js";
+import { GraphQLJSONObject } from "graphql-scalars";
 import { GeoLocation, Location } from "./location-type.js";
 import {
   SmartChargeGoal,
@@ -35,7 +36,7 @@ export class VehicleLocationSettings {
     directLevel!: number;
   @Field((_type) => String)
     goal!: SmartChargeGoal | string;
-  @Field((_type) => SplitCharge, { defaultValue: SplitCharge.Auto })
+  @Field((_type) => SplitCharge, { defaultValue: SplitCharge.Auto, nullable: true })
     splitCharge!: SplitCharge;
 }
 // Not used because we cannot union between enum and String in type-graphql

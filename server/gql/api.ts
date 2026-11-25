@@ -31,7 +31,8 @@ import { ServiceResolver } from "./service-resolver.js";
 import { StatsResolver } from "./stats-resolver.js";
 import { VehicleResolver } from "./vehicle-resolver.js";
 import { VehicleTypeResolver, ScheduleTypeResolver } from "./vehicle-type.js";
-import { PingResolver } from "./subscription.js";
+import { PingResolver, pubSub } from "./subscription.js";
+import { GraphQLISODateTime } from "./date-time.js";
 import { PriceListTypeResolver } from "./price-type.js";
 import { ServiceProviderTypeResolver } from "./service-type.js";
 
@@ -99,5 +100,7 @@ export default function schema(emitFile?: string): Promise<GraphQLSchema> {
     ],
     emitSchemaFile: !!emitFile && emitFile,
     validate: { forbidUnknownValues: false },
+    pubSub,
+    scalarsMap: [{ type: Date, scalar: GraphQLISODateTime }],
   });
 }

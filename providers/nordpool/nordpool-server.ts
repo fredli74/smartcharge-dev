@@ -20,9 +20,7 @@ const server: IProviderServer = {
   },
   mutation: async (data: any, context: IContext) => {
     if (!context.accountUUID || !context.account) {
-      throw new GraphQLError("Access denied, authentication required",
-        undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
-      );
+      throw new GraphQLError("Access denied, authentication required", { extensions: { code: "UNAUTHENTICATED" } });
     }
     switch (data.mutation) {
       case "newLocation": {
