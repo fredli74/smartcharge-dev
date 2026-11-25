@@ -75,9 +75,9 @@ export class LocationResolver {
 
     const publicID = makePublicID(location.location_uuid);
     if (confirm.toLowerCase() !== publicID) {
-      throw new GraphQLError("Incorrect confirmation code", undefined, undefined, undefined, undefined, undefined, {
+      throw new GraphQLError("Incorrect confirmation code", { extensions: {
         code: "BAD_USER_INPUT",
-      });
+      } });
     }
 
     await context.db.removeLocation(id);

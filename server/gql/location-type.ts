@@ -17,7 +17,7 @@ import {
   Ctx,
   Float,
 } from "type-graphql";
-import { GraphQLJSONObject } from "graphql-type-json";
+import { GraphQLJSONObject } from "graphql-scalars";
 
 import "reflect-metadata";
 import { DBLocation } from "@server/db-schema.js";

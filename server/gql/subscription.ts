@@ -5,7 +5,7 @@
  * @license MIT (MIT)
  */
 
-import { PubSub } from "graphql-subscriptions";
+import { createPubSub } from "@graphql-yoga/subscription";
 import { Resolver, Subscription, Root, Int } from "type-graphql";
 
 export enum SubscriptionTopic {
@@ -14,20 +14,17 @@ export enum SubscriptionTopic {
   Ping = "PING",
 }
 
-export const apolloPubSub = new PubSub();
+// The one pub/sub of the schema: type-graphql subscribes `topics` on it and resolvers publish to it
+export const pubSub = createPubSub();
 
 @Resolver()
 export class PingResolver {
-  @Subscription((_returns) => Int, {
-    subscribe: () => {
-      return apolloPubSub.asyncIterator(SubscriptionTopic.Ping);
-    },
-  })
+  @Subscription((_returns) => Int, { topics: SubscriptionTopic.Ping })
   async pingSubscription(@Root() payload: number): Promise<number> {
     return payload;
   }
 }
 
 setInterval(() => {
-  apolloPubSub.publish(SubscriptionTopic.Ping, Math.trunc(Date.now() / 1e3));
+  pubSub.publish(SubscriptionTopic.Ping, Math.trunc(Date.now() / 1e3));
 }, 30e3);

@@ -5,9 +5,9 @@
  * @license MIT (MIT)
  */
 
-import { Resolver, Ctx, Mutation, Arg, ID, Int, Query, Float, PubSub, PubSubEngine } from "type-graphql";
+import { Resolver, Ctx, Mutation, Arg, ID, Int, Query, Float } from "type-graphql";
 import { GraphQLError } from "graphql";
-import { SubscriptionTopic } from "./subscription.js";
+import { SubscriptionTopic, pubSub } from "./subscription.js";
 import type { IContext } from "@server/gql/api.js";
 import { INTERNAL_SERVICE_UUID } from "@server/db-interface.js";
 import { UpdateVehicleDataInput } from "./vehicle-type.js";
@@ -18,9 +18,7 @@ import { log, LogLevel } from "@shared/utils.js";
 
 function authorizeService(context: IContext) {
   if (context.accountUUID !== INTERNAL_SERVICE_UUID) {
-    throw new GraphQLError("Access denied",
-      undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
-    );
+    throw new GraphQLError("Access denied", { extensions: { code: "UNAUTHENTICATED" } });
   }
 }
 
@@ -41,15 +39,14 @@ export class ServiceResolver {
   @Mutation((_returns) => Boolean)
   async _updateVehicleData(
     @Arg("input") input: UpdateVehicleDataInput,
-    @Ctx() context: IContext,
-    @PubSub() pubSub: PubSubEngine
+    @Ctx() context: IContext
   ): Promise<boolean> {
     authorizeService(context);
 
     try {
       const vehicle = await context.db.getVehicle(undefined, input.id);
       await context.logic.updateVehicleData(input);
-      await pubSub.publish(SubscriptionTopic.VehicleUpdate, {
+      pubSub.publish(SubscriptionTopic.VehicleUpdate, {
         vehicle_uuid: vehicle.vehicle_uuid,
         account_uuid: vehicle.account_uuid,
       });
@@ -77,9 +74,7 @@ export class ServiceResolver {
     if (vehicle.charge_id === null) {
       // TODO: what happens if it just stopped charging? should charge_id be sent with the query instead?
       throw new GraphQLError(
-        "sending _chargeCalibration on a vehicle not charging",
-        undefined, undefined, undefined, undefined, undefined, { code: "BAD_USER_INPUT" }
-      );
+        "sending _chargeCalibration on a vehicle not charging", { extensions: { code: "BAD_USER_INPUT" } });
     }
 
     if (!level || !duration) {

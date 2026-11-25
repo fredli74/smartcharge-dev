@@ -15,8 +15,8 @@ import {
   Root,
   Resolver,
   Float,
-  GraphQLISODateTime,
 } from "type-graphql";
+import { GraphQLISODateTime } from "./date-time.js";
 import { DBPriceList } from "@server/db-schema.js";
 
 @ObjectType("PriceList")

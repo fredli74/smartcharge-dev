@@ -45,9 +45,7 @@ export class PriceResolver {
     @Ctx() context: IContext
   ): Promise<PriceList> {
     if (!context.accountUUID) {
-      throw new GraphQLError("Not logged in",
-        undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHENTICATED" }
-      );
+      throw new GraphQLError("Not logged in", { extensions: { code: "UNAUTHENTICATED" } });
     }
     return plainToInstance(
       PriceList,
@@ -65,9 +63,7 @@ export class PriceResolver {
     const list = await context.db.getPriceList(accountID, input.id);
     if (accountID === undefined || list.account_uuid === accountID) {
       // Because we can list public lists, but no edit them
-      throw new GraphQLError("Update access denied",
-        undefined, undefined, undefined, undefined, undefined, { code: "UNAUTHORIZED" }
-      );
+      throw new GraphQLError("Update access denied", { extensions: { code: "UNAUTHORIZED" } });
     }
     return plainToInstance(
       PriceList,

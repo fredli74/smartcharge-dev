@@ -6,8 +6,9 @@
  */
 
 import "reflect-metadata";
-import { Field, ObjectType, Int, ID, Float, registerEnumType, GraphQLISODateTime } from "type-graphql";
-import { GraphQLJSONObject } from "graphql-type-json";
+import { Field, ObjectType, Int, ID, Float, registerEnumType } from "type-graphql";
+import { GraphQLISODateTime } from "./date-time.js";
+import { GraphQLJSONObject } from "graphql-scalars";
 import { ChargePlan, VehicleLocationSettings } from "./vehicle-type.js";
 import { Arg, Resolver, Query, Ctx } from "type-graphql";
 import { accountFilter } from "./api.js";

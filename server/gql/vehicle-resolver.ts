@@ -6,7 +6,7 @@
  */
 import { strict as assert } from "assert";
 
-import { SubscriptionTopic } from "./subscription.js";
+import { SubscriptionTopic, pubSub } from "./subscription.js";
 import {
   Arg,
   Resolver,
@@ -14,13 +14,11 @@ import {
   Ctx,
   Mutation,
   Subscription,
-  PubSub,
-  PubSubEngine,
   Root,
   Int,
   ID,
-  GraphQLISODateTime,
 } from "type-graphql";
+import { GraphQLISODateTime } from "./date-time.js";
 import { accountFilter } from "./api.js";
 import type { IContext } from "./api.js";
 import { INTERNAL_SERVICE_UUID } from "@server/db-interface.js";
@@ -76,7 +74,6 @@ export class VehicleResolver {
   }
 
   @Subscription((_returns) => Vehicle, {
-    // TODO: convert this into a subscribe: using apolloPubSub
     topics: SubscriptionTopic.VehicleUpdate,
     filter: async ({ payload, args, context }) => {
       return (
@@ -122,9 +119,7 @@ export class VehicleResolver {
 
     const publicID = makePublicID(vehicle.vehicle_uuid);
     if (confirm.toLowerCase() !== publicID) {
-      throw new GraphQLError("Incorrect confirmation code",
-        undefined, undefined, undefined, undefined, undefined, { code: "BAD_USER_INPUT" }
-      );
+      throw new GraphQLError("Incorrect confirmation code", { extensions: { code: "BAD_USER_INPUT" } });
     }
 
     await context.db.removeVehicle(id);
@@ -135,8 +130,7 @@ export class VehicleResolver {
   @Mutation((_returns) => Vehicle)
   async updateVehicle(
     @Arg("input") input: UpdateVehicleInput,
-    @Ctx() context: IContext,
-    @PubSub() pubSub: PubSubEngine
+    @Ctx() context: IContext
   ): Promise<Vehicle> {
     // verify vehicle ownage
     const vehicle = await context.db.getVehicle(accountFilter(context.accountUUID), input.id);
@@ -170,7 +164,7 @@ export class VehicleResolver {
     if (input.maximumLevel !== undefined || input.locationSettings !== undefined) {
       await context.logic.refreshChargePlan(input.id);
     }
-    await pubSub.publish(SubscriptionTopic.VehicleUpdate, {
+    pubSub.publish(SubscriptionTopic.VehicleUpdate, {
       vehicle_uuid: result.vehicle_uuid,
       account_uuid: result.account_uuid,
     });
@@ -181,8 +175,7 @@ export class VehicleResolver {
   async removeSchedule(
     @Arg("id", (_type) => Int) id: number,
     @Arg("vehicleID", (_type) => ID) vehicleID: string,
-    @Ctx() context: IContext,
-    @PubSub() pubSub: PubSubEngine
+    @Ctx() context: IContext
   ): Promise<boolean> {
     // verify vehicle ownage
     const vehicle = await context.db.getVehicle(
@@ -193,7 +186,7 @@ export class VehicleResolver {
 
     await context.db.removeSchedule(id, vehicle.vehicle_uuid);
     await context.logic.refreshChargePlan(vehicle.vehicle_uuid);
-    await pubSub.publish(SubscriptionTopic.VehicleUpdate, {
+    pubSub.publish(SubscriptionTopic.VehicleUpdate, {
       vehicle_uuid: vehicle.vehicle_uuid,
       account_uuid: vehicle.account_uuid,
     });
@@ -210,8 +203,7 @@ export class VehicleResolver {
       level: number | null,
     @Arg("time", (_type) => GraphQLISODateTime, { nullable: true })
       time: Date | null,
-    @Ctx() context: IContext,
-    @PubSub() pubSub: PubSubEngine
+    @Ctx() context: IContext
   ): Promise<DBSchedule[]> {
     // verify vehicle ownage
     const vehicle = await context.db.getVehicle(accountFilter(context.accountUUID), vehicleID);
@@ -225,7 +217,7 @@ export class VehicleResolver {
       time
     );
     await context.logic.refreshChargePlan(vehicle.vehicle_uuid);
-    await pubSub.publish(SubscriptionTopic.VehicleUpdate, {
+    pubSub.publish(SubscriptionTopic.VehicleUpdate, {
       vehicle_uuid: vehicle.vehicle_uuid,
       account_uuid: vehicle.account_uuid,
     });
