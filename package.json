@@ -87,7 +87,7 @@
     "@vitejs/plugin-vue2": "~2.3.3",
     "@vue/eslint-config-typescript": "~11.0.3",
     "apexcharts": "3.33.1",
-    "auth0-js": "~9.28.0",
+    "auth0-js": "~10.0.0",
     "autoprefixer": "~10.4.20",
     "babel-eslint": "~10.1.0",
     "babel-plugin-module-resolver": "~5.0.2",
