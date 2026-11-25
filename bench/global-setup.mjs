@@ -15,10 +15,10 @@ export default async function globalSetup() {
   // The bench's placeholder car must never ship: fail if the built app carries its marker
   const appDir = path.join(HERE, "../dist/app");
   for (const file of readdirSync(appDir, { recursive: true, withFileTypes: true }).filter((f) => f.isFile())) {
-    assert(!readFileSync(path.join(file.path, file.name)).includes("BENCH-ONLY PLACEHOLDER"),
-      `${path.join(file.path, file.name)} contains the bench-only placeholder car`);
+    assert(!readFileSync(path.join(file.parentPath, file.name)).includes("BENCH-ONLY PLACEHOLDER"),
+      `${path.join(file.parentPath, file.name)} contains the bench-only placeholder car`);
   }
-  // The server logs a busy port and keeps running, so readiness would poll whatever else owns it
+  // A busy port makes the server exit, but readiness polling starts at spawn and would first reach whatever owns it
   await new Promise((resolve, reject) => {
     const probe = net.createServer().once("error", reject).listen(S.SERVER_PORT, () => probe.close(resolve));
   });

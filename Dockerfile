@@ -1,4 +1,4 @@
-FROM node:18-alpine AS builder
+FROM node:24-alpine AS builder
 WORKDIR /usr/src/app
 RUN apk add --no-cache git
 COPY .npmrc ./ 
@@ -15,7 +15,7 @@ RUN \
   npm run build
 
 
-FROM node:18-alpine AS runtime
+FROM node:24-alpine AS runtime
 WORKDIR /usr/src/app
 COPY .npmrc ./ 
 COPY package.json package-lock.json ./

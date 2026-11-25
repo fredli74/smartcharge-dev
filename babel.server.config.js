@@ -21,10 +21,6 @@ export default {
           "@providers": "./providers",
         },
       },
-    ],
-    [
-      "@babel/plugin-syntax-import-assertions",
-      { importAttributesKeyword: "assert" }, // Use "assert" to avoid issues
     ]
   ],
 };
