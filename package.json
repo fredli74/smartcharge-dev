@@ -40,7 +40,7 @@
     "express": "~4.22.3",
     "express-rate-limit": "~7.5.0",
     "graphql": "~16.15.0",
-    "graphql-scalars": "~1.26.0",
+    "graphql-scalars": "~2.0.1",
     "graphql-ws": "~5.16.2",
     "https-proxy-agent": "~7.0.6",
     "jsonwebtoken": "~9.0.2",
