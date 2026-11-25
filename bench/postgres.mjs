@@ -8,7 +8,8 @@ import path from "node:path";
 // Production runs Postgres 15 (deploy/postgres.Dockerfile).
 const PG_BIN = "/usr/lib/postgresql/15/bin";
 const FAKETIME_LIB = "/usr/lib/x86_64-linux-gnu/faketime/libfaketime.so.1";
-const PORT = 54329;
+// Below the Linux ephemeral range, like the server port in scenario.mjs
+const PORT = 24329;
 
 export function writeClockFile(file, ms) {
   writeFileSync(file, new Date(ms).toISOString().replace("T", " ").slice(0, 19)); // absolute = frozen
